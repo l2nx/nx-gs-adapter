@@ -1,6 +1,10 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
+import org.jspecify.annotations.Nullable;
 
 /** {@code itemId} is the inventory instance object-id (NOT a catalog template id). */
 public final class SellLine {
@@ -32,6 +36,17 @@ public final class SellLine {
     /** The engine charges {@code count * priceAdena} for the stack; {@code 0} is a valid give-away price. */
     public long getPriceAdena() {
         return priceAdena;
+    }
+
+    /** First {@code itemId} repeated in {@code lines}, or {@code null}; a store lists each inventory stack once. */
+    public static @Nullable Integer firstDuplicateItemId(Collection<SellLine> lines) {
+        Set<Integer> seen = new HashSet<>();
+        for (SellLine line : lines) {
+            if (line != null && !seen.add(line.getItemId())) {
+                return line.getItemId();
+            }
+        }
+        return null;
     }
 
     public Builder toBuilder() {

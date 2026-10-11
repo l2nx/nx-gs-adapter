@@ -46,9 +46,9 @@ class OwnerVerifiedTest {
                 .unitPriceAdena(100L)
                 .build();
         return Stream.of(
-                Arguments.of(new StopPrivateStoreCommand(1, true)),
-                Arguments.of(new StartPrivateStoreSellCommand(1, "t", Collections.singletonList(sell), true)),
-                Arguments.of(new StartPrivateStorePackageSellCommand(1, "t", Collections.singletonList(sell), true)),
+                Arguments.of(new StopPrivateStoreCommand(1, true, null)),
+                Arguments.of(new StartPrivateStoreSellCommand(1, "t", Collections.singletonList(sell), null, true, null)),
+                Arguments.of(new StartPrivateStorePackageSellCommand(1, "t", Collections.singletonList(sell), null, true, null)),
                 Arguments.of(new BuyFromPrivateStoreCommand(
                         1,
                         2,
