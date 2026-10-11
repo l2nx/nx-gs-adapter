@@ -519,10 +519,12 @@ handles all four online/offline source-target combinations.
 
 ### `SendMailCommand`
 
-**Purpose.** Compose and deliver an in-game mail to a character with
-optional item attachments. Partial-success aware: some attachments may
-fail to materialize (unknown template, capacity exceeded for non-stackable),
-the mail itself is still delivered with whatever succeeded.
+**Purpose.** Compose and deliver a system mail to a character with
+optional item attachments, exactly once per correlation id (durable host-side
+receipt). The wire allows partial success through `itemErrors`; the reference
+host is all-or-nothing: over its per-mail attachment cap it splits the request
+into several mails, delivered all together or not at all. Details:
+[`send-mail.md`](send-mail.md).
 
 **Inputs**
 
@@ -530,28 +532,31 @@ the mail itself is still delivered with whatever succeeded.
 | -------- | ---------------- | -------- | ------------------------------------------------------ |
 | `charId` | `Long`           | yes      | Recipient character                                    |
 | `author` | `String?`        | no       | Display author. Defaults to system character on host   |
-| `title`  | `String`         | yes      | Mail subject (≤ 128 chars per L2 wire limit)           |
-| `body`   | `String?`        | no       | Mail body (≤ 512 chars per L2 wire limit)              |
+| `title`  | `String`         | yes      | Mail subject; non-empty                                |
+| `body`   | `String?`        | no       | Mail body; `null` = empty                              |
 | `items`  | `List<MailItem>` | no       | Each `MailItem`: `itemTemplateId: Long`, `count: Long` |
-| `adena`  | `Long?`          | no       | Adena in the mail (host creates template 57); positive |
+| `adena`  | `Long?`          | no       | Planned, not on the wire yet                           |
 
 **Result** (`SendMailResult`)
 
 | Field            | Type                      | Notes                                                               |
 | ---------------- | ------------------------- | ------------------------------------------------------------------- |
-| `createdMailIds` | `List<Long>`              | Host mail-row ids that landed (1 per mail row; usually one entry)   |
-| `itemErrors`     | `List<ItemDeliveryError>` | Per-item failures (template id + reason). Empty list = full success |
+| `createdMailIds` | `List<Long>`              | Host mail-row ids, one per mail (several when the host splits)      |
+| `itemErrors`     | `List<ItemDeliveryError>` | Lines dropped from a delivered mail; reference host always sends [] |
 
 **Errors**
 
-| Status              | When                                        |
-| ------------------- | ------------------------------------------- |
-| `NOT_FOUND`         | Recipient character does not exist          |
-| `VALIDATION_FAILED` | Missing required field, title too long, ... |
-| `INTERNAL_ERROR`    | Mail subsystem rejected the write           |
+| Status              | When                                                                          |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `VALIDATION_FAILED` | Missing `charId` / `title`, malformed or unknown-template item line           |
+| `NOT_FOUND`         | Recipient character does not exist, or the host's mail manager rejects input  |
+| `INVALID_STATE`     | Offline traders (or the recipient) still being restored after a server start  |
+| `INTERNAL_ERROR`    | Delivery failed, or a repeat while the first attempt's receipt is still open  |
 
-**Side effects on success.** `requestNow("character", charId)`. Mail
-entity is its own sync subject when configured.
+A repeat of a completed correlation id replays the stored `createdMailIds`.
+
+**Side effects on success.** Cascading `character` resync of the recipient
+(its items included).
 
 ---
 
@@ -941,11 +946,12 @@ skew between platform and core.
 
 ### Partial success
 
-`SendMailCommand` and `StartPrivateStoreSellCommand` /
-`StartPrivateStorePackageSellCommand` are the commands with first-class
-partial-success semantics: `SendMailResult.itemErrors` enumerates
-per-item mail-attachment failures while the mail itself was delivered;
+`StartPrivateStoreSellCommand` / `StartPrivateStorePackageSellCommand` are
+the commands with first-class partial-success semantics:
 `StartPrivateStoreResult.dropped` enumerates rejected sell lines while the
-store still opens with whatever lines were accepted. All other commands
+store still opens with whatever lines were accepted. `SendMailCommand`
+keeps a partial-success field on the wire (`SendMailResult.itemErrors`, lines
+dropped from a delivered mail) that consumers must read, but the reference
+host delivers all-or-nothing and always sends it empty. All other commands
 are all-or-nothing — either `OK` with the full effect applied, or a
 non-OK status with no state change.

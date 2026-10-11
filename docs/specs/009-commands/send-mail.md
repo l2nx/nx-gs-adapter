@@ -67,11 +67,12 @@ authors composing `SendMailCommand` records onto the commands topic.
     Multi-element when the host batches the inbound `items` across multiple
     mails (host-defined cap; e.g. a host config constant).
     Non-null on read; null in constructor normalized to empty list.
-  - `List<ItemDeliveryError> itemErrors` — partial-failure entries when
-    specific attachment lines could not be materialized. Non-null on read;
-    empty list signals "all attachments materialized successfully". Non-empty
-    `itemErrors` on a `success` envelope means partial delivery — the mail
-    was sent but without the listed attachments.
+  - `List<ItemDeliveryError> itemErrors` — per-line attachment failures on an
+    OK envelope. Non-null on read. The wire keeps the field so a host that
+    delivers partially can report it, and platform consumers MUST still read it:
+    non-empty on OK means the mail went out without the listed lines. The
+    reference host delivers all-or-nothing and always sends it empty (see
+    "`itemErrors` today").
 
   Both lists are defensively copied + frozen on construction (unmodifiable view
   from getters).
@@ -82,37 +83,39 @@ authors composing `SendMailCommand` records onto the commands topic.
   populated only when the host can confidently attribute the failure to a
   specific inbound line. `reason` is the always-present diagnostic; null
   passed to the constructor is normalized to an empty string at construction
-  so getters and `equals`/`hashCode`/`toString` agree.
+  so getters and `equals`/`hashCode`/`toString` agree. The reference host never
+  emits it today.
 
 - [done] R5. The host MUST ship `SendMailHandler`
   implementing `CommandHandler<SendMailCommand, SendMailResult>`:
-  - Wire-path null guard on `charId` / `title` →
-    `validationFailed("<title>", "<name>")` (the convenience factory puts the offending
-    field under the `field` extension key).
-  - Per-`MailItem` validation: null entry, null `itemTemplateId`, null/non-positive
-    `count` → `validationFailed("<title>", "items[<idx>].<field>")`.
-  - `CharacterDAO.getByCharId` lookup; absent →
-    `notFound("<title>", "entity", "character")`.
-  - `ctx.host().sync(...)` hop, then delegate to `l2nx.commands.mail.MailService`, which
-    calls `MailManager.sendSystemMailWithCustomAuthorBatching` (existing fork API).
-  - `IllegalArgumentException` from MailManager (blank title, invalid receiver) →
-    `error(VALIDATION_FAILED, "<title>", "mailManager", "<message>")`.
-  - Other exceptions propagate; adapter auto-wraps as `INTERNAL_ERROR`.
-  - On success, build `SendMailResult` from the returned mail-id list +
-    per-line error reasons (mapped to `ItemDeliveryError` entries).
+  - Wire-path checks before anything is claimed or written: `charId` non-null,
+    `title` non-null and non-empty, every `MailItem` non-null with a non-null
+    `itemTemplateId` inside the `int` range that names a known item template and
+    a positive `count`, then `charId` in `1..Integer.MAX_VALUE`. Each failure is
+    `validationFailed("<title>", "<field>")`, which puts the field under the
+    `field` extension key.
+  - The send runs on `ctx.io()` through the host's mail service under a durable
+    receipt (see "Durable receipt"): recipient lookup, mail preparation, claim,
+    then one all-or-nothing delivery. No `ctx.host().sync(...)` hop.
+  - Outcome mapping: success → OK with the created mail ids and empty
+    `itemErrors`; recipient missing or request rejected by the host's mail
+    manager → `NOT_FOUND`; any other failure (including a refused repeat of an
+    open receipt) → `INTERNAL_ERROR`. See "Status mapping".
+  - On success the handler requests a cascading `character` resync of the
+    recipient, so the new attachments reach the platform with it.
 
-- [done] R6. The host MUST register the handler in `HostCommandsModule.onConnect`
-  alongside the existing `DeleteItemHandler` registration.
+- [done] R6. The host MUST register the handler in its commands module behind
+  the correlation-id dedup decorator and the offline-trader restore gate (refuses
+  with `INVALID_STATE` while traders, or the recipient, are still being restored
+  after a server start).
 
 **Should:**
 
-- [partially done] R7. Idempotency cache on `correlationId`. The handler IS registered
-  through `HostCommandsModule.onDeduped`, so `DedupCommandHandler` + `CommandDedupStore`
-  (in-memory, OK-only, 10 min TTL, lost on restart) sit in front of it. That barrier is
-  currently inert for the admin surface: the platform mints a fresh correlation id per
-  dispatch, so a retry never matches a cached entry. Making it effective requires the
-  platform to persist and reuse the id, plus a durable receipt to survive a game-server
-  restart — see `nx-gameservers/docs/specs/068-critical-commands-framework.md` (L2, L5).
+- [done] R7. Exactly-once delivery per `correlationId`, across retries and game-server
+  restarts. Two layers: the in-memory `DedupCommandHandler` + `CommandDedupStore` (OK-only,
+  10 min TTL, lost on restart) in front of the handler, and a durable host-side receipt
+  that survives restarts — contract in "Durable receipt" below. The platform derives a
+  stable correlation id per recipient and reuses it on retry, so both layers actually fire.
 
 **Could:**
 
@@ -128,9 +131,9 @@ authors composing `SendMailCommand` records onto the commands topic.
 - **Removing legacy RabbitMQ `SendMailRequestV1` cases.** Per per-command cutover
   the legacy switch arms in `RabbitMqTgConsumer` / `RabbitMqWebAdminConsumer`
   remain live until the web side stops emitting on RabbitMQ.
-- **Server-side validation of mail-inbox capacity.** The legacy
-  `MailManager.sendSystemMailWithCustomAuthorBatching` does not gate on inbox
-  capacity (it just inserts), and that semantic carries over here.
+- **Server-side validation of mail-inbox capacity.** The host does not refuse a
+  send to a full inbox; it hides the oldest read inbox mail without attachments
+  and inserts, as for any other system mail.
 - **`reloadInMemoryMail` migration.** That admin command is a different DTO and
   ships in a separate slice.
 
@@ -139,28 +142,32 @@ authors composing `SendMailCommand` records onto the commands topic.
 - **`charId` not found and platform has stale character state.** Reply
   `NOT_FOUND` → web side decides whether to alert / retry / drop. Same as legacy.
 - **Empty `items` + empty `body` + non-blank `title`** — text-only mail with
-  no attachments and a header-only body. Allowed; MailManager creates a single
+  no attachments and a header-only body. Allowed; the host creates a single
   mail row with no attachments.
-- **Single `items` entry with a stack so large MailManager rejects the
-  attachment** — partial-success: `createdMailIds` has one entry (the mail
-  itself was sent), `itemErrors` has one entry describing the rejection.
-  Reply envelope is `success` (legacy semantic preserved).
-- **`items.size() > Config.MAIL_MAX_ATTACHMENTS`** — MailManager batches into
-  multiple mails titled `"<title> 1/N"` … `"<title> N/N"`; `createdMailIds`
-  carries one id per resulting mail. `itemErrors` aggregates per-line failures
-  across all batches.
-- **Re-delivery of the same correlation id mid-mail-creation** — duplicate
-  mails created. R7 tracks the cache; until then, ops MUST be aware.
+- **An attachment line the host cannot materialize** — an unknown template is
+  refused up front as `VALIDATION_FAILED` (`field = items[].itemTemplateId`)
+  before anything is claimed. A line that fails later, while attachments are
+  staged, aborts the whole request: nothing is delivered, the staged
+  attachments are discarded and the reply is `INTERNAL_ERROR`. There is no
+  partial delivery.
+- **More attachment slots than the host's per-mail cap** — the host splits the
+  request into mails titled `"<title> 1/N"` … `"<title> N/N"` and
+  `createdMailIds` carries one id per mail, all delivered or none. A
+  non-stackable line with `count > 1` takes one slot per unit.
+- **Re-delivery of the same correlation id mid-mail-creation** — the second
+  attempt finds the open receipt and is refused as outcome-unknown (`INTERNAL_ERROR`);
+  once the first attempt completes, a retry replays its stored `createdMailIds`.
+  No duplicate mail (R7).
 
 ## Open questions
 
 - [resolved: Reply payload typed as `SendMailResult` (not `Void`). The legacy
   `Set<Integer> createdMailIds` is load-bearing — web side needs the ids to
   link back to the originating delivery, especially for audit / refund flows.]
-- [resolved: Partial item-failures on a `success` envelope (not a separate
-  error code). The mail itself was delivered; per-attachment failures are
-  diagnostic, not the operation's outcome. Matches legacy
-  `CommonStatus.SUCCESS + message=<errors>` semantic.]
+- [resolved: Partial item-failures would ride an OK envelope with `itemErrors`
+  (not a separate error code), so the wire keeps that shape. The reference host
+  has since become all-or-nothing: a line that cannot be delivered fails the
+  whole request, and `itemErrors` is always empty on its replies.]
 - [resolved: `itemTemplateId` rename vs legacy `itemId`. The legacy field was
   ambiguous (could be read as object-id) and the new commands surface uses
   `itemObjectId` for object-ids in `DeleteItemCommand`. Renaming makes the
@@ -208,29 +215,17 @@ headers:
 value: gson(CommandResult<SendMailResult> JSON)
 ```
 
-Example value (success with batched mails + one partial failure):
+Example value (success, request split into two mails):
 
 ```json
 {
   "status": "OK",
   "payload": {
     "createdMailIds": [10241, 10242],
-    "itemErrors": [
-      {
-        "itemTemplateId": null,
-        "count": null,
-        "reason": "Failed to create mail attachment itemId: 99999, count: 1 for charId: 42"
-      }
-    ]
+    "itemErrors": []
   }
 }
 ```
-
-Identity fields are `null` today because `MailManager` does not expose
-machine-readable per-line failure identity (see "Mapping `itemErrors`" below).
-The platform inspects `reason` for diagnostic context; the schema is wire-additive
-so a future MailManager refactor can populate `itemTemplateId` / `count` without
-an api version bump.
 
 Example value (recipient not found):
 
@@ -238,8 +233,7 @@ Example value (recipient not found):
 {
   "status": "NOT_FOUND",
   "problem": {
-    "title": "Character not found",
-    "extensions": { "entity": "character" }
+    "title": "charId not found: 42"
   }
 }
 ```
@@ -250,76 +244,74 @@ Example value (recipient not found):
 | ------------------------ | ------------- | -------- | ------------------------------------------------ |
 | `charId`                 | `Long`        | Yes      | Recipient character pk                           |
 | `author`                 | `String?`     | No       | Sender display; null/blank → host system default |
-| `title`                  | `String`      | Yes      | Mail subject; MailManager rejects blank          |
+| `title`                  | `String`      | Yes      | Mail subject; non-empty, host rejects blank      |
 | `body`                   | `String?`     | No       | Mail body; null → empty                          |
 | `items`                  | `[MailItem]?` | No       | Attachments; null/empty → text-only mail         |
 | `items[].itemTemplateId` | `Long`        | Yes      | Catalog template id (NOT object-id)              |
 | `items[].count`          | `Long`        | Yes      | Stack size, positive                             |
-| `adena`                  | `Long?`       | No       | Adena in the mail (template 57); positive        |
+| `adena`                  | `Long?`       | No       | Planned (R1), not on the wire yet                |
 
 Reply payload:
 
-| Field                         | Type                  | Notes                                                        |
-| ----------------------------- | --------------------- | ------------------------------------------------------------ |
-| `createdMailIds`              | `[Long]`              | One entry per resulting mail (host-side batching)            |
-| `itemErrors`                  | `[ItemDeliveryError]` | Per-line failures; non-empty + success = partial delivery    |
-| `itemErrors[].itemTemplateId` | `Long?`               | Optional inbound-line hint; `null` when host can't attribute |
-| `itemErrors[].count`          | `Long?`               | Optional inbound-line hint; `null` when host can't attribute |
-| `itemErrors[].reason`         | `String`              | Free-form diagnostic; null normalized to ""                  |
+| Field                         | Type                  | Notes                                                         |
+| ----------------------------- | --------------------- | ------------------------------------------------------------- |
+| `createdMailIds`              | `[Long]`              | One entry per resulting mail (host-side batching)             |
+| `itemErrors`                  | `[ItemDeliveryError]` | Non-empty on OK = partial delivery; reference host sends `[]` |
+| `itemErrors[].itemTemplateId` | `Long?`               | Optional inbound-line hint; `null` when host can't attribute  |
+| `itemErrors[].count`          | `Long?`               | Optional inbound-line hint; `null` when host can't attribute  |
+| `itemErrors[].reason`         | `String`              | Free-form diagnostic; null normalized to ""                   |
 
 ### Status mapping
 
-| Condition                                       | Status              | `problem.extensions`                                       |
-| ----------------------------------------------- | ------------------- | ---------------------------------------------------------- |
-| `charId` null on wire                           | `VALIDATION_FAILED` | `{field: "charId"}`                                        |
-| `title` null on wire                            | `VALIDATION_FAILED` | `{field: "title"}`                                         |
-| `items[i]` null                                 | `VALIDATION_FAILED` | `{items[<i>]: "null"}`                                     |
-| `items[i].itemTemplateId` null                  | `VALIDATION_FAILED` | `{items[<i>].itemTemplateId: "null"}`                      |
-| `items[i].itemTemplateId` > `Integer.MAX_VALUE` | `VALIDATION_FAILED` | `{items[<i>].itemTemplateId: "exceeds-int-range:<value>"}` |
-| `items[i].count` null or ≤ 0                    | `VALIDATION_FAILED` | `{items[<i>].count: "<value>"}`                            |
-| `MailManager` throws `IllegalArgumentException` | `VALIDATION_FAILED` | `{mailManager: "<message>"}`                               |
-| `CharacterDAO.getByCharId` empty                | `NOT_FOUND`         | `{entity: "character"}`                                    |
-| `MailManager` returns empty list (invariant)    | `INTERNAL_ERROR`    | `{error.cause: "mailManager-returned-empty"}`              |
-| Other exceptions in handler                     | `INTERNAL_ERROR`    | adapter auto-wraps with class+message                      |
-| Per-attachment-line failure                     | (`OK` envelope)     | `payload.itemErrors[].reason`                              |
+| Condition                                                    | Status              | `problem`                                               |
+| ------------------------------------------------------------ | ------------------- | ------------------------------------------------------- |
+| `charId` null, or outside `1..Integer.MAX_VALUE`             | `VALIDATION_FAILED` | `extensions.field = "charId"`                           |
+| `title` null or empty                                        | `VALIDATION_FAILED` | `extensions.field = "title"`                            |
+| `items[i]` null                                              | `VALIDATION_FAILED` | `extensions.field = "items[*]"`                         |
+| `itemTemplateId` null, above `Integer.MAX_VALUE`, or unknown | `VALIDATION_FAILED` | `extensions.field = "items[].itemTemplateId"`           |
+| `count` null or ≤ 0                                          | `VALIDATION_FAILED` | `extensions.field = "items[].count"`                    |
+| Traders or the recipient still being restored after a start  | `INVALID_STATE`     | restore-gate refusal                                    |
+| Recipient not found                                          | `NOT_FOUND`         | `title = "charId not found: <id>"`                      |
+| Host mail manager rejects the request (e.g. blank title)     | `NOT_FOUND`         | `title` = the host's message                            |
+| Repeat of a correlation id whose receipt is `OK`             | `OK`                | stored `createdMailIds` replayed, `itemErrors` empty    |
+| Repeat of a correlation id whose receipt is still open       | `INTERNAL_ERROR`    | `title` says the outcome is unknown                     |
+| Receipt settled by another attempt during this delivery      | `INTERNAL_ERROR`    | outcome unknown; nothing committed, receipt untouched   |
+| Lookup, preparation, receipt or delivery failure             | `INTERNAL_ERROR`    | `title` = the host's message                            |
+| Exception escaping the IO-pool dispatch                      | `INTERNAL_ERROR`    | `title = "Dispatch failed"`, `extensions.error.class`   |
+
+Validation `field` values are not index-tagged; the host names only the
+offending field.
 
 ### Handler walkthrough
 
-`SendMailHandler`.handle(cmd, ctx)`:
+`SendMailHandler.handle(cmd, ctx)`, behind the dedup decorator and the restore gate:
 
-1. **Wire-validate** `charId` / `title` non-null (Gson bypasses ctor).
-2. **Wire-validate** every `MailItem`: non-null entry, non-null `itemTemplateId`,
-   non-null + positive `count`. Index-tagged details so the platform can pinpoint
-   the bad line.
-3. **DAO lookup** `CharacterDAO.getByCharId(cmd.getCharId().intValue())` — runs
-   on `ctx.io()` (the adapter-owned IO pool), not on the consumer thread and
-   not via `ctx.host().sync(...)`. Blocking JDBC belongs on the IO pool —
-   running it on the consumer thread blocks the topic, and running it through
-   the game executor burns capacity meant for game-state mutations. The
-   `DeleteItemHandler` pattern is the canonical model for handler IO work
-   (long → int wire-id bound check, `ctx.io()` for the JDBC, transactional
-   path with `SELECT ... FOR UPDATE` + login re-check where appropriate,
-   capture mutation return values, reply `INVALID_STATE` on 0-rows). There is
-   a TOCTOU window — the recipient could be deleted between the lookup and
-   the host-thread hop — but the resulting orphan mail row is recoverable
-   and the legacy RabbitMQ path (`MailService.sendMailAndReply`) has the
-   same race.
-4. **Map attachments** to `List<Pair<Integer, Long>>` shape that the legacy
-   `MailManager` API expects.
-5. **Hop to host**: `ctx.host().sync(() -> doSend(...))`. The whole MailManager
-   call mutates in-memory state + DB + sends a packet to the online recipient,
-   so the host-thread hop is mandatory.
-6. **Inside the hop**:
-   - Call `MailManager.sendSystemMailWithCustomAuthorBatching(author, charId, title, body, attachments)`.
-   - Catch `IllegalArgumentException` → reply `VALIDATION_FAILED, mailManager=<msg>`.
-   - Any other exception propagates; consumer-side adapter wraps it as
-     `INTERNAL_ERROR` + reply.
-7. **Compose payload**:
-   - `createdMailIds` = `result.getLeft()` widened from `int` to `Long`.
-   - `itemErrors` = each reason string from `result.getRight()` wrapped in
-     an `ItemDeliveryError(null, null, reason)` — see "Mapping `itemErrors`"
-     below for why typed identity is left nullable.
-8. **Reply** `CommandResult.success(payload)`.
+1. **Wire-validate** on the consumer thread (Gson bypasses the constructors):
+   `charId`, `title`, every `MailItem` including a catalog lookup of each
+   `itemTemplateId` (so an unknown template fails before anything is claimed or
+   staged), then the `charId` range.
+2. **Dispatch to `ctx.io()`** and join: the send is blocking JDBC, which
+   belongs on the adapter IO pool, not on the consumer thread or the game
+   executor. There is no `ctx.host().sync(...)` hop.
+3. **Recipient lookup** by `charId`; absent → `NOT_FOUND`.
+4. **Prepare** the mail without touching the database: the host's mail
+   manager validates title and receiver, expands non-stackable lines into one
+   slot per unit, splits the slots across mails over its per-mail attachment
+   cap and pre-allocates every mail id.
+5. **Claim** the durable receipt with those ids: `OK` replays, an open receipt
+   refuses, a new or `FAILED` one proceeds (see "Durable receipt").
+6. **Deliver** all-or-nothing: stage the attachments of every mail, then insert
+   all mail rows and mark the receipt `OK` in one database transaction. A
+   failure before the commit rolls back and discards the staged attachments;
+   once that is proven clean the receipt is released as `FAILED`, otherwise
+   (a failed commit, a failed rollback) it is held for restart recovery. If the
+   receipt was settled by another attempt in the meantime, the batch rolls back
+   and the receipt is left as it is.
+7. **Post-commit**: register the mails in memory, notify an online recipient
+   and publish the mail-sent event. A failure here does not undo the delivery.
+8. **Reply** OK with one `createdMailIds` entry per mail and empty
+   `itemErrors`, after requesting a cascading `character` resync of the
+   recipient.
 
 The handler IS wrapped for correlation-id dedup: the host's commands module registers it
 through `onDeduped`, so `DedupCommandHandler` + `CommandDedupStore` (in-memory,
@@ -327,73 +319,64 @@ OK-only, 10 min TTL, lost on restart) sit in front of it. The commands consumer
 is at-most-once (offsets committed before dispatch), so Kafka redelivery is not
 the duplicate source — a platform re-issue is.
 
-That barrier is currently inert for the admin surface: the platform mints a fresh
-correlation id per dispatch, so a retry never matches a cached entry. Making it
-effective needs the platform to persist and reuse the id, plus a durable receipt
-to survive a game-server restart — see
-`nx-gameservers/docs/specs/068-critical-commands-framework.md` (L2, L5), and note
-its warning that a shared receipts table without a per-command STARTED resolver
-turns boot recovery into a duplicate generator for mail.
+**Platform-side idempotency key.** For admin system mail the platform derives one
+correlation id per recipient from the required `requestId`, after name resolution and
+de-duplication by `charId`: `UUIDv5(namespace = requestId, name = "SEND_MAIL:" + charId)`.
+A retry of the same request reuses the same ids, so both the in-memory dedup and the
+durable receipt below recognise it.
 
-#### Mitigations until the platform reuses the correlation id
+### Durable receipt (host-side contract)
 
-- **Platform-side idempotency key.** The send-side flow attaches a stable token and
-  reuses it on retry, so the existing dedup decorator actually fires. For admin system
-  mail the platform derives one correlation id per recipient from the required
-  `requestId`, after name resolution and de-duplication by `charId`:
-  `UUIDv5(namespace = requestId, name = "SEND_MAIL:" + charId)`. A retry of the same
-  request therefore reuses the same ids; the in-memory dedup still does not survive a
-  restart, so the durable receipt remains the open part (R7).
-- **Operational compensation runbook.** If a paid-mail flow is retried mid-batch,
-  ops MUST audit the resulting mails by `correlationId` <->
-  `Message.author / charId / sent_at` triplet and manually compensate
-  (delete the duplicate mail row + roll back the duplicate item grants).
-  The host has NO automatic compensation today.
+The in-memory dedup does not survive a restart, so the host keeps a durable receipt per
+correlation id in the game database (the generic receipt ledger of
+`nx-gameservers/docs/specs/068-critical-commands-framework.md`, L5). For `SendMailCommand`
+it MUST behave as follows:
 
-### Why `itemErrors` on a success envelope
+1. **Ids before mutation.** The host pre-allocates every mail id the request will produce
+   (one per batch) and commits a `STARTED` receipt carrying those ids before anything is
+   written.
+2. **Claim arbitration.** A repeat of the correlation id against an `OK` receipt replays the
+   stored `createdMailIds`; against an open (`STARTED`) receipt it is refused as
+   outcome-unknown (`INTERNAL_ERROR`), never re-run; against a `FAILED` receipt it re-runs,
+   reopened by compare-and-set so only one contender wins.
+3. **Atomic completion.** The receipt turns `OK` (with the mail ids as the stored result) in
+   the **same database transaction** as the mail rows. Delivery is all-or-nothing, so the
+   stored result is exactly the claimed ids. A failed completion rolls the mail rows back,
+   so "mail persisted, receipt still open" cannot arise. If the commit itself fails, the
+   outcome is unknown and the receipt is held as `STARTED` for recovery.
+4. **Clean failure.** A delivery that provably rolled back (no mail row, no staged
+   attachment left) marks the receipt `FAILED`, so a retry re-runs cleanly. Anything not
+   provably undone keeps the receipt open. Every transition out of `STARTED` is a
+   compare-and-set, so an attempt never overwrites a receipt another attempt already
+   settled; it rolls its own batch back and replies outcome-unknown.
+5. **Restart recovery.** On boot, before anything can sweep unowned mail attachments, every
+   `STARTED` mail receipt is resolved by looking its claimed ids up in the mail table:
+   - **every** id present: the mail went out and only its `OK` is missing (receipts written
+     before rule 3). The receipt is promoted to
+     `OK` with the claimed ids as the stored result, by compare-and-set on `STARTED`, so a
+     retry replays instead of being refused forever;
+   - **none** present: provably undelivered. Staged attachments are discarded first, then
+     the receipt is marked `FAILED`;
+   - **some** present, or ids unreadable: held as `STARTED` with an operator alert; retries
+     stay refused until manual reconciliation.
+6. **Retention.** Only settled receipts (`OK`, `FAILED`) are pruned after 30 days; an open
+   receipt is never pruned, since that would let a retry deliver on top of an unresolved
+   attempt.
 
-MailManager's contract is "deliver as much as you can; tell me what failed
-per-line". The mail row itself succeeds even if some attachments could not be
-created — the recipient sees the mail, sees the partial attachments, the
-delivery is real. Modeling the partial failure as a success envelope with a
-non-empty `itemErrors` list preserves that semantic without dropping the
-diagnostic context. The platform inspects `payload.itemErrors` to surface the
-partial failure to the operator-facing UI.
+### `itemErrors` today
 
-The alternative (a separate non-OK `CommandStatus` with the partial-failure
-context in `CommandProblem.extensions`) would force the platform to switch
-on OK/non-OK first, then re-parse the diagnostics — two code paths for one
-operational outcome.
+The wire still models partial delivery: an OK envelope with a non-empty
+`itemErrors` means the mail went out without the listed lines. Platform
+consumers MUST keep reading it and MUST iterate every entry: one entry covers
+one failed line, and `reason` is a free-form diagnostic, never a value to switch
+on. `itemTemplateId` / `count` stay `null` when a host cannot attribute a failure
+to an inbound line.
 
-### Mapping `itemErrors` from MailManager strings
-
-`MailManager` reports per-line failures as opaque human-readable strings of
-the form
-`"Failed to create mail attachment itemId: <X>, count: <Y> for charId: <Z>"`.
-The failure list does NOT correlate positionally with the inbound items —
-errors only appear at positions that failed, so `reasons[i]` does not refer
-to `requested[i]`.
-
-The handler emits one `ItemDeliveryError` per reason string with
-`itemTemplateId` and `count` left `null` and the reason text forwarded
-verbatim. Operator-facing UIs read the reason; the `null` typed identity
-signals "host could not attribute the failure to a specific inbound line".
-
-If MailManager grows structured per-line error reporting in the future, the
-handler can populate the typed fields without an api wire change — both
-fields are already nullable.
-
-#### Migration sharp edge
-
-Legacy host `MailService.sendMailAndReply` joined per-line failure reasons
-with `"\n"` into a single `message: String` field on `SendMailResponseV1`.
-The new wire shape ships an array of `ItemDeliveryError` entries — one per
-reason. **Platform-web consumers MUST iterate `payload.itemErrors[]` and
-read each `reason` separately**; reading `payload.itemErrors[0].reason`
-will only surface the first failure when multiple lines fail. Migration
-audit checklist: search platform-web code for any place that read the
-legacy `message` field and split it on `"\n"` — those call sites need to
-switch to iterating the new array.
+The reference host never produces it. Every OK reply carries `itemErrors: []`,
+because delivery is all-or-nothing: an unknown template is refused as
+`VALIDATION_FAILED` before the claim, and any other line that cannot be staged
+aborts the request with `INTERNAL_ERROR` and nothing delivered. A host that does
+deliver partially MUST report every dropped line here.
 
 ### Compile-time + runtime contract
 

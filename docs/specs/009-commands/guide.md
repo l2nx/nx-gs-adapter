@@ -302,8 +302,10 @@ role:
 
 Rules:
 
-- **State mutations** (`Player.kick()`, `Player.destroyItem(...)`,
-  `MailManager.sendMail(...)`) — MUST hop via `ctx.host().sync(() -> {...})`.
+- **State mutations** of game-loop objects (`Player.kick()`,
+  `Player.destroyItem(...)`) — MUST hop via `ctx.host().sync(() -> {...})`.
+  A host subsystem whose work is mostly JDBC and whose in-memory side is
+  thread-safe (the reference host's mail delivery) runs whole on `ctx.io()`.
 - **Blocking IO** (JDBC, HTTP, FS) — MUST hop to `ctx.io()`. Do NOT run
   JDBC on the consumer thread (blocks the entire topic) and do NOT run
   JDBC via `ctx.host().sync(...)` (burns game-thread capacity for IO that
@@ -314,21 +316,18 @@ Rules:
 
 ```java
 static CommandResult<SendMailResult> handleSendMail(SendMailCommand cmd, CommandContext ctx) {
-    // safe to read GameObjectsStorage from consumer thread
-    Player p = GameObjectsStorage.getPlayer(cmd.getCharId().intValue());
-    if (p == null) {
-        return CommandResult.notFound("Character not found", "charId", cmd.getCharId());
+    // cheap wire checks stay on the consumer thread
+    if (cmd.getCharId() == null) {
+        return CommandResult.validationFailed("charId is required", "charId");
     }
 
-    // db write — hop to the adapter IO pool
-    long messageId = CompletableFuture
-            .supplyAsync(() -> MailDAO.insert(toRecord(cmd, p)), ctx.io())
+    // recipient lookup, receipt claim and the mail insert are blocking JDBC: the whole send
+    // runs on the adapter IO pool; the host's mail store is thread-safe, so no game-thread hop
+    List<Long> mailIds = CompletableFuture
+            .supplyAsync(() -> mailService.send(ctx.correlationId(), cmd), ctx.io())
             .join();
 
-    // game state mutation — hop to the game executor
-    ctx.host().sync(() -> MailManager.getInstance().notifyDelivery(p, messageId));
-
-    return CommandResult.ok(new SendMailResult(List.of(messageId), List.of()));
+    return CommandResult.ok(new SendMailResult(mailIds, Collections.emptyList()));
 }
 ```
 
