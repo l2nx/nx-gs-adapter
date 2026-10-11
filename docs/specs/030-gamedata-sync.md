@@ -361,8 +361,21 @@ layout (spec 034).
   of count N is emitted as N rows of count N); per-npc count/respawn overrides honoured;
   `globalAggro` emitted.
 - `itemtemplate`: `material` must not collapse distinct host materials into one token.
-- `skill` and `itemtemplate` keep their full payloads (stats, skills, levels): the platform will
-  start consuming them as data moves from platform-side parsing to the gd stream.
+- `itemtemplate` keeps its full payload (stats, skills): the platform will start consuming it as data moves
+  from platform-side parsing to the gd stream.
+- `skill` becomes the sole source of the platform skill catalog (design: `nx-gamedata/docs/specs/024-skills-via-adapter.md`,
+  2026-10-11). Additive api minor, host provider in one release:
+  - canonical vocabularies as api enums — skill type, `SkillEffectCategory` (exists), condition type, stat,
+    effect kind, skill-tree kind, reward kind; every value travels with the engine's raw token;
+  - `effectCategory` on the aggregate, computed by the same host function as runtime character effects;
+  - conditions as a tree (`type`, `params`, `negated`, `children`) on every level, plus stat-modifier conditions;
+  - stat modifier `value` (number) plus `valueRaw` when the engine holds a formula instead of a constant;
+  - every skill tree, not only the class tree: `(treeKind, clazz?)` with the `SkillLearn` fields
+    (prerequisites, races, residences, social class, costs);
+  - enchanting as `(route, level)` and chances as a map of character level to chance — no route numbering or
+    base level of one build;
+  - presentation the engine loads (names, descriptions, icons per level and enchant, per language);
+  - values are server-effective (balance applied), not datapack numbers.
 - Gear score: per-item effective values and the full ruleset — direction recorded in
   `nx-gamedata/docs/specs/009-gear-score-design.md` §3.5, not scheduled.
 

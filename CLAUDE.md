@@ -7,6 +7,22 @@ negotiable, and which traps have already been paid for. It deliberately does **n
 contracts, DTO fields, or class structure — those live in the code and in `docs/specs/`
 (index: [`docs/CLAUDE.md`](docs/CLAUDE.md)). A doc that mirrors code always drifts.
 
+## First principle: a multi-tenant interface for any build
+
+The adapter is the platform's interface to **any** game-server build (L2J / Lucera / Essence and forks), not to one
+host. Every wire and SPI decision is checked against "how does a different build, with no tenant ingester of its
+own, fill this".
+
+- **The wire describes the game, not an engine.** Canonical vocabularies (skill types, effect categories,
+  conditions, stats, skill-tree kinds, ...) are enums in `nx-gs-adapter-api`; each host provider maps its engine's
+  tokens into them and sends the raw token alongside. Platform consumers never learn engine-specific tokens.
+- **Cover everything the engine loads, presentation included** (names, descriptions, icons). A tenant without a
+  custom ingester must still get a complete catalog; a tenant ingester only adds what the engine never loads
+  (client patch).
+- **No single-build assumptions in the contract**: enchant-route numbering, the base level of enchant chances,
+  the set of skill trees, which fields exist. What a build lacks is `null`; consumers degrade, they don't break.
+- Platform storage follows meaning, not the writer: see `nx-gamedata/CLAUDE.md` → first principle.
+
 ## Workflow
 
 - Always confirm before creating or modifying files — never write code without user approval
