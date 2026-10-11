@@ -18,7 +18,7 @@ class SendChatMessageCommandTest {
                 .audience(ChatAudiences.CLAN)
                 .audienceId(7L)
                 .senderCharacterId(100L)
-                .source("MINIAPP")
+                .source("APP")
                 .text("hello");
     }
 

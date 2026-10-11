@@ -66,7 +66,7 @@ class OwnerVerifiedTest {
                         7L,
                         100L,
                         null,
-                        "MINIAPP",
+                        "APP",
                         "hello",
                         null,
                         true)));
