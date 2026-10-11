@@ -1,9 +1,11 @@
-package app.l2nx.gs.adapter.api.domain.skill;
+package app.l2nx.gs.adapter.api.domain.skill.target;
 
 /**
- * Closed set of values a skill's {@code TARGET} characteristic may carry. Names differ from raw core
- * names ({@code AREA} to {@link #AOE}); the mapping lives in the provider. {@code AOE_*} = area around
- * the target, {@code AURA_*} = around the caster, {@code SIEGE_*} = siege objects.
+ * Canonical target type of a skill ({@code Skill.targetType}, and the {@code TARGET} skill characteristic); the
+ * engine token travels in {@code targetTypeRaw}. Some hosts use single-axis tokens that embed the area shape
+ * ({@code AOE_FRONT}); others describe only the initial selection ({@code ENEMY}). The affected set is always read
+ * from {@link SkillAffectScope} and {@link SkillAffectObject}. {@code AOE_*} = area around the target,
+ * {@code AURA_*} = around the caster, {@code SIEGE_*} = siege objects.
  */
 public enum SkillTargetType {
     ONE,
@@ -53,5 +55,20 @@ public enum SkillTargetType {
     SIEGE_HOLY,
     SIEGE_FLAGPOLE,
     UNLOCKABLE,
-    GROUND
+    GROUND,
+
+    /** An auto-attackable creature. */
+    ENEMY,
+    /** A non-hostile creature or self. */
+    NOT_ENEMY,
+    /** The selected creature, otherwise self. */
+    TARGET_OR_SELF,
+    /** Any creature except self. */
+    NOT_SELF,
+    /** An item on the ground or in the inventory. */
+    ITEM,
+    /** An enemy siege door or artillery object. */
+    SIEGE_ARTILLERY,
+    /** The advanced siege base NPC. */
+    SIEGE_ADVANCE_BASE
 }

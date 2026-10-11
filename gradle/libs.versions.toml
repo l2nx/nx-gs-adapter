@@ -7,6 +7,7 @@ fastutil-core = "8.5.19"
 jspecify = "1.0.1"
 # tests
 junit = "5.14.4"
+jackson = "2.22.3"
 mockito = "5.24.0"
 wiremock = "2.35.2"
 # integ tests
@@ -27,6 +28,8 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "jun
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-module-parameter-names = { module = "com.fasterxml.jackson.module:jackson-module-parameter-names", version.ref = "jackson" }
 wiremock = { module = "com.github.tomakehurst:wiremock-jre8", version.ref = "wiremock" }
 # integ tests (nx-gs-kafka)
 testcontainers-kafka = { module = "org.testcontainers:kafka", version.ref = "testcontainers" }

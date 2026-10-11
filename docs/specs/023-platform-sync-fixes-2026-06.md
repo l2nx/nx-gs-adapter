@@ -6,10 +6,10 @@ Scope: three independent fixes across `nx-gs-adapter`, `nx-gameservers`,
 `nx-gamedata`, and the host integration, specified together but implementable in
 parallel.
 
-| #   | Fix                                                  | Repos touched                                                             |
-| --- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
-| ①   | Targeted-window force-resync (fast per-PK republish) | `nx-gs-adapter` (`nx-gs-db-sync-core`)                                    |
-| ②   | Upsert character-locks command (IP / HWID / ITEM)    | `nx-gs-adapter-api`, `nx-gameservers`, `nx-users` (seed), host integration |
+| #   | Fix                                                  | Repos touched                                                                |
+| --- | ---------------------------------------------------- | ---------------------------------------------------------------------------- |
+| ①   | Targeted-window force-resync (fast per-PK republish) | `nx-gs-adapter` (`nx-gs-db-sync-core`)                                       |
+| ②   | Upsert character-locks command (IP / HWID / ITEM)    | `nx-gs-adapter-api`, `nx-gameservers`, `nx-users` (seed), host integration   |
 | ③   | Gearscore gd-sync deploy gap                         | `nx-gs-adapter` (release), host integration (dep bump), `nx-gamedata` (test) |
 
 ---
@@ -194,7 +194,7 @@ and surface it in the session.
 
 ## Fix ③ — Gearscore gd-sync deploy gap
 
-> Feature spec for the module itself: [030-gamedata-sync.md](030-gamedata-sync.md). This section
+> Feature spec for the module itself: [030-gamedata-sync](030-gamedata-sync/spec.md). This section
 > records a version-skew incident, not the gd-sync design.
 
 ### Root cause (confirmed)

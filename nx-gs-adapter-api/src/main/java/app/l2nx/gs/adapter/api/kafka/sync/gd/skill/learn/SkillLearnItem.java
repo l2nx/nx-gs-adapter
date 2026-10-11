@@ -1,10 +1,10 @@
-package app.l2nx.gs.adapter.api.kafka.sync.gd.skill;
+package app.l2nx.gs.adapter.api.kafka.sync.gd.skill.learn;
 
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Item consumed to learn a skill at a {@link SkillClassLearn} entry; {@code itemTemplateId} references the
+ * Item consumed to learn a skill as part of a {@link SkillLearnItemSet}; {@code itemTemplateId} references the
  * template, not an instance.
  */
 public final class SkillLearnItem {

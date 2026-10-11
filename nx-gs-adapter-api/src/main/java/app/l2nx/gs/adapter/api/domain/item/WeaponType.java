@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.domain;
+package app.l2nx.gs.adapter.api.domain.item;
 
 /**
  * Weapon kind shared by item ({@code weapon_type}) and skill ({@code REQUIRED_WEAPON}). Raw source
@@ -25,5 +25,6 @@ public enum WeaponType {
     FLAG,
     OWN_THING,
     ETC,
-    NONE
+    NONE,
+    PISTOLS
 }

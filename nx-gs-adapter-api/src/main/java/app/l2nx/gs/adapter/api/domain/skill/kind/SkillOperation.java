@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.domain.skill;
+package app.l2nx.gs.adapter.api.domain.skill.kind;
 
 /**
  * How a skill operates, folded from the core's operate-type code ({@code A*}/{@code CA*}/{@code DA*}

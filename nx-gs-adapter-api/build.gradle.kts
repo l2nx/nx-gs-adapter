@@ -4,7 +4,7 @@ plugins {
     signing
 }
 
-version = findProperty("${project.name}.version") as String? ?: "0.100.0"
+version = findProperty("${project.name}.version") as String? ?: "0.101.0"
 
 java {
     withSourcesJar()
@@ -27,6 +27,8 @@ dependencies {
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.gson)
+    testImplementation(libs.jackson.databind)
+    testImplementation(libs.jackson.module.parameter.names)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

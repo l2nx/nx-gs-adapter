@@ -52,8 +52,8 @@ The command group is a code-organization bucket only — the commands topic stay
 Layout rule (spec 034): inside a slice, two or more supporting types of one kind (value objects,
 enums, `WellKnown*` vocabularies) live in `model/`; the slice root keeps its commands / events and
 singles. Package-private helpers (`*Lists`, `NoOp*`) stay with the classes that use them — moving
-them would force them public. Entity DTO aggregates (`sync.db.*`, `sync.gd.skill`,
-`sync.gd.npctemplate`) stay flat.
+them would force them public. Entity DTO aggregates (`sync.db.*`, `sync.gd.npctemplate`) stay flat; `sync.gd.skill` keeps the aggregate
+in its root and splits effect / condition / learn / produced types into sub-packages.
 
 ## SPI tiers
 

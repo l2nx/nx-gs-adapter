@@ -91,7 +91,7 @@ types that live with the character model; `CharacterRuntimeDto` gains the list.
 
 ### Structure
 
-- `app.l2nx.gs.adapter.api.domain.skill.SkillEffectCategory` — next to `SkillOperation`.
+- `app.l2nx.gs.adapter.api.domain.skill.effect.SkillEffectCategory` — `SkillOperation` lives in `domain.skill.kind`.
 - `app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.CharacterEffect` and
   `CharacterEffectOffline` — next to `Activity`.
 - `app.l2nx.gs.adapter.api.kafka.sync.runtime.character.CharacterRuntimeDto` — `effects` appended at

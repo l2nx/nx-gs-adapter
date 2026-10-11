@@ -3,8 +3,8 @@ package app.l2nx.gs.adapter.api.kafka.sync.runtime.character;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.character.clazz.CharacterClass;
-import app.l2nx.gs.adapter.api.domain.skill.SkillEffectCategory;
 import app.l2nx.gs.adapter.api.domain.skill.SkillEnchant;
+import app.l2nx.gs.adapter.api.domain.skill.effect.SkillEffectCategory;
 import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.Activity;
 import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.CharacterEffect;
 import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.CharacterEffectOffline;

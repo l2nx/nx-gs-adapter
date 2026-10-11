@@ -1,5 +1,6 @@
-package app.l2nx.gs.adapter.api.kafka.sync.gd.skill;
+package app.l2nx.gs.adapter.api.kafka.sync.gd.skill.produced;
 
+import app.l2nx.gs.adapter.api.domain.skill.SkillRewardKind;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -10,17 +11,31 @@ import org.jspecify.annotations.Nullable;
 public final class SkillProducedItem {
 
     private final int itemTemplateId;
+    private final @Nullable SkillRewardKind rewardKind;
     private final @Nullable Long minCount;
     private final @Nullable Long maxCount;
 
-    public SkillProducedItem(int itemTemplateId, @Nullable Long minCount, @Nullable Long maxCount) {
+    public SkillProducedItem(
+            int itemTemplateId,
+            @Nullable SkillRewardKind rewardKind,
+            @Nullable Long minCount,
+            @Nullable Long maxCount) {
         this.itemTemplateId = itemTemplateId;
+        this.rewardKind = rewardKind;
         this.minCount = minCount;
         this.maxCount = maxCount;
     }
 
+    /**
+     * Engine id as is: an item template, or the engine's negative id of a pseudo-currency, which then
+     * references no template.
+     */
     public int getItemTemplateId() {
         return itemTemplateId;
+    }
+
+    public @Nullable SkillRewardKind getRewardKind() {
+        return rewardKind;
     }
 
     public @Nullable Long getMinCount() {
@@ -32,7 +47,11 @@ public final class SkillProducedItem {
     }
 
     public Builder toBuilder() {
-        return new Builder().itemTemplateId(itemTemplateId).minCount(minCount).maxCount(maxCount);
+        return new Builder()
+                .itemTemplateId(itemTemplateId)
+                .rewardKind(rewardKind)
+                .minCount(minCount)
+                .maxCount(maxCount);
     }
 
     public static Builder builder() {
@@ -45,28 +64,35 @@ public final class SkillProducedItem {
         if (!(o instanceof SkillProducedItem)) return false;
         SkillProducedItem that = (SkillProducedItem) o;
         return itemTemplateId == that.itemTemplateId
+                && Objects.equals(rewardKind, that.rewardKind)
                 && Objects.equals(minCount, that.minCount)
                 && Objects.equals(maxCount, that.maxCount);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemTemplateId, minCount, maxCount);
+        return Objects.hash(itemTemplateId, rewardKind, minCount, maxCount);
     }
 
     @Override
     public String toString() {
-        return "SkillProducedItem[itemTemplateId=" + itemTemplateId + ", minCount=" + minCount + ", maxCount="
-                + maxCount + "]";
+        return "SkillProducedItem[" + "itemTemplateId=" + itemTemplateId + ", rewardKind=" + rewardKind + ", minCount="
+                + minCount + ", maxCount=" + maxCount + "]";
     }
 
     public static final class Builder {
         private int itemTemplateId;
+        private @Nullable SkillRewardKind rewardKind;
         private @Nullable Long minCount;
         private @Nullable Long maxCount;
 
         public Builder itemTemplateId(int itemTemplateId) {
             this.itemTemplateId = itemTemplateId;
+            return this;
+        }
+
+        public Builder rewardKind(@Nullable SkillRewardKind rewardKind) {
+            this.rewardKind = rewardKind;
             return this;
         }
 
@@ -81,7 +107,7 @@ public final class SkillProducedItem {
         }
 
         public SkillProducedItem build() {
-            return new SkillProducedItem(itemTemplateId, minCount, maxCount);
+            return new SkillProducedItem(itemTemplateId, rewardKind, minCount, maxCount);
         }
     }
 }

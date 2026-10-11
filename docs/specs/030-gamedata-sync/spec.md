@@ -350,7 +350,8 @@ release and the wire is unchanged. The `entityName` renames above still ride an 
 (the descriptor sets the value, and the topic map is keyed by it) — the platform map and consumer
 accept both names during the transition. The DTO/SPI renames are breaking and follow the two-release `@Deprecated` rule
 (additive release, then removal once every host has moved), counted from the api 0.89 package
-layout (spec 034).
+layout (spec 034). `api/v0.101.0` for the `skill` record is a deliberate exception: a breaking release without
+a `@Deprecated` window (owner decision: the producer and the single wire consumer ship in one window).
 
 **Payload changes.**
 
@@ -364,16 +365,21 @@ layout (spec 034).
 - `itemtemplate` keeps its full payload (stats, skills): the platform will start consuming it as data moves
   from platform-side parsing to the gd stream.
 - `skill` becomes the sole source of the platform skill catalog (design: `nx-gamedata/docs/specs/024-skills-via-adapter.md`,
-  2026-10-11). Additive api minor, host provider in one release:
-  - canonical vocabularies as api enums — skill type, `SkillEffectCategory` (exists), condition type, stat,
-    effect kind, skill-tree kind, reward kind; every value travels with the engine's raw token;
+  2026-10-11). Shipped as api 0.101.0, a breaking release (types move to sub-packages, fields are renamed or retyped,
+  no deprecated leftovers; producers and consumers upgrade together). The wire shape and the vocabulary tables live in
+  [`skill-contract.md`](skill-contract.md), which is the living contract and is not duplicated here. In short:
+  - every vocabulary value is a canonical/raw pair: an api enum under the plain name, the engine token under
+    `<name>Raw`; a canonical value is `null` unless the mapping is exact (rules N1-N10);
+  - the class-only `classes` list is replaced by `learns`: every skill tree, not only the class tree, as
+    `(treeKind, clazz?)` entries with prerequisites, races, residences, social class and costs;
+  - use conditions are a tree (`SkillConditionNode`: `logic`, `type`, `params`, `negated`, `children`) per level,
+    plus per-effect and per-stat-modifier condition trees;
+  - effects carry a canonical `type`/`scope`/`params` and a numeric `value` (`valueRaw` when the engine holds a
+    formula), with `derived = true` for effects the host synthesizes; stat modifiers carry canonical `stat` and
+    `operation` (`_RES` stats are oriented "higher = more resistant");
+  - enchanting is `(route, level)` with the enchanted level as a whole `SkillLevel` in `SkillEnchantRoute.node`, and
+    chances as a map of character level to chance;
   - `effectCategory` on the aggregate, computed by the same host function as runtime character effects;
-  - conditions as a tree (`type`, `params`, `negated`, `children`) on every level, plus stat-modifier conditions;
-  - stat modifier `value` (number) plus `valueRaw` when the engine holds a formula instead of a constant;
-  - every skill tree, not only the class tree: `(treeKind, clazz?)` with the `SkillLearn` fields
-    (prerequisites, races, residences, social class, costs);
-  - enchanting as `(route, level)` and chances as a map of character level to chance — no route numbering or
-    base level of one build;
   - presentation the engine loads (names, descriptions, icons per level and enchant, per language);
   - values are server-effective (balance applied), not datapack numbers.
 - Gear score: per-item effective values and the full ruleset — direction recorded in
@@ -386,6 +392,7 @@ gd topic is kept for 48 h.
 
 ## 8. Links
 
+- Skill record contract (api 0.101.0): [`skill-contract.md`](skill-contract.md)
 - Issue: [nexuslabsio/nx-gs-adapter#8](https://github.com/nexuslabsio/nx-gs-adapter/issues/8)
 - `docs/specs/023-platform-sync-fixes-2026-06.md` — Fix ③, the gear-score deploy gap that first
   shipped the `gearscore` entity (`gd-sync/v0.10.0`); a version-skew incident, not a design record.

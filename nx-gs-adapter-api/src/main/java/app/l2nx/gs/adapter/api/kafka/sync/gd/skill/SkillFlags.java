@@ -9,57 +9,41 @@ import org.jspecify.annotations.Nullable;
  */
 public final class SkillFlags {
 
-    private final @Nullable Boolean magic;
     private final @Nullable Boolean debuff;
     private final @Nullable Boolean offensive;
-    private final @Nullable Boolean passive;
-    private final @Nullable Boolean toggle;
-    private final @Nullable Boolean staticSkill;
+    private final @Nullable Boolean staticReuse;
     private final @Nullable Boolean blockedInOlympiad;
     private final @Nullable Boolean overHit;
     private final @Nullable Boolean ignoreShield;
     private final @Nullable Boolean nextActionAttack;
-    private final @Nullable Boolean heroSkill;
-    private final @Nullable Boolean clanSkill;
     private final @Nullable Boolean dispellable;
     private final @Nullable Boolean reflectable;
     private final @Nullable Boolean stayAfterDeath;
+    private final @Nullable Boolean triggered;
 
     public SkillFlags(
-            @Nullable Boolean magic,
             @Nullable Boolean debuff,
             @Nullable Boolean offensive,
-            @Nullable Boolean passive,
-            @Nullable Boolean toggle,
-            @Nullable Boolean staticSkill,
+            @Nullable Boolean staticReuse,
             @Nullable Boolean blockedInOlympiad,
             @Nullable Boolean overHit,
             @Nullable Boolean ignoreShield,
             @Nullable Boolean nextActionAttack,
-            @Nullable Boolean heroSkill,
-            @Nullable Boolean clanSkill,
             @Nullable Boolean dispellable,
             @Nullable Boolean reflectable,
-            @Nullable Boolean stayAfterDeath) {
-        this.magic = magic;
+            @Nullable Boolean stayAfterDeath,
+            @Nullable Boolean triggered) {
         this.debuff = debuff;
         this.offensive = offensive;
-        this.passive = passive;
-        this.toggle = toggle;
-        this.staticSkill = staticSkill;
+        this.staticReuse = staticReuse;
         this.blockedInOlympiad = blockedInOlympiad;
         this.overHit = overHit;
         this.ignoreShield = ignoreShield;
         this.nextActionAttack = nextActionAttack;
-        this.heroSkill = heroSkill;
-        this.clanSkill = clanSkill;
         this.dispellable = dispellable;
         this.reflectable = reflectable;
         this.stayAfterDeath = stayAfterDeath;
-    }
-
-    public @Nullable Boolean getMagic() {
-        return magic;
+        this.triggered = triggered;
     }
 
     public @Nullable Boolean getDebuff() {
@@ -70,17 +54,9 @@ public final class SkillFlags {
         return offensive;
     }
 
-    public @Nullable Boolean getPassive() {
-        return passive;
-    }
-
-    public @Nullable Boolean getToggle() {
-        return toggle;
-    }
-
-    /** Does not scale with the caster's stats; named {@code staticSkill} because {@code static} is a keyword. */
-    public @Nullable Boolean getStaticSkill() {
-        return staticSkill;
+    /** The reuse delay ignores the caster's reuse stats. */
+    public @Nullable Boolean getStaticReuse() {
+        return staticReuse;
     }
 
     public @Nullable Boolean getBlockedInOlympiad() {
@@ -100,14 +76,6 @@ public final class SkillFlags {
         return nextActionAttack;
     }
 
-    public @Nullable Boolean getHeroSkill() {
-        return heroSkill;
-    }
-
-    public @Nullable Boolean getClanSkill() {
-        return clanSkill;
-    }
-
     public @Nullable Boolean getDispellable() {
         return dispellable;
     }
@@ -120,23 +88,24 @@ public final class SkillFlags {
         return stayAfterDeath;
     }
 
+    /** Cast only by a trigger; its effect takes the trigger buff slot. */
+    public @Nullable Boolean getTriggered() {
+        return triggered;
+    }
+
     public Builder toBuilder() {
         return new Builder()
-                .magic(magic)
                 .debuff(debuff)
                 .offensive(offensive)
-                .passive(passive)
-                .toggle(toggle)
-                .staticSkill(staticSkill)
+                .staticReuse(staticReuse)
                 .blockedInOlympiad(blockedInOlympiad)
                 .overHit(overHit)
                 .ignoreShield(ignoreShield)
                 .nextActionAttack(nextActionAttack)
-                .heroSkill(heroSkill)
-                .clanSkill(clanSkill)
                 .dispellable(dispellable)
                 .reflectable(reflectable)
-                .stayAfterDeath(stayAfterDeath);
+                .stayAfterDeath(stayAfterDeath)
+                .triggered(triggered);
     }
 
     public static Builder builder() {
@@ -148,69 +117,52 @@ public final class SkillFlags {
         if (this == o) return true;
         if (!(o instanceof SkillFlags)) return false;
         SkillFlags that = (SkillFlags) o;
-        return Objects.equals(magic, that.magic)
-                && Objects.equals(debuff, that.debuff)
+        return Objects.equals(debuff, that.debuff)
                 && Objects.equals(offensive, that.offensive)
-                && Objects.equals(passive, that.passive)
-                && Objects.equals(toggle, that.toggle)
-                && Objects.equals(staticSkill, that.staticSkill)
+                && Objects.equals(staticReuse, that.staticReuse)
                 && Objects.equals(blockedInOlympiad, that.blockedInOlympiad)
                 && Objects.equals(overHit, that.overHit)
                 && Objects.equals(ignoreShield, that.ignoreShield)
                 && Objects.equals(nextActionAttack, that.nextActionAttack)
-                && Objects.equals(heroSkill, that.heroSkill)
-                && Objects.equals(clanSkill, that.clanSkill)
                 && Objects.equals(dispellable, that.dispellable)
                 && Objects.equals(reflectable, that.reflectable)
-                && Objects.equals(stayAfterDeath, that.stayAfterDeath);
+                && Objects.equals(stayAfterDeath, that.stayAfterDeath)
+                && Objects.equals(triggered, that.triggered);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                magic,
                 debuff,
                 offensive,
-                passive,
-                toggle,
-                staticSkill,
+                staticReuse,
                 blockedInOlympiad,
                 overHit,
                 ignoreShield,
                 nextActionAttack,
-                heroSkill,
-                clanSkill,
                 dispellable,
                 reflectable,
-                stayAfterDeath);
+                stayAfterDeath,
+                triggered);
     }
 
     @Override
     public String toString() {
-        return "SkillFlags[magic=" + magic + ", debuff=" + debuff + ", passive=" + passive + "]";
+        return "SkillFlags[" + "debuff=" + debuff + ", offensive=" + offensive + ", triggered=" + triggered + "]";
     }
 
     public static final class Builder {
-        private @Nullable Boolean magic;
         private @Nullable Boolean debuff;
         private @Nullable Boolean offensive;
-        private @Nullable Boolean passive;
-        private @Nullable Boolean toggle;
-        private @Nullable Boolean staticSkill;
+        private @Nullable Boolean staticReuse;
         private @Nullable Boolean blockedInOlympiad;
         private @Nullable Boolean overHit;
         private @Nullable Boolean ignoreShield;
         private @Nullable Boolean nextActionAttack;
-        private @Nullable Boolean heroSkill;
-        private @Nullable Boolean clanSkill;
         private @Nullable Boolean dispellable;
         private @Nullable Boolean reflectable;
         private @Nullable Boolean stayAfterDeath;
-
-        public Builder magic(@Nullable Boolean magic) {
-            this.magic = magic;
-            return this;
-        }
+        private @Nullable Boolean triggered;
 
         public Builder debuff(@Nullable Boolean debuff) {
             this.debuff = debuff;
@@ -222,18 +174,8 @@ public final class SkillFlags {
             return this;
         }
 
-        public Builder passive(@Nullable Boolean passive) {
-            this.passive = passive;
-            return this;
-        }
-
-        public Builder toggle(@Nullable Boolean toggle) {
-            this.toggle = toggle;
-            return this;
-        }
-
-        public Builder staticSkill(@Nullable Boolean staticSkill) {
-            this.staticSkill = staticSkill;
+        public Builder staticReuse(@Nullable Boolean staticReuse) {
+            this.staticReuse = staticReuse;
             return this;
         }
 
@@ -257,16 +199,6 @@ public final class SkillFlags {
             return this;
         }
 
-        public Builder heroSkill(@Nullable Boolean heroSkill) {
-            this.heroSkill = heroSkill;
-            return this;
-        }
-
-        public Builder clanSkill(@Nullable Boolean clanSkill) {
-            this.clanSkill = clanSkill;
-            return this;
-        }
-
         public Builder dispellable(@Nullable Boolean dispellable) {
             this.dispellable = dispellable;
             return this;
@@ -282,23 +214,24 @@ public final class SkillFlags {
             return this;
         }
 
+        public Builder triggered(@Nullable Boolean triggered) {
+            this.triggered = triggered;
+            return this;
+        }
+
         public SkillFlags build() {
             return new SkillFlags(
-                    magic,
                     debuff,
                     offensive,
-                    passive,
-                    toggle,
-                    staticSkill,
+                    staticReuse,
                     blockedInOlympiad,
                     overHit,
                     ignoreShield,
                     nextActionAttack,
-                    heroSkill,
-                    clanSkill,
                     dispellable,
                     reflectable,
-                    stayAfterDeath);
+                    stayAfterDeath,
+                    triggered);
         }
     }
 }

@@ -43,7 +43,7 @@ work lives in [`TODO.md`](TODO.md).
 | 027 | etctype-consumable-market-signals | 2026-07-22 | [spec](specs/027-etctype-consumable-market-signals.md) |
 | 028 | character-inventory-capacity      | 2026-07-26 | [spec](specs/028-character-inventory-capacity.md)      |
 | 029 | character-class-state-sync        | 2026-07-27 | [spec](specs/029-character-class-state-sync.md)        |
-| 030 | gamedata-sync                     | 2026-08-15 | [spec](specs/030-gamedata-sync.md)                     |
+| 030 | gamedata-sync                     | 2026-08-15 | [spec](specs/030-gamedata-sync/spec.md)                |
 | 031 | character-log-events              | 2026-09-01 | [spec](specs/031-character-log-events.md)              |
 | 034 | api-package-layout                | 2026-10-02 | [spec](specs/034-api-package-layout.md)                |
 | 035 | character-display                 | 2026-10-06 | [spec](specs/035-character-display.md)                 |

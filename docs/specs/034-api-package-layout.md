@@ -23,8 +23,8 @@ the slice's contract from its supporting types. The same smell exists inside cor
   threshold.
 - Wire-contract slices are read by role: a command group's `{X}Command` / `{X}Result` pairs and an
   event family's events are the slice content and stay in the root; an entity DTO package
-  (`kafka.sync.db.*`, `kafka.sync.gd.skill`, `kafka.sync.gd.npctemplate`) is one aggregate of one
-  kind and stays flat.
+  (`kafka.sync.db.*`, `kafka.sync.gd.npctemplate`) is one aggregate of one kind and stays flat. An
+  aggregate that grows several DTOs of one kind opens a sub-package per kind (R6: `kafka.sync.gd.skill`).
 - The rule applies on first touch: adding the second file of a kind opens the sub-package.
 
 ## Requirements
@@ -47,7 +47,7 @@ the slice's contract from its supporting types. The same smell exists inside cor
 
   | Slice                          | Into `model/`                                                                                                               |
   | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-  | `kafka.commands.privatestore`  | `BoughtLine`, `BuyLine`, `DroppedLine`, `SellLine`                                                                        |
+  | `kafka.commands.privatestore`  | `BoughtLine`, `BuyLine`, `DroppedLine`, `SellLine`                                                                          |
   | `kafka.commands.ban`           | `WellKnownBanTargetTypes`, `WellKnownBanTypes`                                                                              |
   | `kafka.commands.mail`          | `ItemDeliveryError`, `MailItem`                                                                                             |
   | `kafka.commands.captcha` (new) | `CaptchaRoundResult`, `WellKnownCaptchaOutcomes`                                                                            |
@@ -84,6 +84,32 @@ the slice's contract from its supporting types. The same smell exists inside cor
 - [done] R5. `nx-gs-adapter-api/CLAUDE.md` carries the new package map; the flat-`spi` statement is
   replaced by this rule.
 
+- [done] R6. The skill vocabulary and the `gd.skill` DTOs follow the same rule (api 0.101.0, a breaking
+  release; the field-level contract is
+  [`030-gamedata-sync/skill-contract.md`](030-gamedata-sync/skill-contract.md)). Enums opened new
+  sub-packages and existing enums moved in:
+
+  | Package                           | Content                                                                                                                             |
+  | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+  | `domain.skill.kind`               | `SkillOperateType`, `SkillMagicType`, `SkillBasicProperty` (new); `SkillOperation`, `SkillTrait` (moved from `domain.skill`)        |
+  | `domain.skill.effect`             | `SkillEffectType`, `SkillEffectScope`, `EscapeDestination` (new); `SkillEffectCategory` (moved from `domain.skill`)                 |
+  | `domain.skill.condition`          | `SkillConditionType`, `SkillConditionLogic`, `SkillConditionAction` (new)                                                           |
+  | `domain.skill.target`             | `SkillAffectScope`, `SkillAffectObject` (new); `SkillTargetType` (moved from `domain.skill`)                                        |
+  | `domain.skill` (root)             | `SkillTreeKind`, `SkillRewardKind` (new); `SkillEnchant` stays                                                                      |
+  | `domain.world` (new)              | `ActorKind`, `ZoneKind`                                                                                                             |
+  | `domain.clan` (new)               | `SocialClass`, `ResidenceType`, `SiegeSide`                                                                                         |
+  | `domain.character.state` (new)    | `MovementState`, `RelativePosition`, `MountType`                                                                                    |
+  | `domain.character.resource` (new) | `SoulType`, `CharacterResource`                                                                                                     |
+  | `domain.item`                     | `WeaponType` (moved from `domain`, gains `PISTOLS`), `ItemGrade` (new)                                                              |
+  | `kafka.sync.gd.skill.effect`      | `SkillEffect`, `SkillStatModifier` (moved from `kafka.sync.gd.skill`)                                                               |
+  | `kafka.sync.gd.skill.condition`   | `SkillConditionNode` (new)                                                                                                          |
+  | `kafka.sync.gd.skill.learn`       | `SkillLearn`, `SkillLearnItemSet`, `SkillLearnSubClass`, `SkillLevelRef` (new); `SkillLearnItem` (moved from `kafka.sync.gd.skill`) |
+  | `kafka.sync.gd.skill.produced`    | `SkillProducedItem`, `SkillProducedItemGroup` (moved from `kafka.sync.gd.skill`)                                                    |
+
+  `Skill`, `SkillLevel`, `SkillFlags`, `SkillEnchantRoute` and `GearScoreContribution` stay in
+  `kafka.sync.gd.skill` (the aggregate root and single files of their kind). `domain.character`
+  keeps `CharacterPrivateStore`, `CharacterRace`, `CharacterSex` and `clazz/`.
+
 ## Compatibility
 
 Source- and binary-breaking for every consumer that imports a moved type; wire-compatible (nothing on
@@ -97,4 +123,4 @@ same pass; an un-bumped consumer keeps working on the old jars until it next upg
 ## Non-goals
 
 - Renaming types or changing any contract.
-- Splitting the entity DTO aggregates (`sync.gd.skill`, `sync.gd.npctemplate`, `sync.db.*`).
+- Splitting the entity DTO aggregates `sync.gd.npctemplate` and `sync.db.*`.

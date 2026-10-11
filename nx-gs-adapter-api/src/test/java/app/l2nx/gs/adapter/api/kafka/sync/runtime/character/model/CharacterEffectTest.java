@@ -2,8 +2,8 @@ package app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import app.l2nx.gs.adapter.api.domain.skill.SkillEffectCategory;
 import app.l2nx.gs.adapter.api.domain.skill.SkillEnchant;
+import app.l2nx.gs.adapter.api.domain.skill.effect.SkillEffectCategory;
 import org.junit.jupiter.api.Test;
 
 class CharacterEffectTest {

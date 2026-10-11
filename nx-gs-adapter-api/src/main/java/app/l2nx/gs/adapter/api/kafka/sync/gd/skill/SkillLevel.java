@@ -1,12 +1,22 @@
 package app.l2nx.gs.adapter.api.kafka.sync.gd.skill;
 
+import app.l2nx.gs.adapter.api.domain.Attribute;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.condition.SkillConditionNode;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.effect.SkillEffect;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.effect.SkillStatModifier;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.produced.SkillProducedItemGroup;
 import app.l2nx.gs.adapter.api.localization.LocalizedText;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One base level of a {@link Skill}. Only {@code level} is non-null; time fields are {@code *Ms} or
- * {@code *Sec}, chance fields {@code *Percent}. Enchant variants live in {@link Skill#getEnchantRoutes()}.
+ * One base level of a {@link Skill}, or the enchanted variant carried by {@link SkillEnchantRoute#getNode()}.
+ * Only {@code level} is non-null; time fields are {@code *Ms} or {@code *Sec}, chance fields {@code *Percent}.
  */
 public final class SkillLevel {
 
@@ -33,6 +43,10 @@ public final class SkillLevel {
     private final @Nullable Integer hitTimeMs;
     private final @Nullable Integer coolTimeMs;
     private final @Nullable Integer reuseDelayMs;
+    private final @Nullable Integer channelingMpConsume;
+    private final @Nullable Integer channelingSkillId;
+    private final @Nullable Integer channelingTickIntervalMs;
+    private final @Nullable Integer channelingStartDelayMs;
     private final @Nullable Integer baseCritRate;
     private final @Nullable Double power;
     private final @Nullable Double pvpPower;
@@ -43,13 +57,16 @@ public final class SkillLevel {
     private final @Nullable Integer levelModifier;
     private final @Nullable Integer lethalStrikeRatePercent;
     private final @Nullable Integer halfKillRatePercent;
+    private final @Nullable Integer blowChancePercent;
     private final @Nullable Integer negateRatePercent;
-    private final @Nullable Map<String, Integer> negateAbnormalTypes;
+    private final @Nullable Map<String, Integer> negateAbnormalTypesRaw;
     private final @Nullable Integer aggroPoints;
-    private final @Nullable String attribute;
+    private final @Nullable Attribute attribute;
+    private final @Nullable String attributeRaw;
     private final @Nullable Integer attributePower;
     private final @Nullable LocalizedText name;
     private final @Nullable LocalizedText description;
+    private final @Nullable SkillConditionNode conditionTree;
     private final @Nullable List<SkillEffect> effects;
     private final @Nullable List<SkillStatModifier> statModifiers;
     private final @Nullable List<SkillProducedItemGroup> producedItems;
@@ -78,6 +95,10 @@ public final class SkillLevel {
             @Nullable Integer hitTimeMs,
             @Nullable Integer coolTimeMs,
             @Nullable Integer reuseDelayMs,
+            @Nullable Integer channelingMpConsume,
+            @Nullable Integer channelingSkillId,
+            @Nullable Integer channelingTickIntervalMs,
+            @Nullable Integer channelingStartDelayMs,
             @Nullable Integer baseCritRate,
             @Nullable Double power,
             @Nullable Double pvpPower,
@@ -88,13 +109,16 @@ public final class SkillLevel {
             @Nullable Integer levelModifier,
             @Nullable Integer lethalStrikeRatePercent,
             @Nullable Integer halfKillRatePercent,
+            @Nullable Integer blowChancePercent,
             @Nullable Integer negateRatePercent,
-            @Nullable Map<String, Integer> negateAbnormalTypes,
+            @Nullable Map<String, Integer> negateAbnormalTypesRaw,
             @Nullable Integer aggroPoints,
-            @Nullable String attribute,
+            @Nullable Attribute attribute,
+            @Nullable String attributeRaw,
             @Nullable Integer attributePower,
             @Nullable LocalizedText name,
             @Nullable LocalizedText description,
+            @Nullable SkillConditionNode conditionTree,
             @Nullable List<SkillEffect> effects,
             @Nullable List<SkillStatModifier> statModifiers,
             @Nullable List<SkillProducedItemGroup> producedItems) {
@@ -121,6 +145,10 @@ public final class SkillLevel {
         this.hitTimeMs = hitTimeMs;
         this.coolTimeMs = coolTimeMs;
         this.reuseDelayMs = reuseDelayMs;
+        this.channelingMpConsume = channelingMpConsume;
+        this.channelingSkillId = channelingSkillId;
+        this.channelingTickIntervalMs = channelingTickIntervalMs;
+        this.channelingStartDelayMs = channelingStartDelayMs;
         this.baseCritRate = baseCritRate;
         this.power = power;
         this.pvpPower = pvpPower;
@@ -131,15 +159,18 @@ public final class SkillLevel {
         this.levelModifier = levelModifier;
         this.lethalStrikeRatePercent = lethalStrikeRatePercent;
         this.halfKillRatePercent = halfKillRatePercent;
+        this.blowChancePercent = blowChancePercent;
         this.negateRatePercent = negateRatePercent;
-        this.negateAbnormalTypes = negateAbnormalTypes == null
+        this.negateAbnormalTypesRaw = negateAbnormalTypesRaw == null
                 ? null
-                : Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(negateAbnormalTypes));
+                : Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(negateAbnormalTypesRaw));
         this.aggroPoints = aggroPoints;
         this.attribute = attribute;
+        this.attributeRaw = attributeRaw;
         this.attributePower = attributePower;
         this.name = name;
         this.description = description;
+        this.conditionTree = conditionTree;
         this.effects = effects == null ? null : Collections.unmodifiableList(new ArrayList<SkillEffect>(effects));
         this.statModifiers = statModifiers == null
                 ? null
@@ -186,7 +217,7 @@ public final class SkillLevel {
         return energyConsume;
     }
 
-    /** Momentum charges consumed per cast. */
+    /** Charges (momentum, energy, force) consumed per cast. */
     public @Nullable Integer getChargeConsume() {
         return chargeConsume;
     }
@@ -209,17 +240,15 @@ public final class SkillLevel {
         return affectLimit;
     }
 
-    /** Fan AoE: arc start angle in degrees relative to the caster heading; {@code null} for non-fan skills. */
     public @Nullable Integer getFanStartAngle() {
         return fanStartAngle;
     }
 
-    /** Fan AoE: arc radius; {@code null} for non-fan skills. */
     public @Nullable Integer getFanRadius() {
         return fanRadius;
     }
 
-    /** Fan AoE: arc width in degrees; {@code null} for non-fan skills. */
+    /** Fan AoE angles are degrees; the start angle is relative to the caster heading. All {@code null} for non-fan skills. */
     public @Nullable Integer getFanAngle() {
         return fanAngle;
     }
@@ -249,6 +278,23 @@ public final class SkillLevel {
         return reuseDelayMs;
     }
 
+    public @Nullable Integer getChannelingMpConsume() {
+        return channelingMpConsume;
+    }
+
+    public @Nullable Integer getChannelingSkillId() {
+        return channelingSkillId;
+    }
+
+    /** Server-effective channeling tick period, server configuration applied. */
+    public @Nullable Integer getChannelingTickIntervalMs() {
+        return channelingTickIntervalMs;
+    }
+
+    public @Nullable Integer getChannelingStartDelayMs() {
+        return channelingStartDelayMs;
+    }
+
     /** Raw value before the caster's stat modifiers; {@code null} / {@code 0} when not crit-capable. */
     public @Nullable Integer getBaseCritRate() {
         return baseCritRate;
@@ -269,12 +315,12 @@ public final class SkillLevel {
         return pvePower;
     }
 
-    /** Land-rate floor after all modifiers. */
+    /** Land-rate floor after modifiers. */
     public @Nullable Integer getMinChancePercent() {
         return minChancePercent;
     }
 
-    /** Land-rate ceiling after all modifiers. */
+    /** Land-rate ceiling after modifiers. */
     public @Nullable Integer getMaxChancePercent() {
         return maxChancePercent;
     }
@@ -299,25 +345,40 @@ public final class SkillLevel {
         return halfKillRatePercent;
     }
 
+    /**
+     * Base chance of a blow skill; {@code null} when the build carries it on the blow-damage effect
+     * ({@code params.blowChancePercent}) or the skill is no blow.
+     */
+    public @Nullable Integer getBlowChancePercent() {
+        return blowChancePercent;
+    }
+
     public @Nullable Integer getNegateRatePercent() {
         return negateRatePercent;
     }
 
     /**
-     * Keyed by UPPER_SNAKE abnormal type; the value is the max abnormal level removable.
-     * {@code null} when the skill negates nothing.
+     * Keyed by engine abnormal-type token (client data per chronicle); the value is the max abnormal level
+     * removable. {@code null} when the skill negates nothing.
      */
-    public @Nullable Map<String, Integer> getNegateAbnormalTypes() {
-        return negateAbnormalTypes;
+    public @Nullable Map<String, Integer> getNegateAbnormalTypesRaw() {
+        return negateAbnormalTypesRaw;
     }
 
     public @Nullable Integer getAggroPoints() {
         return aggroPoints;
     }
 
-    /** One of FIRE/WATER/WIND/EARTH/HOLY/DARK; {@code null} when the level has no offensive attribute. */
-    public @Nullable String getAttribute() {
+    /**
+     * Offensive element of the level; {@code null} when it has none or the engine token has no canonical
+     * element.
+     */
+    public @Nullable Attribute getAttribute() {
         return attribute;
+    }
+
+    public @Nullable String getAttributeRaw() {
+        return attributeRaw;
     }
 
     public @Nullable Integer getAttributePower() {
@@ -332,16 +393,27 @@ public final class SkillLevel {
         return description;
     }
 
+    /**
+     * All use conditions of the level as one tree; an engine's implicit condition list becomes an {@code AND}
+     * root. {@code null} when the level is unconditional.
+     */
+    public @Nullable SkillConditionNode getConditionTree() {
+        return conditionTree;
+    }
+
     public @Nullable List<SkillEffect> getEffects() {
         return effects;
     }
 
-    /** Applied without an effect wrapper (simple passives). */
+    /**
+     * Applied directly by the level without an effect wrapper (level-wide modifiers, item-like passives).
+     * Hosts never repeat them as a {@code STAT_MODIFIER} effect: an engine modifier lives in exactly one place.
+     */
     public @Nullable List<SkillStatModifier> getStatModifiers() {
         return statModifiers;
     }
 
-    /** Item groups for extractable skills; {@code null} when the skill produces nothing. */
+    /** Extractable skills only. */
     public @Nullable List<SkillProducedItemGroup> getProducedItems() {
         return producedItems;
     }
@@ -371,6 +443,10 @@ public final class SkillLevel {
                 .hitTimeMs(hitTimeMs)
                 .coolTimeMs(coolTimeMs)
                 .reuseDelayMs(reuseDelayMs)
+                .channelingMpConsume(channelingMpConsume)
+                .channelingSkillId(channelingSkillId)
+                .channelingTickIntervalMs(channelingTickIntervalMs)
+                .channelingStartDelayMs(channelingStartDelayMs)
                 .baseCritRate(baseCritRate)
                 .power(power)
                 .pvpPower(pvpPower)
@@ -381,13 +457,16 @@ public final class SkillLevel {
                 .levelModifier(levelModifier)
                 .lethalStrikeRatePercent(lethalStrikeRatePercent)
                 .halfKillRatePercent(halfKillRatePercent)
+                .blowChancePercent(blowChancePercent)
                 .negateRatePercent(negateRatePercent)
-                .negateAbnormalTypes(negateAbnormalTypes)
+                .negateAbnormalTypesRaw(negateAbnormalTypesRaw)
                 .aggroPoints(aggroPoints)
                 .attribute(attribute)
+                .attributeRaw(attributeRaw)
                 .attributePower(attributePower)
                 .name(name)
                 .description(description)
+                .conditionTree(conditionTree)
                 .effects(effects)
                 .statModifiers(statModifiers)
                 .producedItems(producedItems);
@@ -425,6 +504,10 @@ public final class SkillLevel {
                 && Objects.equals(hitTimeMs, that.hitTimeMs)
                 && Objects.equals(coolTimeMs, that.coolTimeMs)
                 && Objects.equals(reuseDelayMs, that.reuseDelayMs)
+                && Objects.equals(channelingMpConsume, that.channelingMpConsume)
+                && Objects.equals(channelingSkillId, that.channelingSkillId)
+                && Objects.equals(channelingTickIntervalMs, that.channelingTickIntervalMs)
+                && Objects.equals(channelingStartDelayMs, that.channelingStartDelayMs)
                 && Objects.equals(baseCritRate, that.baseCritRate)
                 && Objects.equals(power, that.power)
                 && Objects.equals(pvpPower, that.pvpPower)
@@ -435,13 +518,16 @@ public final class SkillLevel {
                 && Objects.equals(levelModifier, that.levelModifier)
                 && Objects.equals(lethalStrikeRatePercent, that.lethalStrikeRatePercent)
                 && Objects.equals(halfKillRatePercent, that.halfKillRatePercent)
+                && Objects.equals(blowChancePercent, that.blowChancePercent)
                 && Objects.equals(negateRatePercent, that.negateRatePercent)
-                && Objects.equals(negateAbnormalTypes, that.negateAbnormalTypes)
+                && Objects.equals(negateAbnormalTypesRaw, that.negateAbnormalTypesRaw)
                 && Objects.equals(aggroPoints, that.aggroPoints)
                 && Objects.equals(attribute, that.attribute)
+                && Objects.equals(attributeRaw, that.attributeRaw)
                 && Objects.equals(attributePower, that.attributePower)
                 && Objects.equals(name, that.name)
                 && Objects.equals(description, that.description)
+                && Objects.equals(conditionTree, that.conditionTree)
                 && Objects.equals(effects, that.effects)
                 && Objects.equals(statModifiers, that.statModifiers)
                 && Objects.equals(producedItems, that.producedItems);
@@ -473,6 +559,10 @@ public final class SkillLevel {
                 hitTimeMs,
                 coolTimeMs,
                 reuseDelayMs,
+                channelingMpConsume,
+                channelingSkillId,
+                channelingTickIntervalMs,
+                channelingStartDelayMs,
                 baseCritRate,
                 power,
                 pvpPower,
@@ -483,13 +573,16 @@ public final class SkillLevel {
                 levelModifier,
                 lethalStrikeRatePercent,
                 halfKillRatePercent,
+                blowChancePercent,
                 negateRatePercent,
-                negateAbnormalTypes,
+                negateAbnormalTypesRaw,
                 aggroPoints,
                 attribute,
+                attributeRaw,
                 attributePower,
                 name,
                 description,
+                conditionTree,
                 effects,
                 statModifiers,
                 producedItems);
@@ -497,7 +590,7 @@ public final class SkillLevel {
 
     @Override
     public String toString() {
-        return "SkillLevel[level=" + level + ", power=" + power + ", mpConsume=" + mpConsume + "]";
+        return "SkillLevel[" + "level=" + level + ", power=" + power + ", mpConsume=" + mpConsume + "]";
     }
 
     public static final class Builder {
@@ -524,6 +617,10 @@ public final class SkillLevel {
         private @Nullable Integer hitTimeMs;
         private @Nullable Integer coolTimeMs;
         private @Nullable Integer reuseDelayMs;
+        private @Nullable Integer channelingMpConsume;
+        private @Nullable Integer channelingSkillId;
+        private @Nullable Integer channelingTickIntervalMs;
+        private @Nullable Integer channelingStartDelayMs;
         private @Nullable Integer baseCritRate;
         private @Nullable Double power;
         private @Nullable Double pvpPower;
@@ -534,13 +631,16 @@ public final class SkillLevel {
         private @Nullable Integer levelModifier;
         private @Nullable Integer lethalStrikeRatePercent;
         private @Nullable Integer halfKillRatePercent;
+        private @Nullable Integer blowChancePercent;
         private @Nullable Integer negateRatePercent;
-        private @Nullable Map<String, Integer> negateAbnormalTypes;
+        private @Nullable Map<String, Integer> negateAbnormalTypesRaw;
         private @Nullable Integer aggroPoints;
-        private @Nullable String attribute;
+        private @Nullable Attribute attribute;
+        private @Nullable String attributeRaw;
         private @Nullable Integer attributePower;
         private @Nullable LocalizedText name;
         private @Nullable LocalizedText description;
+        private @Nullable SkillConditionNode conditionTree;
         private @Nullable List<SkillEffect> effects;
         private @Nullable List<SkillStatModifier> statModifiers;
         private @Nullable List<SkillProducedItemGroup> producedItems;
@@ -660,6 +760,26 @@ public final class SkillLevel {
             return this;
         }
 
+        public Builder channelingMpConsume(@Nullable Integer channelingMpConsume) {
+            this.channelingMpConsume = channelingMpConsume;
+            return this;
+        }
+
+        public Builder channelingSkillId(@Nullable Integer channelingSkillId) {
+            this.channelingSkillId = channelingSkillId;
+            return this;
+        }
+
+        public Builder channelingTickIntervalMs(@Nullable Integer channelingTickIntervalMs) {
+            this.channelingTickIntervalMs = channelingTickIntervalMs;
+            return this;
+        }
+
+        public Builder channelingStartDelayMs(@Nullable Integer channelingStartDelayMs) {
+            this.channelingStartDelayMs = channelingStartDelayMs;
+            return this;
+        }
+
         public Builder baseCritRate(@Nullable Integer baseCritRate) {
             this.baseCritRate = baseCritRate;
             return this;
@@ -710,13 +830,18 @@ public final class SkillLevel {
             return this;
         }
 
+        public Builder blowChancePercent(@Nullable Integer blowChancePercent) {
+            this.blowChancePercent = blowChancePercent;
+            return this;
+        }
+
         public Builder negateRatePercent(@Nullable Integer negateRatePercent) {
             this.negateRatePercent = negateRatePercent;
             return this;
         }
 
-        public Builder negateAbnormalTypes(@Nullable Map<String, Integer> negateAbnormalTypes) {
-            this.negateAbnormalTypes = negateAbnormalTypes;
+        public Builder negateAbnormalTypesRaw(@Nullable Map<String, Integer> negateAbnormalTypesRaw) {
+            this.negateAbnormalTypesRaw = negateAbnormalTypesRaw;
             return this;
         }
 
@@ -725,8 +850,13 @@ public final class SkillLevel {
             return this;
         }
 
-        public Builder attribute(@Nullable String attribute) {
+        public Builder attribute(@Nullable Attribute attribute) {
             this.attribute = attribute;
+            return this;
+        }
+
+        public Builder attributeRaw(@Nullable String attributeRaw) {
+            this.attributeRaw = attributeRaw;
             return this;
         }
 
@@ -742,6 +872,11 @@ public final class SkillLevel {
 
         public Builder description(@Nullable LocalizedText description) {
             this.description = description;
+            return this;
+        }
+
+        public Builder conditionTree(@Nullable SkillConditionNode conditionTree) {
+            this.conditionTree = conditionTree;
             return this;
         }
 
@@ -785,6 +920,10 @@ public final class SkillLevel {
                     hitTimeMs,
                     coolTimeMs,
                     reuseDelayMs,
+                    channelingMpConsume,
+                    channelingSkillId,
+                    channelingTickIntervalMs,
+                    channelingStartDelayMs,
                     baseCritRate,
                     power,
                     pvpPower,
@@ -795,13 +934,16 @@ public final class SkillLevel {
                     levelModifier,
                     lethalStrikeRatePercent,
                     halfKillRatePercent,
+                    blowChancePercent,
                     negateRatePercent,
-                    negateAbnormalTypes,
+                    negateAbnormalTypesRaw,
                     aggroPoints,
                     attribute,
+                    attributeRaw,
                     attributePower,
                     name,
                     description,
+                    conditionTree,
                     effects,
                     statModifiers,
                     producedItems);

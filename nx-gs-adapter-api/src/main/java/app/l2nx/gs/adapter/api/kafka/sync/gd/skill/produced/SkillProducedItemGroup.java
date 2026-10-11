@@ -1,5 +1,6 @@
-package app.l2nx.gs.adapter.api.kafka.sync.gd.skill;
+package app.l2nx.gs.adapter.api.kafka.sync.gd.skill.produced;
 
+import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.SkillLevel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,6 +19,9 @@ public final class SkillProducedItemGroup {
 
     public SkillProducedItemGroup(
             @Nullable Double chancePercent, @Nullable Integer enchantLevel, List<SkillProducedItem> items) {
+        if (items != null && items.isEmpty()) {
+            throw new IllegalArgumentException("items must not be empty");
+        }
         this.chancePercent = chancePercent;
         this.enchantLevel = enchantLevel;
         this.items =

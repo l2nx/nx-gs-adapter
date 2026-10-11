@@ -1,6 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.sync.gd.npctemplate;
 
-import app.l2nx.gs.adapter.api.domain.WeaponType;
+import app.l2nx.gs.adapter.api.domain.item.WeaponType;
 import app.l2nx.gs.adapter.api.domain.npc.NpcRace;
 import app.l2nx.gs.adapter.api.domain.stat.Stat;
 import app.l2nx.gs.adapter.api.localization.LocalizedText;

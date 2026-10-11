@@ -28,18 +28,19 @@ it is picked up, it moves to "Done / moved into a spec".
   a host handler sidestepped it by switching to `host().async`.
 - **Related:** [`009-commands`](specs/009-commands/spec.md).
 
-### 3. `skill_type` as an enum `SkillType` in `nx-gs-adapter-api`
+### 3. Audit the other gd-sync DTOs for the canonical/raw shape
 
-- **Want:** the gd-sync `Skill.skillType` (and the `gd_skills.skill_type` column it feeds) typed by an api enum
-  `SkillType` mirroring the engine's `l2e.gameserver.model.skills.SkillType` (62 values on prod, `BUFF`, `DEBUFF`,
-  `PHYSICAL_DAMAGE`, ...), instead of a free string.
-- **To decide:** the null policy (14k skills have no type: `NOTDONE` / blank in the datapack), how an unknown engine
-  value reaches consumers (accept-then-emit: consumers must tolerate a new constant before the host emits it), and
-  where nx-gamedata's `type` filter starts using it.
-- **Why:** the skill-type vocabulary is already a contract - nx-gamedata filters by it (`GET
-/gamedata/v1/skill-templates?type=BUFF`) and nx-social validates buff watches against it - but nothing pins its values.
-  Not to be confused with `SkillEffectCategory` (status-bar group of a hanging effect), which is a different axis.
-- **Related:** `nx-social/docs/specs/054-buff-item-watch.md` §2, `nx-gamedata/docs/specs/023-player-template-search.md`.
+- **Want:** go through the remaining gd-sync DTOs (item, armor set, NPC, cubic, recipe, soul crystal, class, instance)
+  and check them against the skill contract rules: a vocabulary value travels as a canonical api enum plus its
+  `<name>Raw` engine token (N1), no lossy mapping (N2), and no assumption that a single game line
+  (HighFive-only or Essence-only) is the one in play.
+- **To decide:** which fields are real vocabularies worth an enum versus free engine data, and how each retyped
+  field is rolled out (a retype is breaking, see the compatibility section of
+  [`skill-contract.md`](specs/030-gamedata-sync/skill-contract.md)).
+- **Why:** deferred from the skill contract. The item follow-up only adds fields: `ItemGrade` and
+  `WeaponType.PISTOLS` already exist in the api.
+- **Related:** [`030-gamedata-sync/skill-contract.md`](specs/030-gamedata-sync/skill-contract.md),
+  [`030-gamedata-sync/spec.md`](specs/030-gamedata-sync/spec.md) §7.
 
 ## Done / moved into a spec
 
@@ -48,3 +49,7 @@ it is picked up, it moves to "Done / moved into a spec".
   `WellKnownBossMetadata`, `WellKnownActivityMetadata.ELAPSED_SECONDS` / `SECONDS_REMAINING` /
   `SECONDS_TO_NEXT_TIER`). See [`014-events-raid`](specs/014-events-raid.md) R4,
   [`017-character-runtime-activity`](specs/017-character-runtime-activity.md) R4.
+- **`skill_type` as an api enum `SkillType`** - decided against in the skill contract (`api/v0.101.0`): the skill
+  type is an engine-specific axis with no cross-line meaning, so it travels raw as `Skill.skillTypeRaw`; the host
+  derives its meaning into canonical effects (`SkillEffectType`, `derived = true`). Filters by skill kind move to
+  effect types. See [`030-gamedata-sync/skill-contract.md`](specs/030-gamedata-sync/skill-contract.md).

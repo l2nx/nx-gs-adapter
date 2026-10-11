@@ -27,6 +27,8 @@ own, fill this".
   only the host at hand. A vocabulary value is a general L2 concept from either line; build customs stay raw.
 - **Proactively look for parts that would not fit another build.** When working in any area, check its existing
   contracts for single-build assumptions and propose a refactor; record each finding in `docs/TODO.md`.
+- **The skill contract is a living doc.** Any change to the `gd.skill` DTOs or the skill/stat vocabulary enums updates
+  `docs/specs/030-gamedata-sync/skill-contract.md` in the same commit.
 - Platform storage follows meaning, not the writer: see `nx-gamedata/CLAUDE.md` → first principle.
 
 ## Workflow

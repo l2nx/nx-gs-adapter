@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.domain.skill;
+package app.l2nx.gs.adapter.api.domain.skill.effect;
 
 /**
  * Status-bar group of a skill, not of one application. Precedence when several flags hold: {@link #DEBUFF},

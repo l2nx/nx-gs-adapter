@@ -1,7 +1,7 @@
 package app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model;
 
-import app.l2nx.gs.adapter.api.domain.skill.SkillEffectCategory;
 import app.l2nx.gs.adapter.api.domain.skill.SkillEnchant;
+import app.l2nx.gs.adapter.api.domain.skill.effect.SkillEffectCategory;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
