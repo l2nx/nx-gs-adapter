@@ -566,7 +566,9 @@ A repeat of a completed correlation id replays the stored `createdMailIds`.
 of `SendMailCommand`): text, items taken from the sender's inventory, adena
 and cash on delivery (COD). The sender may be online or offline. One recipient
 per command. All-or-nothing: no partial mails. Idempotent per `correlationId`
-through the host's durable receipts. Full contract:
+through the host's durable receipts; a replay returns the stored `mailId`
+and `feeAdena`. There is no `offlineAllowed` field; the daily quota is
+enforced on the platform, the host does not gate mail by quota. Full contract:
 [`send-player-mail.md`](send-player-mail.md).
 
 **Inputs**
@@ -574,29 +576,29 @@ through the host's durable receipts. Full contract:
 | Field             | Type                   | Required | Notes                                                                                                                                                                      |
 | ----------------- | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `senderCharId`    | `Long`                 | yes      | Character the mail is sent from                                                                                                                                            |
-| `recipientCharId` | `Long`                 | yes      | Single recipient, MUST differ from the sender                                                                                                                              |
+| `recipientCharId` | `Long`                 | yes      | Single recipient, MUST differ from the sender; same account as the sender is allowed |
 | `title`           | `String`               | yes      | Non-blank; at most 128 chars and 255 UTF-8 bytes; text allowlist                                                                                                           |
 | `body`            | `String?`              | no       | `null` = empty; at most 512 chars; text allowlist                                                                                                                          |
 | `items`           | `List<PlayerMailItem>` | no       | Lines `PlayerMailItem{Long itemId, Long count}`: sender inventory instance id, positive count, no duplicate id; an adena stack is refused, adena goes only through `adena` |
 | `adena`           | `Long?`                | no       | Adena in the mail; positive; counts as one attachment line (limit and fee)                                                                                                 |
-| `codPrice`        | `Long?`                | no       | COD, positive, requires an attachment (`COD_REQUIRES_ITEMS`); paid to the sender                                                                                           |
+| `codPrice`        | `Long?`                | no       | COD, positive, requires at least one `items` line (`COD_REQUIRES_ITEMS`), adena alone does not satisfy it; paid to the sender |
 | `ownerVerified`   | `boolean`              | no       | See Cross-cutting › Owner verification; `true` bypasses the item lock. The command is produced only for the owner of the sender; the host still validates the wire         |
-| `deadline`        | `Instant`              | yes      | Host replies `COMMAND_EXPIRED` before touching anything once passed; `null` from an older platform reads as "no expiry"                                                    |
+| `deadline`        | `Instant`              | yes      | Non-null; checked first, host replies `COMMAND_EXPIRED` before touching anything once passed |
 
 **Result** (`SendPlayerMailResult`)
 
 | Field      | Type   | Notes                                  |
 | ---------- | ------ | -------------------------------------- |
 | `mailId`   | `long` | Created mail                           |
-| `feeAdena` | `long` | Adena the host charged for the sending |
+| `feeAdena` | `long` | Adena the host charged (host constant `100 + 1000 * attachment count`) |
 
 **Errors** — `extensions.reason` per status (full table in the command spec):
 
 | Status              | Reasons                                                                                                                                                                                                                                                        |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NOT_FOUND`         | `RECIPIENT_NOT_FOUND`                                                                                                                                                                                                                                          |
-| `FORBIDDEN`         | `CHARACTER_BANNED`, `CHARACTER_JAILED`, `TRANSACTIONS_FORBIDDEN`, `ITEM_LOCKED`, `RECIPIENT_BLOCKED_SENDER`, `RECIPIENT_GM_ONLY`                                                                                                                                                 |
-| `VALIDATION_FAILED` | `SELF_SEND`, `TOO_MANY_ATTACHMENTS`, `TOO_MANY_LINES`, `ADENA_OVERFLOW`, `COD_REQUIRES_ITEMS`, `ITEM_NOT_TRANSFERABLE`; malformed command (id out of `int` range, duplicate `itemId`, adena stack in `items`, text outside the allowlist, title/body too long) |
+| `NOT_FOUND`         | `RECIPIENT_NOT_FOUND` (also a recipient pending deletion) |
+| `FORBIDDEN`         | `CHARACTER_BANNED`, `RECIPIENT_BANNED`, `CHARACTER_JAILED`, `TRANSACTIONS_FORBIDDEN`, `ITEM_LOCKED`, `RECIPIENT_BLOCKED_SENDER`, `RECIPIENT_GM_ONLY`                                                                                                                                              |
+| `VALIDATION_FAILED` | `SELF_SEND`, `TOO_MANY_ATTACHMENTS`, `TOO_MANY_LINES`, `ADENA_OVERFLOW`, `COD_REQUIRES_ITEMS`, `ITEM_NOT_TRANSFERABLE`; malformed command, carrying a `field` extension instead of a reason (null required field, id out of `int` range, bad count, duplicate `itemId`, adena stack in `items`, text outside the allowlist, title/body too long) |
 | `INVALID_STATE`     | `NOT_ENOUGH_ADENA`, `RECIPIENT_INBOX_FULL`, `OUTBOX_FULL`, `CHARACTER_BUSY`, `MAIL_DISABLED`, `ATTACHMENTS_DISABLED`, `LEVEL_TOO_LOW`, `RESTORE_IN_PROGRESS`                                                                                                   |
 | `COMMAND_EXPIRED`   | its own status; `deadline` passed, nothing changed                                                                                                                                                                                                             |
 | `INTERNAL_ERROR`    | `MAIL_DELIVERY_FAILED` (dirty rollback / persist failure); `OUTCOME_UNKNOWN` for a replay that finds the first attempt in flight (platform holds its guard, not retry-safe)                                                                                    |
