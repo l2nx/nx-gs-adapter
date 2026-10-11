@@ -21,6 +21,9 @@ own, fill this".
   (client patch).
 - **No single-build assumptions in the contract**: enchant-route numbering, the base level of enchant chances,
   the set of skill trees, which fields exist. What a build lacks is `null`; consumers degrade, they don't break.
+- **Every model must fit both HighFive and Essence.** Design and review each DTO, enum and SPI against both lines.
+  The reference for Essence and for HighFive builds other than bohpts is L2J Mobius (`E:\projects\L2J_Mobius`, one
+  folder per chronicle). A vocabulary value is a general L2 concept from either line; build customs stay raw.
 - Platform storage follows meaning, not the writer: see `nx-gamedata/CLAUDE.md` → first principle.
 
 ## Workflow
