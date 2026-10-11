@@ -578,7 +578,7 @@ poll(pollTimeoutMs)
 host with an old platform keeps its checks, and an old host ignores the field. Release order is free;
 the relaxed check takes effect once both the platform sends `true` and the host honours it. The
 `@Deprecated` constructors without the flag were the Java-side straddle; `api/v0.93.1` drops them after
-bohpts-core with R28 went live (2026-10-05). The wire stays additive: an old producer still reads as `false`.
+the reference host with R28 went live (2026-10-05). The wire stays additive: an old producer still reads as `false`.
 
 `COMMAND_EXPIRED` (R23) is an added enum constant, which is safe only in platform-first order:
 release `api/vX.Y.Z`, deploy the platform consumer, and only then let a host start emitting it.
