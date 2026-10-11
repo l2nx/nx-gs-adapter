@@ -27,7 +27,7 @@ under an arbitrary display name ("System", "Дед Мороз").
 
   **Sender is two independent things, and the contract keeps them apart.** `senderCharacterId` is who
   speaks legally — it drives the host's gates, the packet's `objectId` and the platform's attribution.
-  `senderDisplayName` is what the client renders. A mini-app message carries both (character plus its
+  `senderDisplayName` is what the client renders. An app message carries both (character plus its
   own name with a suffix); a "Дед Мороз" announcement carries only the second. Collapsing them into a
   single field cannot express either the persona or the audit trail.
 

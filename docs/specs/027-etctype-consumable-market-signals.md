@@ -13,7 +13,7 @@ private-store / item-classification wire shape:
   approximating.
 - **Private-store start/stop commands** — `nx-gameservers` docs/specs/052-private-store-start-commands.md
   needed an outbound command-RPC family to seat a character (online or offline) into a private
-  store, or stop one, from the miniapp/admin panel.
+  store, or stop one, from the app/admin panel.
 - **package-sell offer flag** — `nx-gameservers` docs/specs/054-package-sell-offer-flag.md needed a
   per-offer boolean on the private-store snapshot wire so the platform can tell a `PACKAGE_SELL`
   component from a regular `SELL` lot.

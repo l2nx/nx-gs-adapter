@@ -17,7 +17,7 @@ gear-score), `gd_item_option_stat_modifiers` (option id → stat bonus),
 (`gd_life_stones`, `gd_life_stone_grades`, `gd_augment_chances`). So "what does
 option N grant" is answerable today. What is missing is the join key: **which
 two options sit on a given item instance**. Without it the platform cannot tell
-an augmented item from a plain one — needed for the market miniapp (sellability
+an augmented item from a plain one — needed for the market app (sellability
 gating + augment display) and item inspection.
 
 This spec covers the **sync only** — moving the per-instance option ids into a
