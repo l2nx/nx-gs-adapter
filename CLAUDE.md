@@ -21,9 +21,12 @@ own, fill this".
   (client patch).
 - **No single-build assumptions in the contract**: enchant-route numbering, the base level of enchant chances,
   the set of skill trees, which fields exist. What a build lacks is `null`; consumers degrade, they don't break.
-- **Every model must fit both HighFive and Essence.** Design and review each DTO, enum and SPI against both lines.
-  Check against public open-source builds of both lines, not only the host at hand. A vocabulary value is a general
-  L2 concept from either line; build customs stay raw.
+- **Every model must fit both HighFive and Essence.** This is a policy for the whole adapter, not for one feature:
+  every DTO, enum, SPI and module is designed and reviewed against both lines, so a new tenant on another build
+  needs only its host provider, not adapter changes. Check against public open-source builds of both lines, not
+  only the host at hand. A vocabulary value is a general L2 concept from either line; build customs stay raw.
+- **Proactively look for parts that would not fit another build.** When working in any area, check its existing
+  contracts for single-build assumptions and propose a refactor; record each finding in `docs/TODO.md`.
 - Platform storage follows meaning, not the writer: see `nx-gamedata/CLAUDE.md` → first principle.
 
 ## Workflow
