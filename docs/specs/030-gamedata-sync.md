@@ -43,6 +43,7 @@ its snapshot accessor and primary-key extractor, so adding an entity is one regi
 | `classtemplate`       | `ClassTemplateProvider`       | `clazz.ordinal()` (`-1` when null) |
 | `instance`            | `InstanceTemplateProvider`    | `template.id`                      |
 | `gearscore`           | `GearScoreRulesetProvider`    | constant `0` (singleton)           |
+| `experiencelevel`     | `ExperienceLevelProvider`     | `level`                            |
 
 Each present provider becomes an independent `EntitySync` with its own burst, `syncId` and heartbeat
 `EntityStats`. A missing provider is skipped; two impls of one SPI put the module in `FAILED` (the
@@ -60,8 +61,10 @@ order):
 2. one terminal `GameDataSyncEvent{op=SNAPSHOT_COMPLETE, syncId, count}` marker.
 
 `syncId` is UUIDv7 (time-ordered — the platform derives burst time from the id). Every record carries
-`Nx-Message-Type=GameDataSyncEvent`. Per-entity topics come from `ctx.getSyncTopics().getGd()`; an
-absent topic skips that entity with a `WARN`.
+`Nx-Message-Type=GameDataSyncEvent`. The topic of each entity comes from `ctx.getSyncTopics().getGd()`
+(keyed by `entityName`); an absent topic skips that entity with a `WARN`. The platform maps every
+entity to one `<tenant>.gd.sync` topic (since 2026-10-08); the consumer routes by the envelope's
+`entityName`. The map is applied at `/connect`, so a host picks up a changed map on reconnect.
 
 The platform treats `SNAPSHOT_COMPLETE` as the reconcile point: rows of that entity not seen under
 the terminal `syncId` are deleted. That makes the marker the dangerous part of the protocol — see §2.
@@ -319,7 +322,7 @@ Ordering is forced by Maven Central propagation (~15-30 min) and the host build:
 No step is breaking, and steps 2 and 3 are independently useful — an interrupted rollout leaves a
 working system.
 
-## 7. Planned: platform ownership canon (not implemented)
+## 7. Platform ownership canon (single topic and consumer guarantees live; renames and payload changes planned)
 
 Agreed 2026-10-03. The platform-side design (table ownership, readers, rollout checklist) lives in
 `nx-gamedata/docs/specs/015-l2-gamedata-storage-v3-design.md` §29; this section records only what
@@ -341,8 +344,11 @@ skill):
 | `armorsettemplate` / `ArmorSetTemplateProvider`       | `armorset` / `ArmorSet…`                                                         |
 | `soulcrystaltemplate` / `SoulCrystalTemplateProvider` | `soulcrystal` / `SoulCrystal…`                                                   |
 
-Topic names come from the platform (`ctx.getSyncTopics().getGd()`), so the topic switch needs no
-adapter release. The DTO/SPI renames are breaking and follow the two-release `@Deprecated` rule
+**One topic for all entities — done 2026-10-08.** The platform maps every entity to a single
+`<tenant>.gd.sync` topic instead of one topic per entity (§1.2); the switch needed no adapter
+release and the wire is unchanged. The `entityName` renames above still ride an adapter release
+(the descriptor sets the value, and the topic map is keyed by it) — the platform map and consumer
+accept both names during the transition. The DTO/SPI renames are breaking and follow the two-release `@Deprecated` rule
 (additive release, then removal once every host has moved), counted from the api 0.89 package
 layout (spec 034).
 
@@ -360,10 +366,10 @@ layout (spec 034).
 - Gear score: per-item effective values and the full ruleset — direction recorded in
   `nx-gamedata/docs/specs/009-gear-score-design.md` §3.5, not scheduled.
 
-**Consumer guarantees** (platform side, protocol unchanged): a burst whose persisted row count does
-not match `SNAPSHOT_COMPLETE.count` is not reconciled; `count=0` is treated as an anomaly and never
-reconciles; infrastructure write failures are retried, not acknowledged. `gd.sync.*` retention
-rises from 3 h to 48 h.
+**Consumer guarantees** (platform side, protocol unchanged; live since 2026-10-08): a burst whose
+persisted row count does not match `SNAPSHOT_COMPLETE.count` is not reconciled; `count=0` is treated
+as an anomaly and never reconciles; infrastructure write failures are retried, not acknowledged. The
+gd topic is kept for 48 h.
 
 ## 8. Links
 
