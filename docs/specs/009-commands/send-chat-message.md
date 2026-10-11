@@ -146,9 +146,9 @@ is registered for the `Nx-Message-Type`. That is an explicit, fast, per-server n
   `\b`, control characters) is stripped, and the rest is filtered with the game chat whitelist
   (ASCII 32-126, Cyrillic U+0400-04FF, Latin-1 U+00C0-00FF).
 
-- [done] R26. **`source` for the mini app is `MINIAPP`** (the legacy value `TMA` existed; the mini
-  app now runs on Telegram, VK and Discord, so the old name misleads). `source` stays an open
-  string; stored `TMA` rows are not rewritten.
+- [done] R26. **`source` for the player app is `APP`** (formerly `MINIAPP`, before that `TMA`; the app
+  runs on Telegram, VK, Discord and the web). `source` stays an open string; the platform rewrites
+  stored `MINIAPP` and `TMA` values to `APP`.
 
 - [done] R27. The echo (R9) for the new channels carries `senderDisplayName`,
   `recipientCharacterIds` (`PARTY`) and `items` (R25) as defined in the events spec, and is published
