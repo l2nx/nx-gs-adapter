@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.sync.gd.skill;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,6 +42,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonSerializer;
@@ -375,6 +377,30 @@ class SkillTest {
                     assertThrows(JsonMappingException.class, () -> mapper().readValue(json, SkillConditionNode.class));
 
             assertInstanceOf(IllegalArgumentException.class, actual.getCause());
+        }
+
+        @Test
+        void readValue_shouldKeepEffectParams_whenTypeUnknownToConsumer() throws IOException {
+            String json = "{\"type\":\"FUTURE_EFFECT\",\"typeRaw\":\"future\",\"params\":{\"power\":\"10\"}}";
+
+            SkillEffect actual = mapper().enable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
+                    .readValue(json, SkillEffect.class);
+
+            assertNull(actual.getType());
+            assertEquals("future", actual.getTypeRaw());
+            assertEquals("10", actual.getParams().get("power"));
+        }
+
+        @Test
+        void readValue_shouldKeepContainer_whenLogicUnknownToConsumer() throws IOException {
+            String json = "{\"logic\":\"XOR\",\"negated\":false,"
+                    + "\"children\":[{\"typeRaw\":\"PlayerLevel\",\"negated\":false}]}";
+
+            SkillConditionNode actual = mapper().enable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
+                    .readValue(json, SkillConditionNode.class);
+
+            assertNull(actual.getLogic());
+            assertEquals(1, actual.getChildren().size());
         }
     }
 

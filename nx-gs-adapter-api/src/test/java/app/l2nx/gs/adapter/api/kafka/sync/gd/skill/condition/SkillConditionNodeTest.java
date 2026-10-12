@@ -67,6 +67,15 @@ class SkillConditionNodeTest {
                             .build());
         }
 
+        @Test
+        void build_shouldReject_whenLogicMissing() {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> SkillConditionNode.builder()
+                            .children(Collections.singletonList(leaf()))
+                            .build());
+        }
+
         @ParameterizedTest
         @MethodSource("app.l2nx.gs.adapter.api.kafka.sync.gd.skill.condition.SkillConditionNodeTest#predicateFields")
         void build_shouldReject_whenPredicateFieldSet(UnaryOperator<SkillConditionNode.Builder> predicateField) {

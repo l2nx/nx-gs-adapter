@@ -15,8 +15,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * One effect a {@link SkillLevel} applies; {@code typeRaw} is the only non-null field. One engine effect object
  * may yield several records, each carrying the same {@code typeRaw} and its own canonical params (a combined exp and
- * SP grant becomes {@code GIVE_EXP} + {@code GIVE_SP}). The constructor rejects {@code params} on an effect
- * whose {@code type} is {@code null}, since canonical params are keyed per {@code type}.
+ * SP grant becomes {@code GIVE_EXP} + {@code GIVE_SP}). {@link Builder#build()} rejects {@code params} on an effect
+ * whose {@code type} is {@code null}, since canonical params are keyed per {@code type}; the constructor accepts it, so
+ * a consumer reading a newer {@code type} as {@code null} still gets the effect.
  *
  * <p>Canonical {@code params} format, shared with {@code SkillConditionNode}: keys are lowerCamel, fixed per
  * {@code type}, and absent when they do not apply, never blank. Integers are decimal, decimals use {@code .},
@@ -63,9 +64,6 @@ public final class SkillEffect {
             @Nullable SkillConditionNode conditionTree,
             @Nullable Boolean derived,
             @Nullable List<SkillStatModifier> statModifiers) {
-        if (params != null && type == null) {
-            throw new IllegalArgumentException("params requires a mapped type");
-        }
         this.type = type;
         this.typeRaw = Objects.requireNonNull(typeRaw, "typeRaw");
         this.scope = scope;
@@ -357,6 +355,9 @@ public final class SkillEffect {
         }
 
         public SkillEffect build() {
+            if (params != null && type == null) {
+                throw new IllegalArgumentException("params requires a mapped type");
+            }
             return new SkillEffect(
                     type,
                     typeRaw,

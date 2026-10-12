@@ -11,10 +11,15 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Node of a skill condition tree. A container ({@code logic} non-null) combines at least one child and carries
- * no predicate; a leaf ({@code logic} {@code null}) is one engine predicate with a non-null {@code typeRaw} and no
- * children. A container carries no {@code params} or {@code paramsRaw}, and a leaf carries {@code params} only with a
- * non-null {@code type}. {@code systemMessageId} may sit on any node: the message shown when that subtree fails. The constructor rejects any other shape.
+ * Node of a skill condition tree. A container (non-empty {@code children}) combines its children with {@code logic}
+ * and carries no predicate, {@code params} or {@code paramsRaw}; a leaf ({@code children} {@code null}) is one engine
+ * predicate with a non-null {@code typeRaw}. {@code systemMessageId} may sit on any node: the message shown when that
+ * subtree fails.
+ *
+ * <p>The constructor checks only the shape, so a consumer reading a newer vocabulary with unknown values as
+ * {@code null} still gets the node: a container with {@code logic} {@code null}, or a leaf with {@code params} and
+ * {@code type} {@code null}. {@link Builder#build()} additionally requires what a host must send: {@code logic} on
+ * every container and a mapped {@code type} for leaf {@code params}.</p>
  *
  * <p>Any node may be {@code negated}: every engine negation and engine boolean flag folds into it, so canonical
  * predicates are stated affirmatively. One engine condition may yield several leaves sharing {@code typeRaw}.</p>
@@ -39,8 +44,8 @@ public final class SkillConditionNode {
             @Nullable Map<String, String> paramsRaw,
             @Nullable Integer systemMessageId,
             @Nullable List<SkillConditionNode> children) {
-        if (logic != null) {
-            if (children == null || children.isEmpty()) {
+        if (children != null) {
+            if (children.isEmpty()) {
                 throw new IllegalArgumentException("container node needs at least one child");
             }
             if (typeRaw != null || type != null) {
@@ -50,14 +55,11 @@ public final class SkillConditionNode {
                 throw new IllegalArgumentException("container node must not carry params");
             }
         } else {
+            if (logic != null) {
+                throw new IllegalArgumentException("container node needs at least one child");
+            }
             if (typeRaw == null) {
                 throw new IllegalArgumentException("leaf node needs typeRaw");
-            }
-            if (children != null) {
-                throw new IllegalArgumentException("leaf node must not carry children");
-            }
-            if (params != null && type == null) {
-                throw new IllegalArgumentException("leaf params require a mapped type");
             }
         }
         this.logic = logic;
@@ -200,6 +202,12 @@ public final class SkillConditionNode {
         }
 
         public SkillConditionNode build() {
+            if (children != null && logic == null) {
+                throw new IllegalArgumentException("container node needs logic");
+            }
+            if (params != null && type == null) {
+                throw new IllegalArgumentException("leaf params require a mapped type");
+            }
             return new SkillConditionNode(logic, type, typeRaw, negated, params, paramsRaw, systemMessageId, children);
         }
     }

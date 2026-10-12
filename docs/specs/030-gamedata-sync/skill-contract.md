@@ -270,6 +270,10 @@ not the skill's own MP cost (`SkillLevel.mpConsume`).
 | `systemMessageId` | `Integer`                  | nullable       | client system message shown when this node (leaf or subtree) fails (`msgId`) |
 | `children`        | `List<SkillConditionNode>` | container only | ≥ 1 child                                                                    |
 
+A node is a container when `children` is present. Hosts always send `logic` on a container and a mapped `type` with
+`params` (the builders enforce it); deserialization checks only the shape, so a consumer that reads a newer `logic` or
+`type` as `null` (§5) still receives the node.
+
 ### 2.8 New `SkillLearn` (package `gd.skill.learn`)
 
 | field                      | type                       | null     | semantics                                                                                                                                      |
@@ -1608,4 +1612,7 @@ How a host fills the record. The rules are build-agnostic; the engine-specific t
 - Consumers should enable unknown-enum-as-null deserialization (e.g. Jackson `READ_UNKNOWN_ENUM_VALUES_AS_NULL`) so
   that future vocabulary additions are additive: the canonical field then reads `null` while the matching `<name>Raw`
   field still carries the engine token.
+- The DTO constructors check only shape (non-null raw tokens, container vs leaf). Rules that depend on a canonical
+  value being mapped (`params` needs `type`, a container needs `logic`) are enforced by the builders, i.e. on the
+  host. So a canonical value unknown to the consumer reads as `null` without rejecting the record.
 - Existing enum constants are never renamed or removed; new constants are appended after the frozen ones.
