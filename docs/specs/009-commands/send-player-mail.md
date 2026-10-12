@@ -51,29 +51,29 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 
 - [done] R3. `SendPlayerMailResult` MUST carry `mailId` (`long`, the created mail) and `feeAdena`
   (`long`, adena the host charged the sender for sending).
-- [todo] R4. The command MUST be **all-or-nothing**: either the mail exists with every requested
+- [done] R4. The command MUST be **all-or-nothing**: either the mail exists with every requested
   attachment and the fee charged, or nothing was taken from the sender and no mail exists. There are no
   partial mails and no `itemErrors` analogue.
-- [todo] R5. `deadline` is required and non-null. It MUST be checked first, before anything is charged or
+- [done] R5. `deadline` is required and non-null. It MUST be checked first, before anything is charged or
   moved. A passed deadline yields the `COMMAND_EXPIRED` status (its own `CommandStatus`, rail R23, not a
   reason under `INVALID_STATE`) with no mutation. The only thing read first is the durable receipt by
   `idempotencyKey`, read-only: an existing OK receipt replays the stored result, an in-flight one is
   `OUTCOME_UNKNOWN` as in R6; an absent or `FAILED` receipt is `COMMAND_EXPIRED`.
-- [todo] R6. The command MUST be idempotent per `idempotencyKey`. Transport and business operation are
+- [done] R6. The command MUST be idempotent per `idempotencyKey`. Transport and business operation are
   separate: every dispatch attempt has its own `correlationId`, while `idempotencyKey` is the business identity of
   the send and stays stable across retries of the same request. The host keeps durable per-command receipts
   keyed by `idempotencyKey` (not by `correlationId`, not the in-memory `CommandDedupStore`). A replay of a
   completed send returns the stored full result (`mailId` and `feeAdena`); a replay while the first attempt is in
   flight reports an unknown outcome (`INTERNAL_ERROR` class with reason `OUTCOME_UNKNOWN`, not a business
   refusal) instead of executing again; the platform keeps its guard held and marks the reply `retrySafe = false`.
-- [todo] R7. Every non-OK business reply MUST carry a stable machine-readable `reason` in
+- [done] R7. Every non-OK business reply MUST carry a stable machine-readable `reason` in
   `CommandProblem.extensions` (see Status mapping); the host never sends player-facing text.
-- [todo] R8. `ownerVerified = true` MUST bypass the character item lock (a device-bound lock the
+- [done] R8. `ownerVerified = true` MUST bypass the character item lock (a device-bound lock the
   command cannot satisfy), consistent with R28. This is deliberate: the verified master-account owner
   stands in for the device. `false` (staff acting on any character, or no fresh verification) leaves
   the lock in force.
 
-- [todo] R10. The host MUST validate the wire command itself before the receipt lookup, whatever
+- [done] R10. The host MUST validate the wire command itself before the receipt lookup, whatever
   the platform checked: required fields present; every id within the `int` range (out of range is
   `VALIDATION_FAILED` with a `field` extension); counts positive; no duplicate `itemId`; `codPrice` without
   at least one `items` line (adena alone does not count) is `VALIDATION_FAILED` with reason `COD_REQUIRES_ITEMS`; `title` at most 128 chars AND at
@@ -81,16 +81,16 @@ Audience: platform mail-flow authors composing the command; host operators wirin
   host chat-text allowlist (control characters and forged item-link tokens are refused); text outside the
   allowlist is a malformed command (`VALIDATION_FAILED` with a `field` extension, not a host reason). Too many
   attachments (`TOO_MANY_ATTACHMENTS`) and too many body lines (`TOO_MANY_LINES`) are `VALIDATION_FAILED` reasons.
-- [todo] R11. Adena travels only through `adena`. An `items` line that points at an adena stack is
+- [done] R11. Adena travels only through `adena`. An `items` line that points at an adena stack is
   `VALIDATION_FAILED`. The sender must hold `adena + fee` (one check); both are debited together and the
   adena is then added to the attachments.
 
-- [todo] R12. `SEND_PLAYER_MAIL` has no `offlineAllowed` field: an offline sender is always served (R9). The
+- [done] R12. `SEND_PLAYER_MAIL` has no `offlineAllowed` field: an offline sender is always served (R9). The
   daily mail quota is blocking and enforced on the platform; the host does not gate mail by quota.
 
 **Should:**
 
-- [todo] R9. Sender may be online or offline; the host serves both. Observable differences are limited
+- [done] R9. Sender may be online or offline; the host serves both. Observable differences are limited
   to the `CHARACTER_BUSY` reason, which only an online sender can hit.
 
 **Non-goals:**
