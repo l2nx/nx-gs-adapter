@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.kafka.commands.chat.ChatAudiences;
 import app.l2nx.gs.adapter.api.kafka.commands.chat.SendChatMessageCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.mail.SendPlayerMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.BuyFromPrivateStoreCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStorePackageSellCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreSellCommand;
@@ -69,7 +70,18 @@ class OwnerVerifiedTest {
                         "APP",
                         "hello",
                         null,
-                        true)));
+                        true)),
+                Arguments.of(new SendPlayerMailCommand(
+                        1L,
+                        2L,
+                        "title",
+                        null,
+                        null,
+                        null,
+                        null,
+                        true,
+                        java.util.UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001"),
+                        Instant.parse("2026-08-11T12:00:00Z"))));
     }
 
     @ParameterizedTest(name = "{0}")

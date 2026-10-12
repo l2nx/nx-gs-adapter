@@ -4,22 +4,17 @@ import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.model.MailItem;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Composes and delivers a system mail to one character.
+ * Delivers a system mail to one character, routed by {@code charId}; the host MAY split it into several mails over its
+ * attachment cap, all or none. {@code VALIDATION_FAILED} covers missing {@code charId}/{@code title} and a malformed
+ * {@link MailItem}: Gson bypasses the constructor, so the handler must check.
  *
- * <p>Success carries the created mail ids (the host MAY split into several mails over its per-mail attachment cap)
- * plus optional per-line failures. {@code NOT_FOUND}: unknown recipient. {@code VALIDATION_FAILED}: missing
- * {@code charId}/{@code title} or a malformed {@link MailItem}; Gson bypasses the constructor, so the handler
- * must check. {@code INTERNAL_ERROR}: handler exception or host-side failure.</p>
- *
- * <p>Optional: {@code null} author becomes the host's default sender, {@code null} body is empty, {@code null} items
- * is a text-only mail. Routed by {@code charId}.</p>
- *
- * <p>Delivery is at-most-once (see {@link app.l2nx.gs.adapter.api.spi.capability.CommandHandler}); a re-issue after a reply timeout looks like a fresh send
- * and mails and grants twice, a real-money bug for paid deliveries, so the caller MUST establish whether the first
- * send landed before re-issuing.</p>
+ * <p>Idempotent per {@code idempotencyKey} ({@code correlationId} when {@code null}): a retry replays the stored result,
+ * or is refused with {@code INTERNAL_ERROR} while the first attempt is in flight. The caller MUST reuse the key when
+ * retrying the same send; a fresh key mails and grants again.</p>
  */
 public final class SendMailCommand implements NxCommand<SendMailResult> {
 
@@ -28,29 +23,45 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
     private final String title;
     private final @Nullable String body;
     private final List<MailItem> items;
+    private final @Nullable Long adena;
+    private final @Nullable UUID idempotencyKey;
 
     public SendMailCommand(
             Long charId, @Nullable String author, String title, @Nullable String body, @Nullable List<MailItem> items) {
+        this(charId, author, title, body, items, null, null);
+    }
+
+    public SendMailCommand(
+            Long charId,
+            @Nullable String author,
+            String title,
+            @Nullable String body,
+            @Nullable List<MailItem> items,
+            @Nullable Long adena,
+            @Nullable UUID idempotencyKey) {
         if (charId == null) {
             throw new IllegalArgumentException("charId is required");
         }
         if (title == null) {
             throw new IllegalArgumentException("title is required");
         }
+        if (adena != null && adena <= 0) {
+            throw new IllegalArgumentException("adena must be positive when present");
+        }
         this.charId = charId;
         this.author = author;
         this.title = title;
         this.body = body;
         this.items = MailLists.freeze(items);
+        this.adena = adena;
+        this.idempotencyKey = idempotencyKey;
     }
 
     public Long getCharId() {
         return charId;
     }
 
-    /**
-     * {@code null} falls back to the host's system-default sender name. Display only, not a routing key.
-     */
+    /** {@code null} falls back to the host's default sender name. Display only. */
     public @Nullable String getAuthor() {
         return author;
     }
@@ -64,11 +75,22 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         return body;
     }
 
-    /**
-     * Non-null; {@code null} is normalized to empty (text-only mail). Gson-bypassed entries need per-line re-validation by the handler.
-     */
+    /** Non-null; {@code null} is normalized to empty (text-only mail). Gson-bypassed entries need re-validation. */
     public List<MailItem> getItems() {
         return items;
+    }
+
+    /** Positive when present; the host attaches it as adena. Additive: an old host ignores it. */
+    public @Nullable Long getAdena() {
+        return adena;
+    }
+
+    /**
+     * Stable across retries, unlike {@code correlationId} (one attempt). {@code null}: older platform, the host falls
+     * back to the correlation id.
+     */
+    public @Nullable UUID getIdempotencyKey() {
+        return idempotencyKey;
     }
 
     public Builder toBuilder() {
@@ -77,7 +99,9 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
                 .author(author)
                 .title(title)
                 .body(body)
-                .items(items);
+                .items(items)
+                .adena(adena)
+                .idempotencyKey(idempotencyKey);
     }
 
     public static Builder builder() {
@@ -93,12 +117,14 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
                 && Objects.equals(author, that.author)
                 && Objects.equals(title, that.title)
                 && Objects.equals(body, that.body)
-                && Objects.equals(items, that.items);
+                && Objects.equals(items, that.items)
+                && Objects.equals(adena, that.adena)
+                && Objects.equals(idempotencyKey, that.idempotencyKey);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, author, title, body, items);
+        return Objects.hash(charId, author, title, body, items, adena, idempotencyKey);
     }
 
     @Override
@@ -107,7 +133,9 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
                 + ", author=" + author
                 + ", title=" + title
                 + ", body=" + body
-                + ", items=" + items + "]";
+                + ", items=" + items
+                + ", adena=" + adena
+                + ", idempotencyKey=" + idempotencyKey + "]";
     }
 
     public static final class Builder {
@@ -116,6 +144,8 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         private String title;
         private @Nullable String body;
         private @Nullable List<MailItem> items;
+        private @Nullable Long adena;
+        private @Nullable UUID idempotencyKey;
 
         public Builder charId(Long charId) {
             this.charId = charId;
@@ -142,8 +172,18 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
             return this;
         }
 
+        public Builder adena(@Nullable Long adena) {
+            this.adena = adena;
+            return this;
+        }
+
+        public Builder idempotencyKey(@Nullable UUID idempotencyKey) {
+            this.idempotencyKey = idempotencyKey;
+            return this;
+        }
+
         public SendMailCommand build() {
-            return new SendMailCommand(charId, author, title, body, items);
+            return new SendMailCommand(charId, author, title, body, items, adena, idempotencyKey);
         }
     }
 }

@@ -20,10 +20,10 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 
 **Must:**
 
-- [todo] R1. `nx-gs-adapter-api.kafka.commands.mail.SendPlayerMailCommand` MUST ship as
+- [done] R1. `nx-gs-adapter-api.kafka.commands.mail.SendPlayerMailCommand` MUST ship as
   `NxCommand<SendPlayerMailResult>` and `OwnerVerified`, routed by the simple name `SendPlayerMailCommand`
   (enum constant name for the platform-side audit: `SEND_PLAYER_MAIL`).
-- [todo] R2. Payload fields:
+- [done] R2. Payload fields:
 
   | Field             | Type                   | Required | Constraints / notes                                                                                                                                                                                                                                       |
   | ----------------- | ---------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -35,6 +35,7 @@ Audience: platform mail-flow authors composing the command; host operators wirin
   | `adena`           | `Long?`                | no       | Adena placed in the mail; positive when present; counts as one attachment line for the host attachment limit and for the fee                                                                                                                              |
   | `codPrice`        | `Long?`                | no       | Cash on delivery, positive when present; requires at least one `items` line (`COD_REQUIRES_ITEMS`), adena alone does not satisfy it; payment goes to the sender                                                                                           |
   | `ownerVerified`   | `boolean`              | no       | See R28 in [`spec.md`](spec.md); absent reads as `false`                                                                                                                                                                                                  |
+  | `idempotencyKey`  | `UUID`                 | yes      | Business identity of this send, stable across retries of the same request; non-null (`requireNonNull`); the host dedups and replays by it (R6), `correlationId` identifies one delivery attempt only |
   | `deadline`        | `Instant`              | yes      | Execution deadline, see R5; non-null (`requireNonNull`), same type and name as in `BuyFromPrivateStoreCommand`                                                                                                                                            |
 
   Naming follows the existing wire classes (`senderCharId` / `recipientCharId`, boxed `Long` ids). The line type
@@ -48,20 +49,23 @@ Audience: platform mail-flow authors composing the command; host operators wirin
   Limits that depend on host configuration (attachment count, maximum adena for `adena` and `codPrice`) are
   enforced by the host, not by the wire type.
 
-- [todo] R3. `SendPlayerMailResult` MUST carry `mailId` (`long`, the created mail) and `feeAdena`
+- [done] R3. `SendPlayerMailResult` MUST carry `mailId` (`long`, the created mail) and `feeAdena`
   (`long`, adena the host charged the sender for sending).
 - [todo] R4. The command MUST be **all-or-nothing**: either the mail exists with every requested
   attachment and the fee charged, or nothing was taken from the sender and no mail exists. There are no
   partial mails and no `itemErrors` analogue.
-- [todo] R5. `deadline` is required and non-null. It MUST be checked first, before anything is read, charged
-  or moved. A passed deadline yields the `COMMAND_EXPIRED` status (its own `CommandStatus`, rail R23, not a
-  reason under `INVALID_STATE`) with no mutation.
-- [todo] R6. The command MUST be idempotent per `correlationId`. The platform reuses a stable
-  correlation id for a retry of the same logical send; the host keeps durable per-command receipts
-  keyed by that id (not the in-memory `CommandDedupStore`). A replay of a completed send returns the
-  stored full result (`mailId` and `feeAdena`); a replay while the first attempt is in flight reports an unknown outcome
-  (`INTERNAL_ERROR` class with reason `OUTCOME_UNKNOWN`, not a business refusal) instead of executing again;
-  the platform keeps its guard held and marks the reply `retrySafe = false`.
+- [todo] R5. `deadline` is required and non-null. It MUST be checked first, before anything is charged or
+  moved. A passed deadline yields the `COMMAND_EXPIRED` status (its own `CommandStatus`, rail R23, not a
+  reason under `INVALID_STATE`) with no mutation. The only thing read first is the durable receipt by
+  `idempotencyKey`, read-only: an existing OK receipt replays the stored result, an in-flight one is
+  `OUTCOME_UNKNOWN` as in R6; an absent or `FAILED` receipt is `COMMAND_EXPIRED`.
+- [todo] R6. The command MUST be idempotent per `idempotencyKey`. Transport and business operation are
+  separate: every dispatch attempt has its own `correlationId`, while `idempotencyKey` is the business identity of
+  the send and stays stable across retries of the same request. The host keeps durable per-command receipts
+  keyed by `idempotencyKey` (not by `correlationId`, not the in-memory `CommandDedupStore`). A replay of a
+  completed send returns the stored full result (`mailId` and `feeAdena`); a replay while the first attempt is in
+  flight reports an unknown outcome (`INTERNAL_ERROR` class with reason `OUTCOME_UNKNOWN`, not a business
+  refusal) instead of executing again; the platform keeps its guard held and marks the reply `retrySafe = false`.
 - [todo] R7. Every non-OK business reply MUST carry a stable machine-readable `reason` in
   `CommandProblem.extensions` (see Status mapping); the host never sends player-facing text.
 - [todo] R8. `ownerVerified = true` MUST bypass the character item lock (a device-bound lock the
@@ -104,7 +108,7 @@ Audience: platform mail-flow authors composing the command; host operators wirin
   commit and a logout waits for an online send; no half-transferred state is observable. If the lock
   cannot be taken within its short timeout the reply is `CHARACTER_BUSY`.
 - **`itemId` that is not in the sender's inventory**: `ITEM_NOT_TRANSFERABLE` with the `itemId` extension.
-- **Retry after `TIMEOUT` on the platform side**: safe, same `correlationId` replays the stored outcome.
+- **Retry after `TIMEOUT` on the platform side**: safe, same `idempotencyKey` (fresh `correlationId`) replays the stored outcome.
 - **Recipient on the sender's account**: allowed. **Recipient pending deletion**: `RECIPIENT_NOT_FOUND`.
   **Recipient with an active game ban**: `RECIPIENT_BANNED`.
 - **Fee**: charged on top of attached adena; a sender who covers the attachment but not the fee gets
@@ -155,11 +159,12 @@ clients is platform-side.
 
 ### Host semantics (summary)
 
-The handler is registered with plain `on(...)`, not `onDeduped`: dedup is the durable receipt (R6).
+The handler is registered without in-memory dedup (not `onDeduped`): dedup is the durable receipt (R6). A host
+that restores characters at boot may wrap it in its readiness gate (`RESTORE_IN_PROGRESS`).
 
-1. Deadline check (R5).
+1. Deadline check (R5); once passed, only the read-only receipt lookup by `idempotencyKey` precedes the refusal.
 2. Wire validation (R10), stateless.
-3. Receipt lookup for the `correlationId`: completed (`REPLAY_OK`) returns the stored full result
+3. Receipt lookup for the `idempotencyKey`: completed (`REPLAY_OK`) returns the stored full result
    (`mailId`, `feeAdena`); in flight (`IN_FLIGHT`) is an unknown outcome; none continues.
 4. Read-only gates before the claim: restore readiness (`RESTORE_IN_PROGRESS` while offline traders are
    still being restored, the sender included); recipient checks (exists and not pending deletion, no active
@@ -188,16 +193,16 @@ receipt is a clean restart: the claim reopens it by compare-and-set, so exactly 
   inventory rows, validate by template, move whole stacks or split partial ones, debit adena and fee,
   insert the mail row and the receipt together. Memory registration and recipient notification happen
   after commit.
-- Fee is a host constant, the native formula `100 + 1000 * attachment count` adena (adena counts as one
-  attachment), not configuration, so `feeAdena` is never `0` for an
-  accepted mail. COD expiry return is native.
+- Fee is host-defined (not wire configuration; adena counts as one attachment line), so `feeAdena` is never `0`
+  for an accepted mail. COD expiry return is native.
 - Deliberate deviations from native mail: a jailed sender is always refused (native refuses only with
   attachments), and an inbox or outbox at the cap is refused (native tries to free a slot first).
 - Epilogue: audit logs, `requestNow("character", ...)` for the sender and for the recipient, mail ingest
   through the existing mail sync.
 - Boot recovery resolves a receipt left in flight: mail row present means OK and the stored result is
-  materialized (a replay returns the full result, never `null`); absent means FAILED. Orphaned items are
-  returned only by the object ids recorded in the receipt claim, never by a location scan. A receipt that
+  materialized (a replay returns the full result, never `null`); absent means FAILED. Items already moved
+  into the mail container of a mail that never landed are returned to the sender, keyed by the pre-allocated
+  mail id recorded in the receipt claim. A receipt that
   recorded the charge but no outcome is held for an operator alert, with no automatic refund.
 
 Exact storage layout and transaction details are the host's documentation, not this contract.

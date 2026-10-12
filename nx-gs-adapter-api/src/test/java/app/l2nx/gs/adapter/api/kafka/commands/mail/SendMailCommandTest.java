@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.model.MailItem;
+import com.google.gson.Gson;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class SendMailCommandTest {
@@ -34,6 +36,65 @@ class SendMailCommandTest {
         IllegalArgumentException ex =
                 assertThrows(IllegalArgumentException.class, () -> new SendMailCommand(null, "a", "t", "b", null));
         assertTrue(ex.getMessage().contains("charId"));
+    }
+
+    @Test
+    void builder_shouldCarryAdena() {
+        SendMailCommand cmd = SendMailCommand.builder().charId(1L).title("t").adena(250L).build();
+
+        assertEquals(250L, cmd.getAdena().longValue());
+        assertEquals(cmd, cmd.toBuilder().build());
+    }
+
+    @Test
+    void builder_shouldCarryIdempotencyKey() {
+        UUID key = UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001");
+
+        SendMailCommand cmd =
+                SendMailCommand.builder().charId(1L).title("t").idempotencyKey(key).build();
+
+        assertEquals(key, cmd.getIdempotencyKey());
+        assertEquals(cmd, cmd.toBuilder().build());
+        assertNotEquals(cmd, cmd.toBuilder().idempotencyKey(UUID.randomUUID()).build());
+    }
+
+    @Test
+    void constructor_shouldDefaultIdempotencyKeyToNull_whenOlderConstructors() {
+        assertNull(new SendMailCommand(1L, "a", "t", "b", null).getIdempotencyKey());
+        assertNull(SendMailCommand.builder().charId(1L).author("a").title("t").body("b").adena(5L).build().getIdempotencyKey());
+    }
+
+    @Test
+    void gsonRoundTrip_shouldKeepIdempotencyKey() {
+        Gson gson = new Gson();
+        SendMailCommand cmd = SendMailCommand.builder()
+                .charId(1L)
+                .title("t")
+                .adena(5L)
+                .idempotencyKey(UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001"))
+                .build();
+
+        assertEquals(cmd, gson.fromJson(gson.toJson(cmd), SendMailCommand.class));
+    }
+
+    @Test
+    void gson_shouldReadIdempotencyKeyAsNull_whenOldPayload() {
+        SendMailCommand cmd = new Gson()
+                .fromJson("{\"charId\":1,\"title\":\"t\",\"items\":[],\"adena\":5}", SendMailCommand.class);
+
+        assertNull(cmd.getIdempotencyKey());
+        assertEquals(5L, cmd.getAdena().longValue());
+    }
+
+    @Test
+    void constructor_shouldRejectNonPositiveAdena() {
+        assertThrows(IllegalArgumentException.class, () -> SendMailCommand.builder().charId(1L).author("a").title("t").body("b").adena(0L).build());
+        assertThrows(IllegalArgumentException.class, () -> SendMailCommand.builder().charId(1L).author("a").title("t").body("b").adena(-1L).build());
+    }
+
+    @Test
+    void constructor_shouldDefaultAdenaToNull_whenFiveArgs() {
+        assertNull(new SendMailCommand(1L, "a", "t", "b", null).getAdena());
     }
 
     @Test

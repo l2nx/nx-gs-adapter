@@ -467,11 +467,11 @@ stack size, never errors on excess.
 
 | Status              | When                                                                       |
 | ------------------- | -------------------------------------------------------------------------- |
-| `NOT_FOUND`         | No stack with that object-id owned by this character                       |
-| `INVALID_STATE`     | Item in an unsupported location (auction, freight, etc.); destroy rejected |
-| `VALIDATION_FAILED` | Missing required field, non-positive `count`                               |
-| `UNAVAILABLE`       | DB error on offline path                                                   |
-| `INTERNAL_ERROR`    | Unexpected handler failure                                                 |
+| `NOT_FOUND`         | No stack with that object-id owned by this character |
+| `INVALID_STATE`     | Item in an unsupported location (auction, freight, etc.); destroy rejected; reason `CHARACTER_BUSY` when the character mutation lock times out or the character logs in or out mid-command; reason `RESTORE_IN_PROGRESS` while the character is being restored as an offline trader |
+| `VALIDATION_FAILED` | Missing required field, non-positive `count`, `charId` out of `int` range |
+| `UNAVAILABLE`       | DB error on the offline path before anything was written (nothing changed, safe to retry) |
+| `INTERNAL_ERROR`    | Unexpected handler failure; reason `OUTCOME_UNKNOWN` when the offline commit or a rollback after the write failed, or the online hop timed out while running - the stack may already be decremented, so a retry is a new deletion |
 
 **Side effects on success.** `requestNow("item", itemId)` and
 `requestNow("character", charId)`.
@@ -520,7 +520,7 @@ handles all four online/offline source-target combinations.
 ### `SendMailCommand`
 
 **Purpose.** Compose and deliver a system mail to a character with
-optional item attachments, exactly once per correlation id (durable host-side
+optional item attachments, exactly once per idempotency key (durable host-side
 receipt). The wire allows partial success through `itemErrors`; the reference
 host is all-or-nothing: over its per-mail attachment cap it splits the request
 into several mails, delivered all together or not at all. Details:
@@ -535,7 +535,8 @@ into several mails, delivered all together or not at all. Details:
 | `title`  | `String`         | yes      | Mail subject; non-empty                                |
 | `body`   | `String?`        | no       | Mail body; `null` = empty                              |
 | `items`  | `List<MailItem>` | no       | Each `MailItem`: `itemTemplateId: Long`, `count: Long` |
-| `adena`  | `Long?`          | no       | Planned, not on the wire yet                           |
+| `adena`  | `Long?`          | no       | Adena in the mail; positive; additive                  |
+| `idempotencyKey` | `UUID?`  | no       | Business identity of the send, stable across retries; host dedups and replays by it; `correlationId` is one attempt only; `null` = host falls back to `correlationId` |
 
 **Result** (`SendMailResult`)
 
@@ -565,8 +566,8 @@ A repeat of a completed correlation id replays the stored `createdMailIds`.
 **Purpose.** Send a mail from a character (the character-sender counterpart
 of `SendMailCommand`): text, items taken from the sender's inventory, adena
 and cash on delivery (COD). The sender may be online or offline. One recipient
-per command. All-or-nothing: no partial mails. Idempotent per `correlationId`
-through the host's durable receipts; a replay returns the stored `mailId`
+per command. All-or-nothing: no partial mails. Idempotent per `idempotencyKey`
+through the host's durable receipts (each attempt has its own `correlationId`); a replay returns the stored `mailId`
 and `feeAdena`. There is no `offlineAllowed` field; the daily quota is
 enforced on the platform, the host does not gate mail by quota. Full contract:
 [`send-player-mail.md`](send-player-mail.md).
@@ -583,6 +584,7 @@ enforced on the platform, the host does not gate mail by quota. Full contract:
 | `adena`           | `Long?`                | no       | Adena in the mail; positive; counts as one attachment line (limit and fee)                                                                                                 |
 | `codPrice`        | `Long?`                | no       | COD, positive, requires at least one `items` line (`COD_REQUIRES_ITEMS`), adena alone does not satisfy it; paid to the sender |
 | `ownerVerified`   | `boolean`              | no       | See Cross-cutting › Owner verification; `true` bypasses the item lock. The command is produced only for the owner of the sender; the host still validates the wire         |
+| `idempotencyKey`  | `UUID`                 | yes      | Business identity of the send, stable across retries; non-null; host dedups and replays by it, `correlationId` is one attempt only |
 | `deadline`        | `Instant`              | yes      | Non-null; checked first, host replies `COMMAND_EXPIRED` before touching anything once passed |
 
 **Result** (`SendPlayerMailResult`)
@@ -590,7 +592,7 @@ enforced on the platform, the host does not gate mail by quota. Full contract:
 | Field      | Type   | Notes                                  |
 | ---------- | ------ | -------------------------------------- |
 | `mailId`   | `long` | Created mail                           |
-| `feeAdena` | `long` | Adena the host charged (host constant `100 + 1000 * attachment count`) |
+| `feeAdena` | `long` | Adena the host charged (host-defined fee; never 0) |
 
 **Errors** — `extensions.reason` per status (full table in the command spec):
 

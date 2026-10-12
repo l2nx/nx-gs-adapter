@@ -42,21 +42,11 @@ it is picked up, it moves to "Done / moved into a spec".
 - **Related:** [`030-gamedata-sync/skill-contract.md`](specs/030-gamedata-sync/skill-contract.md),
   [`030-gamedata-sync/spec.md`](specs/030-gamedata-sync/spec.md) §7.
 
-### 4. Align `SendMailCommand` / `SendMailResult` Javadoc with the receipt contract
-
-- **Want:** the api Javadoc says what the host does today: a retry with the same correlation id
-  replays or is refused, never delivers twice; the reference host delivers all-or-nothing and sends
-  `itemErrors` empty, while the field stays a valid way for a host to report dropped lines.
-- **To decide:** nothing beyond wording; it ships with the next `api/` release.
-- **Why:** `SendMailCommand` still warns that a re-issue after a reply timeout mails and grants
-  twice, and `SendMailResult` / `ItemDeliveryError` describe partial delivery as the normal case.
-  Both contradict [`send-mail.md`](specs/009-commands/send-mail.md) ("Durable receipt",
-  "`itemErrors` today") and mislead platform authors.
-- **Related:** [`009-commands/send-mail.md`](specs/009-commands/send-mail.md),
-  [`009-commands/catalog.md`](specs/009-commands/catalog.md).
-
 ## Done / moved into a spec
 
+- **`SendMailCommand` / `SendMailResult` / `ItemDeliveryError` Javadoc aligned with the receipt contract** - retry
+  replays or is refused, never delivers twice; the reference host is all-or-nothing with `itemErrors` empty
+  (`api/v0.102.0`). See [`009-commands/send-mail.md`](specs/009-commands/send-mail.md).
 - **Deprecated boss-kind and division shim, raw-seconds activity keys** - removed in `api/v0.93.1`
   (`RaidBossKind`, `RaidKillEvent.bossKind`, `BossRespawnEntry.kind`, `WellKnownBossDivisions`,
   `WellKnownBossMetadata`, `WellKnownActivityMetadata.ELAPSED_SECONDS` / `SECONDS_REMAINING` /

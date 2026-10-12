@@ -41,3 +41,7 @@ out/
 
 # Plans are not committed (writing-plans output)
 .plan/
+
+# Isolated build dirs of parallel sessions
+build-*/
+**/build-audit/

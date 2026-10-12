@@ -5,14 +5,10 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One failed attachment line in {@link SendMailResult#getItemErrors()}; the mail is still sent without it.
+ * One failed attachment line in {@link SendMailResult#getItemErrors()}; the mail is still sent without it. Line identity
+ * is best-effort: {@code itemTemplateId} and {@code count} are {@code null} unless the host can attribute the failure.
  *
- * <p>Line identity is best-effort: the host's {@code MailManager} reports opaque strings that do not correlate
- * positionally with the inbound items, so {@code itemTemplateId} and {@code count} are {@code null} unless the host
- * can attribute the failure.</p>
- *
- * <p>{@code reason} is a free-form diagnostic, not a wire contract; never switch on it. {@code null} is normalized
- * to an empty string.</p>
+ * <p>{@code reason} is a free-form diagnostic, never switch on it; {@code null} is normalized to an empty string.</p>
  */
 public final class ItemDeliveryError {
 

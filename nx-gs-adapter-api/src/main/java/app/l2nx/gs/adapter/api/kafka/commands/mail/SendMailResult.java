@@ -6,13 +6,9 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Created mail ids plus per-attachment-line errors for partial success (mail sent, some attachments dropped).
- *
- * <p>Over the host's per-mail attachment cap the host splits the request into mails titled
- * {@code "<title> 1/N"} to {@code "<title> N/N"} and returns one id per mail.</p>
- *
- * <p>Partial failures arrive on an OK envelope, so the platform must inspect {@code itemErrors}.
- * On success {@code createdMailIds} is non-empty.</p>
+ * Created mail ids (non-empty on success; one per mail, titled {@code "<title> 1/N"}..{@code "<title> N/N"} when split)
+ * plus optional per-line errors. A host reporting partial delivery does so on an OK envelope, so the platform must
+ * inspect {@code itemErrors}.
  */
 public final class SendMailResult {
 
@@ -28,7 +24,7 @@ public final class SendMailResult {
         return createdMailIds;
     }
 
-    /** Empty means every attachment materialized; non-empty on success means partial delivery. */
+    /** Empty means every attachment materialized; non-empty means partial delivery. */
     public List<ItemDeliveryError> getItemErrors() {
         return itemErrors;
     }

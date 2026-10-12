@@ -46,7 +46,7 @@ authors composing `SendMailCommand` records onto the commands topic.
     to `Collections.emptyList()` on read.
   - `@Nullable Long adena` — OPTIONAL. Adena placed in the mail; the host creates it as an
     item-template attachment (template `57`). Positive when present; `null` = no adena. Additive
-    field: an old host ignores it, an old producer reads as `null`. [todo]
+    field: an old host ignores it, an old producer reads as `null`. [done]
 
   Constructor enforces non-null `charId` and `title` via `IllegalArgumentException`
   for programmatic construction. Wire-path Gson bypasses the constructor; handler
@@ -98,9 +98,9 @@ authors composing `SendMailCommand` records onto the commands topic.
     receipt (see "Durable receipt"): recipient lookup, mail preparation, claim,
     then one all-or-nothing delivery. No `ctx.host().sync(...)` hop.
   - Outcome mapping: success → OK with the created mail ids and empty
-    `itemErrors`; recipient missing or request rejected by the host's mail
-    manager → `NOT_FOUND`; any other failure (including a refused repeat of an
-    open receipt) → `INTERNAL_ERROR`. See "Status mapping".
+    `itemErrors`; recipient missing → `NOT_FOUND`; request rejected by the
+    host's mail manager → `VALIDATION_FAILED`; any other failure (including a
+    refused repeat of an open receipt) → `INTERNAL_ERROR`. See "Status mapping".
   - On success the handler requests a cascading `character` resync of the
     recipient, so the new attachments reach the platform with it.
 
@@ -249,7 +249,8 @@ Example value (recipient not found):
 | `items`                  | `[MailItem]?` | No       | Attachments; null/empty → text-only mail         |
 | `items[].itemTemplateId` | `Long`        | Yes      | Catalog template id (NOT object-id)              |
 | `items[].count`          | `Long`        | Yes      | Stack size, positive                             |
-| `adena`                  | `Long?`       | No       | Planned (R1), not on the wire yet                |
+| `adena`                  | `Long?`       | No       | Adena in the mail; positive; additive (R1)       |
+| `idempotencyKey`         | `UUID?`       | No       | Business identity of the send, stable across retries; the host dedups and replays by it, `correlationId` is one attempt only; `null` (older platform) = host falls back to `correlationId` |
 
 Reply payload:
 
@@ -266,13 +267,14 @@ Reply payload:
 | Condition                                                    | Status              | `problem`                                               |
 | ------------------------------------------------------------ | ------------------- | ------------------------------------------------------- |
 | `charId` null, or outside `1..Integer.MAX_VALUE`             | `VALIDATION_FAILED` | `extensions.field = "charId"`                           |
-| `title` null or empty                                        | `VALIDATION_FAILED` | `extensions.field = "title"`                            |
+| `title` null, empty or blank                                 | `VALIDATION_FAILED` | `extensions.field = "title"`                            |
 | `items[i]` null                                              | `VALIDATION_FAILED` | `extensions.field = "items[*]"`                         |
 | `itemTemplateId` null, above `Integer.MAX_VALUE`, or unknown | `VALIDATION_FAILED` | `extensions.field = "items[].itemTemplateId"`           |
 | `count` null or ≤ 0                                          | `VALIDATION_FAILED` | `extensions.field = "items[].count"`                    |
+| `adena` ≤ 0 or above the host's adena cap                    | `VALIDATION_FAILED` | `extensions.field = "adena"`                            |
 | Traders or the recipient still being restored after a start  | `INVALID_STATE`     | restore-gate refusal                                    |
 | Recipient not found                                          | `NOT_FOUND`         | `title = "charId not found: <id>"`                      |
-| Host mail manager rejects the request (e.g. blank title)     | `NOT_FOUND`         | `title` = the host's message                            |
+| Host mail manager rejects the request                        | `VALIDATION_FAILED` | `title` = the host's message                            |
 | Repeat of a correlation id whose receipt is `OK`             | `OK`                | stored `createdMailIds` replayed, `itemErrors` empty    |
 | Repeat of a correlation id whose receipt is still open       | `INTERNAL_ERROR`    | `title` says the outcome is unknown                     |
 | Receipt settled by another attempt during this delivery      | `INTERNAL_ERROR`    | outcome unknown; nothing committed, receipt untouched   |
@@ -287,9 +289,10 @@ offending field.
 `SendMailHandler.handle(cmd, ctx)`, behind the dedup decorator and the restore gate:
 
 1. **Wire-validate** on the consumer thread (Gson bypasses the constructors):
-   `charId`, `title`, every `MailItem` including a catalog lookup of each
-   `itemTemplateId` (so an unknown template fails before anything is claimed or
-   staged), then the `charId` range.
+   `charId`, `title` (blank is refused here), every `MailItem` including a
+   catalog lookup of each `itemTemplateId` (so an unknown template fails before
+   anything is claimed or staged), `adena` (added as one more attachment line of
+   template `57`), then the `charId` range.
 2. **Dispatch to `ctx.io()`** and join: the send is blocking JDBC, which
    belongs on the adapter IO pool, not on the consumer thread or the game
    executor. There is no `ctx.host().sync(...)` hop.
