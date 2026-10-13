@@ -42,7 +42,7 @@ public final class BoughtLine {
         return count;
     }
 
-    /** Excludes the burned surcharge, reported once per deal on {@link BuyFromPrivateStoreResult#getTaxAdena()}. */
+    /** Excludes the burned buyer fee, reported once per deal on {@link BuyFromPrivateStoreResult#getBuyerFeeAdena()}. */
     public long getUnitPriceAdena() {
         return unitPriceAdena;
     }

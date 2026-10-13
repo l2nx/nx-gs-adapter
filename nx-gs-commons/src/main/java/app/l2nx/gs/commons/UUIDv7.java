@@ -14,8 +14,8 @@ public final class UUIDv7 {
     private static final long TS_MASK = 0x0000_FFFF_FFFF_FFFFL;
     private static final long VERSION_BITS = 0x7L << 12; // version = 7 in MSB bits 12..15
     private static final int COUNTER_MAX = 0x0FFF;
-    private static final long VARIANT_CLEAR_MASK = 0x3FFF_FFFF_FFFF_FFFFL; // clears top 2 LSB bits
-    private static final long VARIANT_SET_BIT = 0x8000_0000_0000_0000L; // sets top LSB bit -> variant 10
+    private static final long VARIANT_CLEAR_MASK = 0x3FFF_FFFF_FFFF_FFFFL;
+    private static final long VARIANT_SET_BIT = 0x8000_0000_0000_0000L;
 
     private static final Object LOCK = new Object();
     private static long lastTimestampMs = -1L;
@@ -33,8 +33,7 @@ public final class UUIDv7 {
                 lastTimestampMs = nowMs;
                 subMsCounter = 0;
             }
-            // Same or backwards clock: step the counter; on exhaustion borrow the next ms (forward skew until the clock
-            // catches up)
+            // Stalled or backstepped clock: bump the counter, borrowing the next ms on exhaustion.
             if (subMsCounter > COUNTER_MAX) {
                 lastTimestampMs += 1;
                 subMsCounter = 0;
@@ -43,6 +42,23 @@ public final class UUIDv7 {
             counter = subMsCounter++;
         }
 
+        return build(timestampMs, counter);
+    }
+
+    /**
+     * Id whose timestamp is {@code instant} (millisecond precision); not monotonic, ids for the same instant are unordered.
+     *
+     * @throws IllegalArgumentException if the instant is before the epoch or beyond the 48-bit millisecond range
+     */
+    public static UUID generate(Instant instant) {
+        long timestampMs = instant.toEpochMilli();
+        if (timestampMs < 0 || timestampMs > TS_MASK) {
+            throw new IllegalArgumentException("Instant out of UUIDv7 48-bit millisecond range: " + instant);
+        }
+        return build(timestampMs, ThreadLocalRandom.current().nextInt(COUNTER_MAX + 1));
+    }
+
+    private static UUID build(long timestampMs, int counter) {
         long msb = (timestampMs & TS_MASK) << 16;
         msb |= VERSION_BITS;
         msb |= (counter & 0x0FFFL);

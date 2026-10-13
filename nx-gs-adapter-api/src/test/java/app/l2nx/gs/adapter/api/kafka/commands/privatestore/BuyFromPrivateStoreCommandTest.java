@@ -39,7 +39,7 @@ class BuyFromPrivateStoreCommandTest {
                 .buyerCharId(1)
                 .sellerCharId(2)
                 .lines(Collections.singletonList(line(1)))
-                .tax(5)
+                .buyerFeePercent(5)
                 .deadline(DEADLINE)
                 .mailSender(MAIL_SENDER)
                 .mailSubject(MAIL_SUBJECT)
@@ -114,18 +114,25 @@ class BuyFromPrivateStoreCommandTest {
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @ParameterizedTest(name = "tax={0}")
+    @ParameterizedTest(name = "buyerFeePercent={0}")
     @CsvSource({"-1", "51"})
-    void constructor_shouldReject_whenTaxOutOfRange(int tax) {
-        BuyFromPrivateStoreCommand.Builder builder = valid().tax(tax);
+    void constructor_shouldReject_whenBuyerFeePercentOutOfRange(int buyerFeePercent) {
+        BuyFromPrivateStoreCommand.Builder builder = valid().buyerFeePercent(buyerFeePercent);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @ParameterizedTest(name = "tax={0}")
+    @ParameterizedTest(name = "buyerFeePercent={0}")
     @CsvSource({"0", "50"})
-    void constructor_shouldAccept_whenTaxAtBounds(int tax) {
-        BuyFromPrivateStoreCommand command = valid().tax(tax).build();
-        assertEquals(tax, command.getTax());
+    void constructor_shouldAccept_whenBuyerFeePercentAtBounds(int buyerFeePercent) {
+        BuyFromPrivateStoreCommand command =
+                valid().buyerFeePercent(buyerFeePercent).build();
+        assertEquals(buyerFeePercent, command.getBuyerFeePercent().intValue());
+    }
+
+    @Test
+    void constructor_shouldReject_whenBuyerFeePercentNull() {
+        BuyFromPrivateStoreCommand.Builder builder = valid().buyerFeePercent(null);
+        assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @Test

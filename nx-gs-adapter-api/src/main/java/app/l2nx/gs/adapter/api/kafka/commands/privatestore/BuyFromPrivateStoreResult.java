@@ -5,15 +5,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * What was bought and what it cost; only on OK replies, so there is no partial-result shape.
- *
- * <p>{@code paidTotalAdena = itemsTotalAdena + taxAdena}: items went to the seller, tax was burned. The constructor
- * enforces this invariant.</p>
+ * Only on OK replies. {@code paidTotalAdena = itemsTotalAdena + buyerFeeAdena}; the seller is credited
+ * {@code itemsTotalAdena - sellerFeeAdena}. The constructor enforces both and {@code 0 <= sellerFeeAdena <= itemsTotalAdena}.
  */
 public final class BuyFromPrivateStoreResult {
 
     private final long itemsTotalAdena;
-    private final long taxAdena;
+    private final long buyerFeeAdena;
+    private final long sellerFeeAdena;
     private final long paidTotalAdena;
     private final List<BoughtLine> bought;
     private final boolean storeClosed;
@@ -21,17 +20,23 @@ public final class BuyFromPrivateStoreResult {
 
     public BuyFromPrivateStoreResult(
             long itemsTotalAdena,
-            long taxAdena,
+            long buyerFeeAdena,
+            long sellerFeeAdena,
             long paidTotalAdena,
             List<BoughtLine> bought,
             boolean storeClosed,
             long mailId) {
-        if (paidTotalAdena != itemsTotalAdena + taxAdena) {
+        if (paidTotalAdena != itemsTotalAdena + buyerFeeAdena) {
             throw new IllegalArgumentException("paidTotalAdena (" + paidTotalAdena
-                    + ") must equal itemsTotalAdena + taxAdena (" + (itemsTotalAdena + taxAdena) + ")");
+                    + ") must equal itemsTotalAdena + buyerFeeAdena (" + (itemsTotalAdena + buyerFeeAdena) + ")");
+        }
+        if (sellerFeeAdena < 0 || sellerFeeAdena > itemsTotalAdena) {
+            throw new IllegalArgumentException(
+                    "sellerFeeAdena (" + sellerFeeAdena + ") must be in 0..itemsTotalAdena (" + itemsTotalAdena + ")");
         }
         this.itemsTotalAdena = itemsTotalAdena;
-        this.taxAdena = taxAdena;
+        this.buyerFeeAdena = buyerFeeAdena;
+        this.sellerFeeAdena = sellerFeeAdena;
         this.paidTotalAdena = paidTotalAdena;
         this.bought = PrivateStoreLists.freeze(bought);
         this.storeClosed = storeClosed;
@@ -42,9 +47,14 @@ public final class BuyFromPrivateStoreResult {
         return itemsTotalAdena;
     }
 
-    /** Burned: debited from the buyer, credited to nobody. */
-    public long getTaxAdena() {
-        return taxAdena;
+    /** Burned: debited from the buyer on top of the lots, credited to nobody. */
+    public long getBuyerFeeAdena() {
+        return buyerFeeAdena;
+    }
+
+    /** Burned: withheld from the seller's proceeds, not paid by the buyer; {@code 0} when the store carries no fee. */
+    public long getSellerFeeAdena() {
+        return sellerFeeAdena;
     }
 
     public long getPaidTotalAdena() {
@@ -55,9 +65,6 @@ public final class BuyFromPrivateStoreResult {
         return bought;
     }
 
-    /**
-     * {@code true} when the deal emptied the store and the host closed it; the caller drops the whole store from its order book.
-     */
     public boolean isStoreClosed() {
         return storeClosed;
     }
@@ -70,7 +77,8 @@ public final class BuyFromPrivateStoreResult {
     public Builder toBuilder() {
         return new Builder()
                 .itemsTotalAdena(itemsTotalAdena)
-                .taxAdena(taxAdena)
+                .buyerFeeAdena(buyerFeeAdena)
+                .sellerFeeAdena(sellerFeeAdena)
                 .paidTotalAdena(paidTotalAdena)
                 .bought(bought)
                 .storeClosed(storeClosed)
@@ -87,7 +95,8 @@ public final class BuyFromPrivateStoreResult {
         if (!(o instanceof BuyFromPrivateStoreResult)) return false;
         BuyFromPrivateStoreResult that = (BuyFromPrivateStoreResult) o;
         return itemsTotalAdena == that.itemsTotalAdena
-                && taxAdena == that.taxAdena
+                && buyerFeeAdena == that.buyerFeeAdena
+                && sellerFeeAdena == that.sellerFeeAdena
                 && paidTotalAdena == that.paidTotalAdena
                 && storeClosed == that.storeClosed
                 && mailId == that.mailId
@@ -96,13 +105,21 @@ public final class BuyFromPrivateStoreResult {
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemsTotalAdena, taxAdena, paidTotalAdena, bought, Boolean.valueOf(storeClosed), mailId);
+        return Objects.hash(
+                itemsTotalAdena,
+                buyerFeeAdena,
+                sellerFeeAdena,
+                paidTotalAdena,
+                bought,
+                Boolean.valueOf(storeClosed),
+                mailId);
     }
 
     @Override
     public String toString() {
         return "BuyFromPrivateStoreResult[itemsTotalAdena=" + itemsTotalAdena
-                + ", taxAdena=" + taxAdena
+                + ", buyerFeeAdena=" + buyerFeeAdena
+                + ", sellerFeeAdena=" + sellerFeeAdena
                 + ", paidTotalAdena=" + paidTotalAdena
                 + ", bought=" + bought
                 + ", storeClosed=" + storeClosed
@@ -111,7 +128,8 @@ public final class BuyFromPrivateStoreResult {
 
     public static final class Builder {
         private long itemsTotalAdena;
-        private long taxAdena;
+        private long buyerFeeAdena;
+        private long sellerFeeAdena;
         private long paidTotalAdena;
         private List<BoughtLine> bought;
         private boolean storeClosed;
@@ -122,8 +140,13 @@ public final class BuyFromPrivateStoreResult {
             return this;
         }
 
-        public Builder taxAdena(long taxAdena) {
-            this.taxAdena = taxAdena;
+        public Builder buyerFeeAdena(long buyerFeeAdena) {
+            this.buyerFeeAdena = buyerFeeAdena;
+            return this;
+        }
+
+        public Builder sellerFeeAdena(long sellerFeeAdena) {
+            this.sellerFeeAdena = sellerFeeAdena;
             return this;
         }
 
@@ -149,7 +172,7 @@ public final class BuyFromPrivateStoreResult {
 
         public BuyFromPrivateStoreResult build() {
             return new BuyFromPrivateStoreResult(
-                    itemsTotalAdena, taxAdena, paidTotalAdena, bought, storeClosed, mailId);
+                    itemsTotalAdena, buyerFeeAdena, sellerFeeAdena, paidTotalAdena, bought, storeClosed, mailId);
         }
     }
 }

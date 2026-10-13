@@ -1,7 +1,5 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore;
 
-import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.DroppedLine;
-import java.util.List;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -10,17 +8,14 @@ public final class StartPrivateStoreResult {
     private final String storeType;
     private final int acceptedCount;
     private final @Nullable Boolean offline;
-    private final List<DroppedLine> dropped;
 
-    public StartPrivateStoreResult(
-            String storeType, int acceptedCount, @Nullable Boolean offline, @Nullable List<DroppedLine> dropped) {
+    public StartPrivateStoreResult(String storeType, int acceptedCount, @Nullable Boolean offline) {
         if (storeType == null) {
             throw new IllegalArgumentException("storeType is required");
         }
         this.storeType = storeType;
         this.acceptedCount = acceptedCount;
         this.offline = offline;
-        this.dropped = PrivateStoreLists.freeze(dropped);
     }
 
     /** Host-defined open vocabulary (e.g. {@code "SELL"}, {@code "PACKAGE_SELL"}), not a closed enum. */
@@ -40,16 +35,8 @@ public final class StartPrivateStoreResult {
         return offline;
     }
 
-    public List<DroppedLine> getDropped() {
-        return dropped;
-    }
-
     public Builder toBuilder() {
-        return new Builder()
-                .storeType(storeType)
-                .acceptedCount(acceptedCount)
-                .offline(offline)
-                .dropped(dropped);
+        return new Builder().storeType(storeType).acceptedCount(acceptedCount).offline(offline);
     }
 
     public static Builder builder() {
@@ -63,28 +50,25 @@ public final class StartPrivateStoreResult {
         StartPrivateStoreResult that = (StartPrivateStoreResult) o;
         return acceptedCount == that.acceptedCount
                 && Objects.equals(offline, that.offline)
-                && Objects.equals(storeType, that.storeType)
-                && Objects.equals(dropped, that.dropped);
+                && Objects.equals(storeType, that.storeType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(storeType, acceptedCount, offline, dropped);
+        return Objects.hash(storeType, acceptedCount, offline);
     }
 
     @Override
     public String toString() {
         return "StartPrivateStoreResult[storeType=" + storeType
                 + ", acceptedCount=" + acceptedCount
-                + ", offline=" + offline
-                + ", dropped=" + dropped + "]";
+                + ", offline=" + offline + "]";
     }
 
     public static final class Builder {
         private @Nullable String storeType;
         private int acceptedCount;
         private @Nullable Boolean offline;
-        private @Nullable List<DroppedLine> dropped;
 
         public Builder storeType(String storeType) {
             this.storeType = storeType;
@@ -101,13 +85,8 @@ public final class StartPrivateStoreResult {
             return this;
         }
 
-        public Builder dropped(@Nullable List<DroppedLine> dropped) {
-            this.dropped = dropped;
-            return this;
-        }
-
         public StartPrivateStoreResult build() {
-            return new StartPrivateStoreResult(storeType, acceptedCount, offline, dropped);
+            return new StartPrivateStoreResult(storeType, acceptedCount, offline);
         }
     }
 }

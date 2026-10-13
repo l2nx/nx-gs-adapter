@@ -26,36 +26,60 @@ class BuyFromPrivateStoreResultTest {
     private static BuyFromPrivateStoreResult.Builder valid() {
         return BuyFromPrivateStoreResult.builder()
                 .itemsTotalAdena(100L)
-                .taxAdena(5L)
+                .buyerFeeAdena(5L)
+                .sellerFeeAdena(10L)
                 .paidTotalAdena(105L)
                 .bought(Collections.singletonList(boughtLine()))
                 .storeClosed(false)
                 .mailId(42L);
     }
 
-    @ParameterizedTest(name = "items={0}, tax={1}, paid={2}")
+    @ParameterizedTest(name = "items={0}, buyerFee={1}, paid={2}")
     @CsvSource({"100, 5, 104", "100, 5, 106", "0, 0, 1"})
-    void constructor_shouldReject_whenPaidTotalDoesNotEqualItemsPlusTax(long items, long tax, long paid) {
+    void constructor_shouldReject_whenPaidTotalDoesNotEqualItemsPlusBuyerFee(long items, long buyerFee, long paid) {
         BuyFromPrivateStoreResult.Builder builder =
-                valid().itemsTotalAdena(items).taxAdena(tax).paidTotalAdena(paid);
+                valid().itemsTotalAdena(items).buyerFeeAdena(buyerFee).paidTotalAdena(paid);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @ParameterizedTest(name = "items={0}, tax={1}")
+    @ParameterizedTest(name = "items={0}, buyerFee={1}")
     @CsvSource({"100, 5", "0, 0", "1000000, 0"})
-    void constructor_shouldAccept_whenPaidTotalEqualsItemsPlusTax(long items, long tax) {
-        BuyFromPrivateStoreResult result = valid().itemsTotalAdena(items)
-                .taxAdena(tax)
-                .paidTotalAdena(items + tax)
+    void constructor_shouldAccept_whenPaidTotalEqualsItemsPlusBuyerFee(long items, long buyerFee) {
+        BuyFromPrivateStoreResult result = valid().sellerFeeAdena(0L)
+                .itemsTotalAdena(items)
+                .buyerFeeAdena(buyerFee)
+                .paidTotalAdena(items + buyerFee)
                 .build();
-        assertEquals(items + tax, result.getPaidTotalAdena());
+        assertEquals(items + buyerFee, result.getPaidTotalAdena());
+    }
+
+    @Test
+    void constructor_shouldNotCountSellerFeeIntoPaidTotal() {
+        BuyFromPrivateStoreResult result = valid().sellerFeeAdena(40L).build();
+
+        assertEquals(40L, result.getSellerFeeAdena());
+        assertEquals(105L, result.getPaidTotalAdena());
+    }
+
+    @ParameterizedTest(name = "sellerFee={0}")
+    @CsvSource({"-1", "101"})
+    void constructor_shouldReject_whenSellerFeeOutsideZeroToItemsTotal(long sellerFee) {
+        BuyFromPrivateStoreResult.Builder builder = valid().sellerFeeAdena(sellerFee);
+        assertThrows(IllegalArgumentException.class, builder::build);
+    }
+
+    @ParameterizedTest(name = "sellerFee={0}")
+    @CsvSource({"0", "100"})
+    void constructor_shouldAccept_whenSellerFeeAtBounds(long sellerFee) {
+        assertEquals(sellerFee, valid().sellerFeeAdena(sellerFee).build().getSellerFeeAdena());
     }
 
     @Test
     void getBought_shouldReturnEmptyList_whenBuilderOmits() {
         BuyFromPrivateStoreResult result = BuyFromPrivateStoreResult.builder()
                 .itemsTotalAdena(0L)
-                .taxAdena(0L)
+                .buyerFeeAdena(0L)
+                .sellerFeeAdena(0L)
                 .paidTotalAdena(0L)
                 .storeClosed(false)
                 .mailId(0L)

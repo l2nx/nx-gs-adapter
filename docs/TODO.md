@@ -42,6 +42,29 @@ it is picked up, it moves to "Done / moved into a spec".
 - **Related:** [`030-gamedata-sync/skill-contract.md`](specs/030-gamedata-sync/skill-contract.md),
   [`030-gamedata-sync/spec.md`](specs/030-gamedata-sync/spec.md) §7.
 
+### 4. Mail refuse / return and delete commands
+
+- **Want:** platform commands for the recipient-side actions that stay in the game client after
+  `AcceptMailCommand`: refuse / return a mail and delete a mail.
+- **To decide:** whether they are needed at all (no functional requirement yet), and the shape: both would
+  reuse the receipt and unknown-outcome model of `accept-mail.md`, and a COD mail's refusal returns the
+  attachments to the sender.
+- **Why:** deliberately out of scope of the accept design; recorded so it is not lost.
+- **Related:** [`009-commands/accept-mail.md`](specs/009-commands/accept-mail.md) non-goals.
+
+### 5. Command: send a character to a peace zone
+
+- **Want:** a platform command that places an offline character at one of a configured list of peace-zone
+  points (host-configured, for example the main town hubs), so that offline mail send and accept, which
+  require a peace-zone position, become usable for characters that logged out in the field.
+- **To decide:** the wire shape (target point key vs host-chosen), who may issue it (owner only, with the same
+  ownership check as the other player commands), whether it costs anything, and what happens to an offline
+  trader's seat.
+- **Why:** offline send with attachments and offline accept refuse a character whose last position is outside
+  a peace zone, which strands characters that logged out in the field.
+- **Related:** [`009-commands/send-player-mail.md`](specs/009-commands/send-player-mail.md) R9,
+  [`009-commands/accept-mail.md`](specs/009-commands/accept-mail.md) R12.
+
 ## Done / moved into a spec
 
 - **`SendMailCommand` / `SendMailResult` / `ItemDeliveryError` Javadoc aligned with the receipt contract** - retry
@@ -56,3 +79,9 @@ it is picked up, it moves to "Done / moved into a spec".
   type is an engine-specific axis with no cross-line meaning, so it travels raw as `Skill.skillTypeRaw`; the host
   derives its meaning into canonical effects (`SkillEffectType`, `derived = true`). Filters by skill kind move to
   effect types. See [`030-gamedata-sync/skill-contract.md`](specs/030-gamedata-sync/skill-contract.md).
+- **Private-store contract renames and `dropped` removal** - done in the fee/accept wave without a compatibility
+  window (the commands are not open to players yet): `tax` is `buyerFeePercent` (`Integer`, required),
+  `taxAdena` is `buyerFeeAdena`, `MAX_TAX_PERCENT` is `MAX_FEE_PERCENT`, the `tax_*` metadata keys are gone,
+  `StartPrivateStoreResult.dropped` and `ALL_LINES_DROPPED` are removed. See
+  [`009-commands/catalog.md`](specs/009-commands/catalog.md) › Breaking changes of this release and
+  [`019`](specs/019-death-status-ratings-events.md) R26. Former items 4 and 5.

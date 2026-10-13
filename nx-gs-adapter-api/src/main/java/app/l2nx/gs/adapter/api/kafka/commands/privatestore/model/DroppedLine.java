@@ -2,7 +2,6 @@ package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 
 import java.util.Objects;
 
-/** A {@link SellLine} the host rejected when opening the store. */
 public final class DroppedLine {
 
     private final int itemId;
@@ -20,10 +19,7 @@ public final class DroppedLine {
         return itemId;
     }
 
-    /**
-     * Open {@code UPPER_SNAKE_CASE} token (known: {@code NOT_FOUND}, {@code NOT_TRADEABLE}, {@code ITEM_BLOCKED},
-     * {@code EQUIPPED}, {@code BAD_COUNT}, {@code PRICE_OVERFLOW}, {@code REJECTED}); consumers MUST tolerate unknown tokens.
-     */
+    /** Open token, known values in {@link WellKnownDroppedLineReasons}; consumers MUST tolerate unknown ones. */
     public String getReason() {
         return reason;
     }

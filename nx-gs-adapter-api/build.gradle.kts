@@ -4,7 +4,7 @@ plugins {
     signing
 }
 
-version = findProperty("${project.name}.version") as String? ?: "0.102.1"
+version = findProperty("${project.name}.version") as String? ?: "0.103.0"
 
 java {
     withSourcesJar()
@@ -38,7 +38,6 @@ tasks.test {
     }
 }
 
-// Missing-comment doclint is off; other categories stay on.
 tasks.withType<Javadoc>().configureEach {
     (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:-missing", "-quiet")
 }

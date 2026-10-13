@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.kafka.commands.chat.ChatAudiences;
 import app.l2nx.gs.adapter.api.kafka.commands.chat.SendChatMessageCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.mail.AcceptMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.SendPlayerMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.BuyFromPrivateStoreCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStorePackageSellCommand;
@@ -48,8 +49,10 @@ class OwnerVerifiedTest {
                 .build();
         return Stream.of(
                 Arguments.of(new StopPrivateStoreCommand(1, true, null)),
-                Arguments.of(new StartPrivateStoreSellCommand(1, "t", Collections.singletonList(sell), null, true, null)),
-                Arguments.of(new StartPrivateStorePackageSellCommand(1, "t", Collections.singletonList(sell), null, true, null)),
+                Arguments.of(new StartPrivateStoreSellCommand(
+                        1, "t", Collections.singletonList(sell), null, null, true, null)),
+                Arguments.of(new StartPrivateStorePackageSellCommand(
+                        1, "t", Collections.singletonList(sell), null, null, true, null)),
                 Arguments.of(new BuyFromPrivateStoreCommand(
                         1,
                         2,
@@ -61,16 +64,7 @@ class OwnerVerifiedTest {
                         "Body",
                         true)),
                 Arguments.of(new SendChatMessageCommand(
-                        UUID.randomUUID(),
-                        "CLAN",
-                        ChatAudiences.CLAN,
-                        7L,
-                        100L,
-                        null,
-                        "APP",
-                        "hello",
-                        null,
-                        true)),
+                        UUID.randomUUID(), "CLAN", ChatAudiences.CLAN, 7L, 100L, null, "APP", "hello", null, true)),
                 Arguments.of(new SendPlayerMailCommand(
                         1L,
                         2L,
@@ -81,6 +75,15 @@ class OwnerVerifiedTest {
                         null,
                         true,
                         java.util.UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001"),
+                        Instant.parse("2026-08-11T12:00:00Z"))),
+                Arguments.of(new AcceptMailCommand(
+                        1L,
+                        10L,
+                        2L,
+                        0L,
+                        null,
+                        true,
+                        java.util.UUID.fromString("5b1f3c2e-0000-4000-8000-000000000002"),
                         Instant.parse("2026-08-11T12:00:00Z"))));
     }
 

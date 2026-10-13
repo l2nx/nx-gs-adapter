@@ -4,16 +4,9 @@ import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 
 /**
- * Deletes {@code count} items from a stack in a character's inventory by item-instance object-id.
- *
- * <p>{@code NOT_FOUND}: character or item missing. {@code INVALID_STATE}: other owner, stack smaller than {@code count},
- * item locked or otherwise non-deletable. {@code FORBIDDEN}: policy. {@code VALIDATION_FAILED}: missing field or
- * non-positive count; Gson bypasses the constructor, so the handler must check.</p>
- *
- * <p>{@code count} equal to the stack size deletes the instance, less decrements it. Routed by {@code charId}.</p>
- *
- * <p>Delivery is at-most-once (see {@link app.l2nx.gs.adapter.api.spi.capability.CommandHandler}); a re-issue after a reply timeout may hit an already
- * decremented stack and looks like a fresh request, so the caller decides whether the first delete landed.</p>
+ * Deletes {@code count} items from a stack by item-instance object-id. Always refused with {@code INVALID_STATE}:
+ * {@link app.l2nx.gs.adapter.api.kafka.commands.item.model.WellKnownItemCommandReasons#ITEM_IN_STORE ITEM_IN_STORE}, {@link app.l2nx.gs.adapter.api.kafka.commands.item.model.WellKnownItemCommandReasons#ITEM_IN_USE ITEM_IN_USE}. Gson bypasses the constructor, so the
+ * handler checks {@code VALIDATION_FAILED}; delivery is at-most-once, so after a reply timeout the caller decides whether the delete landed.
  */
 public final class DeleteItemCommand implements NxCommand<DeleteItemResult> {
 
@@ -48,7 +41,6 @@ public final class DeleteItemCommand implements NxCommand<DeleteItemResult> {
         return itemId;
     }
 
-    /** Must be positive; the builder defaults to {@code 1} but the wire must carry it explicitly. */
     public Long getCount() {
         return count;
     }

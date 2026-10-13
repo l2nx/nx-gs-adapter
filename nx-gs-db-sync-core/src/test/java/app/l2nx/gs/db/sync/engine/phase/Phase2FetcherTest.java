@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import app.l2nx.gs.adapter.api.spi.model.ChildSource;
 import app.l2nx.gs.adapter.api.spi.model.PrimarySource;
+import app.l2nx.gs.adapter.api.spi.model.RowFilter;
 import app.l2nx.gs.db.sync.engine.jdbc.JdbcDialect;
 import it.unimi.dsi.fastutil.longs.*;
 import java.sql.Connection;
@@ -20,22 +21,29 @@ class Phase2FetcherTest {
 
     @Test
     void buildSql_shouldEmitInClauseWithRequestedPlaceholderCount() {
-        String sql = Phase2Fetcher.buildSql("clan_data", "clan_id", 3);
+        String sql = Phase2Fetcher.buildSql("clan_data", "clan_id", 3, null);
 
         assertEquals("SELECT * FROM clan_data WHERE clan_id IN (?, ?, ?)", sql);
     }
 
     @Test
     void buildSql_shouldEmitSingleInClause_whenOnePlaceholder() {
-        String sql = Phase2Fetcher.buildSql("clan_data", "clan_id", 1);
+        String sql = Phase2Fetcher.buildSql("clan_data", "clan_id", 1, null);
 
         assertEquals("SELECT * FROM clan_data WHERE clan_id IN (?)", sql);
     }
 
     @Test
+    void buildSql_shouldAppendBoundPredicate_whenRowFilterSet() {
+        String sql = Phase2Fetcher.buildSql("clan_skills", "clan_id", 2, RowFilter.notStartsWith("name", "tmp_"));
+
+        assertEquals("SELECT * FROM clan_skills WHERE clan_id IN (?, ?) AND name NOT LIKE ? ESCAPE '!'", sql);
+    }
+
+    @Test
     void buildSql_shouldThrow_whenPlaceholderCountZeroOrNegative() {
-        assertThrows(IllegalArgumentException.class, () -> Phase2Fetcher.buildSql("t", "id", 0));
-        assertThrows(IllegalArgumentException.class, () -> Phase2Fetcher.buildSql("t", "id", -1));
+        assertThrows(IllegalArgumentException.class, () -> Phase2Fetcher.buildSql("t", "id", 0, null));
+        assertThrows(IllegalArgumentException.class, () -> Phase2Fetcher.buildSql("t", "id", -1, null));
     }
 
     @Test
@@ -114,6 +122,49 @@ class Phase2FetcherTest {
         assertEquals(2, result.get(1L).size(), "FK 1 has 2 skills");
         assertEquals(1, result.get(2L).size(), "FK 2 has 1 skill");
         assertNull(result.get(3L), "FK 3 absent — caller substitutes empty list");
+    }
+
+    @Test
+    void fetchChild_shouldBindRowFilterValueAfterChunkPlaceholders() throws SQLException {
+        ChildSource<TestSkill> inner = skillChild();
+        ChildSource<TestSkill> child = new ChildSource<TestSkill>() {
+            @Override
+            public String tableName() {
+                return inner.tableName();
+            }
+
+            @Override
+            public String fkColumn() {
+                return inner.fkColumn();
+            }
+
+            @Override
+            public List<String> hashedColumns() {
+                return inner.hashedColumns();
+            }
+
+            @Override
+            public RowFilter rowFilter() {
+                return RowFilter.notStartsWith("name", "a_b%");
+            }
+
+            @Override
+            public TestSkill mapRow(ResultSet rs) throws SQLException {
+                return inner.mapRow(rs);
+            }
+        };
+        Connection conn = mock(Connection.class);
+        PreparedStatement ps = mock(PreparedStatement.class);
+        ResultSet rs = mock(ResultSet.class);
+        org.mockito.ArgumentCaptor<String> sql = org.mockito.ArgumentCaptor.forClass(String.class);
+        when(conn.prepareStatement(sql.capture())).thenReturn(ps);
+        when(ps.executeQuery()).thenReturn(rs);
+        when(rs.next()).thenReturn(false);
+
+        new Phase2Fetcher().fetchChild(conn, child, new LongArrayList(new long[] {1L}), 5, 10_000, JdbcDialect.OTHER);
+
+        assertTrue(sql.getValue().endsWith("AND name NOT LIKE ? ESCAPE '!'"));
+        verify(ps).setString(Phase2Fetcher.CHUNK_SIZE + 1, "a!_b!%%");
     }
 
     @Test

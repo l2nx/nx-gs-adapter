@@ -14,7 +14,8 @@ import app.l2nx.gs.adapter.api.kafka.commands.mail.SendPlayerMailCommand;
  * {@link #ADENA_OVERFLOW}, {@link #COD_REQUIRES_ITEMS}, {@link #ITEM_NOT_TRANSFERABLE} (with an {@code itemId}
  * extension).</p>
  * <p>{@code INVALID_STATE}: {@link #NOT_ENOUGH_ADENA}, {@link #RECIPIENT_INBOX_FULL}, {@link #OUTBOX_FULL},
- * {@link #CHARACTER_BUSY}, {@link #MAIL_DISABLED}, {@link #ATTACHMENTS_DISABLED}, {@link #LEVEL_TOO_LOW},
+ * {@link #CHARACTER_BUSY}, {@link #NOT_IN_PEACE_ZONE} (attachments while the sender, online or by its last known
+ * position, is outside a peace zone), {@link #MAIL_DISABLED}, {@link #ATTACHMENTS_DISABLED}, {@link #LEVEL_TOO_LOW},
  * {@link #RESTORE_IN_PROGRESS}.</p>
  * <p>{@code INTERNAL_ERROR}: {@link #MAIL_DELIVERY_FAILED}, {@link #OUTCOME_UNKNOWN}.</p>
  */
@@ -43,6 +44,7 @@ public final class WellKnownSendPlayerMailReasons {
     public static final String RECIPIENT_INBOX_FULL = "RECIPIENT_INBOX_FULL";
     public static final String OUTBOX_FULL = "OUTBOX_FULL";
     public static final String CHARACTER_BUSY = "CHARACTER_BUSY";
+    public static final String NOT_IN_PEACE_ZONE = "NOT_IN_PEACE_ZONE";
     public static final String MAIL_DISABLED = "MAIL_DISABLED";
     public static final String ATTACHMENTS_DISABLED = "ATTACHMENTS_DISABLED";
     public static final String LEVEL_TOO_LOW = "LEVEL_TOO_LOW";

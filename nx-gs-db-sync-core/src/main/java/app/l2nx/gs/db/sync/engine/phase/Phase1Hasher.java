@@ -3,6 +3,7 @@ package app.l2nx.gs.db.sync.engine.phase;
 import app.l2nx.gs.adapter.api.spi.model.ChildSource;
 import app.l2nx.gs.adapter.api.spi.model.PrimarySource;
 import app.l2nx.gs.db.sync.engine.jdbc.JdbcDialect;
+import app.l2nx.gs.db.sync.engine.jdbc.RowFilterSql;
 import app.l2nx.gs.db.sync.engine.jdbc.StatementRegistry;
 import app.l2nx.gs.db.sync.engine.window.Window;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
@@ -44,10 +45,12 @@ public final class Phase1Hasher {
         if (window.targeted()) {
             LongList pks = window.pks();
             String sql = buildPrimaryInSql(primary, pks.size());
-            return runInListHashQuery(conn, pks, sql, queryTimeoutSeconds, fetchSize, registry);
+            return runInListHashQuery(
+                    conn, pks, sql, RowFilterSql.Rendered.none(), queryTimeoutSeconds, fetchSize, registry);
         }
         String sql = buildPrimarySql(primary);
-        return runHashQuery(conn, window, sql, queryTimeoutSeconds, fetchSize, dialect, registry);
+        return runHashQuery(
+                conn, window, sql, RowFilterSql.Rendered.none(), queryTimeoutSeconds, fetchSize, dialect, registry);
     }
 
     public Long2IntMap hashChild(
@@ -70,19 +73,21 @@ public final class Phase1Hasher {
             JdbcDialect dialect,
             @Nullable StatementRegistry registry)
             throws SQLException {
+        RowFilterSql.Rendered filter = RowFilterSql.render(child.rowFilter());
         if (window.targeted()) {
             LongList parentPks = window.pks();
             String sql = buildChildInSql(child, parentPks.size());
-            return runInListHashQuery(conn, parentPks, sql, queryTimeoutSeconds, fetchSize, registry);
+            return runInListHashQuery(conn, parentPks, sql, filter, queryTimeoutSeconds, fetchSize, registry);
         }
         String sql = buildChildSql(child);
-        return runHashQuery(conn, window, sql, queryTimeoutSeconds, fetchSize, dialect, registry);
+        return runHashQuery(conn, window, sql, filter, queryTimeoutSeconds, fetchSize, dialect, registry);
     }
 
     private static Long2IntMap runHashQuery(
             Connection conn,
             Window window,
             String sql,
+            RowFilterSql.Rendered filter,
             int queryTimeoutSeconds,
             int fetchSize,
             JdbcDialect dialect,
@@ -99,6 +104,7 @@ public final class Phase1Hasher {
                 applyFetchSize(ps, fetchSize, dialect);
                 ps.setLong(1, window.fromPk());
                 ps.setLong(2, window.toPk());
+                filter.bind(ps, 3);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         long pk = rs.getLong(1);
@@ -120,6 +126,7 @@ public final class Phase1Hasher {
             Connection conn,
             LongList keys,
             String sql,
+            RowFilterSql.Rendered filter,
             int queryTimeoutSeconds,
             int fetchSize,
             @Nullable StatementRegistry registry)
@@ -132,15 +139,14 @@ public final class Phase1Hasher {
             }
             try {
                 ps.setQueryTimeout(queryTimeoutSeconds);
-                // Bounded IN-list: plain fetch, no streaming cursor.
                 ps.setFetchSize(fetchSize);
                 for (int i = 0; i < keys.size(); i++) {
                     ps.setLong(i + 1, keys.getLong(i));
                 }
+                filter.bind(ps, keys.size() + 1);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         long pk = rs.getLong(1);
-                        // BIGINT UNSIGNED narrowed to int, bit-exact.
                         int crc = (int) rs.getLong(2);
                         result.put(pk, crc);
                     }
@@ -183,7 +189,8 @@ public final class Phase1Hasher {
         }
         return "SELECT " + child.fkColumn() + ", BIT_XOR(" + concatCrc32(hashed) + ") "
                 + "FROM " + child.tableName()
-                + " WHERE " + child.fkColumn() + " BETWEEN ? AND ? "
+                + " WHERE " + child.fkColumn() + " BETWEEN ? AND ?"
+                + RowFilterSql.render(child.rowFilter()).sql() + " "
                 + "GROUP BY " + child.fkColumn();
     }
 
@@ -204,8 +211,9 @@ public final class Phase1Hasher {
         }
         return "SELECT " + child.fkColumn() + ", BIT_XOR(" + concatCrc32(hashed) + ") "
                 + "FROM " + child.tableName()
-                + " WHERE " + child.fkColumn() + " IN (" + placeholders(placeholderCount) + ") "
-                + "GROUP BY " + child.fkColumn();
+                + " WHERE " + child.fkColumn() + " IN (" + placeholders(placeholderCount) + ")"
+                + RowFilterSql.render(child.rowFilter()).sql()
+                + " GROUP BY " + child.fkColumn();
     }
 
     private static String placeholders(int count) {

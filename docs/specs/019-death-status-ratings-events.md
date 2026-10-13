@@ -300,6 +300,19 @@ bot), operators (server-status menu section), and platform-side consumers
   notification (the recipient's balance now, since CDC character sync lags).
   ru/en/uk keys; line omitted gracefully when the key is absent.
 
+- [todo] R26. **Fee metadata of the purchase event** (design, not released; commands side in
+  [`009-commands/catalog.md`](009-commands/catalog.md) › Breaking changes of this release).
+  `WellKnownPrivateStoreMetadata` MUST add `BUYER_FEE_ADENA = "buyer_fee_adena"`,
+  `BUYER_FEE_PERCENT = "buyer_fee_percent"`, `SELLER_FEE_ADENA = "seller_fee_adena"` and
+  `SELLER_FEE_PERCENT = "seller_fee_percent"` (decimal strings, percent in whole percent). The buyer fee
+  is the burned surcharge on top of the lot price (platform buys only); the seller fee is withheld from
+  the seller's proceeds and burned, on every sale from a store that carries a seller fee, in-game
+  purchases included. Both are recorded per deal because the rates are platform configuration. The
+  host stamps the seller fee from both the platform-buy path and the
+  in-game purchase path. The `seller_fee_*` keys are omitted (not written as `0` or
+  blank) when the store has no seller fee. The old `TAX_ADENA` (`tax_adena`) and `TAX_PERCENT` (`tax_percent`) constants are removed
+  in the same release (a rename, no fallback).
+
 **Should:**
 
 - [todo] R20. Death-notification template SHOULD distinguish PvP (`player`) from

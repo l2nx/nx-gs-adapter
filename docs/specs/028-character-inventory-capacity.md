@@ -59,6 +59,22 @@ engine's own capacity accessors on the runtime snapshot thread (all O(1) field r
 calls) and adds the six values to the runtime hash, so a pickup or a cap change propagates on the
 next tick.
 
+## Private sell store slots (design, not released)
+
+One more optional field on `CharacterRuntimeDto`, appended at the end of the canonical constructor under
+the same no-overload rule:
+
+| field                   | semantics                                                                                                                                                                                           |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `privateStoreSellSlots` | `@Nullable Integer`: the maximum number of lines a private sell store of this character may hold right now. `null` = the host does not report it (no signal, not zero), as for the six fields above |
+
+The value is computed by the host (race, purchased expansion, stats and server cap are host internals the
+platform does not reconstruct). The host SHOULD resync when the value changes (an expansion purchase, a stat
+change), not on a timer, so a consumer shows the new limit without a relog; the runtime hash includes the
+field. The platform does not pre-validate the line count against it: the host stays the judge and refuses
+an oversized start with `TOO_MANY_LINES`
+([`009-commands/catalog.md`](009-commands/catalog.md)). Purely additive, same release rule as below.
+
 ## Release
 
 Tag `api/vX.Y.Z` → `nx-gs-adapter-api`. Purely additive; consumers on the previous version keep

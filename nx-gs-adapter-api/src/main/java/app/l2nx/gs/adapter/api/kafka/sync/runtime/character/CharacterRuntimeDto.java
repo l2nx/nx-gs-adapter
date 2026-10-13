@@ -4,8 +4,6 @@ import app.l2nx.gs.adapter.api.domain.character.clazz.CharacterClass;
 import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.Activity;
 import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.CharacterEffect;
 import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.WellKnownActivities;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.WellKnownActivityMetadata;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.WellKnownAiStatuses;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -47,6 +45,7 @@ public final class CharacterRuntimeDto {
     private final @Nullable Integer curWeight;
     private final @Nullable Integer maxWeight;
     private final @Nullable List<CharacterEffect> effects;
+    private final @Nullable Integer privateStoreSellSlots;
 
     /**
      * Must stay the only constructor: an overload makes creator detection ambiguous and consumers stop deserializing
@@ -78,7 +77,8 @@ public final class CharacterRuntimeDto {
             @Nullable Integer maxQuestInventorySlots,
             @Nullable Integer curWeight,
             @Nullable Integer maxWeight,
-            @Nullable List<CharacterEffect> effects) {
+            @Nullable List<CharacterEffect> effects,
+            @Nullable Integer privateStoreSellSlots) {
         this.id = id;
         this.curHp = curHp;
         this.maxHp = maxHp;
@@ -105,6 +105,7 @@ public final class CharacterRuntimeDto {
         this.curWeight = curWeight;
         this.maxWeight = maxWeight;
         this.effects = copy(effects);
+        this.privateStoreSellSlots = privateStoreSellSlots;
     }
 
     private static <T> @Nullable List<T> copy(@Nullable List<T> values) {
@@ -143,7 +144,8 @@ public final class CharacterRuntimeDto {
                 || maxQuestInventorySlots != null
                 || curWeight != null
                 || maxWeight != null
-                || effects != null;
+                || effects != null
+                || privateStoreSellSlots != null;
     }
 
     public @Nullable Integer getCurHp() {
@@ -194,7 +196,6 @@ public final class CharacterRuntimeDto {
         return online;
     }
 
-    /** Open string; canonical values in {@link WellKnownAiStatuses}. */
     public @Nullable String getAiStatus() {
         return aiStatus;
     }
@@ -243,17 +244,25 @@ public final class CharacterRuntimeDto {
         return maxWeight;
     }
 
-    /** Independent of {@link #getAiStatus() aiStatus}; metadata keys in {@link WellKnownActivityMetadata}. */
+    /** Independent of {@link #getAiStatus() aiStatus}. */
     public @Nullable List<Activity> getActivities() {
         return activities;
     }
 
     /**
-     * Status-bar effects in bar order. Null on a state-carrying row means the host does not report effects, which
-     * leaves the consumer with none; an empty list also means none.
+     * Status-bar effects in bar order. Null on a state-carrying row means the host does not report effects; the consumer
+     * then has none, same as an empty list.
      */
     public @Nullable List<CharacterEffect> getEffects() {
         return effects;
+    }
+
+    /**
+     * Maximum lines a private sell store of this character may hold right now, computed by the host; {@code null} = not
+     * reported (no signal, not zero). Informational: the host stays the judge of a start command.
+     */
+    public @Nullable Integer getPrivateStoreSellSlots() {
+        return privateStoreSellSlots;
     }
 
     public boolean isOnlineEffective() {
@@ -287,7 +296,8 @@ public final class CharacterRuntimeDto {
                 .maxQuestInventorySlots(maxQuestInventorySlots)
                 .curWeight(curWeight)
                 .maxWeight(maxWeight)
-                .effects(effects);
+                .effects(effects)
+                .privateStoreSellSlots(privateStoreSellSlots);
     }
 
     public static Builder builder() {
@@ -324,7 +334,8 @@ public final class CharacterRuntimeDto {
                 && Objects.equals(maxQuestInventorySlots, that.maxQuestInventorySlots)
                 && Objects.equals(curWeight, that.curWeight)
                 && Objects.equals(maxWeight, that.maxWeight)
-                && Objects.equals(effects, that.effects);
+                && Objects.equals(effects, that.effects)
+                && Objects.equals(privateStoreSellSlots, that.privateStoreSellSlots);
     }
 
     @Override
@@ -355,7 +366,8 @@ public final class CharacterRuntimeDto {
                 maxQuestInventorySlots,
                 curWeight,
                 maxWeight,
-                effects);
+                effects,
+                privateStoreSellSlots);
     }
 
     @Override
@@ -377,7 +389,8 @@ public final class CharacterRuntimeDto {
                 + ", curQuestInventorySlots=" + curQuestInventorySlots
                 + ", maxQuestInventorySlots=" + maxQuestInventorySlots
                 + ", curWeight=" + curWeight + ", maxWeight=" + maxWeight
-                + ", effects=" + effects + "]";
+                + ", effects=" + effects
+                + ", privateStoreSellSlots=" + privateStoreSellSlots + "]";
     }
 
     public static final class Builder {
@@ -407,6 +420,7 @@ public final class CharacterRuntimeDto {
         private @Nullable Integer curWeight;
         private @Nullable Integer maxWeight;
         private @Nullable List<CharacterEffect> effects;
+        private @Nullable Integer privateStoreSellSlots;
 
         public Builder id(long id) {
             this.id = id;
@@ -538,6 +552,11 @@ public final class CharacterRuntimeDto {
             return this;
         }
 
+        public Builder privateStoreSellSlots(@Nullable Integer privateStoreSellSlots) {
+            this.privateStoreSellSlots = privateStoreSellSlots;
+            return this;
+        }
+
         public CharacterRuntimeDto build() {
             return new CharacterRuntimeDto(
                     id,
@@ -565,7 +584,8 @@ public final class CharacterRuntimeDto {
                     maxQuestInventorySlots,
                     curWeight,
                     maxWeight,
-                    effects);
+                    effects,
+                    privateStoreSellSlots);
         }
     }
 }

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import app.l2nx.gs.adapter.api.spi.model.ChildSource;
 import app.l2nx.gs.adapter.api.spi.model.PrimarySource;
+import app.l2nx.gs.adapter.api.spi.model.RowFilter;
 import app.l2nx.gs.db.sync.engine.jdbc.JdbcDialect;
 import app.l2nx.gs.db.sync.engine.window.Window;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
@@ -65,6 +66,20 @@ class Phase1HasherTest {
         assertEquals(
                 "SELECT clan_id, BIT_XOR(CRC32(CONCAT_WS(',', skill_id, skill_level))) "
                         + "FROM clan_skills WHERE clan_id BETWEEN ? AND ? "
+                        + "GROUP BY clan_id",
+                sql);
+    }
+
+    @Test
+    void buildChildSql_shouldAppendBoundPredicate_whenRowFilterSet() {
+        ChildSource<?> child =
+                stubChild("clan_skills", "clan_id", Arrays.asList("skill_id"), RowFilter.notStartsWith("name", "tmp_"));
+
+        String sql = Phase1Hasher.buildChildSql(child);
+
+        assertEquals(
+                "SELECT clan_id, BIT_XOR(CRC32(CONCAT_WS(',', skill_id))) "
+                        + "FROM clan_skills WHERE clan_id BETWEEN ? AND ? AND name NOT LIKE ? ESCAPE '!' "
                         + "GROUP BY clan_id",
                 sql);
     }
@@ -145,6 +160,24 @@ class Phase1HasherTest {
     }
 
     @Test
+    void hashChild_shouldBindRowFilterValueAfterWindowBounds() throws SQLException {
+        ChildSource<?> child =
+                stubChild("clan_skills", "clan_id", Arrays.asList("skill_id"), RowFilter.notStartsWith("name", "tmp_"));
+        Connection conn = mock(Connection.class);
+        PreparedStatement ps = mock(PreparedStatement.class);
+        ResultSet rs = mock(ResultSet.class);
+        when(conn.prepareStatement(anyString())).thenReturn(ps);
+        when(ps.executeQuery()).thenReturn(rs);
+        when(rs.next()).thenReturn(false);
+
+        new Phase1Hasher().hashChild(conn, new Window(5L, 100L), child, 5, 10_000, JdbcDialect.OTHER);
+
+        verify(ps).setLong(1, 5L);
+        verify(ps).setLong(2, 100L);
+        verify(ps).setString(3, "tmp!_%");
+    }
+
+    @Test
     void hashPrimary_shouldPropagateSQLException_whenQueryThrows() throws SQLException {
         PrimarySource<?> primary = stubPrimary("clan_data", "clan_id", Arrays.asList("clan_name", "clan_level"));
         Connection conn = mock(Connection.class);
@@ -186,7 +219,7 @@ class Phase1HasherTest {
         when(ps.executeQuery()).thenReturn(rs);
         when(rs.next()).thenReturn(true, false);
         when(rs.getLong(1)).thenReturn(42L);
-        long crc32Unsigned = 3_735_928_559L; // 0xDEADBEEF
+        long crc32Unsigned = 3_735_928_559L;
         when(rs.getLong(2)).thenReturn(crc32Unsigned);
 
         Long2IntMap result =
@@ -224,6 +257,20 @@ class Phase1HasherTest {
         }
 
         @Test
+        void buildChildInSql_shouldAppendBoundPredicate_whenRowFilterSet() {
+            ChildSource<?> child =
+                    stubChild("clan_skills", "clan_id", Arrays.asList("skill_id"), RowFilter.eq("kind", 0));
+
+            String sql = Phase1Hasher.buildChildInSql(child, 2);
+
+            assertEquals(
+                    "SELECT clan_id, BIT_XOR(CRC32(CONCAT_WS(',', skill_id))) "
+                            + "FROM clan_skills WHERE clan_id IN (?, ?) AND kind = ? "
+                            + "GROUP BY clan_id",
+                    sql);
+        }
+
+        @Test
         void hashPrimary_shouldBindOnePlaceholderPerTargetedPk_andNotUseBetween() throws SQLException {
             PrimarySource<?> primary = stubPrimary("clan_data", "clan_id", Arrays.asList("clan_name", "clan_level"));
             Connection conn = mock(Connection.class);
@@ -247,6 +294,25 @@ class Phase1HasherTest {
             verify(ps).setLong(3, 44L);
             assertEquals(1, result.size());
             assertEquals(777, result.get(42L));
+        }
+
+        @Test
+        void hashChild_shouldBindRowFilterValueAfterTargetedPks() throws SQLException {
+            ChildSource<?> child =
+                    stubChild("clan_skills", "clan_id", Arrays.asList("skill_id"), RowFilter.eq("kind", 7));
+            Connection conn = mock(Connection.class);
+            PreparedStatement ps = mock(PreparedStatement.class);
+            ResultSet rs = mock(ResultSet.class);
+            when(conn.prepareStatement(anyString())).thenReturn(ps);
+            when(ps.executeQuery()).thenReturn(rs);
+            when(rs.next()).thenReturn(false);
+
+            Window targeted = Window.ofPks(new LongArrayList(Arrays.asList(1L, 2L)));
+            new Phase1Hasher().hashChild(conn, targeted, child, 5, 10_000, JdbcDialect.OTHER);
+
+            verify(ps).setLong(1, 1L);
+            verify(ps).setLong(2, 2L);
+            verify(ps).setLong(3, 7L);
         }
 
         @Test
@@ -289,7 +355,6 @@ class Phase1HasherTest {
             Window targeted = Window.ofPks(new LongArrayList(Arrays.asList(42L, 43L)));
             new Phase1Hasher().hashPrimary(conn, targeted, primary, 5, 10_000, dialect);
 
-            // Bounded fast-path uses a plain positive fetch size for every dialect.
             verify(ps).setFetchSize(10_000);
             verify(ps, never()).setFetchSize(Integer.MIN_VALUE);
         }
@@ -320,7 +385,16 @@ class Phase1HasherTest {
     }
 
     private static ChildSource<Object> stubChild(String table, String fk, List<String> hashed) {
+        return stubChild(table, fk, hashed, null);
+    }
+
+    private static ChildSource<Object> stubChild(String table, String fk, List<String> hashed, RowFilter rowFilter) {
         return new ChildSource<Object>() {
+            @Override
+            public RowFilter rowFilter() {
+                return rowFilter;
+            }
+
             @Override
             public String tableName() {
                 return table;

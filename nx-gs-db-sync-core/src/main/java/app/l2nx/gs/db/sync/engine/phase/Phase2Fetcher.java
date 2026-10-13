@@ -2,7 +2,9 @@ package app.l2nx.gs.db.sync.engine.phase;
 
 import app.l2nx.gs.adapter.api.spi.model.ChildSource;
 import app.l2nx.gs.adapter.api.spi.model.PrimarySource;
+import app.l2nx.gs.adapter.api.spi.model.RowFilter;
 import app.l2nx.gs.db.sync.engine.jdbc.JdbcDialect;
+import app.l2nx.gs.db.sync.engine.jdbc.RowFilterSql;
 import app.l2nx.gs.db.sync.engine.jdbc.StatementRegistry;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -48,15 +50,24 @@ public final class Phase2Fetcher {
         if (pks == null || pks.isEmpty()) {
             return result;
         }
-        String sql = buildSql(primary.tableName(), primary.pkColumn(), CHUNK_SIZE);
-        runChunkedFetch(conn, pks, queryTimeoutSeconds, fetchSize, dialect, sql, registry, new RowConsumer() {
-            @Override
-            public void accept(ResultSet rs) throws SQLException {
-                long pk = rs.getLong(primary.pkColumn());
-                Object row = primary.mapRow(rs);
-                result.put(pk, row);
-            }
-        });
+        String sql = buildSql(primary.tableName(), primary.pkColumn(), CHUNK_SIZE, null);
+        runChunkedFetch(
+                conn,
+                pks,
+                queryTimeoutSeconds,
+                fetchSize,
+                dialect,
+                sql,
+                RowFilterSql.Rendered.none(),
+                registry,
+                new RowConsumer() {
+                    @Override
+                    public void accept(ResultSet rs) throws SQLException {
+                        long pk = rs.getLong(primary.pkColumn());
+                        Object row = primary.mapRow(rs);
+                        result.put(pk, row);
+                    }
+                });
         return result;
     }
 
@@ -84,8 +95,9 @@ public final class Phase2Fetcher {
         if (fks == null || fks.isEmpty()) {
             return result;
         }
-        String sql = buildSql(child.tableName(), child.fkColumn(), CHUNK_SIZE);
-        runChunkedFetch(conn, fks, queryTimeoutSeconds, fetchSize, dialect, sql, registry, new RowConsumer() {
+        RowFilterSql.Rendered filter = RowFilterSql.render(child.rowFilter());
+        String sql = buildSql(child.tableName(), child.fkColumn(), CHUNK_SIZE, child.rowFilter());
+        runChunkedFetch(conn, fks, queryTimeoutSeconds, fetchSize, dialect, sql, filter, registry, new RowConsumer() {
             @Override
             public void accept(ResultSet rs) throws SQLException {
                 long fk = rs.getLong(child.fkColumn());
@@ -108,6 +120,7 @@ public final class Phase2Fetcher {
             int fetchSize,
             JdbcDialect dialect,
             String sql,
+            RowFilterSql.Rendered filter,
             @Nullable StatementRegistry registry,
             RowConsumer rowConsumer)
             throws SQLException {
@@ -122,7 +135,7 @@ public final class Phase2Fetcher {
                 int total = pks.size();
                 while (from < total) {
                     int to = Math.min(from + CHUNK_SIZE, total);
-                    fetchChunk(pks, from, to, ps, rowConsumer);
+                    fetchChunk(pks, from, to, ps, filter, rowConsumer);
                     from = to;
                 }
             } finally {
@@ -133,7 +146,8 @@ public final class Phase2Fetcher {
         }
     }
 
-    private static void fetchChunk(LongList pks, int from, int to, PreparedStatement ps, RowConsumer rowConsumer)
+    private static void fetchChunk(
+            LongList pks, int from, int to, PreparedStatement ps, RowFilterSql.Rendered filter, RowConsumer rowConsumer)
             throws SQLException {
         int count = to - from;
         long padPk = pks.getLong(to - 1);
@@ -143,6 +157,7 @@ public final class Phase2Fetcher {
         for (int i = count; i < CHUNK_SIZE; i++) {
             ps.setLong(i + 1, padPk);
         }
+        filter.bind(ps, CHUNK_SIZE + 1);
         try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 rowConsumer.accept(rs);
@@ -150,7 +165,7 @@ public final class Phase2Fetcher {
         }
     }
 
-    static String buildSql(String tableName, String keyColumn, int placeholderCount) {
+    static String buildSql(String tableName, String keyColumn, int placeholderCount, @Nullable RowFilter rowFilter) {
         if (placeholderCount <= 0) {
             throw new IllegalArgumentException("placeholderCount must be > 0, was " + placeholderCount);
         }
@@ -165,6 +180,7 @@ public final class Phase2Fetcher {
             sql.append('?');
         }
         sql.append(')');
+        sql.append(RowFilterSql.render(rowFilter).sql());
         return sql.toString();
     }
 

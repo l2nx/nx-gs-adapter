@@ -16,6 +16,7 @@ import app.l2nx.gs.adapter.api.spi.model.ChildSource;
 import app.l2nx.gs.adapter.api.spi.model.EntityMapping;
 import app.l2nx.gs.adapter.api.spi.model.ParentRef;
 import app.l2nx.gs.adapter.api.spi.model.PrimarySource;
+import app.l2nx.gs.adapter.api.spi.model.RowFilter;
 import app.l2nx.gs.adapter.api.spi.provider.DbSchemaProvider;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.db.sync.engine.*;
@@ -187,7 +188,7 @@ public final class DbSyncModule implements AdapterModule {
         try {
             SqlIdent.validate(p.schemaName(), "DbSchemaProvider.schemaName");
             validateIdentifiers(mappings);
-        } catch (IllegalStateException invalidIdentifier) {
+        } catch (IllegalStateException | IllegalArgumentException invalidIdentifier) {
             log.error(
                     "DbSchemaProvider {} returned an invalid identifier: {}",
                     p.schemaName(),
@@ -291,8 +292,7 @@ public final class DbSyncModule implements AdapterModule {
         if (targetPks.isEmpty()) {
             return;
         }
-        // Trusted in-process caller: rejecting would silently lose a sync, so a large count only WARNs (cascade
-        // resolution is chunked).
+        // Trusted in-process caller: rejecting would lose a sync, so a large count only WARNs.
         if (targetPks.size() > ResyncRowsCommand.MAX_PKS) {
             log.warn(
                     "NxSync.requestResync for entity {} carries {} pks (> {}) — unusually large for an in-process "
@@ -462,8 +462,7 @@ public final class DbSyncModule implements AdapterModule {
             if (pk == null) {
                 return CommandResult.validationFailed("pks must not contain null entries", "pks");
             }
-            // L2J object ids are positive; a garbage PK would become a sentinel and inflate the window-planning
-            // envelope.
+            // L2J object ids are positive; a garbage PK would inflate the window-planning envelope.
             if (pk.longValue() <= 0L) {
                 return CommandResult.validationFailed("pks must contain only positive values (got " + pk + ")", "pks");
             }
@@ -510,7 +509,6 @@ public final class DbSyncModule implements AdapterModule {
         return names;
     }
 
-    /** Child PKs per dependent entity whose {@link ParentRef} points at the given parent PKs; empty buckets dropped. */
     private static Map<String, LongOpenHashSet> resolveCascade(
             JdbcConnectionSource src, CdcEngine engine, String parentEntity, LongOpenHashSet parentPks)
             throws SQLException {
@@ -596,9 +594,15 @@ public final class DbSyncModule implements AdapterModule {
                 }
             }
             if (mapping.children() != null) {
+                Set<String> childTables = new HashSet<String>();
                 for (ChildSource<?> child : mapping.children()) {
                     SqlIdent.validate(child.tableName(), "entity '" + entity + "' child.tableName");
+                    if (!childTables.add(child.tableName())) {
+                        throw new IllegalArgumentException("entity '" + entity + "' declares child table '"
+                                + child.tableName() + "' more than once; one table may back only one child per entity");
+                    }
                     SqlIdent.validate(child.fkColumn(), "entity '" + entity + "' child.fkColumn");
+                    validateRowFilter(entity, child);
                     List<String> childHashed = child.hashedColumns();
                     if (childHashed != null) {
                         for (String col : childHashed) {
@@ -619,6 +623,15 @@ public final class DbSyncModule implements AdapterModule {
                     }
                 }
             }
+        }
+    }
+
+    private static void validateRowFilter(String entity, ChildSource<?> child) {
+        RowFilter rowFilter = child.rowFilter();
+        if (rowFilter != null) {
+            SqlIdent.validate(
+                    rowFilter.getColumn(),
+                    "entity '" + entity + "' child '" + child.tableName() + "' rowFilter.column");
         }
     }
 

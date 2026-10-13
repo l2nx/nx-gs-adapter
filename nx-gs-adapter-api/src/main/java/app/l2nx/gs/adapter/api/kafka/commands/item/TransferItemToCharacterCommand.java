@@ -4,21 +4,12 @@ import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 
 /**
- * Moves a stack of items between characters by item-instance object-id; the handler routes internally across all
- * online/offline combinations.
+ * Moves a stack between characters by item-instance object-id; non-stackables require {@code count == 1}. Always refused
+ * with {@code INVALID_STATE}: {@link app.l2nx.gs.adapter.api.kafka.commands.item.model.WellKnownItemCommandReasons#ITEM_IN_STORE ITEM_IN_STORE}, {@link app.l2nx.gs.adapter.api.kafka.commands.item.model.WellKnownItemCommandReasons#ITEM_IN_USE ITEM_IN_USE}. Gson bypasses
+ * the constructor, so the handler checks {@code VALIDATION_FAILED}.
  *
- * <p>{@code NOT_FOUND}: character or item missing. {@code INVALID_STATE}: non-transferable location, target full or
- * over weight, source stack smaller than {@code count}. {@code VALIDATION_FAILED}: missing field or non-positive
- * count; Gson bypasses the constructor, so the handler must check. {@code INTERNAL_ERROR}: persistence failure.</p>
- *
- * <p>Stackables: {@code count} equal to the stack size moves the instance, less splits it. Non-stackables require
- * {@code count == 1}; others are rejected with {@code VALIDATION_FAILED} or {@code INVALID_STATE}.</p>
- *
- * <p>Routed by {@code charIdFrom}, which does NOT serialize against commands keyed by {@code charIdTo}; handlers
- * must not assume exclusive access to the target.</p>
- *
- * <p>Delivery is at-most-once (see {@link app.l2nx.gs.adapter.api.spi.capability.CommandHandler}); a re-issue after a reply timeout may find the items already
- * moved and looks like a fresh request, so the caller decides whether the first transfer landed.</p>
+ * <p>Routed by {@code charIdFrom}, which does NOT serialize against commands keyed by {@code charIdTo}; delivery is
+ * at-most-once, so after a reply timeout the caller decides whether the transfer landed.</p>
  */
 public final class TransferItemToCharacterCommand implements NxCommand<TransferItemToCharacterResult> {
 
@@ -62,7 +53,6 @@ public final class TransferItemToCharacterCommand implements NxCommand<TransferI
         return itemId;
     }
 
-    /** Must be positive; the builder defaults to {@code 1}. Non-stackables require {@code 1}. */
     public Long getCount() {
         return count;
     }

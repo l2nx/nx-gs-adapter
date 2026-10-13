@@ -56,13 +56,12 @@ New package `kafka.commands.privatestore`, mirroring the existing `commands.<gro
 long priceAdena }` — **`priceAdena` is per-unit**; the host charges `count * priceAdena` for the
   whole stack. `count > 0` and `priceAdena >= 0` constructor-enforced.
 - `StopPrivateStoreCommand implements NxCommand<StopPrivateStoreResult>` — `{ int charId }`.
-- `StartPrivateStoreResult { String storeType, int acceptedCount, List<DroppedLine> dropped }` —
-  `storeType` is an open host-defined token (not a closed adapter enum); `dropped` is non-null,
-  empty when every line was accepted (partial acceptance is a normal, non-error outcome).
-- `DroppedLine { int itemId, String reason }` — `reason` is host free-form diagnostic text, not a
-  closed vocabulary on this contract (the concrete reason tokens a given host emits, e.g.
-  `NOT_TRADEABLE` / `EQUIPPED` / `BAD_COUNT`, are a host-side (the host) convention documented
-  in `nx-gameservers` spec 052 §6 — not enforced by this adapter-api type).
+- `StartPrivateStoreResult { String storeType, int acceptedCount, ... }` —
+  `storeType` is an open host-defined token (not a closed adapter enum). A store opens only when every
+  line is accepted; there is no `dropped` list on the result.
+- `DroppedLine { int itemId, String reason }` — carried only in the `LINES_REJECTED` refusal extension;
+  `reason` is an open token, the known values are listed in
+  [`009-commands/catalog.md`](009-commands/catalog.md) › `StartPrivateStoreSellCommand`.
 - `StopPrivateStoreResult { String previousStoreType }`.
 
 Reserved for a future iteration, not shipped in this release: `StartPrivateStoreBuyCommand`

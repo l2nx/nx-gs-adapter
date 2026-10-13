@@ -5,17 +5,17 @@ import java.time.Instant;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
-/** Regular store: buyers pick lines individually. */
 public final class StartPrivateStoreSellCommand extends StartPrivateStoreCommand {
 
     public StartPrivateStoreSellCommand(
             int charId,
             @Nullable String title,
             List<SellLine> lines,
+            @Nullable Integer sellerFeePercent,
             @Nullable Boolean offlineAllowed,
             boolean ownerVerified,
             @Nullable Instant deadline) {
-        super(charId, title, lines, offlineAllowed, ownerVerified, deadline);
+        super(charId, title, lines, sellerFeePercent, offlineAllowed, ownerVerified, deadline);
     }
 
     public Builder toBuilder() {
@@ -23,6 +23,7 @@ public final class StartPrivateStoreSellCommand extends StartPrivateStoreCommand
                 .charId(getCharId())
                 .title(getTitle())
                 .lines(getLines())
+                .sellerFeePercent(getSellerFeePercent())
                 .offlineAllowed(getOfflineAllowed())
                 .ownerVerified(isOwnerVerified())
                 .deadline(getDeadline());
@@ -36,6 +37,7 @@ public final class StartPrivateStoreSellCommand extends StartPrivateStoreCommand
         private int charId;
         private @Nullable String title;
         private @Nullable List<SellLine> lines;
+        private @Nullable Integer sellerFeePercent;
         private @Nullable Boolean offlineAllowed;
         private boolean ownerVerified;
         private @Nullable Instant deadline;
@@ -55,6 +57,11 @@ public final class StartPrivateStoreSellCommand extends StartPrivateStoreCommand
             return this;
         }
 
+        public Builder sellerFeePercent(@Nullable Integer sellerFeePercent) {
+            this.sellerFeePercent = sellerFeePercent;
+            return this;
+        }
+
         public Builder offlineAllowed(@Nullable Boolean offlineAllowed) {
             this.offlineAllowed = offlineAllowed;
             return this;
@@ -71,7 +78,8 @@ public final class StartPrivateStoreSellCommand extends StartPrivateStoreCommand
         }
 
         public StartPrivateStoreSellCommand build() {
-            return new StartPrivateStoreSellCommand(charId, title, lines, offlineAllowed, ownerVerified, deadline);
+            return new StartPrivateStoreSellCommand(
+                    charId, title, lines, sellerFeePercent, offlineAllowed, ownerVerified, deadline);
         }
     }
 }

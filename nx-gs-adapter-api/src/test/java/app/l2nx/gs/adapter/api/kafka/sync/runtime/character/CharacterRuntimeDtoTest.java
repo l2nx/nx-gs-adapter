@@ -105,7 +105,8 @@ class CharacterRuntimeDtoTest {
                 50,
                 45000,
                 60000,
-                Collections.singletonList(haste()));
+                Collections.singletonList(haste()),
+                24);
 
         assertEquals(original, original.toBuilder().build());
     }
@@ -297,10 +298,24 @@ class CharacterRuntimeDtoTest {
         CharacterRuntimeDto fromBuilder = CharacterRuntimeDto.builder().id(7L).build();
         CharacterRuntimeDto fromCtor = new CharacterRuntimeDto(
                 7L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         assertEquals(fromCtor, fromBuilder);
         assertEquals(fromCtor.hashCode(), fromBuilder.hashCode());
+    }
+
+    @Test
+    void privateStoreSellSlots_shouldBeNullByDefaultAndCarryState() {
+        CharacterRuntimeDto empty = CharacterRuntimeDto.builder().id(1L).build();
+        assertNull(empty.getPrivateStoreSellSlots());
+
+        CharacterRuntimeDto dto =
+                CharacterRuntimeDto.builder().id(1L).privateStoreSellSlots(12).build();
+
+        assertEquals(Integer.valueOf(12), dto.getPrivateStoreSellSlots());
+        assertTrue(dto.carriesState());
+        assertNotEquals(dto, empty);
+        assertEquals(dto, dto.toBuilder().build());
     }
 
     @Test

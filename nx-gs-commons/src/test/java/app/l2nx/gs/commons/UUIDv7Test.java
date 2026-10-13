@@ -21,6 +21,40 @@ class UUIDv7Test {
     }
 
     @Test
+    void generateWithInstant_shouldEncodeGivenInstantAsVersion7Variant2() {
+        Instant instant = Instant.parse("2026-03-04T05:06:07.089Z");
+
+        UUID id = UUIDv7.generate(instant);
+
+        assertEquals(7, id.version());
+        assertEquals(2, id.variant());
+        assertEquals(instant, UUIDv7.extractCreatedAt(id));
+    }
+
+    @Test
+    void generateWithInstant_shouldTruncateToMilliseconds() {
+        Instant instant = Instant.parse("2026-03-04T05:06:07.089123456Z");
+
+        assertEquals(Instant.parse("2026-03-04T05:06:07.089Z"), UUIDv7.extractCreatedAt(UUIDv7.generate(instant)));
+    }
+
+    @Test
+    void generateWithInstant_shouldReturnDistinctIds_whenInstantRepeats() {
+        Instant instant = Instant.parse("2026-03-04T05:06:07.089Z");
+        Set<UUID> ids = new HashSet<>();
+        for (int i = 0; i < 100; i++) {
+            ids.add(UUIDv7.generate(instant));
+        }
+
+        assertTrue(ids.size() > 90, "expected near-unique ids, got " + ids.size());
+    }
+
+    @Test
+    void generateWithInstant_shouldThrow_whenBeforeEpoch() {
+        assertThrows(IllegalArgumentException.class, () -> UUIDv7.generate(Instant.ofEpochMilli(-1)));
+    }
+
+    @Test
     void generate_shouldReturnVariantTen() {
         UUID id = UUIDv7.generate();
         assertEquals(2, id.variant());

@@ -7,12 +7,15 @@ import app.l2nx.gs.adapter.api.spi.model.ChildSource;
 import app.l2nx.gs.adapter.api.spi.model.EntityMapping;
 import app.l2nx.gs.adapter.api.spi.model.ParentRef;
 import app.l2nx.gs.adapter.api.spi.model.PrimarySource;
+import app.l2nx.gs.adapter.api.spi.model.RowFilter;
 import java.sql.ResultSet;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class DbSyncModuleIdentValidationTest {
 
@@ -89,6 +92,44 @@ class DbSyncModuleIdentValidationTest {
     }
 
     @Test
+    void validateIdentifiers_shouldAcceptChildWithRowFilter() {
+        DbSyncModule.validateIdentifiers(Collections.singletonList(mapping(
+                "clan_data",
+                "clan_id",
+                Collections.singletonList("clan_name"),
+                Collections.singletonList(childWithRowFilter(RowFilter.notStartsWith("kind", "tmp_"))))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"kind = 0; DROP TABLE x", "kind --", "  ", "t.kind", "kind'"})
+    void validateIdentifiers_shouldRejectNonIdentifierRowFilterColumn(String column) {
+        EntityMapping<?> bad = mapping(
+                "clan_data",
+                "clan_id",
+                Collections.singletonList("clan_name"),
+                Collections.singletonList(childWithRowFilter(RowFilter.eq(column, 0))));
+
+        IllegalStateException ex = assertThrows(
+                IllegalStateException.class, () -> DbSyncModule.validateIdentifiers(Collections.singletonList(bad)));
+        assertTrue(ex.getMessage().contains("rowFilter.column"));
+    }
+
+    @Test
+    void validateIdentifiers_shouldRejectDuplicateChildTableWithinOneEntity() {
+        EntityMapping<?> bad = mapping(
+                "clan_data",
+                "clan_id",
+                Collections.singletonList("clan_name"),
+                Arrays.<ChildSource<?>>asList(
+                        childWithRowFilter(RowFilter.eq("kind", 0)), childWithRowFilter(RowFilter.eq("kind", 1))));
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> DbSyncModule.validateIdentifiers(Collections.singletonList(bad)));
+        assertTrue(ex.getMessage().contains("clan_skills"));
+        assertTrue(ex.getMessage().contains("more than once"));
+    }
+
+    @Test
     void validateIdentifiers_shouldAcceptParentRefReferencingDeclaredEntity() {
         EntityMapping<?> clan =
                 mapping("clan_data", "clan_id", Collections.singletonList("clan_name"), Collections.emptyList());
@@ -124,6 +165,35 @@ class DbSyncModuleIdentValidationTest {
         IllegalStateException ex = assertThrows(
                 IllegalStateException.class, () -> DbSyncModule.validateIdentifiers(Arrays.asList(clan, item)));
         assertTrue(ex.getMessage().contains("parentRef.fkColumn"));
+    }
+
+    private static ChildSource<Object> childWithRowFilter(RowFilter rowFilter) {
+        return new ChildSource<Object>() {
+            @Override
+            public String tableName() {
+                return "clan_skills";
+            }
+
+            @Override
+            public String fkColumn() {
+                return "clan_id";
+            }
+
+            @Override
+            public List<String> hashedColumns() {
+                return Collections.singletonList("skill_id");
+            }
+
+            @Override
+            public RowFilter rowFilter() {
+                return rowFilter;
+            }
+
+            @Override
+            public Object mapRow(ResultSet rs) {
+                return null;
+            }
+        };
     }
 
     private static EntityMapping<Object> withParentRefs(

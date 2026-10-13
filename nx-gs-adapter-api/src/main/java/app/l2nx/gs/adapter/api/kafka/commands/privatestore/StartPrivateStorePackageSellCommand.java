@@ -12,10 +12,11 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
             int charId,
             @Nullable String title,
             List<SellLine> lines,
+            @Nullable Integer sellerFeePercent,
             @Nullable Boolean offlineAllowed,
             boolean ownerVerified,
             @Nullable Instant deadline) {
-        super(charId, title, lines, offlineAllowed, ownerVerified, deadline);
+        super(charId, title, lines, sellerFeePercent, offlineAllowed, ownerVerified, deadline);
     }
 
     public Builder toBuilder() {
@@ -23,6 +24,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
                 .charId(getCharId())
                 .title(getTitle())
                 .lines(getLines())
+                .sellerFeePercent(getSellerFeePercent())
                 .offlineAllowed(getOfflineAllowed())
                 .ownerVerified(isOwnerVerified())
                 .deadline(getDeadline());
@@ -36,6 +38,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
         private int charId;
         private @Nullable String title;
         private @Nullable List<SellLine> lines;
+        private @Nullable Integer sellerFeePercent;
         private @Nullable Boolean offlineAllowed;
         private boolean ownerVerified;
         private @Nullable Instant deadline;
@@ -55,6 +58,11 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
             return this;
         }
 
+        public Builder sellerFeePercent(@Nullable Integer sellerFeePercent) {
+            this.sellerFeePercent = sellerFeePercent;
+            return this;
+        }
+
         public Builder offlineAllowed(@Nullable Boolean offlineAllowed) {
             this.offlineAllowed = offlineAllowed;
             return this;
@@ -71,7 +79,8 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
         }
 
         public StartPrivateStorePackageSellCommand build() {
-            return new StartPrivateStorePackageSellCommand(charId, title, lines, offlineAllowed, ownerVerified, deadline);
+            return new StartPrivateStorePackageSellCommand(
+                    charId, title, lines, sellerFeePercent, offlineAllowed, ownerVerified, deadline);
         }
     }
 }

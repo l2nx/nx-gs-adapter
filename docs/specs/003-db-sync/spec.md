@@ -131,6 +131,21 @@ module authors (datapack sync, metrics).
           [`cdc-engine` R20](../005-cdc-engine/spec.md)).
         - `C mapRow(ResultSet rs)` — Phase 2 single-row mapper to an opaque
           per-source row record.
+        - `RowFilter rowFilter()` (optional, default `null`) - declarative
+          predicate over one column of the child table, built with
+          `RowFilter.eq` / `notEq` (string or long value) or
+          `RowFilter.notStartsWith(column, prefix)`. Rows that do not match
+          are invisible to the engine: excluded from the Phase 1 hash and from
+          the Phase 2 fetch, as if absent from the table. Rendered as
+          `AND <column> <op> ?` with the value always sent as a bound
+          parameter (a `notStartsWith` prefix is escaped for `LIKE` with
+          `!` and `%` appended, `ESCAPE '!'`); the column is validated as
+          an identifier at registration. A `NULL` column matches none of the
+          predicates (SQL three-valued logic), so such rows are invisible too.
+          Must be a constant (the hasher and the fetcher read it separately).
+          Changing it changes the hashes, so it invalidates snapshots like
+          `hashedColumns`. One table may back only one child per entity; a
+          duplicate `tableName()` is rejected at registration.
     - `T mapEntity(Object primaryRow, Map<String, List<Object>> childRowsByTable)`
       — assembles the entity DTO. `primaryRow` is the value produced by
       `primary().mapRow(rs)`; `childRowsByTable` is keyed by

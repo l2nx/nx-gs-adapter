@@ -35,7 +35,7 @@ Audience: platform mail-flow authors composing the command; host operators wirin
   | `adena`           | `Long?`                | no       | Adena placed in the mail; positive when present; counts as one attachment line for the host attachment limit and for the fee                                                                                                                              |
   | `codPrice`        | `Long?`                | no       | Cash on delivery, positive when present; requires at least one `items` line (`COD_REQUIRES_ITEMS`), adena alone does not satisfy it; payment goes to the sender                                                                                           |
   | `ownerVerified`   | `boolean`              | no       | See R28 in [`spec.md`](spec.md); absent reads as `false`                                                                                                                                                                                                  |
-  | `idempotencyKey`  | `UUID`                 | yes      | Business identity of this send, stable across retries of the same request; non-null (`requireNonNull`); the host dedups and replays by it (R6), `correlationId` identifies one delivery attempt only |
+  | `idempotencyKey`  | `UUID`                 | yes      | Business identity of this send, stable across retries of the same request; non-null (`requireNonNull`); the host dedups and replays by it (R6), `correlationId` identifies one delivery attempt only                                                      |
   | `deadline`        | `Instant`              | yes      | Execution deadline, see R5; non-null (`requireNonNull`), same type and name as in `BuyFromPrivateStoreCommand`                                                                                                                                            |
 
   Naming follows the existing wire classes (`senderCharId` / `recipientCharId`, boxed `Long` ids). The line type
@@ -91,18 +91,26 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 **Should:**
 
 - [done] R9. Sender may be online or offline; the host serves both. Observable differences are limited
-  to the `CHARACTER_BUSY` reason, which only an online sender can hit.
+  to the `CHARACTER_BUSY` reason (presence gates only an online sender can hit, plus the character lock
+  timeout on both branches). A mail with attachments has the same location rule on both branches: an
+  online sender must be in a peace zone, and an offline sender's last known position must be in a peace
+  zone, otherwise the send is refused with `NOT_IN_PEACE_ZONE` (`INVALID_STATE`). A character that logged
+  out in the field therefore cannot send items until it is back in a town; text-only mail is not
+  restricted.
 
 **Non-goals:**
 
 - Fan-out: one command is one recipient. Multiple recipients are separate commands.
 - System-sender mail and creating items from templates: that is `SendMailCommand`.
-- Recipient-side accept / pay COD / refuse: done in the game client; COD expiry return is native.
+- Recipient-side refuse / return and delete: done in the game client; COD expiry return is native. Accepting the
+  attachments and paying COD from the platform is [`accept-mail.md`](accept-mail.md).
 
 ### Edge cases
 
-- **Sender online with the character busy** (trade, store, enchant, actions disabled, outside a peace
-  zone with attachments): refused, `CHARACTER_BUSY`; only possible while online.
+- **Sender online with the character busy** (trade, store, enchant, actions disabled): refused,
+  `CHARACTER_BUSY`.
+- **Mail with attachments, sender outside a peace zone**: refused, `NOT_IN_PEACE_ZONE`, nothing changes.
+  Online the current position counts, offline the last known position. Text-only mail is not restricted.
 - **Sender goes online or offline while the command runs**: the host decides presence under
   `CharacterMutationLock`, shared with login and logout, so a login waits for an offline send to
   commit and a logout waits for an online send; no half-transferred state is observable. If the lock
@@ -150,7 +158,7 @@ Same convention as the private-store buy reasons: the status classifies the refu
 | `NOT_FOUND`         | `RECIPIENT_NOT_FOUND` (also a recipient pending deletion)                                                                                                                                                                                                                                                                                          |
 | `FORBIDDEN`         | `CHARACTER_BANNED`, `RECIPIENT_BANNED` (recipient has an active game ban), `CHARACTER_JAILED`, `TRANSACTIONS_FORBIDDEN` (access level), `ITEM_LOCKED`, `RECIPIENT_BLOCKED_SENDER`, `RECIPIENT_GM_ONLY`                                                                                                                                             |
 | `VALIDATION_FAILED` | `SELF_SEND`, `TOO_MANY_ATTACHMENTS`, `TOO_MANY_LINES`, `ADENA_OVERFLOW`, `COD_REQUIRES_ITEMS`, `ITEM_NOT_TRANSFERABLE` (+ `itemId`); malformed command (null required field, id out of `int` range, bad count, duplicate `itemId`, adena stack in `items`, text outside the allowlist, title or body too long) carries a `field` extension instead |
-| `INVALID_STATE`     | every other business refusal: `NOT_ENOUGH_ADENA`, `RECIPIENT_INBOX_FULL`, `OUTBOX_FULL`, `CHARACTER_BUSY`, `MAIL_DISABLED`, `ATTACHMENTS_DISABLED`, `LEVEL_TOO_LOW`, `RESTORE_IN_PROGRESS`                                                                                                                                                         |
+| `INVALID_STATE`     | every other business refusal: `NOT_ENOUGH_ADENA`, `RECIPIENT_INBOX_FULL`, `OUTBOX_FULL`, `CHARACTER_BUSY`, `NOT_IN_PEACE_ZONE`, `MAIL_DISABLED`, `ATTACHMENTS_DISABLED`, `LEVEL_TOO_LOW`, `RESTORE_IN_PROGRESS`                                                                                                                                    |
 | `COMMAND_EXPIRED`   | its own status (rail R23), no reason needed: the deadline passed, nothing changed                                                                                                                                                                                                                                                                  |
 | `INTERNAL_ERROR`    | `MAIL_DELIVERY_FAILED` (dirty rollback or persist failure, never a business refusal); `OUTCOME_UNKNOWN` for a replay that finds the first attempt still in flight (receipt `IN_FLIGHT`, `retrySafe = false`)                                                                                                                                       |
 
