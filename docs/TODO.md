@@ -65,6 +65,20 @@ it is picked up, it moves to "Done / moved into a spec".
 - **Related:** [`009-commands/send-player-mail.md`](specs/009-commands/send-player-mail.md) R9,
   [`009-commands/accept-mail.md`](specs/009-commands/accept-mail.md) R12.
 
+### 6. Missing config: one WARN and `DISABLED`, not an error
+
+- **Want:** a host started without `l2nx.properties` (and without `-Dl2nx.*` overrides) logs a single
+  WARN ("adapter not configured, disabled") and moves to `DISABLED`, the same way an explicit
+  `l2nx.enabled=false` does.
+- **To decide:** the WARN wording and which signal counts as "not configured" (no file and no
+  `l2nx.*` system property). A present config with `l2nx.enabled=true` and a missing or invalid
+  required key stays an ERROR and `FAILED`.
+- **Why:** `ConfigResolver.resolve()` reads the required keys (`l2nx.gs-key` / `l2nx.ls-key`,
+  `l2nx.platform-url`) before `l2nx.enabled`, so a host run locally without a config logs
+  `Adapter failed to start due to config error` with a stack trace and ends in `FAILED`. A local
+  login or game server run looks broken although nothing is wrong.
+- **Related:** [`001-adapter-bootstrap.md`](specs/001-adapter-bootstrap.md).
+
 ## Done / moved into a spec
 
 - **`SendMailCommand` / `SendMailResult` / `ItemDeliveryError` Javadoc aligned with the receipt contract** - retry
