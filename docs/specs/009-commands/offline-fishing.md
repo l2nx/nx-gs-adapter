@@ -123,7 +123,7 @@ one-fishing rule covers live and offline fishing together).
 | Duration outside the host's minimum..maximum           | `INVALID_DURATION`                                                                                                                                                                    |
 | Session type disabled in the host's app settings       | `FEATURE_DISABLED`; running sessions finish                                                                                                                                           |
 | Stop of a session that is not running                  | Idempotent success without effect (assumed; see open questions)                                                                                                                       |
-| Stop while running                                     | Session closes `STOPPED`; short sessions return the character to its origin, 30 minutes and more of `active_ms` leave it on the fishing spot (spot-return rule is host configuration) |
+| Stop while running                                     | Session closes `STOPPED`; an `active_ms` below the return threshold (one shared threshold of the host's app settings, 30 minutes by default) returns the character to its origin, the threshold or more leaves it on the fishing spot |
 | All spots taken                                        | `NO_FREE_SPOT`                                                                                                                                                                        |
 | Ban or kick of the character                           | Session ends `BANNED` / `KICKED`                                                                                                                                                      |
 
@@ -134,9 +134,9 @@ There is no dedicated end event. On every end the adapter emits the existing `Ch
 `stopped`, `login`, `out_of_bait`, `daily_limit`, `inventory_full`, `banned`, `kicked`, `restore_failed`). It may carry
 an optional `report` block; the report is an **initial design, not approved**, see
 [`038`](../038-app-offline-sessions.md) › "Session report - initial design, not approved (separate design session
-pending)". The "fishing ended" notification to the player is raised by the platform from the activity usage (the fishing
-row's `activeSince` clears, for live and offline fishing alike); for an offline session the end event's report is added to
-the message.
+pending)". Fishing notifications are a deferred, separate task: the platform can later derive "fishing ended" from the activity usage
+(the fishing row's `activeSince` clears, for live and offline fishing alike), adding the end event's report for an offline
+session.
 
 ## Technical design
 

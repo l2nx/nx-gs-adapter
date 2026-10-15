@@ -738,6 +738,12 @@ judge each line with the same item availability checks as its native
 private-store listing path, not a reduced subset (a stack the in-game store
 window would not list is not listable here either).
 
+**Offline-only start.** The command opens a store only for a character that is NOT in the game. A character online with
+a client is refused with `CHARACTER_ONLINE`; a character that left the game less than N minutes ago (N from the host's
+app settings file, default 2) is refused with `RECENTLY_LOGGED_OUT` plus `retryAt`, the same rule as for offline
+fishing. There is no online start. Every store started by this command is an app `PRIVATE_STORE` session
+(see [`038`](../038-app-offline-sessions.md)), so the seller fee always lives in the session's `type_state`.
+
 **Inputs**
 
 | Field            | Type             | Required | Notes                                                                                                                                                                                                                                                            |
@@ -746,7 +752,7 @@ window would not list is not listable here either).
 | `title`          | `String?`        | no       | Store banner text shown above the seller, max 29 characters, host-sanitized. `null` falls back to the host's default                                                                                                                                             |
 | `lines`          | `List<SellLine>` | yes      | Offered stacks, non-empty. Each `SellLine`: `itemId` (`int`, inventory instance object-id), `count` (`long`, positive), `priceAdena` (`long`, non-negative — `0` is a valid give-away price; engine charges `count * priceAdena` for the whole stack)            |
 | `sellerFeePercent` | `Integer?`     | no       | Seller fee, whole percent `0..PrivateStoreFees.MAX_FEE_PERCENT` (50); `null` = no fee. Declared on the shared base `StartPrivateStoreCommand`, so it applies to both start commands. See **Seller fee** below |
-| `offlineAllowed` | `Boolean`        | no       | Platform's verdict on the offline-store quota, taken before dispatch. `false`: the host's offline branch refuses with `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`) before loading anything; the online branch ignores it. `null` (older platform) reads as allowed |
+| `offlineAllowed` | `Boolean`        | no       | Platform's verdict on the offline-store quota, taken before dispatch. `false`: the host refuses with `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`) before loading anything. `null` (older platform) reads as allowed |
 | `ownerVerified`  | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                              |
 | `deadline`       | `Instant`        | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED` instead of running the command; checked before anything is read or changed. `null` (older platform) reads as "no expiry"                                                                          |
 
@@ -756,7 +762,7 @@ window would not list is not listable here either).
 | --------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `storeType`     | `String`            | Open-string store-type token the host opened (e.g. `"SELL"` / `"PACKAGE_SELL"`); host-defined vocabulary, not a closed adapter enum                                                                                                                                                                                                                                                |
 | `acceptedCount` | `int`               | Number of requested lines the host actually listed                                                                                                                                                                                                                                                                                                                                 |
-| `offline`       | `boolean`           | `true` when the store was opened through the host's offline branch (it occupies an offline seat), `false` for an online start. The platform uses it to keep or release the offline-quota slot it took before dispatch                                                                                                                                                              |
+| `offline`       | `boolean`           | Always `true` for a successful start: the store is opened offline (it occupies an offline seat); there is no online start. Kept for wire compatibility                                                                                                                                                              |
 
 **Per-line rejections.** A `VALIDATION_FAILED` reply with reason `LINES_REJECTED` carries `dropped[]` in the problem extension; each
 `DroppedLine` is `itemId` (`int`) plus `reason` (`String`, open `UPPER_SNAKE_CASE` token; consumers MUST
@@ -781,7 +787,8 @@ tolerate unknown tokens). Known reasons:
 
 | Status              | When                                                                              |
 | ------------------- | --------------------------------------------------------------------------------- |
-| `NOT_FOUND`         | `charId` does not exist / is not online on this server                            |
+| `NOT_FOUND`         | `charId` does not exist on this server                                            |
+| `INVALID_STATE`     | `CHARACTER_ONLINE` (the character is in the game with a client) or `RECENTLY_LOGGED_OUT` (with `retryAt`); see **Offline-only start** |
 | `VALIDATION_FAILED` | `lines` missing/empty, or any `SellLine` entry is malformed. When any line cannot be listed the reply is `VALIDATION_FAILED` with reason `LINES_REJECTED`: the store is not opened and the problem extension carries `dropped[]` with per-line reasons |
 | `INVALID_STATE`     | The character cannot open a store right now (in combat, already trading, dead, …) |
 | `COMMAND_EXPIRED`   | `deadline` already passed when the host picked up the command; nothing changed    |
@@ -805,11 +812,11 @@ detail beyond that equivalence).
 | `title`          | `String?`        | no       | Store banner text shown above the seller, max 29 characters, host-sanitized. `null` falls back to the host's default                                                                    |
 | `lines`          | `List<SellLine>` | yes      | Bundled stacks, non-empty, all-or-nothing at purchase time (same `SellLine` shape as `StartPrivateStoreSellCommand`)                                                                    |
 | `sellerFeePercent` | `Integer?`     | no       | Same as on `StartPrivateStoreSellCommand`; `null` = no fee |
-| `offlineAllowed` | `Boolean`        | no       | Same semantics as on `StartPrivateStoreSellCommand`: `false` refuses the offline branch with `OFFLINE_QUOTA_EXCEEDED`; `null` reads as allowed                                          |
+| `offlineAllowed` | `Boolean`        | no       | Same semantics as on `StartPrivateStoreSellCommand`: `false` refuses with `OFFLINE_QUOTA_EXCEEDED`; the start is offline-only too (`CHARACTER_ONLINE` / `RECENTLY_LOGGED_OUT`); `null` reads as allowed                                          |
 | `ownerVerified`  | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification     |
 | `deadline`       | `Instant`        | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED` instead of running the command; checked before anything is read or changed. `null` (older platform) reads as "no expiry" |
 
-**Reasons.** Refusals carry a stable `extensions.reason` code (the platform localizes; known values include `IN_COMBAT`, `SELLING_BUFFS`, `CANNOT_ACT`, `NOT_IN_TRADE_ZONE`, `NO_FREE_SEAT`, `ADENA_OVERFLOW`, `TOO_MANY_LINES`, `CHARACTER_BANNED`, `CHARACTER_JAILED`, `OFFLINE_FEE_UNPAID`, `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`; `offlineAllowed = false` on the offline branch), `RESTORE_IN_PROGRESS`, `COMMAND_EXPIRED`, `ITEM_LOCKED`, `TRANSACTIONS_FORBIDDEN`, `DUPLICATE_ITEM_ID`, `LINES_REJECTED`, `TITLE_TOO_LONG`, `STORE_NOT_OPEN`; the set is open). When any line cannot be listed the reply is `VALIDATION_FAILED` with reason `LINES_REJECTED` carries `dropped[]` with per-line reasons (table above); the store is not opened. The per-line `reason` is as precise as the host can make it and falls back to `NOT_AVAILABLE` for a line the host's native availability checks refuse without a finer code. A duplicate `itemId` in `lines` is `VALIDATION_FAILED` (`DUPLICATE_ITEM_ID`). Applies to the start and stop commands alike.
+**Reasons.** Refusals carry a stable `extensions.reason` code (the platform localizes; known values include `IN_COMBAT`, `SELLING_BUFFS`, `CANNOT_ACT`, `NOT_IN_TRADE_ZONE`, `NO_FREE_SEAT`, `ADENA_OVERFLOW`, `TOO_MANY_LINES`, `CHARACTER_BANNED`, `CHARACTER_JAILED`, `OFFLINE_FEE_UNPAID`, `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`; `offlineAllowed = false`), `CHARACTER_ONLINE` and `RECENTLY_LOGGED_OUT` (`INVALID_STATE`, the latter with `retryAt`; start is offline-only), `RESTORE_IN_PROGRESS`, `COMMAND_EXPIRED`, `ITEM_LOCKED`, `TRANSACTIONS_FORBIDDEN`, `DUPLICATE_ITEM_ID`, `LINES_REJECTED`, `TITLE_TOO_LONG`, `STORE_NOT_OPEN`; the set is open). When any line cannot be listed the reply is `VALIDATION_FAILED` with reason `LINES_REJECTED` carries `dropped[]` with per-line reasons (table above); the store is not opened. The per-line `reason` is as precise as the host can make it and falls back to `NOT_AVAILABLE` for a line the host's native availability checks refuse without a finer code. A duplicate `itemId` in `lines` is `VALIDATION_FAILED` (`DUPLICATE_ITEM_ID`). Applies to the start and stop commands alike.
 
 **Result** (`StartPrivateStoreResult`) — same shape as
 `StartPrivateStoreSellCommand`'s result, above.
@@ -832,6 +839,10 @@ is rejected with `VALIDATION_FAILED`, never clamped. Deserialization bypasses th
 **Purpose.** Close whatever private store a character currently has open
 (sell, package-sell, or buy). Executed by the host's private-store
 subsystem on the character's game thread.
+
+The command closes ANY private store of the player's own character: an app `PRIVATE_STORE` session, a native `.offline`
+store or a live player's store. Only the start is offline-only. For an app session the stop closes the session (reason
+`stopped`) and applies the return rule (origin only if the session lasted less than the return threshold of the host's app settings, the same as for fishing; otherwise the character stays at the store spot); for a store not started from the app it just closes the store.
 
 **Inputs**
 

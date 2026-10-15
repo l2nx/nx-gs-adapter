@@ -73,9 +73,9 @@ metadata` (stringified values; durations ISO-8601). The list is independent of `
   | `steps`         | `List<{after, multiplier}>` | Tiers: after `after` of use the effect (e.g. catch chance) is scaled by `multiplier`; empty = no tiers                   |
   | `updatedAt`     | `Instant`                   | When the host last updated the row                                                                                       |
 
-  Consumption and limits are named `usage`, not `quota`. A fishing row (live or offline) is also the source of the
-  "fishing ended" notification: when its `activeSince` clears the platform notifies the player (for an offline session the
-  end event's report is added, see [`038`](038-app-offline-sessions.md)). After a host restart (the fishing thresholds,
+  Consumption and limits are named `usage`, not `quota`. Fishing notifications are a deferred, separate task; the platform
+  can later derive "fishing ended" from a fishing row (live or offline) whose `activeSince` clears (for an offline session
+  the end event's report could be added, see [`038`](038-app-offline-sessions.md)). After a host restart (the fishing thresholds,
   daily ceiling and reset change only with the host's own configuration) the host republishes every usage row.
 
   The fishing penalty is one such row (`used` is the accumulated active fishing time, `steps` its tiers, `limit` the

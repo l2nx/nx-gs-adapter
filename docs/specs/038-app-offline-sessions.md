@@ -27,8 +27,8 @@ reason the mechanism is generalized; the private store from the app moves onto i
   `active_ms` accounting, the restore schedule after a restart, end-by-time, the events and the report. The host never
   writes SQL against the session table.
 - [todo] R2. The adapter MUST define an SPI `OfflineSessionHost`, implemented by the host, with at least:
-  `placeInWorld` (put the character on a spot of the session type), `removeFromWorld` (take it out and return it to
-  its origin by the host's own rule), `startAction` / `stopAction` (run or stop the typed action, fishing for
+  `placeInWorld` (put the character on a spot of the session type), `removeFromWorld` (take it out and, if the session lasted less than the return threshold, return it to
+  its origin), `startAction` / `stopAction` (run or stop the typed action, fishing for
   `FISHING`). The engine receives host callbacks: the action ended with a reason, and the character entered the game
   from a client.
 - [todo] R3. Session types are an open vocabulary on the adapter side; this spec defines `FISHING` and `PRIVATE_STORE`.
@@ -70,6 +70,9 @@ reason the mechanism is generalized; the private store from the app moves onto i
 - Frontend. The app screens consume the platform API.
 - Trust levels for starting a session. [assumed: until a trust system exists, start is guarded by a permission on the
   platform side]. Trust is a separate item on the platform's backlog.
+- Fishing notifications ("fishing ended", "resumed"): a separate task, initial design deferred in
+  `nx-social/docs/specs/056-fishing-notifications.md` (nx-social TODO §32). Only the `source = APP` filter for the "entered
+  game" / "disconnect" notifications is in this iteration.
 - Mail notifications for the session owner; today the platform shows "character not in game" as it does for offline
   stores.
 
@@ -82,7 +85,10 @@ reason the mechanism is generalized; the private store from the app moves onto i
 - **Restart mid-session:** the session row stays open; downtime is not counted in `active_ms` (R7); on restore the engine
   emits the presence event with `resumed = true` (R12), the remainder continues.
 - **Restored spot is taken, a free one exists:** the host places the character on a free spot of the same pool.
-- **Restored spot is taken and none is free:** `RESTORE_FAILED`, the character returns to its origin.
+- **Restored spot is taken and none is free:** `RESTORE_FAILED`, the session ends and the return rule below applies.
+- **Return rule (any session type, any end reason):** when a session ends, the character returns to its origin only if
+  `active_ms` is below the return threshold from the host's app settings (one threshold for all session types, the same
+  for fishing and private store); at the threshold or longer it stays where it is (the fishing spot, the store spot).
 - **Origin was a dangerous place** (jail, boss room, instance, olympiad): the origin recorded in the row is already
   replaced by a safe location before the session starts.
 - **Action ended in the host** (out of bait, inventory full, ban, kick): the host calls back with the reason and the
@@ -136,7 +142,7 @@ Table `l2nx_offline_sessions`, owned by the adapter and created by the changelog
 | `origin_x/y/z/heading` | `int` NOT NULL                | where to return the character; a dangerous origin is already replaced by a town. `heading` is the facing direction (0-65535)                                  |
 | `started_at`           | `datetime` NOT NULL           | real start (the character stood on the spot); used for the cooldown                                                                                           |
 | `planned_ms`           | `bigint` NULL                 | the chosen duration; `NULL` for a private store                                                                                                               |
-| `active_ms`            | `bigint` NOT NULL DEFAULT 0   | time in the world excluding restart downtime; drives end-by-time and the return-threshold rule                                                                     |
+| `active_ms`            | `bigint` NOT NULL DEFAULT 0   | time in the world excluding restart downtime; drives end-by-time and the return rule (compared with the one return threshold shared by all session types)                                                                     |
 | `type_state`           | `clob` NULL                   | per-type JSON: fishing - rod, bait, what to return to the hands, interim catch; store - kind, lots, message, seller fee percent                               |
 | `ended_at`             | `datetime` NULL               | `NULL` means active                                                                                                                                           |
 | `end_reason`           | `varchar(32)` NULL            | end reason                                                                                                                                                    |
@@ -149,6 +155,14 @@ The seller fee of an app private store lives in `type_state` of its `PRIVATE_STO
 seller's session for the percent, so a sale pays the fee to any buyer, including a buyer in the game (stores opened in
 the game pay no fee, as before). The separate per-character store-fee variables and the app-store origin marker are
 removed.
+
+Decision 2026-10-15: starting a private store from the app is allowed ONLY for a character that is NOT in the game. A
+character online with a client is refused with `CHARACTER_ONLINE`; the recently-left-the-game rule (minutes from the
+host's app settings file, default 2; `RECENTLY_LOGGED_OUT` plus `retryAt`) applies to the store start exactly as to
+fishing. There is no online start path for app stores, so every app-started store is an app `PRIVATE_STORE` session and
+the seller fee always has a session to live in. The stop command closes ANY private store of the player's own character:
+for an app session it closes the session (reason `stopped`) and applies the return rule; a native `.offline` store or a
+live player's store is just closed, as today.
 
 Cleanup: closed sessions older than the host's retention are deleted at server start (R13).
 
@@ -198,8 +212,8 @@ On the wire each reason is its lower_snake token in `metadata.logout_reason` (R1
 
 Detail of R18. A game server's app behaviour is configured by the game designer in a settings file of the host (the
 adapter does not prescribe its name or format; it is separate from the file with the adapter connection and credentials).
-It holds which session types are enabled, the rule parameters (recently-left-the-game minutes, start cooldown, the return
-threshold, restart window, restore delay and batch size, fishing minimum and maximum duration), the placed character's
+It holds which session types are enabled, the rule parameters (recently-left-the-game minutes, start cooldown, the one return
+threshold shared by all session types, restart window, restore delay and batch size, fishing minimum and maximum duration), the placed character's
 title text and colour, and the retention of the host's session history. Spot pools are separate data files.
 
 Host-side behaviour the contract relies on (host configuration, summarized because the snapshot follows it):
@@ -268,7 +282,7 @@ Four phases, across repos:
 
 1. **Adapter and platform, host untouched.** Adapter: migrations ([`037`](037-schema-migrations.md)), wrappers, session
    engine, SPI, contract, published to Maven Central. Platform: session `source`, `APP` filters, activity-usage storage
-   reading both forms, `app` online bucket, offline-fishing commands answering `501`, notification filters, the
+   reading both forms, `app` online bucket, offline-fishing commands answering `501`, the `source = APP` filters for the presence notifications, the
    permission granted to nobody.
 2. **Host, first restart: app sessions.** Migrations through the adapter, private store from the app on sessions (hard
    cutover, no row migration: the old app-store marker and its character variables are removed, a leftover app-store row
@@ -306,7 +320,7 @@ Each host phase goes to a test server first.
   [`017`](017-character-runtime-activity.md)
 - Platform counterparts: `nx-gameservers/docs/specs/086-offline-fishing.md` (with updates to
   `043-sessions/spec.md`, `009-characters.md`, the online-snapshot spec and `052-private-store-start-commands.md`),
-  `nx-social/docs/specs/056-fishing-notifications.md` (with `024-character-presence-notifications/spec.md`).
+  `nx-social/docs/specs/024-character-presence-notifications/spec.md` (the `source = APP` filter; fishing notifications are a separate deferred task, `nx-social/docs/specs/056-fishing-notifications.md`).
   The platform adds the permission `GS_SESSIONS_READ_OWN` (a player reads the session history and reports of their own
   characters).
 - Host documentation: not linked here, this repository does not name tenant hosts.
