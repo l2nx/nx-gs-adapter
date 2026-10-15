@@ -69,9 +69,14 @@ metadata` (stringified values; durations ISO-8601). The list is independent of `
   | `unit`          | `MS` / `COUNT`              | What `used`, `limit` and `remaining` are measured in                                                                     |
   | `used`          | `long`                      | Consumed so far in the current period                                                                                    |
   | `limit`         | `Long?`                     | Ceiling per period; `null` = unlimited                                                                                   |
-  | `resetSchedule` | `String?`                   | RRULE (RFC 5545) with `DTSTART;TZID=<IANA>:...`; `null` = never resets (see R13)                                         |
+  | `resetSchedule` | `String?`                   | RRULE (RFC 5545) in UTC: `DTSTART:<UTC>Z` + `RRULE:...`, no `TZID`; `null` = never resets (see R13)                     |
   | `steps`         | `List<{after, multiplier}>` | Tiers: after `after` of use the effect (e.g. catch chance) is scaled by `multiplier`; empty = no tiers                   |
   | `updatedAt`     | `Instant`                   | When the host last updated the row                                                                                       |
+
+  Consumption and limits are named `usage`, not `quota`. A fishing row (live or offline) is also the source of the
+  "fishing ended" notification: when its `activeSince` clears the platform notifies the player (for an offline session the
+  end event's report is added, see [`038`](038-app-offline-sessions.md)). After a host restart (the fishing thresholds,
+  daily ceiling and reset change only with the host's own configuration) the host republishes every usage row.
 
   The fishing penalty is one such row (`used` is the accumulated active fishing time, `steps` its tiers, `limit` the
   daily ceiling, `resetSchedule` the daily reset); a running fishing session fills `activeSince`.
@@ -82,13 +87,18 @@ metadata` (stringified values; durations ISO-8601). The list is independent of `
   Rollout). On the adapter side the api keeps `activities` `@Deprecated` with a Javadoc naming the replacement and the
   removal gate, and removes it in a later release, per the two-release rule of the root `CLAUDE.md`.
 - [todo] R13. `resetSchedule` is an RRULE (RFC 5545), the platform canon for recurring schedules; one-off instants stay
-  ISO-8601. Converting the older `RecurringSchedule` shapes to RRULE is deferred, see
+  ISO-8601. Platform time is always UTC: the rule is written `DTSTART:<UTC>Z` + `RRULE:...` with no `TZID`. The host
+  converts its own local server time to UTC (for example a daily reset at 06:00 on a UTC+3 server is
+  `DTSTART:...T030000Z` + `RRULE:FREQ=DAILY`); if the host's clock offset changes, recomputing and republishing the
+  rule is the host's job. Converting the older `RecurringSchedule` shapes to RRULE is deferred, see
   [`TODO §7`](../TODO.md#7-recurringschedule-to-rrule).
 - [todo] R14. Platform storage MUST key the entity by `(server, character, type, key)` with `NULL`-safe uniqueness, and
   merge two sources by freshness: the runtime channel says what is running now (`activeSince`); a runtime tombstone
   clears only `activeSince`; db-sync supplies the spend of a character that is not in the world.
 - [todo] R15. `WellKnownActivities` MUST gain `offline_fishing` (activity of an app-session fisher,
-  [`038`](038-app-offline-sessions.md)). The existing `offline_trade` is not touched.
+  [`038-app-offline-sessions`](038-app-offline-sessions.md)). The existing `offline_trade` is not touched and is also the
+  activity token of an app private store: the session type tells them apart, and the platform's offline-store place check
+  works unchanged.
 
 **Should:**
 
@@ -136,9 +146,8 @@ metadata` (stringified values; durations ISO-8601). The list is independent of `
 - [ ] [NEEDS CLARIFICATION: `type` token casing - existing `WellKnownActivities` values are lower_snake_case
       (`offline_trade`), the repo naming rule for enum-like vocabularies is `UPPER_SNAKE_CASE`, and the backlog item names
       the type `INSTANCE`]
-- [ ] [NEEDS CLARIFICATION: whether `steps[].after` is in the row's `unit`]
-- [ ] [assumed: `remaining` is `limit - used`, floored at zero, when `limit` is set; its value when `limit` is `null`
-      is not defined by the design]
+- [resolved: `steps[].after` is measured in the row's `unit`.]
+- [resolved: `remaining` is `limit - used`, floored at zero, when `limit` is set; `null` when `limit` is `null`.]
 
 ## Versioning
 

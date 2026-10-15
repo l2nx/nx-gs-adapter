@@ -27,7 +27,7 @@ work lives in [`TODO.md`](TODO.md).
 | 009 | commands (rail + every command)   | 2026-10-15 | [spec](specs/009-commands/spec.md)                     |
 | 011 | events-online-snapshot (bucket `app`) | 2026-10-15 | [spec](specs/011-events-online-snapshot.md)            |
 | 012 | snapshot-persistence              | 2026-05-17 | [spec](specs/012-snapshot-persistence.md)              |
-| 013 | character-core-extension (presence `source`) | 2026-10-15 | [spec](specs/013-character-core-extension.md)          |
+| 013 | character-core-extension (presence `source`, `resumed`, `report`) | 2026-10-15 | [spec](specs/013-character-core-extension.md)          |
 | 014 | events-raid                       | 2026-05-19 | [spec](specs/014-events-raid.md)                       |
 | 015 | olympiad-events                   | 2026-05-22 | [spec](specs/015-olympiad-events.md)                   |
 | 016 | character-online-hero             | 2026-05-29 | [spec](specs/016-character-online-hero.md)             |
@@ -49,7 +49,7 @@ work lives in [`TODO.md`](TODO.md).
 | 035 | character-display                 | 2026-10-06 | [spec](specs/035-character-display.md)                 |
 | 036 | character-effects                 | 2026-10-08 | [spec](specs/036-character-effects.md)                 |
 | 037 | schema-migrations                 | 2026-10-15 | [spec](specs/037-schema-migrations.md)                 |
-| 038 | app-offline-sessions              | 2026-10-15 | [spec](specs/038-app-offline-sessions.md)              |
+| 038 | app-offline-sessions (+ settings snapshot) | 2026-10-15 | [spec](specs/038-app-offline-sessions.md)              |
 
 Companion docs of the folder-form specs:
 

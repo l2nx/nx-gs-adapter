@@ -82,8 +82,9 @@ it is picked up, it moves to "Done / moved into a spec".
 ### 7. RecurringSchedule to RRULE
 
 - **Want:** replace `RecurringSchedule` (weekly weekday + time slots) on `BossRespawnEntry`, `CastleSnapshotEntry` and
-  `GameEventEntry` with an RRULE (RFC 5545) carrying `DTSTART;TZID=<IANA>:...` + `RRULE:...`, one-off moments stay
-  ISO-8601. This is the platform canon and what `characteractivityusage.resetSchedule` already uses.
+  `GameEventEntry` with an RRULE (RFC 5545) in UTC (`DTSTART:<UTC>Z` + `RRULE:...`, no `TZID`; the host converts its
+  local server time to UTC), one-off moments stay ISO-8601. This is the platform canon and what
+  `characteractivityusage.resetSchedule` already uses.
 - **To decide:** whether the three entries carry the RRULE next to the old schedule for a window; which host cron shapes
   are not expressible as a weekly rule today and become expressible.
 - **Why:** the weekly-slot model cannot express monthly or interval schedules, and two schedule formats in one api is a
@@ -112,6 +113,22 @@ it is picked up, it moves to "Done / moved into a spec".
   which instances count, and how `used` / `limit` map onto instance entry limits.
 - **Why:** the platform wants one place for "how much of each limited activity is left", instances included.
 - **Related:** [`017-character-runtime-activity`](specs/017-character-runtime-activity.md) R16.
+
+### 10. Session report design
+
+- **Want:** a separate design session for the general session report (the `report` block of the end presence event:
+  totals, items by source, activity sections), currently an initial sketch in
+  [`038`](specs/038-app-offline-sessions.md) › "Session report - initial design, not approved".
+- **To decide:** the block's field names, the `source` vocabulary, activity section shapes, size limits, who may read it.
+- **Why:** the sketch is enough for offline fishing notifications but is not an approved contract.
+- **Related:** [`038`](specs/038-app-offline-sessions.md), [`013`](specs/013-character-core-extension.md) R15.
+
+### 11. Report of a CLIENT session
+
+- **Want:** fill the same report mechanism for sessions of a live game client, not only for app sessions.
+- **To decide:** where the host collects the numbers (in-game "current session" window source), the cost per logout.
+- **Why:** the platform keeps the history of every session; reports are filled only for offline fishing today.
+- **Related:** item 10.
 
 ## Done / moved into a spec
 

@@ -22,28 +22,35 @@ The session mechanics (table, lifecycle, events, restart) are in
 
 - [todo] R1. `StartOfflineFishingCommand` and `StopOfflineFishingCommand` MUST ship as `NxCommand`s routed by their simple
   names, with result types `StartOfflineFishingResult` and `StopOfflineFishingResult`.
-- [todo] R2. `StartOfflineFishingCommand` payload:
+- [todo] R2. `StartOfflineFishingCommand` payload. The canonical protection, dedup and idempotency fields are the ones the
+  private-store and mail commands already use (`ownerVerified` per [`spec.md`](spec.md) R28, `deadline` per R23,
+  `idempotencyKey` as in [`send-player-mail.md`](send-player-mail.md) R6); the initiator is the envelope's
+  `CommandInitiator`, not a payload field:
 
-  | Field             | Type   | Required | Notes                                                                                                                             |
-  | ----------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-  | `charId`          | `int`  | yes      | Character that goes fishing                                                                                                       |
-  | `masterAccountId` | `UUID` | yes      | Master account of the initiator, put in by the platform; stored in the session row and used by the host for the one-fishing limit |
-  | `durationMs`      | `long` | yes      | Chosen duration, positive. The player picks it; the platform computes the offered options from the character's activity usage     |
-  | `rodItemId`       | `int`  | yes      | Inventory instance id (not a template id) of the rod the player chose                                                             |
-  | `baitItemId`      | `int`  | yes      | Inventory instance id of the bait stack the player chose                                                                          |
+  | Field             | Type      | Required | Notes                                                                                                                              |
+  | ----------------- | --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+  | `charId`          | `int`     | yes      | Character that goes fishing                                                                                                        |
+  | `masterAccountId` | `UUID`    | yes      | Master account of the initiator, put in by the platform; stored in the session row and used by the host for the one-fishing limit  |
+  | `initiatorIp`     | `String?` | no       | IP of the app request that triggered the command, put in by the platform; stored in the session and returned in the session event |
+  | `durationMs`      | `long`    | yes      | Chosen duration, positive. The player picks it from options the frontend builds from the character's `usage`; the host checks it against the minimum and maximum of its app settings and refuses with `INVALID_DURATION` outside them |
+  | `rodItemId`       | `int`     | yes      | Inventory instance id (not a template id) of the rod the player chose                                                              |
+  | `baitItemId`      | `int`     | yes      | Inventory instance id of the bait stack the player chose                                                                           |
+  | `ownerVerified`   | `boolean` | no       | See R28 in [`spec.md`](spec.md); absent reads as `false`                                                                           |
+  | `deadline`        | `Instant` | yes      | Non-null; checked first, the host replies `COMMAND_EXPIRED` before touching anything once passed                                   |
+  | `idempotencyKey`  | `UUID`    | yes      | Business identity of the start, stable across retries; non-null; becomes the session's `idempotency_key` (R5). `correlationId` identifies one delivery attempt only |
 
-  Whether `ownerVerified`, `deadline` and an explicit idempotency field are also carried is [NEEDS CLARIFICATION: the
-  design names the five fields above only; the platform's `requestId` (UUIDv7) maps to the session's
-  `start_correlation_id`, see R5].
+  Any command that changes the game world carries these canonical fields.
 
-- [todo] R3. `StartOfflineFishingResult`: `sessionId` (`UUID`), the spot the character stands on, and the effective plan
-  (the duration the host will actually run, which may be shorter than requested, see R7). Exact fields of "spot" and
-  "plan" are [NEEDS CLARIFICATION].
-- [todo] R4. `StopOfflineFishingCommand` ends the character's running session. Its payload (`charId` only, or `charId` and
-  `sessionId`) and result fields are [NEEDS CLARIFICATION]. Stopping a character that has no running session is
-  idempotent (see the edge-flow table).
-- [todo] R5. Start MUST be idempotent: the platform's request id is the session's `start_correlation_id`; a repeated
-  command finds the session it created and returns the same result, never a second session.
+- [todo] R3. `StartOfflineFishingResult`: `sessionId` (`UUID`) and the effective plan - the duration the host will actually
+  run, which may be shorter than requested (R7). The platform shows the plan; the duration options themselves are built
+  by the frontend, so no option list or ladder is computed in the backend contract. The spot the character stands on is
+  [NEEDS CLARIFICATION: fields of the result's spot].
+- [todo] R4. `StopOfflineFishingCommand` ends the character's running session. Payload: `charId`, `masterAccountId`,
+  `initiatorIp`, `ownerVerified`, `deadline`, `idempotencyKey` (the same fields and meaning as on start; the session is
+  addressed by `charId`). The result fields are [NEEDS CLARIFICATION]. Stopping a character that has no running session
+  is idempotent (see the edge-flow table).
+- [todo] R5. Start MUST be idempotent: `idempotencyKey` is the session's `idempotency_key`; a repeated command finds the
+  session it created and returns the same result, never a second session.
 - [todo] R6. Every refusal MUST carry a stable `reason` from the shared enum below in `CommandProblem.extensions`;
   the host never sends player-facing text. `RECENTLY_LOGGED_OUT` and `COOLDOWN` also carry `retryAt` (`Instant`).
   `ALREADY_ACTIVE` carries a `scope`.
@@ -52,12 +59,14 @@ The session mechanics (table, lifecycle, events, restart) are in
   items belong to the character, the rod is a rod, the bait is allowed for fishing and its count is above zero. When the
   chosen bait runs out the session ends with `OUT_OF_BAIT`; it never switches to another bait.
 - [todo] R8. The host decides every rule (D1): the platform delivers the command and shows the answer. The host's rules
-  and limits are configuration of the host and not part of this contract; the reason codes below are.
+  and limits are configuration of the host (its app settings file, see [`038`](../038-app-offline-sessions.md) R18) and not
+  part of this contract; the reason codes below are. A session type the host has disabled is refused with
+  `FEATURE_DISABLED`.
 
 **Non-goals:**
 
-- A command that queries the available durations or spots. The platform derives duration options from the character's
-  activity usage ([`017`](../017-character-runtime-activity.md)).
+- A command that queries the available durations or spots. The frontend builds duration options from the character's
+  activity usage ([`017`](../017-character-runtime-activity.md)); the backend specs carry no ladder algorithm.
 - Trust-level gating of the start, shop for fishermen, potions, quest flows, a "fishing for one hour" bot task: backlog
   items on the platform side.
 - Player-facing text of the refusals.
@@ -68,8 +77,8 @@ Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 
 | Reason code              | Meaning                                                                                                   | Extras                                         |
 | ------------------------ | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `RECENTLY_LOGGED_OUT`    | The character left the game less than N minutes ago (N is host configuration, default 2)                  | `retryAt`                                      |
-| `COOLDOWN`               | The previous start was too recent (15 minutes from the real start of the last session)                    | `retryAt`                                      |
+| `RECENTLY_LOGGED_OUT`    | The character left the game less than N minutes ago (N is host configuration, default 2); the leave time is recorded on every client disconnect | `retryAt`                       |
+| `COOLDOWN`               | The previous start was too recent (host configuration, default 15 minutes from the real start of the last session) | `retryAt`                                    |
 | `CHARACTER_ONLINE`       | The character is in the game with a client                                                                |                                                |
 | `DEAD`                   | The character is dead                                                                                     |                                                |
 | `KARMA`                  | The character has karma                                                                                   |                                                |
@@ -82,10 +91,13 @@ Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 | `INVALID_GEAR`           | The chosen items are not a valid rod / allowed bait for this character                                    |                                                |
 | `DAILY_LIMIT`            | The daily fishing allowance is used up                                                                    |                                                |
 | `RESTART_SOON`           | A scheduled restart is closer than the host's window (default 10 minutes)                                 |                                                |
+| `INVALID_DURATION`       | `durationMs` is outside the host's minimum..maximum fishing duration                                      |                                                |
+| `FEATURE_DISABLED`       | The session type is turned off in the host's app settings on this server                                  |                                                |
 | `NO_FREE_SPOT`           | Every spot of the pool is taken                                                                           |                                                |
 | `ALREADY_ACTIVE`         | A fishing session already runs                                                                            | `scope`: `MASTER_ACCOUNT`, `ACCOUNT` or `HWID` |
 
-The set of codes is the design's; the CommandStatus carrying each (`INVALID_STATE` for state refusals, `FORBIDDEN` for
+`CHARACTER_BANNED` and `CHARACTER_JAILED` are the same codes the other character-acting commands use ([`spec.md`](spec.md)
+R29). The set of codes is the design's; the CommandStatus carrying each (`INVALID_STATE` for state refusals, `FORBIDDEN` for
 bans and similar, `VALIDATION_FAILED` for malformed input) follows the convention of
 [`send-player-mail.md`](send-player-mail.md#status-mapping) and is [NEEDS CLARIFICATION: per-code status table].
 A character that is already fishing in the game client counts for the same limits as an offline session (the
@@ -101,24 +113,30 @@ one-fishing rule covers live and offline fishing together).
 | Start within N minutes of leaving the game             | `RECENTLY_LOGGED_OUT` + `retryAt`                                                                                                                                                     |
 | Start before the cooldown has passed                   | `COOLDOWN` + `retryAt`                                                                                                                                                                |
 | Start close to a scheduled restart                     | `RESTART_SOON`                                                                                                                                                                        |
-| Login of the character mid-session                     | Session closes with `LOGIN` before the live character loads; the report is emitted ([`038`](../038-app-offline-sessions.md) R9)                                                       |
+| Login of the character mid-session                     | Session closes with `LOGIN` before the live character loads; the end presence event is emitted ([`038`](../038-app-offline-sessions.md) R9)                                            |
 | Login of another character of the same account         | Session continues                                                                                                                                                                     |
-| Restart mid-session                                    | Session restored after the host's delay on the same spot (or a free one); `OfflineSessionResumed`. No free spot: `RESTORE_FAILED`                                                     |
+| Restart mid-session                                    | Session restored after the host's delay on the same spot (or a free one); presence event with `resumed = true`. No free spot: `RESTORE_FAILED`                                        |
 | Bait runs out                                          | Session ends `OUT_OF_BAIT`                                                                                                                                                            |
 | Inventory full or overweight at a catch                | Session ends `INVENTORY_FULL`; checked at every catch                                                                                                                                 |
 | Daily allowance reached while running                  | Session ends `DAILY_LIMIT`                                                                                                                                                            |
 | Duration longer than today's remaining allowance       | Not a refusal: shorter effective plan in the result                                                                                                                                   |
-| Stop of a session that is not running                  | Idempotent success without effect [NEEDS CLARIFICATION: or a `NOT_FOUND`-class status; the design says only that stop of a non-running session is an edge flow]                       |
+| Duration outside the host's minimum..maximum           | `INVALID_DURATION`                                                                                                                                                                    |
+| Session type disabled in the host's app settings       | `FEATURE_DISABLED`; running sessions finish                                                                                                                                           |
+| Stop of a session that is not running                  | Idempotent success without effect (assumed; see open questions)                                                                                                                       |
 | Stop while running                                     | Session closes `STOPPED`; short sessions return the character to its origin, 30 minutes and more of `active_ms` leave it on the fishing spot (spot-return rule is host configuration) |
 | All spots taken                                        | `NO_FREE_SPOT`                                                                                                                                                                        |
 | Ban or kick of the character                           | Session ends `BANNED` / `KICKED`                                                                                                                                                      |
 
-### Report shape
+### Session end and report
 
-On every end the adapter emits `OfflineSessionEnded` with the end reason and a report: time, catch by kind (`itemTemplateId`
-
-- `count`), experience, SP, adena, items. Field names are [NEEDS CLARIFICATION] and are fixed with the events in
-  [`038`](../038-app-offline-sessions.md) R16.
+There is no dedicated end event. On every end the adapter emits the existing `CharacterPresenceEvent` with
+`online = false`, `source = APP`, `appType = FISHING` and the end reason in `metadata.logout_reason` (`time_up`,
+`stopped`, `login`, `out_of_bait`, `daily_limit`, `inventory_full`, `banned`, `kicked`, `restore_failed`). It may carry
+an optional `report` block; the report is an **initial design, not approved**, see
+[`038`](../038-app-offline-sessions.md) › "Session report - initial design, not approved (separate design session
+pending)". The "fishing ended" notification to the player is raised by the platform from the activity usage (the fishing
+row's `activeSince` clears, for live and offline fishing alike); for an offline session the end event's report is added to
+the message.
 
 ## Technical design
 
@@ -148,7 +166,8 @@ Example refusal:
 The handler validates against the host rules, then asks the app-session engine for a `FISHING` session
 ([`038`](../038-app-offline-sessions.md)). The unknown-outcome behavior (reply lost after the session was created) is
 covered by R5: the retry returns the created session. The platform's shape for an unknown outcome is the same as for the
-private store start.
+private store start. The start stores `initiatorIp` in the session; the session event returns it as `ip`, and the
+character's hwid snapshot as `hwid`, both marked as coming from the app.
 
 ## Rollout
 
@@ -158,10 +177,11 @@ granted only after the host phase ([`038`](../038-app-offline-sessions.md) Rollo
 
 ## Open questions
 
-- [ ] [NEEDS CLARIFICATION: `ownerVerified`, `deadline`, explicit idempotency field on the start command]
-- [ ] [NEEDS CLARIFICATION: stop payload and result; behavior for a non-running session]
-- [ ] [NEEDS CLARIFICATION: result shape of the spot and the effective plan]
-- [ ] [NEEDS CLARIFICATION: `CommandStatus` per reason code]
+- [ ] [NEEDS CLARIFICATION: result shape of the spot and the stop result fields]
+- [ ] [NEEDS CLARIFICATION: stop of a non-running session - idempotent success (assumed) or a `NOT_FOUND`-class status]
+- [ ] [NEEDS CLARIFICATION: `CommandStatus` per reason code (proposed: `INVALID_STATE` for state refusals, `FORBIDDEN` for
+      bans, `VALIDATION_FAILED` for malformed input such as `INVALID_DURATION` and `INVALID_GEAR`)]
+- [ ] [NEEDS CLARIFICATION: the session report block (initial design only)]
 
 ## Links
 

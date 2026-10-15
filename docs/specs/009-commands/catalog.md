@@ -677,30 +677,38 @@ Full contract, reason-code table and edge flows: [`offline-fishing.md`](./offlin
 ### `StartOfflineFishingCommand`
 
 **Purpose.** Place a character in the world without a client and make it fish for a chosen time with a chosen rod and
-bait. The host decides every rule; the reply carries a reason code from the shared enum on refusal. Idempotent by the
-platform request id (the session's `start_correlation_id`).
+bait. The host decides every rule; the reply carries a reason code from the shared enum on refusal. Idempotent by
+`idempotencyKey` (the session's `idempotency_key`).
 
 **Inputs**
 
-| Field             | Type   | Required | Notes                                                                                   |
-| ----------------- | ------ | -------- | --------------------------------------------------------------------------------------- |
-| `charId`          | `int`  | yes      | Character that goes fishing                                                             |
-| `masterAccountId` | `UUID` | yes      | Master account of the initiator, set by the platform; used for the one-fishing limit    |
-| `durationMs`      | `long` | yes      | Chosen duration, positive; a longer-than-allowed value yields a shorter effective plan  |
-| `rodItemId`       | `int`  | yes      | Inventory instance id of the chosen rod                                                 |
-| `baitItemId`      | `int`  | yes      | Inventory instance id of the chosen bait stack                                          |
+| Field             | Type      | Required | Notes                                                                                                                                       |
+| ----------------- | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `charId`          | `int`     | yes      | Character that goes fishing                                                                                                                 |
+| `masterAccountId` | `UUID`    | yes      | Master account of the initiator, set by the platform; used for the one-fishing limit                                                        |
+| `initiatorIp`     | `String?` | no       | IP of the app request, set by the platform; stored in the session and returned in the session event                                         |
+| `durationMs`      | `long`    | yes      | Chosen duration, positive; outside the host's minimum..maximum it is refused with `INVALID_DURATION`; a longer-than-allowed-today value yields a shorter effective plan |
+| `rodItemId`       | `int`     | yes      | Inventory instance id of the chosen rod                                                                                                     |
+| `baitItemId`      | `int`     | yes      | Inventory instance id of the chosen bait stack                                                                                              |
+| `ownerVerified`   | `boolean` | no       | See Cross-cutting › Owner verification; absent reads as `false`                                                                             |
+| `deadline`        | `Instant` | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED`; checked before anything is read or changed                                  |
+| `idempotencyKey`  | `UUID`    | yes      | Business identity of the start, stable across retries; the host dedups and replays by it; `correlationId` is one attempt only               |
+
+The initiator is the envelope's `CommandInitiator`.
 
 **Result** (`StartOfflineFishingResult`)
 
-| Field       | Type   | Notes                                                                                   |
-| ----------- | ------ | --------------------------------------------------------------------------------------- |
-| `sessionId` | `UUID` | The created (or, on a repeat, the existing) session                                     |
-| spot, plan  | -      | The spot the character stands on and the effective plan [NEEDS CLARIFICATION: fields]   |
+| Field       | Type   | Notes                                                                                                  |
+| ----------- | ------ | ------------------------------------------------------------------------------------------------------ |
+| `sessionId` | `UUID` | The created (or, on a repeat, the existing) session                                                    |
+| plan        | -      | The effective plan: the duration the host will actually run, possibly shorter than requested           |
+| spot        | -      | The spot the character stands on [NEEDS CLARIFICATION: fields]                                         |
 
 **Errors.** A refusal carries `extensions.reason` from the shared enum: `RECENTLY_LOGGED_OUT` and `COOLDOWN` (with
 `retryAt`), `CHARACTER_ONLINE`, `DEAD`, `KARMA`, `CHARACTER_JAILED`, `CHARACTER_BANNED`, `UNSAFE_LOGOUT_LOCATION`, `IN_PRIVATE_STORE`,
-`NO_ROD`, `NO_BAIT`, `INVALID_GEAR`, `DAILY_LIMIT`, `RESTART_SOON`, `NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope`
-`MASTER_ACCOUNT` / `ACCOUNT` / `HWID`). Status per reason: [NEEDS CLARIFICATION].
+`NO_ROD`, `NO_BAIT`, `INVALID_GEAR`, `INVALID_DURATION`, `FEATURE_DISABLED`, `DAILY_LIMIT`, `RESTART_SOON`, `NO_FREE_SPOT`,
+`ALREADY_ACTIVE` (with `scope` `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`), `COMMAND_EXPIRED`. Status per reason:
+[NEEDS CLARIFICATION].
 
 ---
 
@@ -709,7 +717,8 @@ platform request id (the session's `start_correlation_id`).
 **Purpose.** End the character's running offline fishing session (end reason `STOPPED`). Stopping a character with no
 running session is an idempotent edge flow, see [`offline-fishing.md`](./offline-fishing.md).
 
-**Inputs / result.** [NEEDS CLARIFICATION: payload and `StopOfflineFishingResult` fields; at least `charId`].
+**Inputs.** `charId`, `masterAccountId`, `initiatorIp`, `ownerVerified`, `deadline`, `idempotencyKey` (same meaning as on
+start; the session is addressed by `charId`). Result fields: [NEEDS CLARIFICATION: `StopOfflineFishingResult`].
 
 ---
 
@@ -1024,7 +1033,8 @@ resolve + side-channel send; no sync trigger needed.
 Commands the platform sends on behalf of a player acting with their own character implement
 `OwnerVerified` and carry `ownerVerified` (spec R28): `SendChatMessageCommand`,
 `StartPrivateStoreSellCommand`, `StartPrivateStorePackageSellCommand`, `StopPrivateStoreCommand`,
-`BuyFromPrivateStoreCommand`, `SendPlayerMailCommand`, `AcceptMailCommand`.
+`BuyFromPrivateStoreCommand`, `SendPlayerMailCommand`, `AcceptMailCommand`, `StartOfflineFishingCommand`,
+`StopOfflineFishingCommand`.
 
 - `true` means the platform verified, against fresh master-account data, that the acting user owns
   the character. Everything else sends `false`: staff actions, socially linked characters, the

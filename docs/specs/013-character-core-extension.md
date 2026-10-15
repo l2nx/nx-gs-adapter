@@ -88,12 +88,24 @@ online=false}`) для каждого id, который был в `previousOnli
   уведомление о выходе шлётся только на `disconnect`.
 
 - [todo] R15. `CharacterPresenceEvent` MUST gain `source` (`CLIENT` / `APP`; `null` reads as `CLIENT`, so old producers
-  stay valid) and `appType` (`FISHING` / `PRIVATE_STORE`; set only with `source = APP`). Additive, api minor version.
+  stay valid), `appType` (`FISHING` / `PRIVATE_STORE`; set only with `source = APP`), `sessionId` (`APP` only), a
+  `resumed` flag and an optional `report` block. Additive, api minor version. There are no separate session-end or
+  session-resumed events: the presence event is the session event.
   An `APP` event describes a character placed in the world by an app command
-  ([`038-app-offline-sessions`](038-app-offline-sessions.md)): its `sessionId` is the app session's id, its `ip` and
-  `hwid` are `null` (never `""`), and the end reason rides `metadata.logout_reason` (R14) as new lower_snake tokens (`time_up`, `stopped`, `login`,
-  `out_of_bait`, `daily_limit`, `inventory_full`, `banned`, `kicked`, `restore_failed`). The platform filters `APP` out of
-  "entered game" / "disconnect" notifications and out of "last login / logout".
+  ([`038-app-offline-sessions`](038-app-offline-sessions.md)):
+  - `sessionId` is the app session's id;
+  - the end of a session is `online = false` with the reason in `metadata.logout_reason` (R14) as lower_snake tokens
+    (`time_up`, `stopped`, `login`, `out_of_bait`, `daily_limit`, `inventory_full`, `sold_out`, `banned`, `kicked`,
+    `restore_failed`) and, optionally, the `report` block (an **initial design, not approved**, see
+    [`038`](038-app-offline-sessions.md) › Session report);
+  - a session continued after a restart is `online = true` with the same `sessionId` and `resumed = true`;
+  - `ip` is the IP of the app request that started the session (`initiatorIp` of the start command) and `hwid` is the
+    hwid snapshot the engine used for the one-fishing-per-computer limit (`null` when empty, never `""`); `source = APP`
+    marks both as "from the app".
+
+  The platform filters `APP` out of "entered game" / "disconnect" notifications. "Last login / logout", the last game
+  IP / HWID (character card, account's last IP, unique counts, the referral HWID check) read only `CLIENT` events; the
+  session log shows both kinds with the mark.
 
 **Should:**
 

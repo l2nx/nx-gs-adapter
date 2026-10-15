@@ -140,7 +140,9 @@ plugging in a snapshot-builder.
   counts the characters of active app sessions into it, and MAY additionally publish per-type keys (for example one per
   session type) as non-canonical keys for a staff breakdown. Such a character still counts in `TOTAL`; whether it also
   counts in `FISHING` while fishing is [NEEDS CLARIFICATION: the design only fixes that `app` is a separate bucket]. The
-  soft invariant of R3 becomes [NEEDS CLARIFICATION: whether `app` joins `unique + offline_trade` in it].
+  soft invariant of R3 becomes [NEEDS CLARIFICATION: whether `app` joins `unique + offline_trade` in it]. A public online
+  number is not designed (no such entity exists): the contract is the `app` bucket plus the per-type keys for a staff
+  row.
 
 **Should:**
 

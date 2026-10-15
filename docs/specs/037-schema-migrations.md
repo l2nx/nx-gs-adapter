@@ -64,8 +64,8 @@ migration framework version on the host.
   required privilege. The failure is not downgraded to a warning, the tables are a hard dependency of the commands.
 - **Stale changelog lock** (a previous run died mid-migration): the start fails with the lock holder reported. Releasing
   the lock is an operator action, the adapter does not force-release a lock it did not take.
-- **Both wrappers on the classpath:** [NEEDS CLARIFICATION: which one wins, or whether start fails]. Expected to be a
-  host packaging mistake; the host's fat JAR carries exactly one Liquibase and therefore one wrapper.
+- **Both wrappers on the classpath:** adapter start fails with an explicit message naming both wrappers. It is a host
+  packaging mistake; the host's fat JAR carries exactly one Liquibase and therefore one wrapper.
 - **Existing `l2nx_command_receipts` without `steps_done_at`:** the column is added; with the column present the change
   is marked run.
 - **Host changelog also touches `l2nx_*` tables:** unsupported. The adapter owns those tables from this spec onward and
@@ -129,7 +129,6 @@ no-op; a database migrated under the 4.x wrapper validates under the 5.x wrapper
 ## Open questions
 
 - [ ] [NEEDS CLARIFICATION: `SchemaMigrator` method signature and the exception type used for the explicit start failures]
-- [ ] [NEEDS CLARIFICATION: behavior when both wrappers are on the classpath]
 - [ ] [assumed: Liquibase 4.33.0 is the last 4.x release, as stated in the design decision; to be re-checked before the pin]
 - [ ] Moving the SQL of `l2nx_command_receipts` out of the host into an adapter-side store is deferred, see
       [`TODO §8`](../TODO.md#8-move-l2nx_command_receipts-sql-from-the-host-into-an-adapter-store). This spec only moves the
