@@ -17,10 +17,9 @@ proves the wire-level pattern for discrete in-game facts: per-family Kafka topic
 abstract base class, `Nx-Message-Type` header dispatch, UUIDv7 `eventId`,
 host-pushed via `NxEvents.publishX(...)`. Online stats are the next family to
 ride that rail — but as periodic snapshots rather than per-fact deltas. Stat
-cardinality (counts per bucket) is build-agnostic: a reference host has offline-trade,
-fishing, phantoms; Lucera/Essence forks have a different set; client-specific
-forks add custom buckets. The wire schema MUST accommodate all of these without
-api releases for every new bucket.
+cardinality (counts per bucket) is build-agnostic, so the buckets are a closed vocabulary of
+generic L2 concepts in the api (`ServerOnlineBucket`); a host publishes the ones that apply to its build, and a new
+concept is an api release first, like every other closed enum of the contract.
 
 Audience: platform-side consumers (dashboards / TSDB ingest); host-side authors
 plugging in a snapshot-builder.
@@ -42,51 +41,45 @@ plugging in a snapshot-builder.
   ship as the Phase-1 concrete subtype with the following fields:
   - `UUID eventId` — REQUIRED. UUIDv7; the upper 48 bits encode the snapshot
     occurrence timestamp. Platform consumers dedupe on this id.
-  - `@Nullable Map<String, Long> buckets` — bucket-key → count map. Every
-    snapshot MUST carry the required canonical keys `TOTAL` and `UNIQUE`;
-    hosts SHOULD additionally publish `OFFLINE_TRADE` / `FISHING` when the
-    concept applies, and MAY publish arbitrary host-specific keys. Null at
-    the constructor normalizes to an empty map; getter returns an
-    unmodifiable view.
+  - `@Nullable Map<ServerOnlineBucket, Long> buckets` — bucket → count map; the wire key is the enum constant name
+    (`UPPER_SNAKE_CASE`). Every snapshot MUST carry `TOTAL` and `UNIQUE`; hosts SHOULD additionally publish the
+    other buckets whose concept applies. Hosts cannot invent bucket keys. Null at the constructor normalizes to an
+    empty map; getter returns an unmodifiable view.
 
-  No top-level `total` field — buckets can overlap (e.g. a fishing player is
+  No top-level `total` field — buckets are independent axes of online and may overlap (e.g. a fishing player is
   also in `UNIQUE`), so `TOTAL` cannot be derived as `sum(buckets)`.
-  The host publishes `WellKnownServerOnlineBuckets.TOTAL` as an explicit map
-  entry.
+  The host publishes `ServerOnlineBucket.TOTAL` as an explicit map entry.
 
   POJO + hand-written Builder + `equals`/`hashCode`/`toString` + Java-8 source.
   Constructor parameter names preserved for Gson `-parameters` deserialization.
 
-- [todo] R3. `nx-gs-adapter-api.kafka.events.serveronline.WellKnownServerOnlineBuckets` MUST
-  ship a constants class enumerating the canonical bucket keys observed in
-  L2 game-server forks. The canonical set is intentionally narrow — these
-  are the keys cross-tenant dashboards aggregate on. Wire values are
-  `lower_snake_case` (consistent with `WellKnownServices`):
+- [todo] R3. `nx-gs-adapter-api.kafka.events.serveronline.ServerOnlineBucket` MUST ship as a closed enum of the
+  online axes. The wire value is the constant name (`UPPER_SNAKE_CASE`). The buckets are independent axes: a character
+  may count in several of them and there is no disjointness invariant between them (no
+  `total >= unique + offline_trade + app` check either).
 
   **Required** (host MUST publish):
-  - `TOTAL` → `"total"` — total character presence (includes offline-trade
-    and phantoms).
-  - `UNIQUE` → `"unique"` — distinct active human players, deduplicated by
-    a host-defined identity tuple (e.g. HWID + IP among
+  - `TOTAL` — total character presence (includes offline-trade, app-loaded characters and phantoms).
+  - `UNIQUE` — distinct active human players, deduplicated by a host-defined identity tuple (e.g. HWID + IP among
     players that are neither in offline mode nor fake).
 
-  **Optional canonical** (host SHOULD publish when concept applies;
-  consumers MUST tolerate absence):
-  - `OFFLINE_TRADE` → `"offline_trade"` — players parked in offline-trade mode.
-  - `FISHING` → `"fishing"` — characters currently fishing.
-  - `APP` → `"app"` — characters loaded into the world by an app command without a client
-    ([`038-app-offline-sessions`](038-app-offline-sessions.md)). A separate bucket: it is neither
-    `UNIQUE` (no client, so no identity tuple) nor `OFFLINE_TRADE` (stores started in the game stay
-    there). How the platform combines it with the real count (for example a public total of real plus
-    app characters) is a platform decision and not part of this contract.
+  **Optional** (host SHOULD publish when the concept applies; consumers MUST tolerate absence):
+  - `OFFLINE_TRADE` — characters whose activity is `OFFLINE_TRADE`: stores left by a disconnected client and app
+    private stores alike.
+  - `FISHING` — characters currently fishing.
+  - `APP` — every app-loaded character, i.e. every character placed in the world by an app command without a client
+    ([`038-app-offline-sessions`](038-app-offline-sessions.md)). How the platform combines it with the real count (for
+    example a public total of real plus app characters) is a platform decision and not part of this contract.
+  - `OFFLINE_FISHING` — app-loaded fishers (the app sessions with activity `OFFLINE_FISHING`).
 
-  Hosts MAY publish arbitrary non-canonical keys; the platform treats unknown
-  keys as opaque strings. Adding a new canonical constant is a non-breaking
-  minor-version change.
+  Each further offline action (mail-style offline actions, enchant, attribute) gets an `OFFLINE_<ACTION>` bucket with
+  the same name as its `ActivityType` value. There are no `app_fishing` / `app_private_store` style keys.
 
-  Soft invariant when both keys present: `total >= unique + offline_trade`.
-  Consumers MUST NOT reject snapshots that violate it (transient race during
-  the tick walk can produce minor drift).
+  Adding a constant is an api release; the platform enum and CHECK follow before the host publishes it. The platform
+  treats an unknown key arriving from a host as a WARN plus a metric and skips that bucket row, never the partition.
+  `WellKnownServerOnlineBuckets` (string constants, `lower_snake_case` wire values) is removed in the same release that
+  adds the enum; the platform reads the lower_snake keys of not-yet-restarted hosts with its own private legacy
+  mapping until every game server of the tenant restarted on the new host.
 
 - [todo] R4. `nx-gs-adapter-api.spi.capability.NxEvents` MUST gain a single new method
   `void publishServerOnlineSnapshot(ServerOnlineSnapshotEvent event)` mirroring `publishPremiumPurchase` exactly:
@@ -119,14 +112,14 @@ plugging in a snapshot-builder.
   The snapshot-builder iterates the online players once per tick,
   walks every player, applies the host predicates (offline mode,
   fishing, fake player, HWID, IP address) and computes the
-  four canonical buckets:
-  - `total` — every player in the iteration (including phantoms and
+  four base buckets (plus `APP` / `OFFLINE_FISHING`, see R10):
+  - `TOTAL` — every player in the iteration (including phantoms and
     offline-trade).
-  - `unique` — `Set<(hwid, ip)>.size()` accumulated across players that are
+  - `UNIQUE` — `Set<(hwid, ip)>.size()` accumulated across players that are
     neither in offline mode nor fake, and both HWID and IP are
     meaningful (HWID != `"N/A"`, IP != `"N/A"` and != `"Disconnected"`).
-  - `offline_trade` — player is in offline mode.
-  - `fishing` — player is fishing, regardless of offline-trade / phantom state.
+  - `OFFLINE_TRADE` — player is in offline mode.
+  - `FISHING` — player is fishing, regardless of offline-trade / phantom state.
 
   Builds `ServerOnlineSnapshotEvent` with UUIDv7 `eventId`, calls
   `nxEvents.publishServerOnlineSnapshot(event)`. Any uncaught `Throwable` is
@@ -136,13 +129,12 @@ plugging in a snapshot-builder.
   No separate `AdapterModule` registration — `events.serveronline` rides the same
   host events module entry in `META-INF/services` as `events.premiumpurchase`.
 
-- [todo] R10. `WellKnownServerOnlineBuckets` MUST gain `APP` (`"app"`) as an optional canonical key (R3). The host
-  counts the characters of active app sessions into it, and MAY additionally publish per-type keys (for example one per
-  session type) as non-canonical keys for a staff breakdown. Such a character still counts in `TOTAL`; whether it also
-  counts in `FISHING` while fishing is [NEEDS CLARIFICATION: the design only fixes that `app` is a separate bucket]. The
-  soft invariant of R3 becomes [NEEDS CLARIFICATION: whether `app` joins `unique + offline_trade` in it]. A public online
-  number is not designed (no such entity exists): the contract is the `app` bucket plus the per-type keys for a staff
-  row.
+- [todo] R10. `ServerOnlineBucket` carries `APP` and `OFFLINE_FISHING` (R3). The host counts every character of an
+  active app session into `APP`. An activity bucket counts every character with that activity, whatever started it:
+  an app fisher (activity `OFFLINE_FISHING`) is in `OFFLINE_FISHING`, not in `FISHING` (live fishing only); an app
+  private store (activity `OFFLINE_TRADE`) is in `OFFLINE_TRADE` together with the stores of disconnected clients. Every
+  such character also counts in `TOTAL`; axes overlap by design (R3). A public online number is not designed (no such entity
+  exists): the contract is the axes themselves, the platform decides how to combine them.
 
 **Should:**
 
@@ -163,14 +155,15 @@ plugging in a snapshot-builder.
 - **Per-family heartbeat counters.** `EventsStats` aggregates queue/published/
   dropped/failed across all families today; per-family breakdown is a separate
   enhancement that lands when there are 3+ families.
-- **Strong-typed wellknown bucket fields.** Open `Map<String, Long>` is the
-  deliberate choice — adding a new wellknown constant doesn't bump the api
-  version, and host-specific custom buckets ride the same map.
+- **Typed fields per bucket.** A `Map<ServerOnlineBucket, Long>` keyed by a closed enum is the deliberate choice —
+  a new bucket is one enum constant, not a new DTO field.
+- **Host-invented bucket keys.** The vocabulary is closed; a host-specific concept first becomes a generic
+  `ServerOnlineBucket` value.
 
 ### Edge cases
 
 - **Empty player set on startup tick.** Builder produces a snapshot with
-  every wellknown bucket = 0; consumer sees `TOTAL=0` and a flat dashboard
+  every required bucket = 0; consumer sees `TOTAL=0` and a flat dashboard
   curve. No special-case suppression — observability prefers explicit zeros.
 - **Snapshot publish during `onDisconnect`.** Module's `stop()` cancels the
   scheduled task before `onDisconnect()` releases the handle. Race window:
@@ -189,7 +182,7 @@ plugging in a snapshot-builder.
   Adapter logs DEBUG once per call, increments nothing, surfaces via the
   `events.disabled-families` heartbeat slot (existing mechanism).
 - **Buckets overlap.** A fishing active player counts toward both `FISHING`
-  and `UNIQUE` and `TOTAL`. `TOTAL` is published as a separate map entry —
+  and `UNIQUE` and `TOTAL`; an app fisher toward `TOTAL`, `APP`, `OFFLINE_FISHING` and `FISHING`. `TOTAL` is published as a separate map entry —
   the consumer never tries to derive it from `sum(buckets)`.
 - **Unidentifiable client.** Active non-phantom player whose `_client` is
   transiently null (login / logout boundary) reports HWID=`"N/A"` and
@@ -203,26 +196,23 @@ plugging in a snapshot-builder.
   during design that per-character stats land later as a separate slice.]
 - [resolved: host-pushed (no SPI / no engine in adapter-core) — symmetric with
   `events.premiumpurchase`. Adapter does not own the cadence.]
-- [resolved: open `Map<String, Long>` + `WellKnownServerOnlineBuckets` constants
-  (rejected typed-fields-per-bucket alternative). Allows adding new
-  conventional buckets without api releases and accommodates host-specific
-  custom buckets without a wire-schema change.]
-- [resolved: canonical set narrowed to `total` / `unique` / `offline_trade` /
-  `fishing` (api/v0.26.0). `online` / `real` / `phantoms` were removed —
-  `unique` (distinct active humans by host-defined identity tuple) carries
-  the operator-facing audience number; hosts that still want phantom counts
-  emit them under custom keys.]
+- [resolved: `Map<ServerOnlineBucket, Long>` keyed by a closed `UPPER_SNAKE` enum (replaces the open
+  `Map<String, Long>` + `WellKnownServerOnlineBuckets` string constants; rejected typed-fields-per-bucket
+  alternative). A new bucket is an api release, then the platform enum and CHECK, then the host.]
+- [resolved: base set `TOTAL` / `UNIQUE` / `OFFLINE_TRADE` / `FISHING` (api/v0.26.0), `APP` and `OFFLINE_FISHING`
+  added with the app sessions. `online` / `real` / `phantoms` were removed — `UNIQUE` (distinct active humans by
+  host-defined identity tuple) carries the operator-facing audience number.]
 - [resolved: partition-key = `null` (round-robin). Snapshot cadence is low
   (~one per 30 sec × N servers); ordering preserved per-server via the UUIDv7
   `eventId` timestamp. Consumer groups by `Nx-Server-Id` header.]
-- [ ] [NEEDS CLARIFICATION: overlap rules of the `app` bucket with `fishing` and the soft invariant (R10)]
+- [resolved: buckets are independent axes; overlap is allowed and there is no disjointness invariant (R3, R10).]
 - [assumed: 30-second default tick interval. Matches the typical pre-existing
   `OnlinePlayers` announce cadence and gives ~2 ppm baseline traffic per
   server. Promoting to a Config knob is R8.]
 
 ## Links
 
-- App sessions that fill the `app` bucket: [`038-app-offline-sessions`](038-app-offline-sessions.md)
+- App sessions that fill the `APP` and `OFFLINE_FISHING` buckets: [`038-app-offline-sessions`](038-app-offline-sessions.md)
 - Platform: `nx-gameservers` online-snapshot spec (public total and the staff series are decided there)
 - Sibling feature (events runtime + per-family fanout):
   [`docs/specs/008-messaging.md`](008-messaging.md)
@@ -240,13 +230,12 @@ plugging in a snapshot-builder.
 `events.serveronline` is the second event family on the per-family Kafka rail
 introduced by `events.premiumpurchase`. It carries periodic snapshots of game-server
 population broken down by activity bucket. Wire shape: a single concrete DTO
-`ServerOnlineSnapshotEvent` with a UUIDv7 `eventId` and an open `Map<String, Long>`
-of bucket-key → count entries (lower_snake_case keys, consistent with
-`WellKnownServices`); `WellKnownServerOnlineBuckets` enumerates four
-canonical constants — `total` and `unique` are required on every snapshot,
-`offline_trade` and `fishing` are optional canonical (host SHOULD publish
-when concept applies). Hosts MAY additionally publish arbitrary
-non-canonical keys (open map). Hosts publish via a single
+`ServerOnlineSnapshotEvent` with a UUIDv7 `eventId` and a
+`Map<ServerOnlineBucket, Long>` of bucket → count entries (the closed enum
+`ServerOnlineBucket`, `UPPER_SNAKE_CASE` constant names on the wire): `TOTAL` and
+`UNIQUE` are required on every snapshot, `OFFLINE_TRADE`, `FISHING`, `APP` and
+`OFFLINE_FISHING` are optional (host SHOULD publish when the concept applies).
+Hosts publish via a single
 `NxEvents.publishServerOnlineSnapshot(ServerOnlineSnapshotEvent)` SPI method.
 Adapter-core registers the binding in `EventTypeRegistry`; the existing
 `EventsPublisher` / `EventEnvelope` machinery handles fanout, headers, and
@@ -254,14 +243,14 @@ disabled-family short-circuiting unchanged. the host extends its existing
 events module (the module that already owns `events.premiumpurchase` wiring)
 to schedule a 30-second snapshot tick (fixed delay) on
 its scheduler, walking the online players, computing
-the four canonical buckets, and publishing.
+the buckets, and publishing.
 
 ### Structure
 
 - `nx-gs-adapter-api/src/main/java/app/l2nx/gs/adapter/api/kafka/events/serveronline/`
   - `ServerOnlineSnapshotEvent.java` — abstract family base (empty body, type-bound)
   - `ServerOnlineSnapshotEvent.java` — Phase-1 concrete DTO + Builder
-  - `WellKnownServerOnlineBuckets.java` — canonical bucket-key constants
+  - `ServerOnlineBucket.java` — the closed bucket enum
 - `nx-gs-adapter-api/src/main/java/app/l2nx/gs/adapter/api/spi/capability/`
   - `NxEvents.java` — adds `publishServerOnlineSnapshot(ServerOnlineSnapshotEvent)`
   - `NoOpEvents.java` — adds the no-op variant
@@ -283,14 +272,14 @@ the four canonical buckets, and publishing.
   `publishServerOnlineSnapshot(ServerOnlineSnapshotEvent)` entry-point and dispatch via `Nx-Message-Type`.
 
 - **ServerOnlineSnapshotEvent** (implements R2) — concrete Phase-1 subtype.
-  Two fields: `UUID eventId` (UUIDv7), `Map<String, Long> buckets`. Map is
+  Two fields: `UUID eventId` (UUIDv7), `Map<ServerOnlineBucket, Long> buckets`. Map is
   defensively copied on construction and exposed via an unmodifiable view;
   null normalizes to `Collections.emptyMap()`. Has a hand-written `Builder`
   with `toBuilder()`. Java-8 source (no records).
 
-- **WellKnownServerOnlineBuckets** (implements R3) — string constants split
-  into required (`TOTAL`, `UNIQUE`) and optional canonical (`OFFLINE_TRADE`,
-  `FISHING`). Each constant carries a Javadoc paragraph clarifying the reference
+- **ServerOnlineBucket** (implements R3) — closed enum split
+  into required (`TOTAL`, `UNIQUE`) and optional (`OFFLINE_TRADE`, `FISHING`, `APP`,
+  `OFFLINE_FISHING`). Each constant carries a Javadoc paragraph clarifying the reference
   definition; other forks may reuse the constant with their own
   bucket-builder logic so long as the operator-facing meaning is consistent
   (e.g. `UNIQUE` is "distinct active humans" — the identity tuple is
@@ -327,8 +316,8 @@ the four canonical buckets, and publishing.
 - **OnlineSnapshotBuilder** — public static facade in the same
   `l2nx.events` package as `PremiumPublisher`. Holds the current
   `NxEvents` handle (volatile). `tick()` iterates the player set on
-  whatever thread the host scheduler provides, computes the four
-  canonical counts in a single pass, builds the event, and publishes.
+  whatever thread the host scheduler provides, computes the
+  counts in a single pass, builds the event, and publishes.
   Wraps the whole tick in `try { ... } catch (Throwable t) { log.debug }`
   for game-loop-safety symmetry with `PremiumPublisher`.
 
@@ -377,11 +366,10 @@ NxEventsImpl.publishServerOnlineSnapshot → registry.lookup → publisher.isFam
   already own cadence in many other places (e.g. existing `OnlinePlayers`
   announce schedule).
 
-- **Open Map + WellKnown constants (vs. typed bucket fields).** Adding a
-  new wellknown constant is a non-breaking minor-version change in
-  `nx-gs-adapter-api`; adding a typed field would force every consumer to
-  recompile against the new class shape. The map also accommodates host-
-  specific custom buckets without any api change.
+- **Map keyed by a closed enum (vs. typed bucket fields, vs. open string keys).** A new bucket is one constant in
+  `ServerOnlineBucket` (an api release, then the platform enum and CHECK, then the host), not a new DTO field. Open
+  string keys were dropped: they let each host invent spellings (`app_fishing`) that the platform could not aggregate
+  or validate.
 
 - **Partition-key = null (vs. server-id-as-key).** Snapshots are infrequent;
   the cost of round-robin partitioning (no within-server ordering at the
@@ -393,10 +381,9 @@ NxEventsImpl.publishServerOnlineSnapshot → registry.lookup → publisher.isFam
 
 ### Extension points
 
-- **Add a new wellknown bucket.** Append a `public static final String`
-  constant to `WellKnownServerOnlineBuckets`. Update each host's bucket-builder
-  to populate the new entry where applicable. Old consumers ignore the
-  new key; new consumers see `null`/missing for old hosts.
+- **Add a new bucket.** Append a constant to `ServerOnlineBucket` (api release), then the platform enum and CHECK,
+  then the host's bucket-builder. A per-action offline bucket is `OFFLINE_<ACTION>`, named like its `ActivityType`
+  value.
 
 - **Add a new concrete subtype to `events.serveronline`.** Define a new class
   extending `ServerOnlineSnapshotEvent`, append a binding entry to `EventTypeRegistry`

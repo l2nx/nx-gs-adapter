@@ -41,14 +41,14 @@ The session mechanics (table, lifecycle, events, restart) are in
 
   Any command that changes the game world carries these canonical fields.
 
-- [todo] R3. `StartOfflineFishingResult`: `sessionId` (`UUID`) and the effective plan - the duration the host will actually
-  run, which may be shorter than requested (R7). The platform shows the plan; the duration options themselves are built
-  by the frontend, so no option list or ladder is computed in the backend contract. The spot the character stands on is
-  [NEEDS CLARIFICATION: fields of the result's spot].
+- [todo] R3. `StartOfflineFishingResult`: `sessionId` (`UUID`), `spotPool` (`String`), `spotId` (`int`) and
+  `effectiveDurationMs` (`long`) - the duration the host will actually run, which may be shorter than requested (R7). The
+  platform shows the plan; the duration options themselves are built by the frontend, so no option list or ladder is
+  computed in the backend contract.
 - [todo] R4. `StopOfflineFishingCommand` ends the character's running session. Payload: `charId`, `masterAccountId`,
   `initiatorIp`, `ownerVerified`, `deadline`, `idempotencyKey` (the same fields and meaning as on start; the session is
-  addressed by `charId`). The result fields are [NEEDS CLARIFICATION]. Stopping a character that has no running session
-  is idempotent (see the edge-flow table).
+  addressed by `charId`). The result is `StopOfflineFishingResult {sessionId, stopped}`. Stopping a character that has no
+  running session is an idempotent success `{sessionId: null, stopped: false}` (see the edge-flow table).
 - [todo] R5. Start MUST be idempotent: `idempotencyKey` is the session's `idempotency_key`; a repeated command finds the
   session it created and returns the same result, never a second session.
 - [todo] R6. Every refusal MUST carry a stable `reason` from the shared enum below in `CommandProblem.extensions`;
@@ -88,7 +88,8 @@ Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 | `IN_PRIVATE_STORE`       | The character has a private store open                                                                    |                                                |
 | `NO_ROD`                 | The chosen rod is missing                                                                                 |                                                |
 | `NO_BAIT`                | The chosen bait is missing or its count is zero                                                           |                                                |
-| `INVALID_GEAR`           | The chosen items are not a valid rod / allowed bait for this character                                    |                                                |
+| `INVALID_ROD`            | The chosen item is not a rod of this character                                                            |                                                |
+| `INVALID_BAIT`           | The chosen item is not an allowed bait for this character                                                 |                                                |
 | `DAILY_LIMIT`            | The daily fishing allowance is used up                                                                    |                                                |
 | `RESTART_SOON`           | A scheduled restart is closer than the host's window (default 10 minutes)                                 |                                                |
 | `INVALID_DURATION`       | `durationMs` is outside the host's minimum..maximum fishing duration                                      |                                                |
@@ -97,9 +98,15 @@ Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 | `ALREADY_ACTIVE`         | A fishing session already runs                                                                            | `scope`: `MASTER_ACCOUNT`, `ACCOUNT` or `HWID` |
 
 `CHARACTER_BANNED` and `CHARACTER_JAILED` are the same codes the other character-acting commands use ([`spec.md`](spec.md)
-R29). The set of codes is the design's; the CommandStatus carrying each (`INVALID_STATE` for state refusals, `FORBIDDEN` for
-bans and similar, `VALIDATION_FAILED` for malformed input) follows the convention of
-[`send-player-mail.md`](send-player-mail.md#status-mapping) and is [NEEDS CLARIFICATION: per-code status table].
+R29). The set of codes is the design's. The `CommandStatus` carrying each follows the convention of
+[`send-player-mail.md`](send-player-mail.md#status-mapping):
+
+| Status              | Reason codes                                                           |
+| ------------------- | ---------------------------------------------------------------------- |
+| `INVALID_STATE`     | `NO_ROD`, `NO_BAIT`, and every other state refusal not listed below    |
+| `VALIDATION_FAILED` | `INVALID_ROD`, `INVALID_BAIT`, `INVALID_DURATION`                      |
+| `FORBIDDEN`         | `CHARACTER_BANNED`, `CHARACTER_JAILED`                                 |
+
 A character that is already fishing in the game client counts for the same limits as an offline session (the
 one-fishing rule covers live and offline fishing together).
 
@@ -122,21 +129,22 @@ one-fishing rule covers live and offline fishing together).
 | Duration longer than today's remaining allowance       | Not a refusal: shorter effective plan in the result                                                                                                                                   |
 | Duration outside the host's minimum..maximum           | `INVALID_DURATION`                                                                                                                                                                    |
 | Session type disabled in the host's app settings       | `FEATURE_DISABLED`; running sessions finish                                                                                                                                           |
-| Stop of a session that is not running                  | Idempotent success without effect (assumed; see open questions)                                                                                                                       |
+| Stop of a session that is not running                  | Idempotent success `{sessionId: null, stopped: false}`; nothing changes                                                                                                               |
 | Stop while running                                     | Session closes `STOPPED`; an `active_ms` below the return threshold (one shared threshold of the host's app settings, 30 minutes by default) returns the character to its origin, the threshold or more leaves it on the fishing spot |
+| Stop before the post-restart restore reached the character | Restore is cancelled, session closes `STOPPED_BEFORE_RESTORE`; the character never re-entered the world, the return rule applies |
+| Stop while the server is down                          | Never reaches the host: the platform answers `409 SERVER_OFFLINE` before dispatch; the session stays open and is restored after the start |
 | All spots taken                                        | `NO_FREE_SPOT`                                                                                                                                                                        |
 | Ban or kick of the character                           | Session ends `BANNED` / `KICKED`                                                                                                                                                      |
 
-### Session end and report
+### Session end
 
 There is no dedicated end event. On every end the adapter emits the existing `CharacterPresenceEvent` with
-`online = false`, `source = APP`, `appType = FISHING` and the end reason in `metadata.logout_reason` (`time_up`,
-`stopped`, `login`, `out_of_bait`, `daily_limit`, `inventory_full`, `banned`, `kicked`, `restore_failed`). It may carry
-an optional `report` block; the report is an **initial design, not approved**, see
+`online = false`, `source = APP`, `activity = OFFLINE_FISHING` and the end reason in the required `logoutReason`
+(`TIME_UP`, `STOPPED`, `STOPPED_BEFORE_RESTORE`, `LOGIN`, `OUT_OF_BAIT`, `DAILY_LIMIT`, `INVENTORY_FULL`, `BANNED`,
+`KICKED`, `RESTORE_FAILED`). A session report is an initial design only, not approved and not part of the contract, see
 [`038`](../038-app-offline-sessions.md) › "Session report - initial design, not approved (separate design session
-pending)". Fishing notifications are a deferred, separate task: the platform can later derive "fishing ended" from the activity usage
-(the fishing row's `activeSince` clears, for live and offline fishing alike), adding the end event's report for an offline
-session.
+pending)". Fishing notifications are a deferred, separate task: the platform can later derive "fishing ended" from the
+activity usage (the `FISHING` row's `activeSince` clears, for live and offline fishing alike).
 
 ## Technical design
 
@@ -172,16 +180,13 @@ character's hwid snapshot as `hwid`, both marked as coming from the app.
 ## Rollout
 
 Additive wire (new commands, new reason enum), api minor version. Until the host registers the handlers the adapter
-replies `UNSUPPORTED_COMMAND` and the platform answers `501` to its clients; the platform ships first, the permission is
+replies `UNSUPPORTED_COMMAND` to an unknown `Nx-Message-Type` (`CommandsConsumer`) and the platform answers `501` to its
+clients; the platform ships first, the permission is
 granted only after the host phase ([`038`](../038-app-offline-sessions.md) Rollout).
 
 ## Open questions
 
-- [ ] [NEEDS CLARIFICATION: result shape of the spot and the stop result fields]
-- [ ] [NEEDS CLARIFICATION: stop of a non-running session - idempotent success (assumed) or a `NOT_FOUND`-class status]
-- [ ] [NEEDS CLARIFICATION: `CommandStatus` per reason code (proposed: `INVALID_STATE` for state refusals, `FORBIDDEN` for
-      bans, `VALIDATION_FAILED` for malformed input such as `INVALID_DURATION` and `INVALID_GEAR`)]
-- [ ] [NEEDS CLARIFICATION: the session report block (initial design only)]
+- [ ] [NEEDS CLARIFICATION: the session report (initial design only, owner's design session pending)]
 
 ## Links
 

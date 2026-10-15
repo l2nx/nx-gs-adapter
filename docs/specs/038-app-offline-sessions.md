@@ -6,10 +6,9 @@
 
 A player who is not in the game client wants their character to keep doing something in the world: stand in a private
 store, fish. Today a private store opened from the app reuses the host's offline-trader mechanism, which is a
-disconnected client with no notion of an app-driven lifecycle, a start/stop history, a report, or a second kind of
-action. The platform needs one generic mechanism: a character is placed into the world without a client by an app
-command, performs a typed action, and leaves when the action ends, with the platform seeing every start, end and
-restart.
+disconnected client with no notion of an app-driven lifecycle, a start/stop history, or a second kind of action. The
+platform needs one generic mechanism: a character is placed into the world without a client by an app command, performs a
+typed action, and leaves when the action ends, with the platform seeing every start, end and restart.
 
 Offline fishing (see [`009-commands/offline-fishing.md`](009-commands/offline-fishing.md)) is the first new type and the
 reason the mechanism is generalized; the private store from the app moves onto it.
@@ -18,21 +17,24 @@ reason the mechanism is generalized; the private store from the app moves onto i
 
 > Siblings: [`037-schema-migrations`](037-schema-migrations.md) (owns the table), [`009-commands`](009-commands/spec.md)
 > (rail, receipts), [`013-character-core-extension`](013-character-core-extension.md) (presence event),
-> [`011-events-online-snapshot`](011-events-online-snapshot.md) (bucket `app`),
-> [`017-character-runtime-activity`](017-character-runtime-activity.md) (activity usage, activity token).
+> [`011-events-online-snapshot`](011-events-online-snapshot.md) (buckets `APP`, `OFFLINE_FISHING`),
+> [`017-character-runtime-activity`](017-character-runtime-activity.md) (activity usage, `ActivityType`).
 
 **Must:**
 
 - [todo] R1. The adapter MUST ship an app-session engine in `nx-gs-adapter-core`: a store (`OfflineSessionStore`, JDBC),
-  `active_ms` accounting, the restore schedule after a restart, end-by-time, the events and the report. The host never
-  writes SQL against the session table.
+  `active_ms` accounting, the restore schedule after a restart, end-by-time and the events. The host never writes SQL
+  against the session table.
 - [todo] R2. The adapter MUST define an SPI `OfflineSessionHost`, implemented by the host, with at least:
   `placeInWorld` (put the character on a spot of the session type), `removeFromWorld` (take it out and, if the session lasted less than the return threshold, return it to
   its origin), `startAction` / `stopAction` (run or stop the typed action, fishing for
-  `FISHING`). The engine receives host callbacks: the action ended with a reason, and the character entered the game
-  from a client.
-- [todo] R3. Session types are an open vocabulary on the adapter side; this spec defines `FISHING` and `PRIVATE_STORE`.
-  Further types (offline mail-style actions, attribute, enchant work) reuse the same engine.
+  `OFFLINE_FISHING`). The engine receives host callbacks: the action ended with a reason, and the character entered the game
+  from a client. The exact method signatures are decided at implementation: the SPI is internal to the adapter and its
+  host provider.
+- [todo] R3. A session's type is its `ActivityType` (see [`017`](017-character-runtime-activity.md)), a closed set: this
+  spec defines `OFFLINE_FISHING` and `OFFLINE_TRADE` (the app private store). Further types (offline mail-style actions,
+  attribute, enchant work) reuse the same engine and each first adds its `ActivityType` value in the api (the
+  `OFFLINE_<ACTION>` naming also names its online bucket, see [`011`](011-events-online-snapshot.md)).
 - [todo] R4. A session MUST be a game session with `source = APP`: its `sessionId` is the session row's `id` (UUIDv7),
   carried by the presence events (R15) so the platform's session log needs no second identity.
 - [todo] R5. Start MUST be idempotent by the command's `idempotencyKey` (stored as `idempotency_key`): a repeated command
@@ -57,12 +59,12 @@ reason the mechanism is generalized; the private store from the app moves onto i
   touch `APP` sessions, and `SUPERSEDED` for an `APP` session has no generation boundary (a session lives across
   restarts). Reconciling `APP` sessions left open by mistake is a platform task (`nx-gameservers/docs/TODO.md` §72).
 - [todo] R12. There are no dedicated session events. The existing `CharacterPresenceEvent` is the session event: the end
-  of a session is `online = false` with `metadata.logout_reason` and an optional `report` block; a session restored
-  after a restart is `online = true` with the same `sessionId` and `resumed = true` (R15).
+  of a session is `online = false` with the required `logoutReason` (R15); a session restored after a restart is
+  `online = true` with the same `sessionId` and `resumed = true` (R15).
 - [todo] R13. Closed sessions older than the retention supplied by the host MUST be deleted at server start. The retention
   is a key of the host's app settings (R18), read by the engine through the `OfflineSessionHost` SPI.
-- [todo] R18. A typed snapshot of the server's app settings MUST be published through a new sync family `settings`
-  (see [App settings snapshot](#app-settings-snapshot)). The platform stores it per server.
+- [todo] R18. A typed snapshot of the server's app settings MUST be published as the first entity of the shared settings
+  topic (see [App settings snapshot](#app-settings-snapshot)). The platform stores it per server.
 
 **Non-goals:**
 
@@ -70,6 +72,8 @@ reason the mechanism is generalized; the private store from the app moves onto i
 - Frontend. The app screens consume the platform API.
 - Trust levels for starting a session. [assumed: until a trust system exists, start is guarded by a permission on the
   platform side]. Trust is a separate item on the platform's backlog.
+- The session report: an initial design only, not approved and not implemented in phase 1 (see
+  [Session report](#session-report---initial-design-not-approved-separate-design-session-pending)).
 - Fishing notifications ("fishing ended", "resumed"): a separate task, initial design deferred in
   `nx-social/docs/specs/056-fishing-notifications.md` (nx-social TODO §32). Only the `source = APP` filter for the "entered
   game" / "disconnect" notifications is in this iteration.
@@ -81,11 +85,16 @@ reason the mechanism is generalized; the private store from the app moves onto i
 - **Start retried after a timeout:** same `idempotencyKey`, returns the existing session (R5).
 - **Character already in a session or in the world with a client:** refused with the shared reason codes, not by a
   constraint violation reaching the caller.
-- **Login mid-session:** R9; the closing event is still emitted (with the report, once the report design is approved).
+- **Login mid-session:** R9; the closing event is still emitted.
 - **Restart mid-session:** the session row stays open; downtime is not counted in `active_ms` (R7); on restore the engine
   emits the presence event with `resumed = true` (R12), the remainder continues.
 - **Restored spot is taken, a free one exists:** the host places the character on a free spot of the same pool.
 - **Restored spot is taken and none is free:** `RESTORE_FAILED`, the session ends and the return rule below applies.
+- **Stop while the session is open but the post-restart restore has not reached the character yet:** the engine cancels
+  the restore and closes the session with `STOPPED_BEFORE_RESTORE` (the character never re-entered the world); the
+  return rule applies.
+- **Stop while the server is down:** the stop never reaches the host (the platform answers `409 SERVER_OFFLINE` before
+  dispatch), nothing changes, the session stays open and is restored after the start.
 - **Return rule (any session type, any end reason):** when a session ends, the character returns to its origin only if
   `active_ms` is below the return threshold from the host's app settings (one threshold for all session types, the same
   for fishing and private store); at the threshold or longer it stays where it is (the fishing spot, the store spot).
@@ -96,7 +105,8 @@ reason the mechanism is generalized; the private store from the app moves onto i
 - **Session type disabled in the host's app settings:** running sessions finish normally, a new start is refused with
   `FEATURE_DISABLED` (see [App settings snapshot](#app-settings-snapshot)).
 - **Client disconnect right before a start:** counts as leaving the game (R8), including the offline-trader command.
-- **Duplicate stop / stop of a session that is not running:** idempotent, see [`offline-fishing.md`](009-commands/offline-fishing.md).
+- **Duplicate stop / stop of a session that is not running:** idempotent success `{sessionId: null, stopped: false}`, see
+  [`offline-fishing.md`](009-commands/offline-fishing.md).
 
 ## Technical design
 
@@ -110,14 +120,15 @@ resume) go to the platform on the existing event rail.
 ### Structure
 
 - `nx-gs-adapter-core` - the engine, `OfflineSessionStore`, the `OfflineSessionHost` SPI.
-- `nx-gs-adapter-api` - session reason codes, presence additions, the settings snapshot DTO, `app` bucket,
-  `offline_fishing` activity token, the commands.
+- `nx-gs-adapter-api` - session reason codes, presence additions (`source`, `activity`, `logoutReason`, `sessionId`,
+  `resumed`), the closed enums `ActivityType`, `ServerOnlineBucket` and `LogoutReason`, the settings snapshot DTO, the
+  commands.
 - `nx-gs-db-migrations` - the changelog that creates `l2nx_offline_sessions` ([`037`](037-schema-migrations.md)).
 
 ### Key components
 
 - **`OfflineSessionStore`** - JDBC access to the table, Java 8, runs on the adapter IO pool.
-- **Engine** - lifecycle, `active_ms` flush, restore scheduling, end-by-time, presence event and report assembly.
+- **Engine** - lifecycle, `active_ms` flush, restore scheduling, end-by-time, presence event assembly.
 - **`OfflineSessionHost`** (host-implemented) - places and removes the character, starts and stops the action, calls
   back into the engine; every rule and check sits behind it (R8).
 
@@ -126,32 +137,31 @@ resume) go to the platform on the existing event rail.
 Table `l2nx_offline_sessions`, owned by the adapter and created by the changelog of
 [`037`](037-schema-migrations.md).
 
-| Column                 | Type                          | Purpose                                                                                                                                                       |
-| ---------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                   | `uuid` PK                     | UUIDv7 generated in Java; equals the platform `sessionId`                                                                                                     |
-| `idempotency_key`      | `uuid` NOT NULL UNIQUE        | start idempotency: a repeated command finds the created session                                                                                               |
-| `char_id`              | `int` NOT NULL                | character; history and rollback                                                                                                                               |
-| `active_char_id`       | `int` NULL UNIQUE             | equals `char_id` while the session runs, `NULL` once closed: at most one active session per character (all three engines allow many `NULL` in a unique index) |
-| `master_account_id`    | `uuid` NULL                   | master-account limit; taken from the command                                                                                                                  |
-| `type`                 | `varchar(16)` NOT NULL        | `FISHING`, `PRIVATE_STORE`                                                                                                                                    |
-| `account_name`         | `varchar(45)` NOT NULL        | per-account limit                                                                                                                                             |
+| Column                 | Type                          | Purpose                                                                                                                                                                     |
+| ---------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                   | `uuid` PK                     | UUIDv7 generated in Java; equals the platform `sessionId`                                                                                                                   |
+| `idempotency_key`      | `uuid` NOT NULL UNIQUE        | start idempotency: a repeated command finds the created session                                                                                                             |
+| `char_id`              | `int` NOT NULL                | character; history and rollback                                                                                                                                             |
+| `active_char_id`       | `int` NULL UNIQUE             | equals `char_id` while the session runs, `NULL` once closed: at most one active session per character (all three engines allow many `NULL` in a unique index)               |
+| `master_account_id`    | `uuid` NULL                   | master-account limit; taken from the command                                                                                                                                |
+| `activity`             | `varchar(32)` NOT NULL        | the session's `ActivityType`: `OFFLINE_FISHING`, `OFFLINE_TRADE` (app private store)                                                                                        |
+| `account_name`         | `varchar(45)` NOT NULL        | per-account limit                                                                                                                                                           |
 | `hwid`                 | `varchar(300)` NULL           | snapshot of the character's hwid used for the one-fishing-per-computer limit, an empty value is stored as `NULL`; `NULL` means no per-device limit; kept for investigations |
-| `initiator_ip`         | `varchar(45)` NULL            | IP of the app request that sent the start command (`initiatorIp`); for investigations                                                                         |
-| `spot_pool`, `spot_id` | `varchar(32)`, `int` NOT NULL | the spot (fishing: pool `giran_harbor`, ids 1..1341; private store: a place of the trade zone)                                                                |
-| `active_spot_key`      | `varchar(48)` NULL UNIQUE     | `<pool>:<spot>` while the session runs: one spot, one character                                                                                               |
-| `origin_x/y/z/heading` | `int` NOT NULL                | where to return the character; a dangerous origin is already replaced by a town. `heading` is the facing direction (0-65535)                                  |
-| `started_at`           | `datetime` NOT NULL           | real start (the character stood on the spot); used for the cooldown                                                                                           |
-| `planned_ms`           | `bigint` NULL                 | the chosen duration; `NULL` for a private store                                                                                                               |
-| `active_ms`            | `bigint` NOT NULL DEFAULT 0   | time in the world excluding restart downtime; drives end-by-time and the return rule (compared with the one return threshold shared by all session types)                                                                     |
-| `type_state`           | `clob` NULL                   | per-type JSON: fishing - rod, bait, what to return to the hands, interim catch; store - kind, lots, message, seller fee percent                               |
-| `ended_at`             | `datetime` NULL               | `NULL` means active                                                                                                                                           |
-| `end_reason`           | `varchar(32)` NULL            | end reason                                                                                                                                                    |
-| `report_json`          | `clob` NULL                   | session report (initial design, see [Session report](#session-report---initial-design-not-approved-separate-design-session-pending)); sent in the end presence event and kept for history |
+| `initiator_ip`         | `varchar(45)` NULL            | IP of the app request that sent the start command (`initiatorIp`); for investigations                                                                                       |
+| `spot_pool`, `spot_id` | `varchar(32)`, `int` NOT NULL | the spot (fishing: pool `giran_harbor`, ids 1..1341; private store: a place of the trade zone)                                                                              |
+| `active_spot_key`      | `varchar(48)` NULL UNIQUE     | `<pool>:<spot>` while the session runs: one spot, one character                                                                                                             |
+| `origin_x/y/z/heading` | `int` NOT NULL                | where to return the character; a dangerous origin is already replaced by a town. `heading` is the facing direction (0-65535)                                                |
+| `started_at`           | `datetime` NOT NULL           | real start (the character stood on the spot); used for the cooldown                                                                                                         |
+| `planned_ms`           | `bigint` NULL                 | the chosen duration; `NULL` for a private store                                                                                                                             |
+| `active_ms`            | `bigint` NOT NULL DEFAULT 0   | time in the world excluding restart downtime; drives end-by-time and the return rule (compared with the one return threshold shared by all session types)                   |
+| `type_state`           | `clob` NULL                   | per-type JSON: fishing - rod, bait, what to return to the hands, interim catch; store - kind, lots, message, seller fee percent                                             |
+| `ended_at`             | `datetime` NULL               | `NULL` means active                                                                                                                                                         |
+| `end_reason`           | `varchar(32)` NULL            | end reason: the `LogoutReason` constant name                                                                                                                                |
 
 Indexes: `UNIQUE(active_char_id)`, `UNIQUE(active_spot_key)`, `UNIQUE(idempotency_key)`,
 `(account_name, ended_at)`, `(hwid, ended_at)`, `(master_account_id, ended_at)`, `(char_id, started_at)`.
 
-The seller fee of an app private store lives in `type_state` of its `PRIVATE_STORE` session: the host's trade list asks the
+The seller fee of an app private store lives in `type_state` of its `OFFLINE_TRADE` session: the host's trade list asks the
 seller's session for the percent, so a sale pays the fee to any buyer, including a buyer in the game (stores opened in
 the game pay no fee, as before). The separate per-character store-fee variables and the app-store origin marker are
 removed.
@@ -159,10 +169,11 @@ removed.
 Decision 2026-10-15: starting a private store from the app is allowed ONLY for a character that is NOT in the game. A
 character online with a client is refused with `CHARACTER_ONLINE`; the recently-left-the-game rule (minutes from the
 host's app settings file, default 2; `RECENTLY_LOGGED_OUT` plus `retryAt`) applies to the store start exactly as to
-fishing. There is no online start path for app stores, so every app-started store is an app `PRIVATE_STORE` session and
+fishing. There is no online start path for app stores, so every app-started store is an app `OFFLINE_TRADE` session and
 the seller fee always has a session to live in. The stop command closes ANY private store of the player's own character:
-for an app session it closes the session (reason `stopped`) and applies the return rule; a native `.offline` store or a
-live player's store is just closed, as today.
+for an app session it closes the session (reason `STOPPED`) and applies the return rule; a native `.offline` store or a
+live player's store is just closed, as today. An app private store and a `.offline` store share the activity
+`OFFLINE_TRADE`; `source` tells them apart, and `.offline` stores are not sessions.
 
 Cleanup: closed sessions older than the host's retention are deleted at server start (R13).
 
@@ -171,42 +182,60 @@ Cleanup: closed sessions older than the host's retention are deleted at server s
 1. Start: host validates (R8), engine inserts the row under `idempotency_key` (R5), `placeInWorld`, `startAction`.
 2. Running: `active_ms` flushed every minute and on stop (R7); end-by-time when `active_ms >= planned_ms`.
 3. End: by time, by stop command, by `LOGIN`, or by a host callback (action ended). The engine calls `stopAction` and
-   `removeFromWorld`, fills `ended_at`, `end_reason`, `report_json`, clears `active_char_id` and `active_spot_key`,
-   emits the end presence event.
+   `removeFromWorld`, fills `ended_at` and `end_reason`, clears `active_char_id` and `active_spot_key`, emits the end
+   presence event.
 4. Restart: rows with `ended_at IS NULL` are restored in batches after the configured delay (batch size and pace are
    host configuration), then a presence event with `resumed = true` is emitted per session.
 
-End reasons (open vocabulary, values defined for the first two types):
+End reasons (the `LogoutReason` values of app sessions; the set is closed):
 
-- `FISHING`: `TIME_UP`, `STOPPED`, `LOGIN`, `OUT_OF_BAIT`, `DAILY_LIMIT`, `INVENTORY_FULL`, `BANNED`, `KICKED`,
+- `OFFLINE_FISHING`: `TIME_UP`, `STOPPED`, `STOPPED_BEFORE_RESTORE`, `LOGIN`, `OUT_OF_BAIT`, `DAILY_LIMIT`,
+  `INVENTORY_FULL`, `BANNED`, `KICKED`, `RESTORE_FAILED`.
+- `OFFLINE_TRADE` (app store): `SOLD_OUT`, `STOPPED`, `STOPPED_BEFORE_RESTORE`, `LOGIN`, `BANNED`, `KICKED`,
   `RESTORE_FAILED`.
-- `PRIVATE_STORE`: `SOLD_OUT`, `STOPPED`, `LOGIN`, `BANNED`, `KICKED`, `RESTORE_FAILED`.
 
-On the wire each reason is its lower_snake token in `metadata.logout_reason` (R15).
+On the wire each reason is the enum constant name in the required `logoutReason` field (R15).
 
-### Contract additions (api, minor version, additions only)
+### Contract additions (api)
 
-- R14. `WellKnownServerOnlineBuckets` gains the bucket `app`; `WellKnownActivities` gains `offline_fishing`. The existing
-  `offline_trade` activity is untouched and is also the activity token of an app private store: the session type tells
-  them apart, and the check of offline-store places against the platform's usage works unchanged. See
-  [`011`](011-events-online-snapshot.md) and [`017`](017-character-runtime-activity.md).
+All of this ships in one api release together with the removal of the shapes it replaces (see the root `CLAUDE.md` ›
+breaking wire changes): the adapter keeps no `@Deprecated` copy. The straddle for hosts that have not restarted yet
+lives on the platform, in its own private legacy mapping (see Rollout).
+
+- R14. Three closed enums, constant name = wire value (`UPPER_SNAKE_CASE`):
+  - `ActivityType`: `FISHING`, `READING`, `AUTOFARMING`, `AUTOMACRO`, `TRADE`, `OFFLINE_TRADE`, `OFFLINE_FISHING`; used by
+    `characteractivityusage.type` and the presence `activity` (see [`017`](017-character-runtime-activity.md));
+  - `ServerOnlineBucket`: `TOTAL`, `UNIQUE`, `OFFLINE_TRADE`, `FISHING`, `APP`, `OFFLINE_FISHING` (see
+    [`011`](011-events-online-snapshot.md));
+  - `LogoutReason`: every reason of R15.
+
+  Removed in the same release: `WellKnownActivities`, `CharacterRuntimeDto.activities`, the string-typed `Activity`
+  model class, `WellKnownServerOnlineBuckets`, and the `logout_reason` constants of `WellKnownPresenceMetadata`.
+  Hosts cannot invent tokens: a new activity, bucket or reason is an api release first, then the platform enum and
+  CHECK, then the host.
+
 - R15. `CharacterPresenceEvent` gains:
-  - `source` (`CLIENT` / `APP`; `null` reads as `CLIENT`) and `appType` (`FISHING` / `PRIVATE_STORE`, only with
-    `source = APP`);
+  - `source` (`CLIENT` / `APP`), REQUIRED on every presence event; the host sets `CLIENT` for a client session, there
+    is no "null reads as CLIENT" in this contract;
+  - `activity` (`ActivityType`), only with `source = APP`: `OFFLINE_FISHING` or `OFFLINE_TRADE`;
   - `sessionId` (the app session's id, only with `source = APP`);
   - `resumed` (`true` only on the `online = true` event of a session restored after a restart, same `sessionId`);
-  - an optional `report` block on the end event (see [Session report](#session-report---initial-design-not-approved-separate-design-session-pending)).
+  - `logoutReason` (`LogoutReason`), REQUIRED on every `online = false` event, a plain logout included:
+    - client: `LOGOUT`, `DISCONNECT`, `OFFLINE_TRADE`, `SERVER_STOP`;
+    - app sessions: `TIME_UP`, `STOPPED`, `STOPPED_BEFORE_RESTORE`, `LOGIN`, `OUT_OF_BAIT`, `DAILY_LIMIT`,
+      `INVENTORY_FULL`, `SOLD_OUT`, `BANNED`, `KICKED`, `RESTORE_FAILED`.
 
-  The end reason of an `APP` session rides the existing `metadata.logout_reason` (013 R14) as lower_snake tokens
-  (`time_up`, `stopped`, `login`, `out_of_bait`, `daily_limit`, `inventory_full`, `sold_out`, `banned`, `kicked`,
-  `restore_failed`); no new field. For an `APP` event `ip` is the `initiatorIp` of the start command (the app request
-  IP) and `hwid` is the session's hwid snapshot (`null` when empty, never `""`); `source = APP` marks both as "from the
-  app". Platform readers of "last game IP / HWID" take only `CLIENT` events; the session log shows both kinds with the
-  mark. See [`013`](013-character-core-extension.md).
+  `metadata.logout_reason` and its lower_snake tokens are gone. For an `APP` event `ip` is the `initiatorIp` of the
+  start command (the app request IP) and `hwid` is the session's hwid snapshot (`null` when empty, never `""`);
+  `source = APP` marks both as "from the app". Platform readers of "last game IP / HWID" take only `CLIENT` events; the
+  session log shows both kinds with the mark. See [`013`](013-character-core-extension.md).
+
 - R16. No new event families: presence is the only session event, so nx-social and the platform consume what they already
   consume.
 - R17. The reason-code enum shared by the commands lives in the api (see
   [`offline-fishing.md`](009-commands/offline-fishing.md)); it includes `FEATURE_DISABLED` and `INVALID_DURATION`.
+  `StartPrivateStoreResult` gains `sessionId`, and the private-store start commands carry `idempotencyKey` and
+  `initiatorIp` (see [`catalog.md`](009-commands/catalog.md)).
 
 ### App settings snapshot
 
@@ -227,19 +256,21 @@ Host-side behaviour the contract relies on (host configuration, summarized becau
 - The file carries a header and a comment per key written for a non-technical reader (meaning, units, allowed values,
   example).
 
-The snapshot is a new sync family `settings`: an entity with one row per server
-[NEEDS CLARIFICATION: package, DTO name and whether it rides the runtime engine or a one-shot publish]:
+The snapshot rides one topic for every settings DTO, `<tenant>.settings.sync`, routed by the envelope `entityName` the
+same way `<tenant>.gd.sync` is (see [`030-gamedata-sync`](030-gamedata-sync/spec.md) §7). The first entity is
+`appsettings`, DTO `AppSettings` (api, a `settings` package next to the other sync DTOs): one row per server.
 
-| Part             | Content                                                                                                                                  |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| per session type | `type` (`FISHING`, `PRIVATE_STORE`, open) and `enabled`                                                                                  |
+| Part             | Content                                                                                                                                      |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| per session type | the `ActivityType` of the session (`OFFLINE_FISHING`, `OFFLINE_TRADE`) and `enabled`                                                         |
 | rule parameters  | typed values the UI needs for hints: recently-left minutes, cooldown, return threshold, restart window, fishing minimum and maximum duration |
 
 Published at adapter start and after every applied settings change; an unchanged snapshot is not republished. The
-platform stores it per server (a row per kind, `app`, with the snapshot as JSON) so the app can grey out a disabled
-type and show the thresholds. Fishing thresholds, the daily ceiling and the reset are not here: they travel in the
-`usage` rows of each character ([`017`](017-character-runtime-activity.md)); they change only on a host restart, after
-which the host republishes every usage row.
+platform stores it per server (table `gs_server_settings`, column `type` = `APP`, with the snapshot as JSON) so the app
+can grey out a disabled type and show the thresholds; it is not exposed to the frontend yet. Fishing thresholds, the
+daily ceiling and the reset are not here: they travel in the `usage` rows of each character
+([`017`](017-character-runtime-activity.md)); they change only on a host restart, after which the host republishes every
+usage row.
 
 ### Placed character (the "phantom" of the design)
 
@@ -249,7 +280,7 @@ character placed in the world by an app command (fisher, app store, later mail/a
 session, its type, its events. How the host renders and protects the placed character (title text and colour, display
 only and not persisted; invulnerable; not a target; no trade, party, duel or summon; no online rewards; no "entered
 game" / "disconnect" notifications) is host configuration and out of scope of this contract. Offline stores started in
-the game (`offline_trade`) are not touched.
+the game (`.offline`) are not sessions and are not touched.
 
 The host marks the placed character with its engine's offline-mode flag, so every existing exclusion of offline traders
 (online rewards, AFK and captcha checks, olympiad, auto-farm and so on) applies for free. Places that read the flag as
@@ -258,32 +289,33 @@ apart by the session type.
 
 ## Session report - initial design, not approved (separate design session pending)
 
-> Status: an initial sketch so the other specs have something to point at. It is NOT approved; the owner will run a
-> separate design session. Do not implement from this section.
+> Status: an initial sketch so the other specs have something to point at. It is NOT approved and NOT implemented in
+> phase 1: no adapter column, no field on the presence event, no platform table. The owner will run a separate design
+> session. Do not implement from this section.
 
-One general mechanism for any session, modeled on the "current session" window of the game client: the end presence
-event may carry a `report` block.
+One general mechanism for any session, modeled on the "current session" window of the game client. A report would later
+ride the end presence event.
 
 - Totals: time in the world, experience, SP, adena change.
-- Items: `{itemTemplateId, count, source}`; `source` is an open UPPER_SNAKE token (`FISHING`, `PICKUP`, `DROP`,
-  `QUEST`, ...).
-- Activity sections: `activities: [{type, ...}]`; fishing: catch by kind, casts. Fishing is marked by a `fishing`
-  section plus `source = FISHING`; an offline fisher is recognised by the session's `appType = FISHING`.
-- Today only offline fishing fills it. The report of a `CLIENT` session is a platform backlog item.
-- Platform storage (summary): `gs_session_reports` (a row per session, totals and activity sections as JSON) and
-  `gs_session_report_items` (item template by source, indexed by character and template), linked by `session_id`; kept
-  as long as the sessions.
-- The adapter keeps the same content in `report_json`.
-
+- Items: `{itemTemplateId, count, source}`; `source` is a token such as `FISHING`, `PICKUP`, `DROP`, `QUEST`.
+- Activity sections: `activities: [{type, ...}]`; fishing: catch by kind, casts. An offline fisher is recognised by the
+  session's `activity = OFFLINE_FISHING`.
+- The first filler would be offline fishing. The report of a `CLIENT` session is a platform backlog item.
+- Platform storage idea: a row per session with totals and activity sections as JSON, and a row per item by source,
+  linked by `session_id`, kept as long as the sessions.
 
 ## Rollout
 
 Four phases, across repos:
 
-1. **Adapter and platform, host untouched.** Adapter: migrations ([`037`](037-schema-migrations.md)), wrappers, session
-   engine, SPI, contract, published to Maven Central. Platform: session `source`, `APP` filters, activity-usage storage
-   reading both forms, `app` online bucket, offline-fishing commands answering `501`, the `source = APP` filters for the presence notifications, the
-   permission granted to nobody.
+1. **Adapter and platform, host untouched.** Adapter: migrations ([`037`](037-schema-migrations.md)), the Liquibase 5
+   wrapper, session engine, SPI, contract (the new shapes and the removal of the old ones in one api release),
+   published to Maven Central. Platform: `gs_sessions.source` / `activity`, `APP` filters, activity-usage storage, the
+   closed `CharacterActivity` and bucket enums with their CHECKs and migrated data, the private legacy mapping for the
+   old shapes, offline-fishing commands answering `501` (a deployed adapter answers an unknown `Nx-Message-Type` with
+   `UNSUPPORTED_COMMAND`), the `source = APP` filters for the presence notifications, the permission seeded and granted to
+   nobody. The platform already sends `idempotencyKey` and `initiatorIp` on the private-store commands (an old host
+   ignores unknown fields).
 2. **Host, first restart: app sessions.** Migrations through the adapter, private store from the app on sessions (hard
    cutover, no row migration: the old app-store marker and its character variables are removed, a leftover app-store row
    in the offline-trader table is restored as an ordinary offline store; host owners get an optional SQL to delete such
@@ -291,25 +323,28 @@ Four phases, across repos:
 3. **Host, second restart: offline fishing** with its datapack (spots, fishing and peace zone where needed); the
    permission goes to testers; the next morning restart verifies fisher restore. The host's app settings file and the
    settings snapshot (R18) ship with phase 2.
-4. **Opening and cleanup, no host release:** permission to the player role, frontend, the platform drops the old
-   `activities` branch once every game server of the tenant is on the phase-2 host, backlog by priority
+4. **Opening and cleanup, no host release:** permission to the player role, frontend, the platform drops its legacy
+   mapping of the old shapes once every game server of the tenant is on the phase-2 host, backlog by priority
    ([`TODO §7`](../TODO.md#7-recurringschedule-to-rrule) first).
 
-**Straddle rule (contract host <-> platform).** The straddle lives only on the platform: the host switches to the new
-shape in one release (it sends only the new form), the platform first reads both forms and, after the gate "all game
-servers of the tenant are on the new host", deletes the old branch. The old branch is marked
-`TODO: drop once ...` with a backlog item. The adapter follows the two-release deprecation rule of the root `CLAUDE.md`
-where it removes an api member.
+**Straddle rule (contract host <-> platform).** The host switches to the new shape in one release (it sends only the
+new form). The adapter removes the old member in the SAME api release; it keeps no `@Deprecated` copy. The straddle lives
+only on the platform (and nx-social for presence): until the gate "every game server of the tenant restarted on the new
+host" it reads the old form of a not-yet-restarted host with its own private legacy DTO / raw-JSON mapping inside the
+consumer slice, not with adapter classes, each piece marked `TODO: drop once ...` with a backlog item. Deploy order for a
+new activity, bucket or reason: adapter enum (api release), then the platform enum and CHECK, then the host.
 
 Each host phase goes to a test server first.
 
 ## Open questions
 
-- [ ] [NEEDS CLARIFICATION: `OfflineSessionHost` method signatures and callback types]
-- [ ] [NEEDS CLARIFICATION: package, DTO name and publish mechanism of the settings snapshot (R18)]
 - [ ] [NEEDS CLARIFICATION: the session report (initial design only, owner's design session pending)]
-- [ ] [assumed: the adapter exposes no REST/Kafka query for session history; the platform builds history from the
-      events]
+- [ ] The placed character must not additionally get `online = true` from the host's normal enter-world path; the host
+      emits only the session's own presence events.
+- [ ] Limits of the app flows for the placed character and the ban-zone behaviour: host configuration, not decided.
+- [ ] Proposed numbers (defaults of the app settings keys) are listed in the host documentation and not final.
+- [assumed: the adapter exposes no REST/Kafka query for session history; the platform builds history from the
+  events]
 
 ## Links
 
@@ -321,6 +356,6 @@ Each host phase goes to a test server first.
 - Platform counterparts: `nx-gameservers/docs/specs/086-offline-fishing.md` (with updates to
   `043-sessions/spec.md`, `009-characters.md`, the online-snapshot spec and `052-private-store-start-commands.md`),
   `nx-social/docs/specs/024-character-presence-notifications/spec.md` (the `source = APP` filter; fishing notifications are a separate deferred task, `nx-social/docs/specs/056-fishing-notifications.md`).
-  The platform adds the permission `GS_SESSIONS_READ_OWN` (a player reads the session history and reports of their own
-  characters).
+  The platform seeds only the permission `GS_COMMANDS_OFFLINE_FISHING_OWN` in this iteration, granted to nobody; a
+  player's session history waits for its screen (platform backlog).
 - Host documentation: not linked here, this repository does not name tenant hosts.

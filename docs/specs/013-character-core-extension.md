@@ -77,27 +77,39 @@ online=false}`) для каждого id, который был в `previousOnli
     с timestamp-gated UPSERT (newest `presence_at` wins). Чтение —
     тривиальный `SELECT online`.
 
-- [done] R14. Logout-событие `CharacterPresenceEvent` (`online=false`) MUST
-  нести причину закрытия сессии в `metadata.logout_reason`
-  (`WellKnownPresenceMetadata`): `disconnect` — потеря соединения;
-  `offline_trade` — игрок ушёл, персонаж остался офлайн-торговцем (сессия
-  закрыта, торговцу новая не открывается, в том числе после рестарта);
-  `server_stop` — host шлёт каждому игроку в мире при остановке сервера.
-  Выход сам / кик — без ключа. Платформа строит из этого журнал сессий и
-  «последний вход / выход» (`nx-gameservers/docs/specs/043-sessions/spec.md`);
-  уведомление о выходе шлётся только на `disconnect`.
+- [todo] R14. Logout-событие `CharacterPresenceEvent` (`online=false`) MUST нести причину закрытия сессии в
+  обязательном enum-поле `logoutReason` (см. R15). Metadata-ключ `logout_reason` и его lower_snake токены
+  (`disconnect`, `offline_trade`, `server_stop`) удалены из api целиком. Для клиентской сессии значения: `LOGOUT` -
+  обычный выход сам / кик (раньше «без ключа»), `DISCONNECT` - потеря соединения, `OFFLINE_TRADE` - игрок ушёл,
+  персонаж остался офлайн-торговцем (сессия закрыта, торговцу новая не открывается, в том числе после рестарта),
+  `SERVER_STOP` - host шлёт каждому игроку в мире при остановке сервера. Платформа строит из этого журнал сессий и
+  «последний вход / выход» (`nx-gameservers/docs/specs/043-sessions/spec.md`); уведомление о выходе шлётся только на
+  `DISCONNECT`.
 
-- [todo] R15. `CharacterPresenceEvent` MUST gain `source` (`CLIENT` / `APP`; `null` reads as `CLIENT`, so old producers
-  stay valid), `appType` (`FISHING` / `PRIVATE_STORE`; set only with `source = APP`), `sessionId` (`APP` only), a
-  `resumed` flag and an optional `report` block. Additive, api minor version. There are no separate session-end or
+- [todo] R15. `CharacterPresenceEvent` MUST gain the fields below. Additive on the wire, but the API release that adds
+  them also removes the `metadata.logout_reason` constants of `WellKnownPresenceMetadata` (the adapter keeps no
+  `@Deprecated` copy; the platform and nx-social read the old form of not-yet-restarted hosts with their own legacy
+  mapping until every game server of the tenant restarted on the new host). There are no separate session-end or
   session-resumed events: the presence event is the session event.
+  - `source` (`CLIENT` / `APP`), REQUIRED on every presence event. The host sets `CLIENT` for a client session; there is
+    no "null reads as `CLIENT`" in the adapter contract (only the platform maps the missing field of an old core to
+    `CLIENT`, in its own legacy mapping);
+  - `activity` (`ActivityType`, see [`017`](017-character-runtime-activity.md)), only with `source = APP`:
+    `OFFLINE_FISHING` or `OFFLINE_TRADE` (app private store);
+  - `sessionId` (`APP` only);
+  - `resumed` flag (`true` only on the `online = true` event of a session restored after a restart, same `sessionId`);
+  - `logoutReason` (`LogoutReason`, closed enum, constant name on the wire), REQUIRED on every `online = false` event,
+    a plain logout included. Client values: `LOGOUT`, `DISCONNECT`, `OFFLINE_TRADE`, `SERVER_STOP`. App-session values:
+    `TIME_UP`, `STOPPED`, `STOPPED_BEFORE_RESTORE`, `LOGIN`, `OUT_OF_BAIT`, `DAILY_LIMIT`, `INVENTORY_FULL`,
+    `SOLD_OUT`, `BANNED`, `KICKED`, `RESTORE_FAILED`.
+
+  There is no `report` field: the session report is an initial design only, not approved and not in this contract
+  ([`038`](038-app-offline-sessions.md) › Session report).
+
   An `APP` event describes a character placed in the world by an app command
   ([`038-app-offline-sessions`](038-app-offline-sessions.md)):
   - `sessionId` is the app session's id;
-  - the end of a session is `online = false` with the reason in `metadata.logout_reason` (R14) as lower_snake tokens
-    (`time_up`, `stopped`, `login`, `out_of_bait`, `daily_limit`, `inventory_full`, `sold_out`, `banned`, `kicked`,
-    `restore_failed`) and, optionally, the `report` block (an **initial design, not approved**, see
-    [`038`](038-app-offline-sessions.md) › Session report);
+  - the end of a session is `online = false` with the app-session `logoutReason`;
   - a session continued after a restart is `online = true` with the same `sessionId` and `resumed = true`;
   - `ip` is the IP of the app request that started the session (`initiatorIp` of the start command) and `hwid` is the
     hwid snapshot the engine used for the one-fishing-per-computer limit (`null` when empty, never `""`); `source = APP`

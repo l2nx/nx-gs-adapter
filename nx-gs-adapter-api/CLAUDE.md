@@ -1,7 +1,7 @@
 # nx-gs-adapter-api
 
 Subproject of the `nx-gs-adapter` monorepo. See [`../CLAUDE.md`](../CLAUDE.md) for repo-wide
-conventions (per-module versioning, Maven Central publishing, the two-release rule for breaking wire
+conventions (per-module versioning, Maven Central publishing, the one-release rule for breaking wire
 changes, license).
 
 This file is a **map plus the invariants**. It names packages and the contracts that are easy to get
@@ -154,7 +154,7 @@ They all live here so a host provider depends on the contracts artifact alone.
 
 Slash-namespaced tag `api/vX.Y.Z` releases this module independently. Fallback when no
 `-Pnx-gs-adapter-api.version=...` is passed: the literal in this module's `build.gradle.kts`. Release
-flow and the two-release deprecation rule live in [`../CLAUDE.md`](../CLAUDE.md).
+flow and the breaking-change rule (one release, no `@Deprecated`) live in [`../CLAUDE.md`](../CLAUDE.md).
 
 ## Testing
 

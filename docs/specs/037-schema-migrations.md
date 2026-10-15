@@ -8,8 +8,8 @@ The adapter keeps its own state in `l2nx_*` tables inside the host's database (t
 next `l2nx_offline_sessions`, see [`038`](038-app-offline-sessions.md)). Today the host creates and alters those
 tables itself with hand-written DDL. Every new adapter feature that needs a column or a table therefore needs a
 matching host release, and the DDL drifts between hosts and between database engines. The adapter has to own the
-schema of the tables it owns, on every engine a host may run (PostgreSQL, MariaDB, MySQL), without forcing a
-migration framework version on the host.
+schema of the tables it owns, on every engine a host may run (PostgreSQL, MariaDB, MySQL), without bundling a
+migration framework into the host.
 
 ## Requirements
 
@@ -32,9 +32,13 @@ migration framework version on the host.
 - [todo] R4. The changelog MUST adopt an already existing `l2nx_command_receipts` table (including its `steps_done_at`
   column) without recreating it: each change is guarded with `tableExists` / `columnExists` preconditions with
   `onFail=MARK_RAN`. The DDL previously issued by the host's receipt store is removed from the host.
-- [todo] R5. Two thin wrappers MUST implement `SchemaMigrator`: `nx-gs-db-migrator-liquibase4` (Java 8 bytecode,
-  Liquibase 4.33.0, the last 4.x) and `nx-gs-db-migrator-liquibase5` (Java 17, Liquibase 5.x). Liquibase is
-  `compileOnly` in both: the host supplies the Liquibase version it already ships, and the adapter never bundles it.
+- [todo] R5. One thin wrapper, `nx-gs-db-migrator-liquibase5` (Java 17+, Liquibase 5.x), MUST implement
+  `SchemaMigrator`. Liquibase is `compileOnly`: the host adds `liquibase-core` 5.x itself, and the adapter never bundles
+  it. A 4.x wrapper for a host on Java 8/11 is deferred until such a host appears
+  ([`TODO §12`](../TODO.md#12-liquibase-4x-wrapper-for-a-java-811-host)). Liquibase 5 Community is FSL-licensed (each
+  version reverts to Apache 2.0 after two years); the adapter does not redistribute it. Liquibase 5.0 ships without JDBC
+  drivers: the wrapper uses the host's JDBC connection, and MariaDB support is verified by the Testcontainers test
+  before the version is pinned.
 - [todo] R6. The migrator MUST use its own changelog tables `l2nx_databasechangelog` and
   `l2nx_databasechangeloglock`, so it never reads or writes the host's own Liquibase history.
 - [todo] R7. The migrator MUST run in its own Liquibase `Scope` with every parameter set explicitly, so nothing from the
@@ -44,28 +48,20 @@ migration framework version on the host.
   by the host's sync-view initializer) stay on the host: they are the host's schema, not the adapter's.
 - [todo] R9. Re-running the migration on an up-to-date database MUST be a no-op.
 
-**Should:**
-
-- [todo] R10. A database migrated by the 4.x wrapper MUST validate cleanly under the 5.x wrapper (checksums unchanged),
-  so a host may upgrade Liquibase without touching the adapter schema.
-
 **Non-goals:**
 
 - Migrating or validating any table the adapter does not own, including the host's game tables and views.
 - Down-migrations / rollback scripts. The changelog only moves forward.
-- Choosing the Liquibase version for the host. The host brings one; the matching wrapper is selected by the host's
-  dependency choice.
+- Choosing the Liquibase 5.x minor for the host. The host brings one.
 
 ### Edge cases
 
-- **No `SchemaMigrator` implementation on the classpath:** adapter start fails with an explicit message naming the two
-  wrapper artifacts. A silent start would leave modules writing into tables that may not exist.
+- **No `SchemaMigrator` implementation on the classpath:** adapter start fails with an explicit message naming the
+  wrapper artifact. A silent start would leave modules writing into tables that may not exist.
 - **Database user without DDL rights:** adapter start fails with an explicit message naming the failing change and the
   required privilege. The failure is not downgraded to a warning, the tables are a hard dependency of the commands.
 - **Stale changelog lock** (a previous run died mid-migration): the start fails with the lock holder reported. Releasing
   the lock is an operator action, the adapter does not force-release a lock it did not take.
-- **Both wrappers on the classpath:** adapter start fails with an explicit message naming both wrappers. It is a host
-  packaging mistake; the host's fat JAR carries exactly one Liquibase and therefore one wrapper.
 - **Existing `l2nx_command_receipts` without `steps_done_at`:** the column is added; with the column present the change
   is marked run.
 - **Host changelog also touches `l2nx_*` tables:** unsupported. The adapter owns those tables from this spec onward and
@@ -75,7 +71,7 @@ migration framework version on the host.
 
 ### Overview
 
-`SchemaMigrator` is an SPI in `nx-gs-adapter-core`. One wrapper module per Liquibase major implements it and runs the
+`SchemaMigrator` is an SPI in `nx-gs-adapter-core`. The Liquibase 5 wrapper module implements it and runs the
 shared changelog from `nx-gs-db-migrations` against the host connection. The adapter calls it once at start, before
 modules.
 
@@ -83,13 +79,13 @@ modules.
 
 - `nx-gs-adapter-core` - the `SchemaMigrator` SPI and its invocation in the startup sequence.
 - `nx-gs-db-migrations` - resource-only module: the XML changelog. No code, no Liquibase dependency.
-- `nx-gs-db-migrator-liquibase4` - Java 8 wrapper, `compileOnly` Liquibase 4.33.0.
-- `nx-gs-db-migrator-liquibase5` - Java 17 wrapper, `compileOnly` Liquibase 5.x (5.0.0 requires Java 17).
+- `nx-gs-db-migrator-liquibase5` - Java 17+ wrapper, `compileOnly` Liquibase 5.x (5.0.0 requires Java 17).
 
 ### Key components
 
-- **`SchemaMigrator`** - SPI: given the adapter's connection source, bring the adapter-owned schema to the current
-  version or throw a descriptive exception (R1). The exact method signature is [NEEDS CLARIFICATION].
+- **`SchemaMigrator`** - SPI: `void migrate(JdbcConnectionSource)` brings the adapter-owned schema to the current
+  version or throws `SchemaMigrationException` with a descriptive message (R1). The explicit start failures of the edge
+  cases above are this exception.
 - **Changelog** - one file, ordered changesets, abstract changes with precondition guards (R2-R4).
 - **Wrapper** - builds the isolated `Scope` (R7), points Liquibase at the adapter's own log/lock tables (R6), runs the
   update and maps Liquibase failures to the explicit messages above.
@@ -98,7 +94,10 @@ modules.
 
 - **Liquibase `compileOnly`, host brings it.** A host ships one fat JAR with exactly one Liquibase; two copies on one
   classpath clash on classes and on `ServiceLoader` registrations. Bundling a version would also dictate the host's
-  version. Hence two wrappers, one per Liquibase major, instead of one shaded implementation.
+  version. A host without Liquibase adds `liquibase-core` 5.x itself (host documentation only; the adapter docs stay
+  generic).
+- **Liquibase 5 only.** The adapter targets hosts on Java 17+ for the migrator; the 4.x line (Java 8 bytecode) is a
+  deferred backlog item, not built speculatively.
 - **Own changelog tables and own `Scope`.** The host's Liquibase run and the adapter's run must not see each other's
   history or configuration.
 - **Abstract changes only.** The same changelog serves three engines; engine-specific SQL would need `dbms` branching and
@@ -118,18 +117,16 @@ modules.
 
 ## Rollout
 
-Additive for hosts that already carry Liquibase: add the matching wrapper and `nx-gs-db-migrations`, drop the host's own
-DDL for `l2nx_*` tables. A host without any wrapper fails at start by design (R1), so the host release that upgrades the
-adapter adds the wrapper in the same change.
+Additive: add the wrapper, `liquibase-core` 5.x (if the host does not carry it yet) and `nx-gs-db-migrations`, drop the
+host's own DDL for `l2nx_*` tables. A host without the wrapper fails at start by design (R1), so the host release that
+upgrades the adapter adds it in the same change.
 
-Test plan: the changelog on Testcontainers PostgreSQL, MariaDB and MySQL, each under both wrappers; a second run is a
-no-op; a database migrated under the 4.x wrapper validates under the 5.x wrapper (R10); adoption of a pre-existing
-`l2nx_command_receipts` with and without `steps_done_at`; failure modes (no implementation, no DDL rights, stale lock).
+Test plan: the changelog on Testcontainers PostgreSQL, MariaDB and MySQL under the 5.x wrapper (the MariaDB run is the
+gate for pinning the version); a second run is a no-op; adoption of a pre-existing `l2nx_command_receipts` with and
+without `steps_done_at`; failure modes (no implementation, no DDL rights, stale lock).
 
 ## Open questions
 
-- [ ] [NEEDS CLARIFICATION: `SchemaMigrator` method signature and the exception type used for the explicit start failures]
-- [ ] [assumed: Liquibase 4.33.0 is the last 4.x release, as stated in the design decision; to be re-checked before the pin]
 - [ ] Moving the SQL of `l2nx_command_receipts` out of the host into an adapter-side store is deferred, see
       [`TODO §8`](../TODO.md#8-move-l2nx_command_receipts-sql-from-the-host-into-an-adapter-store). This spec only moves the
       table's DDL.

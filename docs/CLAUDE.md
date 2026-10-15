@@ -25,13 +25,13 @@ work lives in [`TODO.md`](TODO.md).
 | 007 | per-server-sync                   | 2026-05-02 | [spec](specs/007-per-server-sync.md)                   |
 | 008 | messaging                         | 2026-05-06 | [spec](specs/008-messaging.md)                         |
 | 009 | commands (rail + every command)   | 2026-10-15 | [spec](specs/009-commands/spec.md)                     |
-| 011 | events-online-snapshot (bucket `app`) | 2026-10-15 | [spec](specs/011-events-online-snapshot.md)            |
+| 011 | events-online-snapshot (closed `ServerOnlineBucket`, `APP`, `OFFLINE_FISHING`) | 2026-10-15 | [spec](specs/011-events-online-snapshot.md)            |
 | 012 | snapshot-persistence              | 2026-05-17 | [spec](specs/012-snapshot-persistence.md)              |
-| 013 | character-core-extension (presence `source`, `resumed`, `report`) | 2026-10-15 | [spec](specs/013-character-core-extension.md)          |
+| 013 | character-core-extension (presence `source`, `activity`, `logoutReason`, `resumed`) | 2026-10-15 | [spec](specs/013-character-core-extension.md)          |
 | 014 | events-raid                       | 2026-05-19 | [spec](specs/014-events-raid.md)                       |
 | 015 | olympiad-events                   | 2026-05-22 | [spec](specs/015-olympiad-events.md)                   |
 | 016 | character-online-hero             | 2026-05-29 | [spec](specs/016-character-online-hero.md)             |
-| 017 | character-runtime-activity (activity usage) | 2026-10-15 | [spec](specs/017-character-runtime-activity.md)        |
+| 017 | character-runtime-activity (activity usage, closed `ActivityType`) | 2026-10-15 | [spec](specs/017-character-runtime-activity.md)        |
 | 018 | castle-siege-sync                 | 2026-05-30 | [spec](specs/018-castle-siege-sync.md)                 |
 | 019 | death-status-ratings-events       | 2026-05-31 | [spec](specs/019-death-status-ratings-events.md)       |
 | 020 | item-stats-unification            | 2026-06-08 | [spec](specs/020-item-stats-unification.md)            |
@@ -48,7 +48,7 @@ work lives in [`TODO.md`](TODO.md).
 | 034 | api-package-layout                | 2026-10-02 | [spec](specs/034-api-package-layout.md)                |
 | 035 | character-display                 | 2026-10-06 | [spec](specs/035-character-display.md)                 |
 | 036 | character-effects                 | 2026-10-08 | [spec](specs/036-character-effects.md)                 |
-| 037 | schema-migrations                 | 2026-10-15 | [spec](specs/037-schema-migrations.md)                 |
+| 037 | schema-migrations (Liquibase 5 wrapper)  | 2026-10-15 | [spec](specs/037-schema-migrations.md)                 |
 | 038 | app-offline-sessions (+ settings snapshot) | 2026-10-15 | [spec](specs/038-app-offline-sessions.md)              |
 
 Companion docs of the folder-form specs:

@@ -130,8 +130,8 @@
 
 ## Rollout (optional)
 
-> 📝 For anything touching the wire: release ordering across repos, the two-release deprecation gates
-> (see the root `CLAUDE.md`), and what must be deployed before what.
+> 📝 For anything touching the wire: release ordering across repos, the gate after which the platform drops its
+> legacy mapping (see the root `CLAUDE.md`), and what must be deployed before what.
 > _Delete when filled in._
 
 ## Open questions

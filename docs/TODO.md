@@ -89,8 +89,9 @@ it is picked up, it moves to "Done / moved into a spec".
   are not expressible as a weekly rule today and become expressible.
 - **Why:** the weekly-slot model cannot express monthly or interval schedules, and two schedule formats in one api is a
   trap for consumers.
-- **How:** additive release (new field, old one `@Deprecated`), straddle on the platform only (the platform reads both
-  until all game servers of the tenant are on the new host, then drops the old branch), then a removal release.
+- **How:** one api release adds the RRULE field and removes the old schedule (no `@Deprecated` copy, see the root
+  `CLAUDE.md`); the straddle lives on the platform only (it reads the old shape of a not-yet-restarted host with its
+  own private legacy mapping until every game server of the tenant restarted on the new host, then drops that branch).
 - **Related:** [`017`](specs/017-character-runtime-activity.md) R13,
   [`038`](specs/038-app-offline-sessions.md) Rollout (phase 4, first backlog item).
 
@@ -109,26 +110,38 @@ it is picked up, it moves to "Done / moved into a spec".
 
 - **Want:** report a character's presence in instances (for example training, labyrinth, olympiad-like instances) as
   `characteractivityusage` rows of type `INSTANCE`, with `key` = the instance template id.
-- **To decide:** the `type` token casing (see the open question in [`017`](specs/017-character-runtime-activity.md)),
-  which instances count, and how `used` / `limit` map onto instance entry limits.
+- **To decide:** the new `ActivityType` value (the enum is closed, so `INSTANCE` is an api release first), which
+  instances count, and how `used` / `limit` map onto instance entry limits.
 - **Why:** the platform wants one place for "how much of each limited activity is left", instances included.
 - **Related:** [`017-character-runtime-activity`](specs/017-character-runtime-activity.md) R16.
 
 ### 10. Session report design
 
-- **Want:** a separate design session for the general session report (the `report` block of the end presence event:
-  totals, items by source, activity sections), currently an initial sketch in
-  [`038`](specs/038-app-offline-sessions.md) › "Session report - initial design, not approved".
-- **To decide:** the block's field names, the `source` vocabulary, activity section shapes, size limits, who may read it.
+- **Want:** a separate design session for the general session report (totals, items by source, activity sections),
+  currently an initial sketch in [`038`](specs/038-app-offline-sessions.md) › "Session report - initial design, not
+  approved". Not implemented in phase 1: no adapter column, no field on the presence event, no platform table.
+- **To decide:** where the report travels (for example on the end presence event), the field names, the `source`
+  vocabulary, activity section shapes, size limits, who may read it.
 - **Why:** the sketch is enough for offline fishing notifications but is not an approved contract.
 - **Related:** [`038`](specs/038-app-offline-sessions.md), [`013`](specs/013-character-core-extension.md) R15.
 
 ### 11. Report of a CLIENT session
 
-- **Want:** fill the same report mechanism for sessions of a live game client, not only for app sessions.
+- **Want:** fill the same report mechanism (once it is designed, item 10) for sessions of a live game client, not only
+  for app sessions.
 - **To decide:** where the host collects the numbers (in-game "current session" window source), the cost per logout.
-- **Why:** the platform keeps the history of every session; reports are filled only for offline fishing today.
+- **Why:** the platform keeps the history of every session; no session has a report until item 10 is designed.
 - **Related:** item 10.
+
+### 12. Liquibase 4.x wrapper for a Java 8/11 host
+
+- **Want:** a `nx-gs-db-migrator-liquibase4` wrapper (Java 8 bytecode, `compileOnly` Liquibase 4.x, the last 4.x line)
+  implementing `SchemaMigrator` over the same `nx-gs-db-migrations` changelog, for a host that cannot run Java 17.
+- **To decide:** the exact 4.x pin (re-check that it is the last 4.x release), and whether a database migrated under the
+  4.x wrapper must validate under the 5.x wrapper (unchanged checksums, so a host may upgrade Liquibase later).
+- **Why:** only the Liquibase 5 wrapper ships now ([`037`](specs/037-schema-migrations.md)); no current host needs the
+  4.x line, so it is not built speculatively. Build it when a Java 8/11 host appears.
+- **Related:** [`037-schema-migrations`](specs/037-schema-migrations.md) R5.
 
 ## Done / moved into a spec
 

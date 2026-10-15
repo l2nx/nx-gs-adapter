@@ -190,28 +190,33 @@ target; CI uses `signingKey` / `signingPassword` Gradle properties (GPG) and `CE
 Sonatype Central Portal upload. Central propagation takes ~15-30 min — a dependent release must wait
 for the artifact to be resolvable, not just for the tag to be pushed.
 
-### Breaking wire changes go out in two releases, via `@Deprecated`
+### Breaking wire changes: the host switches in one release, the adapter removes the old member in the same release
 
-Renaming or removing anything on the wire (a DTO field, a getter, a whole DTO, an enum constant) is
-**never** a single release. It is always:
+Renaming or removing anything on the wire (a DTO field, a getter, a whole DTO, an enum constant) is **one** api
+release, with no `@Deprecated` copy and no second "removal" release:
 
-1. **Additive release.** Add the new shape. Keep the old one alongside it, marked `@Deprecated`,
-   with Javadoc naming the replacement AND the concrete event that gates removal ("removed once
-   every schema provider emits `classes` — the hosts' next restart"). Consumers
-   migrate to the new shape and keep a fallback to the old one.
-2. **Removal release.** Delete the deprecated members once that gate has actually fired. This one is
-   breaking and takes its own version bump.
+1. **The adapter ships the new shape and removes the old one in the same release.** Nothing is kept alongside
+   "for a while": a deprecated member would only invite new code to keep using it.
+2. **The host switches in one release.** It sends only the new form from that release on.
+3. **The straddle lives on the platform, not in the adapter.** Until the gate "every game server of the tenant
+   restarted on the new host" the platform (and any other wire consumer, for example nx-social for presence) reads the
+   old form of a not-yet-restarted host with its own private legacy DTO or raw-JSON mapping inside the consumer slice,
+   never with adapter classes. Each such piece is marked `TODO: drop once ...` with a backlog item naming the gate; when
+   the gate fires the platform deletes it.
 
 The reason is deploy ordering, not politeness: the platform is always deployed **before** the schema
 providers that feed it (nx-gameservers, then adapter-api to Maven Central, then the tenant fork). So
 there is always a window in which a new consumer reads events emitted by an old producer. A one-shot
-rename makes the new consumer blind to that traffic for the whole window — silently, since an
-unknown JSON field just deserializes to `null`. Central propagation and game-server restart
-schedules make the window hours-to-days wide, not seconds.
+rename without the platform's legacy mapping makes the new consumer blind to that traffic for the whole window -
+silently, since an unknown JSON field just deserializes to `null`. Central propagation and game-server restart
+schedules make the window hours-to-days wide, not seconds. Keeping that window on the platform keeps the adapter api
+free of dead members.
 
-Add the migration note to the release's spec, with both gates spelled out — the deprecation gate and
-the drop gate are usually different events and cannot be cleared in one pass. Reference:
-`docs/specs/029-character-class-state-sync.md` (`subclasses` → `classes`).
+A closed vocabulary (an enum) follows the same order for a NEW value: adapter enum (api release), then the platform enum
+and its CHECK, then the host - the platform must know a value before a host can send it.
+
+Add the migration note to the release's spec with the gate spelled out. Precedent of an older, two-release shape that
+shipped before this rule: `docs/specs/029-character-class-state-sync.md` (`subclasses` -> `classes`).
 
 ## Commands
 

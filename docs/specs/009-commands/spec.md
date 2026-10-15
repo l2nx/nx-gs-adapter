@@ -280,8 +280,8 @@ replies-published == 0}` is visible as a failure rather than as silence
   a standing requirement: a version pin in a living spec is stale one release later, and the
   authority is the per-module literal in `build.gradle.kts` plus the `api/vX.Y.Z` / `core/vX.Y.Z`
   tags. The evolution rule it encoded stands and lives in the root `CLAUDE.md`: additive wire
-  changes are forward+backward compatible, removals and retypes take the two-release
-  `@Deprecated` path. `nx-gs-kafka` is untouched by this feature — adapter-core builds its own
+  changes are forward+backward compatible, removals and retypes ship in one api release that
+  removes the old member (the platform keeps its own legacy mapping until the gate). `nx-gs-kafka` is untouched by this feature — adapter-core builds its own
   `KafkaConsumer` and reuses the existing producer for replies.
 
 **Should:**
@@ -429,7 +429,7 @@ replies-published == 0}` is visible as a failure rather than as silence
 - **Per-handler rate limiting** — `RATE_LIMITED` exists so a handler can self-limit and say so;
   the adapter enforces nothing.
 - **Schema registry / wire versioning beyond additive evolution** — same rule as events: adding a
-  nullable field is compatible both ways, removing or retyping takes the two-release path.
+  nullable field is compatible both ways, removing or retyping is one api release that removes the old member, with the straddle on the platform.
 
 ### Edge cases
 

@@ -16,7 +16,7 @@ that the legacy Telegram bot had:
 1. **Unattended death** — players who leave a character fishing/farming unattended
    want to know the moment that character dies, the way the legacy bot pinged
    them. Today the only "your character is in trouble" signal is the involuntary
-   *disconnect* notification (`events.character`, `logout_reason=disconnect`);
+   *disconnect* notification (`events.character`, `logoutReason = DISCONNECT`);
    an in-world death while autofarming or on an auto-macro produces no signal at
    all. a host may already track both unattended modes (autofarm,
    auto-macro sessions) but nothing leaves the JVM on death.
@@ -182,7 +182,7 @@ bot), operators (server-status menu section), and platform-side consumers
   information menu (`InfoMenuHandler` / `InfoMenuRenderer` hub), mirroring the
   existing Events / Bosses / Castles sections:
     - Display: 🟢/🔴 status, uptime (`now − started_at`), and current online by
-      bucket (`total` / `unique` / `offline_trade` / `fishing`).
+      bucket (`TOTAL` / `UNIQUE` / `OFFLINE_TRADE` / `FISHING`, plus `APP` / `OFFLINE_FISHING`).
     - Data read directly from the shared `nexus` DB via new read-only adapters:
       `gs_server_status` (status / started_at) + the existing online-bucket
       table(s) populated by `ServerOnlineIngestor`.
