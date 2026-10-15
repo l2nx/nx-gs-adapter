@@ -74,6 +74,11 @@ plugging in a snapshot-builder.
   consumers MUST tolerate absence):
   - `OFFLINE_TRADE` → `"offline_trade"` — players parked in offline-trade mode.
   - `FISHING` → `"fishing"` — characters currently fishing.
+  - `APP` → `"app"` — characters loaded into the world by an app command without a client
+    ([`038-app-offline-sessions`](038-app-offline-sessions.md)). A separate bucket: it is neither
+    `UNIQUE` (no client, so no identity tuple) nor `OFFLINE_TRADE` (stores started in the game stay
+    there). How the platform combines it with the real count (for example a public total of real plus
+    app characters) is a platform decision and not part of this contract.
 
   Hosts MAY publish arbitrary non-canonical keys; the platform treats unknown
   keys as opaque strings. Adding a new canonical constant is a non-breaking
@@ -130,6 +135,12 @@ plugging in a snapshot-builder.
 
   No separate `AdapterModule` registration — `events.serveronline` rides the same
   host events module entry in `META-INF/services` as `events.premiumpurchase`.
+
+- [todo] R10. `WellKnownServerOnlineBuckets` MUST gain `APP` (`"app"`) as an optional canonical key (R3). The host
+  counts the characters of active app sessions into it, and MAY additionally publish per-type keys (for example one per
+  session type) as non-canonical keys for a staff breakdown. Such a character still counts in `TOTAL`; whether it also
+  counts in `FISHING` while fishing is [NEEDS CLARIFICATION: the design only fixes that `app` is a separate bucket]. The
+  soft invariant of R3 becomes [NEEDS CLARIFICATION: whether `app` joins `unique + offline_trade` in it].
 
 **Should:**
 
@@ -202,12 +213,15 @@ plugging in a snapshot-builder.
 - [resolved: partition-key = `null` (round-robin). Snapshot cadence is low
   (~one per 30 sec × N servers); ordering preserved per-server via the UUIDv7
   `eventId` timestamp. Consumer groups by `Nx-Server-Id` header.]
+- [ ] [NEEDS CLARIFICATION: overlap rules of the `app` bucket with `fishing` and the soft invariant (R10)]
 - [assumed: 30-second default tick interval. Matches the typical pre-existing
   `OnlinePlayers` announce cadence and gives ~2 ppm baseline traffic per
   server. Promoting to a Config knob is R8.]
 
 ## Links
 
+- App sessions that fill the `app` bucket: [`038-app-offline-sessions`](038-app-offline-sessions.md)
+- Platform: `nx-gameservers` online-snapshot spec (public total and the staff series are decided there)
 - Sibling feature (events runtime + per-family fanout):
   [`docs/specs/008-messaging.md`](008-messaging.md)
 - Sibling reference (premium-family wire DTOs + publisher pattern):

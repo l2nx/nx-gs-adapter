@@ -12,7 +12,7 @@ coding against.
 
 All commands ship under `app.l2nx.gs.adapter.api.kafka.commands.<group>.*`
 where group is one of: `announcement`, `ban`, `captcha`, `character`, `chat`, `gd`,
-`item`, `mail`, `privatestore`, `sync`, `telegram`. The group is purely a
+`item`, `mail`, `offlinefishing`, `privatestore`, `sync`, `telegram`. The group is purely a
 code-organization split; on the wire every command travels on the single
 `<tenant>.gs.commands` topic, routed by the `Nx-Message-Type` header.
 
@@ -666,6 +666,50 @@ SHOULD publish `MailReturned` / `MailDeleted` (side `RECEIVER`) when the host's 
 a mail. After an accept the attachments are removed and the mail stays; a `MailAccepted` lost after the
 commit is re-published by the host's recovery with the original completion time in its `eventId`, so consumers
 MUST be idempotent and MUST NOT move the accepted time on a duplicate.
+
+---
+
+## Offline fishing commands
+
+Full contract, reason-code table and edge flows: [`offline-fishing.md`](./offline-fishing.md). Session mechanics:
+[`038-app-offline-sessions`](../038-app-offline-sessions.md).
+
+### `StartOfflineFishingCommand`
+
+**Purpose.** Place a character in the world without a client and make it fish for a chosen time with a chosen rod and
+bait. The host decides every rule; the reply carries a reason code from the shared enum on refusal. Idempotent by the
+platform request id (the session's `start_correlation_id`).
+
+**Inputs**
+
+| Field             | Type   | Required | Notes                                                                                   |
+| ----------------- | ------ | -------- | --------------------------------------------------------------------------------------- |
+| `charId`          | `int`  | yes      | Character that goes fishing                                                             |
+| `masterAccountId` | `UUID` | yes      | Master account of the initiator, set by the platform; used for the one-fishing limit    |
+| `durationMs`      | `long` | yes      | Chosen duration, positive; a longer-than-allowed value yields a shorter effective plan  |
+| `rodItemId`       | `int`  | yes      | Inventory instance id of the chosen rod                                                 |
+| `baitItemId`      | `int`  | yes      | Inventory instance id of the chosen bait stack                                          |
+
+**Result** (`StartOfflineFishingResult`)
+
+| Field       | Type   | Notes                                                                                   |
+| ----------- | ------ | --------------------------------------------------------------------------------------- |
+| `sessionId` | `UUID` | The created (or, on a repeat, the existing) session                                     |
+| spot, plan  | -      | The spot the character stands on and the effective plan [NEEDS CLARIFICATION: fields]   |
+
+**Errors.** A refusal carries `extensions.reason` from the shared enum: `RECENTLY_LOGGED_OUT` and `COOLDOWN` (with
+`retryAt`), `CHARACTER_ONLINE`, `DEAD`, `KARMA`, `CHARACTER_JAILED`, `CHARACTER_BANNED`, `UNSAFE_LOGOUT_LOCATION`, `IN_PRIVATE_STORE`,
+`NO_ROD`, `NO_BAIT`, `INVALID_GEAR`, `DAILY_LIMIT`, `RESTART_SOON`, `NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope`
+`MASTER_ACCOUNT` / `ACCOUNT` / `HWID`). Status per reason: [NEEDS CLARIFICATION].
+
+---
+
+### `StopOfflineFishingCommand`
+
+**Purpose.** End the character's running offline fishing session (end reason `STOPPED`). Stopping a character with no
+running session is an idempotent edge flow, see [`offline-fishing.md`](./offline-fishing.md).
+
+**Inputs / result.** [NEEDS CLARIFICATION: payload and `StopOfflineFishingResult` fields; at least `charId`].
 
 ---
 

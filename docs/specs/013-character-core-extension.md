@@ -87,6 +87,14 @@ online=false}`) для каждого id, который был в `previousOnli
   «последний вход / выход» (`nx-gameservers/docs/specs/043-sessions/spec.md`);
   уведомление о выходе шлётся только на `disconnect`.
 
+- [todo] R15. `CharacterPresenceEvent` MUST gain `source` (`CLIENT` / `APP`; `null` reads as `CLIENT`, so old producers
+  stay valid) and `appType` (`FISHING` / `PRIVATE_STORE`; set only with `source = APP`). Additive, api minor version.
+  An `APP` event describes a character placed in the world by an app command
+  ([`038-app-offline-sessions`](038-app-offline-sessions.md)): its `sessionId` is the app session's id, its `ip` and
+  `hwid` are `null` (never `""`), and the end reason rides `metadata.logout_reason` (R14) as new lower_snake tokens (`time_up`, `stopped`, `login`,
+  `out_of_bait`, `daily_limit`, `inventory_full`, `banned`, `kicked`, `restore_failed`). The platform filters `APP` out of
+  "entered game" / "disconnect" notifications and out of "last login / logout".
+
 **Should:**
 
 - [done] R7. `CharacterRuntimeDto.online` SHOULD не сериализовываться
@@ -130,6 +138,7 @@ online=false}`) для каждого id, который был в `previousOnli
   runtime engine для `CharacterRuntimeDto`.
 - Deferred backlog: [Deferred fields and filters](#deferred-fields-and-filters-backlog).
 - Platform side: `nx-gameservers/docs/specs/009-characters.md`.
+- App sessions (`source = APP`): [`038-app-offline-sessions`](038-app-offline-sessions.md).
 
 ---
 
