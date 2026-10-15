@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import app.l2nx.gs.adapter.api.kafka.events.account.AccountAuthAttemptEvent;
 import app.l2nx.gs.adapter.api.kafka.events.account.AuthOutcomes;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
+import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailAcceptedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailCancelledEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailReturnedEvent;
@@ -20,15 +21,24 @@ import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.PrivateStoreSide;
 import app.l2nx.gs.adapter.api.kafka.events.privatetrade.PrivateTradeFinishedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatetrade.TradeParty;
 import app.l2nx.gs.adapter.api.kafka.events.raid.kill.RaidKillEvent;
-import app.l2nx.gs.adapter.api.kafka.events.serveronline.ServerOnlineSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerOnlineSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.model.ServerOnlineBucket;
 import app.l2nx.gs.adapter.api.kafka.events.sync.ResyncCompletedEvent;
 import app.l2nx.gs.commons.UUIDv7;
 import java.nio.ByteBuffer;
 import java.time.Instant;
-import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class EventTypeRegistryTest {
+
+    private static Map<ServerOnlineBucket, Long> buckets(long total) {
+        Map<ServerOnlineBucket, Long> buckets = new EnumMap<ServerOnlineBucket, Long>(ServerOnlineBucket.class);
+        buckets.put(ServerOnlineBucket.TOTAL, total);
+        buckets.put(ServerOnlineBucket.UNIQUE, total);
+        return buckets;
+    }
 
     @Test
     void lookup_shouldResolvePremiumPurchaseEvent() {
@@ -78,7 +88,7 @@ class EventTypeRegistryTest {
         EventTypeBinding binding = new EventTypeRegistry().lookup(ServerOnlineSnapshotEvent.class);
         ServerOnlineSnapshotEvent event = ServerOnlineSnapshotEvent.builder()
                 .eventId(UUIDv7.generate())
-                .buckets(Collections.singletonMap("total", 100L))
+                .buckets(buckets(100L))
                 .build();
 
         assertNull(binding.partitionKeyExtractor().apply(event));
@@ -157,6 +167,7 @@ class EventTypeRegistryTest {
                 .eventId(UUIDv7.generate())
                 .charId(0xCAFEBABEL)
                 .online(true)
+                .source(SessionSource.CLIENT)
                 .build();
 
         byte[] key = binding.partitionKeyExtractor().apply(event);

@@ -456,6 +456,45 @@ public void onConnect(ConnectContext ctx) {
 Last-write-wins on duplicate entity names. Triggers are cleared on
 disconnect; modules re-register on the next handshake.
 
+## App sessions — `ctx.appSessions()`
+
+Commands that load a character into the world without a client (offline fishing, the app private
+store) go through the adapter's app-session engine, `ctx.appSessions()` (an `NxAppSessions`, spec
+[`038`](../038-app-offline-sessions.md)). The handler applies every rule of the host first, then:
+
+```java
+AppSessionStartOutcome outcome = ctx.appSessions().start(AppSessionStartRequest.builder()
+        .idempotencyKey(cmd.getIdempotencyKey())
+        .characterId(cmd.getCharacterId())
+        .activity(ActivityType.OFFLINE_FISHING)
+        // account, hwid, initiatorIp, spot, safe origin, plannedMs, typeState ...
+        .build()).join();
+switch (outcome.getStatus()) {
+    case STARTED:
+    case EXISTING:          return CommandResult.ok(toResult(outcome.getSession()));
+    case CHARACTER_BUSY:    return refusal(AppSessionRefusalReason.ALREADY_ACTIVE, AlreadyActiveScope.CHARACTER);
+    case SPOT_TAKEN:        return retryWithAnotherSpotOr(AppSessionRefusalReason.NO_FREE_SPOT);
+    case PLACEMENT_REFUSED: return refusal(outcome.getRefusal());
+    default:                return CommandResult.unavailable(outcome.getDetail());
+}
+```
+
+- `join()` on the consumer thread (or a host thread) is fine; never wait on the future from
+  `ctx.io()`: the engine runs the start there.
+- The engine calls the host's `OfflineSessionHost` (place, start action) from IO threads; those
+  methods hop to the game thread themselves, so the handler does not wrap `start(...)` in
+  `ctx.host().sync(...)`.
+- Stop is `ctx.appSessions().stop(characterId, activity)`; an empty result means nothing ran (an
+  idempotent success).
+- The host's client-login path calls `NxAdapter.appSessions().onClientLogin(characterId)` under the
+  character's mutation lock, before it loads the live character, and acts on the
+  `ClientLoginOutcome`: `CLOSED` / `NONE` let the login go on; `PENDING` means the engine could not
+  finish within its bounded wait (the close, or the engine's boot after a restart), so the host
+  refuses this login with a "try again" message. The close goes on in the background, so the next
+  attempt finds the session closed.
+- `findActive(characterId)` also returns, until a background retry reaches the table, a session
+  whose close (or a rolled-back start) the table refused; such a character stays busy for starts.
+
 ## CommandResult — what to return
 
 ### Success cases

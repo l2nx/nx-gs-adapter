@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Portable across PostgreSQL, MariaDB and MySQL: abstract changes only, enum-like columns validated in Java. -->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        logicalFilePath="app/l2nx/gs/db/migrations/changelog.xml">
+
+    <!-- Hosts created this table with their own DDL before the adapter owned it: adopt it as it is. -->
+    <changeSet id="0001-command-receipts-table" author="nx-gs-adapter">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="l2nx_command_receipts"/>
+            </not>
+        </preConditions>
+        <createTable tableName="l2nx_command_receipts">
+            <column name="correlation_id" type="varchar(36)">
+                <constraints primaryKey="true" primaryKeyName="pk_l2nx_command_receipts" nullable="false"/>
+            </column>
+            <column name="command" type="varchar(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="buyer_char_id" type="int"/>
+            <column name="seller_char_id" type="int"/>
+            <column name="status" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="charged_adena" type="bigint"/>
+            <column name="mail_id" type="int"/>
+            <column name="claim_json" type="clob"/>
+            <column name="result_json" type="clob"/>
+            <column name="created_at" type="datetime" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="completed_at" type="datetime"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="0002-command-receipts-steps-done-at" author="nx-gs-adapter">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="l2nx_command_receipts" columnName="steps_done_at"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="l2nx_command_receipts">
+            <column name="steps_done_at" type="datetime"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="0003-command-receipts-open-steps-index" author="nx-gs-adapter">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists tableName="l2nx_command_receipts" indexName="idx_l2nx_receipts_command_status_steps"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="l2nx_command_receipts" indexName="idx_l2nx_receipts_command_status_steps">
+            <column name="command"/>
+            <column name="status"/>
+            <column name="steps_done_at"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- active_* columns are set while a session runs and NULLed on end: a unique index allows many NULLs everywhere. -->
+    <changeSet id="0004-offline-sessions-table" author="nx-gs-adapter">
+        <createTable tableName="l2nx_offline_sessions">
+            <column name="id" type="uuid">
+                <constraints primaryKey="true" primaryKeyName="pk_l2nx_offline_sessions" nullable="false"/>
+            </column>
+            <column name="idempotency_key" type="uuid">
+                <constraints nullable="false" unique="true"
+                             uniqueConstraintName="uq_l2nx_offline_sessions_idempotency_key"/>
+            </column>
+            <column name="character_id" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="active_character_id" type="int">
+                <constraints unique="true" uniqueConstraintName="uq_l2nx_offline_sessions_active_character_id"/>
+            </column>
+            <column name="master_account_id" type="uuid"/>
+            <column name="activity" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="account_name" type="varchar(45)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hwid" type="varchar(300)"/>
+            <column name="initiator_ip" type="varchar(45)"/>
+            <column name="spot_pool" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="spot_id" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="active_spot_key" type="varchar(48)">
+                <constraints unique="true" uniqueConstraintName="uq_l2nx_offline_sessions_active_spot_key"/>
+            </column>
+            <column name="origin_x" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="origin_y" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="origin_z" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="origin_heading" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="started_at" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="planned_ms" type="bigint"/>
+            <column name="active_ms" type="bigint" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="type_state" type="clob"/>
+            <column name="ended_at" type="datetime"/>
+            <column name="end_reason" type="varchar(32)"/>
+        </createTable>
+        <createIndex tableName="l2nx_offline_sessions" indexName="idx_l2nx_offline_sessions_account_ended">
+            <column name="account_name"/>
+            <column name="ended_at"/>
+        </createIndex>
+        <createIndex tableName="l2nx_offline_sessions" indexName="idx_l2nx_offline_sessions_hwid_ended">
+            <column name="hwid"/>
+            <column name="ended_at"/>
+        </createIndex>
+        <createIndex tableName="l2nx_offline_sessions" indexName="idx_l2nx_offline_sessions_master_ended">
+            <column name="master_account_id"/>
+            <column name="ended_at"/>
+        </createIndex>
+        <createIndex tableName="l2nx_offline_sessions" indexName="idx_l2nx_offline_sessions_character_started">
+            <column name="character_id"/>
+            <column name="started_at"/>
+        </createIndex>
+        <createIndex tableName="l2nx_offline_sessions" indexName="idx_l2nx_offline_sessions_ended">
+            <column name="ended_at"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

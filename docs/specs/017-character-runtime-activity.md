@@ -53,16 +53,16 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
   written by the runtime-sync upsert (not timestamp-gated, newest tick wins); the read API forwards the JSON raw. The
   platform never models per-activity keys.
 - [todo] R11. A new entity **`characteractivityusage`** MUST ship on the runtime channel and on db-sync. One row per
-  `(charId, type, key)`:
+  `(characterId, type, key)`:
 
   | Field           | Type                        | Notes                                                                                                                    |
   | --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-  | `charId`        | `int`                       | Character                                                                                                                |
+  | `characterId`   | `int`                       | Character                                                                                                                |
   | `type`          | `ActivityType`              | Closed enum, constant name on the wire (`UPPER_SNAKE_CASE`); see below                                                   |
   | `key`           | `String?`                   | Refinement inside the type, e.g. an instance template id; `null` when the type has no sub-identity                       |
   | `subtype`       | `String?`                   | Further sub-kind of the activity                                                                                         |
   | `activeSince`   | `Instant?`                  | `null` = the activity is not running now; otherwise the moment the current run started                                   |
-  | `remaining`     | `long`                      | What is left in `unit`s until the limit                                                                                  |
+  | `remaining`     | `long?`                     | What is left in `unit`s until the limit; `null` when `limit` is `null`                                                   |
   | `metadata`      | `Map<String,String>?`       | Open map                                                                                                                 |
   | `unit`          | `MS` / `COUNT`              | What `used`, `limit` and `remaining` are measured in                                                                     |
   | `used`          | `long`                      | Consumed so far in the current period                                                                                    |
@@ -71,10 +71,10 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
   | `steps`         | `List<{after, multiplier}>` | Tiers: after `after` of use the effect (e.g. catch chance) is scaled by `multiplier`; empty = no tiers                   |
   | `updatedAt`     | `Instant`                   | When the host last updated the row                                                                                       |
 
-  `ActivityType` (api, closed): `FISHING`, `READING`, `AUTOFARMING`, `AUTOMACRO`, `TRADE`, `OFFLINE_TRADE`,
+  `ActivityType` (api, closed): `FISHING`, `READING`, `AUTOFARMING`, `AUTOMACRO`, `PRIVATE_STORE`, `OFFLINE_PRIVATE_STORE`,
   `OFFLINE_FISHING`. Hosts cannot invent tokens; a new activity is an api release first, then the platform enum and
   CHECK, then the host. The same enum types the presence `activity` field ([`013`](013-character-core-extension.md)).
-  An app private store and a `.offline` store both use `OFFLINE_TRADE`; the presence `source` tells them apart.
+  An app private store and a `.offline` store both use `OFFLINE_PRIVATE_STORE`; the presence `source` tells them apart.
 
   Fishing rows: the `FISHING` row carries `used` / `limit` / `steps` / `resetSchedule` shared by live and offline
   fishing, and `activeSince` while any fishing runs. The `OFFLINE_FISHING` row carries only `activeSince` of an app
@@ -106,7 +106,7 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
   merge two sources by freshness: the runtime channel says what is running now (`activeSince`); a runtime tombstone
   clears only `activeSince`; db-sync supplies the spend of a character that is not in the world.
 - [todo] R15. `ActivityType` MUST contain `OFFLINE_FISHING` (activity of an app-session fisher,
-  [`038-app-offline-sessions`](038-app-offline-sessions.md)) next to `OFFLINE_TRADE`. `OFFLINE_TRADE` is also the
+  [`038-app-offline-sessions`](038-app-offline-sessions.md)) next to `OFFLINE_PRIVATE_STORE`. `OFFLINE_PRIVATE_STORE` is also the
   activity of an app private store: the presence `source` tells it apart from a `.offline` store, and the platform's
   offline-store place check works unchanged.
 
@@ -154,7 +154,7 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
 - [resolved: two independent fields, not one unified "state".]
 - [resolved: activity and usage are one entity, `characteractivityusage`, not a second parallel list.]
 - [resolved: `type` is the closed `UPPER_SNAKE_CASE` enum `ActivityType`; no lower_snake on the wire.]
-- [ ] [NEEDS CLARIFICATION: Java package of the usage entity and whether it is one DTO for runtime and db-sync or two]
+- [resolved: one DTO, `CharacterActivityUsagesDto` in `kafka.sync.runtime.characteractivityusage` (entity name `characteractivityusage`), one row per character with the COMPLETE set of its usage rows; it rides the existing character topics of the db and runtime channels, routed by entity name.]
 - [resolved: `steps[].after` is measured in the row's `unit`.]
 - [resolved: `remaining` is `limit - used`, floored at zero, when `limit` is set; `null` when `limit` is `null`.]
 

@@ -11,6 +11,7 @@ import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStatus;
 import app.l2nx.gs.adapter.api.spi.*;
 import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
 import app.l2nx.gs.adapter.api.spi.capability.HostExecutor;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
 import app.l2nx.gs.commons.UUIDv7;
@@ -59,6 +60,7 @@ public final class CommandsConsumer {
     private final NxEvents events;
     private final Executor ioExecutor;
     private final NxSync sync;
+    private final NxAppSessions appSessions;
     private final CommandTypeRegistry registry;
     private final DeferredReplies deferredReplies;
     private final Consumer<byte[], byte[]> kafkaConsumer;
@@ -88,6 +90,7 @@ public final class CommandsConsumer {
             NxEvents events,
             Executor ioExecutor,
             NxSync sync,
+            NxAppSessions appSessions,
             CommandTypeRegistry registry,
             DeferredReplies deferredReplies,
             Consumer<byte[], byte[]> kafkaConsumer,
@@ -101,6 +104,7 @@ public final class CommandsConsumer {
         this.events = events;
         this.ioExecutor = ioExecutor;
         this.sync = sync;
+        this.appSessions = appSessions;
         this.registry = registry;
         this.deferredReplies = deferredReplies;
         this.kafkaConsumer = kafkaConsumer;
@@ -333,6 +337,7 @@ public final class CommandsConsumer {
                 events,
                 ioExecutor,
                 sync,
+                appSessions,
                 deferredReplies,
                 replyTypeBytes,
                 this::sendReply);

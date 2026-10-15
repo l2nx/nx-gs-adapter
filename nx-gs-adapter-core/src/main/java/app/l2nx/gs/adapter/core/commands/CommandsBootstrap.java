@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.core.commands;
 import app.l2nx.gs.adapter.api.rest.KafkaCredentials;
 import app.l2nx.gs.adapter.api.rest.MessagingTopics;
 import app.l2nx.gs.adapter.api.spi.capability.HostExecutor;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.capability.NxCommands;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
@@ -46,6 +47,7 @@ public final class CommandsBootstrap {
             Executor ioExecutor,
             NxEvents events,
             NxSync sync,
+            NxAppSessions appSessions,
             DeferredReplies deferredReplies,
             CommandsConsumer.ReplySender replySender,
             @Nullable CommandsConfig config) {
@@ -68,6 +70,7 @@ public final class CommandsBootstrap {
                 ioExecutor,
                 events,
                 sync,
+                appSessions,
                 deferredReplies,
                 replySender,
                 config,
@@ -90,6 +93,7 @@ public final class CommandsBootstrap {
             Executor ioExecutor,
             NxEvents events,
             NxSync sync,
+            NxAppSessions appSessions,
             DeferredReplies deferredReplies,
             CommandsConsumer.ReplySender replySender,
             @Nullable CommandsConfig config) {
@@ -105,6 +109,7 @@ public final class CommandsBootstrap {
                 ioExecutor,
                 events,
                 sync,
+                appSessions,
                 deferredReplies,
                 replySender,
                 config,
@@ -122,6 +127,7 @@ public final class CommandsBootstrap {
             Executor ioExecutor,
             NxEvents events,
             NxSync sync,
+            NxAppSessions appSessions,
             DeferredReplies deferredReplies,
             CommandsConsumer.ReplySender replySender,
             @Nullable CommandsConfig config,
@@ -165,6 +171,7 @@ public final class CommandsBootstrap {
                 events,
                 ioExecutor,
                 sync,
+                appSessions,
                 registry,
                 deferredReplies,
                 kafkaConsumer,

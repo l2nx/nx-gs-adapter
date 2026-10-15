@@ -1,6 +1,7 @@
 package app.l2nx.gs.adapter.api.spi;
 
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.capability.NxCommands;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxGameData;
@@ -13,7 +14,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Handshake identity plus capability handles passed to {@link AdapterModule#onConnect}.
- * Capability handles ({@code events}, {@code commands}, {@code io}, {@code sync}, {@code gameData}) are
+ * Capability handles ({@code events}, {@code commands}, {@code io}, {@code sync}, {@code gameData},
+ * {@code appSessions}) are
  * excluded from equals/hashCode/toString: contexts with the same identity bits are equal.
  */
 public final class ConnectContext {
@@ -30,6 +32,7 @@ public final class ConnectContext {
     private final Executor io;
     private final NxSync sync;
     private final NxGameData gameData;
+    private final NxAppSessions appSessions;
 
     public ConnectContext(
             UUID tenantId,
@@ -43,20 +46,22 @@ public final class ConnectContext {
             @Nullable NxCommands commands,
             @Nullable Executor io,
             @Nullable NxSync sync,
-            @Nullable NxGameData gameData) {
+            @Nullable NxGameData gameData,
+            @Nullable NxAppSessions appSessions) {
         this.tenantId = tenantId;
         this.tenantSlug = tenantSlug;
         this.serverId = serverId;
         this.serverSlug = serverSlug;
         this.serverName = serverName;
         this.adapterVersion = adapterVersion;
-        this.syncTopics = syncTopics == null ? new SyncTopics(null, null, null) : syncTopics;
+        this.syncTopics = syncTopics == null ? new SyncTopics(null, null, null, null) : syncTopics;
         this.events = events == null ? NoOpEvents.INSTANCE : events;
         this.commands = commands == null ? NoOpCommands.INSTANCE : commands;
         // direct-run fallback; production injects a bounded pool
         this.io = io == null ? DirectExecutor.INSTANCE : io;
         this.sync = sync == null ? NoOpSync.INSTANCE : sync;
         this.gameData = gameData == null ? NoOpGameData.INSTANCE : gameData;
+        this.appSessions = appSessions == null ? NoOpAppSessions.INSTANCE : appSessions;
     }
 
     public UUID getTenantId() {
@@ -119,6 +124,11 @@ public final class ConnectContext {
         return gameData;
     }
 
+    /** Never null: a no-op when not wired. Same instance as {@code NxAdapter.appSessions()}. */
+    public NxAppSessions appSessions() {
+        return appSessions;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .tenantId(tenantId)
@@ -132,7 +142,8 @@ public final class ConnectContext {
                 .commands(commands)
                 .io(io)
                 .sync(sync)
-                .gameData(gameData);
+                .gameData(gameData)
+                .appSessions(appSessions);
     }
 
     public static Builder builder() {
@@ -182,6 +193,7 @@ public final class ConnectContext {
         private @Nullable Executor io;
         private @Nullable NxSync sync;
         private @Nullable NxGameData gameData;
+        private @Nullable NxAppSessions appSessions;
 
         public Builder tenantId(UUID tenantId) {
             this.tenantId = tenantId;
@@ -243,6 +255,11 @@ public final class ConnectContext {
             return this;
         }
 
+        public Builder appSessions(@Nullable NxAppSessions appSessions) {
+            this.appSessions = appSessions;
+            return this;
+        }
+
         public ConnectContext build() {
             return new ConnectContext(
                     tenantId,
@@ -256,7 +273,8 @@ public final class ConnectContext {
                     commands,
                     io,
                     sync,
-                    gameData);
+                    gameData,
+                    appSessions);
         }
     }
 }

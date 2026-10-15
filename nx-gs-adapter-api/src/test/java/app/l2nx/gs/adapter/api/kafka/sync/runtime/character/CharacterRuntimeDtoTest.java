@@ -5,13 +5,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import app.l2nx.gs.adapter.api.domain.character.clazz.CharacterClass;
 import app.l2nx.gs.adapter.api.domain.skill.SkillEnchant;
 import app.l2nx.gs.adapter.api.domain.skill.effect.SkillEffectCategory;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.Activity;
 import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.CharacterEffect;
 import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.CharacterEffectOffline;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.WellKnownActivities;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.WellKnownActivityMetadata;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
@@ -29,13 +25,6 @@ class CharacterRuntimeDtoTest {
                 .category(SkillEffectCategory.BUFF)
                 .remainingSec(1180)
                 .offline(CharacterEffectOffline.FROZEN)
-                .build();
-    }
-
-    private static Activity fishing() {
-        return Activity.builder()
-                .type(WellKnownActivities.FISHING)
-                .metadata(Collections.singletonMap(WellKnownActivityMetadata.ELAPSED, "PT30M20S"))
                 .build();
     }
 
@@ -98,7 +87,6 @@ class CharacterRuntimeDtoTest {
                 76,
                 4_500_000_000L,
                 12_345L,
-                Collections.singletonList(fishing()),
                 80,
                 100,
                 12,
@@ -109,21 +97,6 @@ class CharacterRuntimeDtoTest {
                 24);
 
         assertEquals(original, original.toBuilder().build());
-    }
-
-    @Test
-    void builder_shouldCarryActivityFields() {
-        Activity activity = fishing();
-        CharacterRuntimeDto dto = CharacterRuntimeDto.builder()
-                .id(42L)
-                .aiStatus("idle")
-                .activities(Collections.singletonList(activity))
-                .build();
-
-        assertEquals("idle", dto.getAiStatus());
-        assertEquals(Collections.singletonList(activity), dto.getActivities());
-        assertEquals("fishing", dto.getActivities().get(0).getType());
-        assertEquals("PT30M20S", dto.getActivities().get(0).getMetadata().get(WellKnownActivityMetadata.ELAPSED));
     }
 
     @Test
@@ -140,9 +113,6 @@ class CharacterRuntimeDtoTest {
                 .id(42L)
                 .online(Boolean.FALSE)
                 .curHp(3000)
-                .activities(Collections.singletonList(Activity.builder()
-                        .type(WellKnownActivities.OFFLINE_TRADE)
-                        .build()))
                 .build();
 
         assertTrue(trader.carriesState());
@@ -189,12 +159,6 @@ class CharacterRuntimeDtoTest {
                 Arguments.of("exp", CharacterRuntimeDto.builder().id(1L).exp(1L).build()),
                 Arguments.of("sp", CharacterRuntimeDto.builder().id(1L).sp(1L).build()),
                 Arguments.of(
-                        "activities",
-                        CharacterRuntimeDto.builder()
-                                .id(1L)
-                                .activities(Collections.singletonList(fishing()))
-                                .build()),
-                Arguments.of(
                         "curInventorySlots",
                         CharacterRuntimeDto.builder()
                                 .id(1L)
@@ -233,64 +197,10 @@ class CharacterRuntimeDtoTest {
     }
 
     @Test
-    void activities_shouldCarryMultipleEntries() {
-        Activity autofarming = Activity.builder()
-                .type(WellKnownActivities.AUTOFARMING)
-                .metadata(Collections.singletonMap(WellKnownActivityMetadata.REMAINING, "PT1H"))
-                .build();
-        CharacterRuntimeDto dto = CharacterRuntimeDto.builder()
-                .id(42L)
-                .activities(Arrays.asList(fishing(), autofarming))
-                .build();
-
-        assertEquals(2, dto.getActivities().size());
-        assertEquals("fishing", dto.getActivities().get(0).getType());
-        assertEquals("autofarming", dto.getActivities().get(1).getType());
-    }
-
-    @Test
-    void activities_shouldBeUnmodifiableAndDefensivelyCopied() {
-        List<Activity> source = new ArrayList<>();
-        source.add(fishing());
-        CharacterRuntimeDto dto =
-                CharacterRuntimeDto.builder().id(1L).activities(source).build();
-
-        source.clear();
-        assertEquals(1, dto.getActivities().size());
-        assertThrows(
-                UnsupportedOperationException.class, () -> dto.getActivities().add(fishing()));
-    }
-
-    @Test
-    void activityFields_shouldBeNullByDefault() {
+    void aiStatus_shouldBeNullByDefault() {
         CharacterRuntimeDto dto = CharacterRuntimeDto.builder().id(1L).build();
 
         assertNull(dto.getAiStatus());
-        assertNull(dto.getActivities());
-    }
-
-    @Test
-    void activityFields_shouldBeIndependentInEquals() {
-        CharacterRuntimeDto fishingIdle = CharacterRuntimeDto.builder()
-                .id(1L)
-                .aiStatus("idle")
-                .activities(Collections.singletonList(fishing()))
-                .build();
-        CharacterRuntimeDto plainIdle =
-                CharacterRuntimeDto.builder().id(1L).aiStatus("idle").build();
-
-        assertNotEquals(fishingIdle, plainIdle);
-    }
-
-    @Test
-    void toBuilder_shouldRoundtripActivityFields() {
-        CharacterRuntimeDto original = CharacterRuntimeDto.builder()
-                .id(9L)
-                .aiStatus("cast")
-                .activities(Collections.singletonList(fishing()))
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
     }
 
     @Test
@@ -298,7 +208,7 @@ class CharacterRuntimeDtoTest {
         CharacterRuntimeDto fromBuilder = CharacterRuntimeDto.builder().id(7L).build();
         CharacterRuntimeDto fromCtor = new CharacterRuntimeDto(
                 7L, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
 
         assertEquals(fromCtor, fromBuilder);
         assertEquals(fromCtor.hashCode(), fromBuilder.hashCode());

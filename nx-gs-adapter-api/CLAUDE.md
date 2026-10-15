@@ -21,17 +21,18 @@ provider SPIs.
 
 Root package `app.l2nx.gs.adapter.api`.
 
-| package                       | what lives there                                                                                                                                              | design     |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `rest`                        | `/connect` request/response, Kafka credentials, `SyncTopics`, `MessagingTopics`                                                                               | 001        |
-| `kafka`                       | `NxHeaders` — the wire-level header contract                                                                                                                  | 008        |
-| `kafka.sync.db.<entity>`      | CDC per-entity DTOs                                                                                                                                           | 003, 005   |
-| `kafka.sync.gd.<entity>`      | static game-data catalog DTOs, payload of `GameDataSyncEvent<T>`                                                                                              | 030        |
-| `kafka.sync.runtime.<entity>` | volatile runtime-state DTOs                                                                                                                                   | 006        |
-| `kafka.events.<family>`       | outbound discrete-fact / snapshot event DTOs, grouped by family                                                                                               | per family |
-| `kafka.commands.<group>`      | inbound command DTOs; the package root holds `NxCommand`, `CommandResult`, `CommandStatus` (+ nested `Tier`), `CommandProblem` and the `OwnerVerified` marker | 009        |
-| `kafka.ops`                   | `HeartbeatEvent`; its stats and state payloads in `kafka.ops.model`                                                                                           | 001        |
-| `spi`                         | `AdapterModule`, the two contexts, package-private `NoOp*`; sub-packages `provider`, `model`, `capability`                                                    | 002, 034   |
+| package                        | what lives there                                                                                                                                              | design     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `rest`                         | `/connect` request/response, Kafka credentials, `SyncTopics`, `MessagingTopics`                                                                               | 001        |
+| `kafka`                        | `NxHeaders` — the wire-level header contract                                                                                                                  | 008        |
+| `kafka.sync.db.<entity>`       | CDC per-entity DTOs                                                                                                                                           | 003, 005   |
+| `kafka.sync.gd.<entity>`       | static game-data catalog DTOs, payload of `GameDataSyncEvent<T>`                                                                                              | 030        |
+| `kafka.sync.runtime.<entity>`  | volatile runtime-state DTOs                                                                                                                                   | 006        |
+| `kafka.sync.settings.<entity>` | host settings snapshots, payload of `SettingsSyncEvent<T>` (root of `kafka.sync.settings`)                                                                    | 038        |
+| `kafka.events.<family>`        | outbound discrete-fact / snapshot event DTOs, grouped by family                                                                                               | per family |
+| `kafka.commands.<group>`       | inbound command DTOs; the package root holds `NxCommand`, `CommandResult`, `CommandStatus` (+ nested `Tier`), `CommandProblem` and the `OwnerVerified` marker | 009        |
+| `kafka.ops`                    | `HeartbeatEvent`; its stats and state payloads in `kafka.ops.model`                                                                                           | 001        |
+| `spi`                          | `AdapterModule`, the two contexts, package-private `NoOp*`; sub-packages `provider`, `model`, `capability`                                                    | 002, 034   |
 
 Current entity / family / group names (the directory listing is authoritative — check it before
 assuming):
@@ -39,13 +40,15 @@ assuming):
 - **db sync**: `alliance`, `announcement`, `ban`, `character`, `clan`, `item`, `rating`
 - **gd sync**: `armorsettemplate`, `classtemplate`, `experiencelevel`, `gearscore`, `instancetemplate`,
   `itemtemplate`, `npctemplate`, `recipetemplate`, `skill`, `soulcrystaltemplate`
-- **runtime sync**: `character`
+- **runtime sync**: `character`, `characteractivityusage` (a per-character usage pack, also rides the db channel,
+  routed by entity name)
+- **settings sync**: `appsettings`
 - **events**: `account`, `castle`, `character`, `characterlog`, `chat`, `gameevents`,
   `mail`, `olympiad`, `premiumpurchase`, `privatestore`, `privatetrade`, `raid`, `schedule`,
-  `serveronline`, `sync`; `push` — facts published by platform services (not the host) to
+  `server.online` (family key `serveronline`), `sync`; `push` — facts published by platform services (not the host) to
   `<tenant>.push.events` for nx-social pushes
-- **commands**: `announcement`, `ban`, `captcha`, `character`, `gd`, `item`, `mail`, `privatestore`,
-  `sync`, `telegram`
+- **commands**: `announcement`, `ban`, `captcha`, `character`, `gd`, `item`,
+  `mail`, `offline.fishing`, `privatestore`, `session` (shared app-session refusal vocabulary), `sync`, `telegram`
 
 The command group is a code-organization bucket only — the commands topic stays single.
 
@@ -63,13 +66,18 @@ in its root and splits effect / condition / learn / produced types into sub-pack
   `PrimarySource`, `ChildSource`, `ParentRef`), `RuntimeStateProvider` (+ `RuntimeEntityMapping`,
   `RuntimeRow`), and the gd catalog providers (`ItemTemplateProvider`, `SkillProvider`, …, plus the
   singleton `GearScoreRulesetProvider` and the optional `GameDataReadinessProvider` — absent means
-  "always ready", see spec 030).
+  "always ready", see spec 030), and `OfflineSessionHost` (+ `OfflineSession`, `OfflineSessionPlacement`,
+  `OfflineSessionSettings`) — the game side of app sessions; none disables the engine, two fail it (spec 038).
 - **Tier-3** `JdbcConnectionSource` (`spi.provider`) — how a host hands the adapter a pooled
-  connection.
+  connection. Read-only is the consumer's call after every borrow (db-sync reads, the migrator and the
+  adapter's own stores write), so a provider must not force it.
+- **`SchemaMigrator`** (`spi.provider`, + checked `SchemaMigrationException`) — migrates the adapter-owned
+  `l2nx_*` tables; implemented by the adapter's `nx-gs-db-migrator-liquibase5`, not by the host (spec 037).
 - **Capabilities** (`spi.capability`) handed to modules through `ConnectContext` / `CommandContext`:
   `NxEvents`, `NxCommands` (+ `CommandHandler`, `HostExecutor`, `DeferredReply`), `NxSync`,
-  `NxGameData`. Each ships a `NoOp*`
-  fallback so a context wired without that runtime never returns null.
+  `NxGameData`, `NxAppSessions` (+ `AppSessionStartRequest`, `AppSessionStartOutcome`, `ClientLoginOutcome` in
+  `spi.model`; also reachable as the static `NxAdapter.appSessions()` for host code outside a module). Each ships a
+  `NoOp*` fallback so a context wired without that runtime never returns null.
 
 They all live here so a host provider depends on the contracts artifact alone.
 
@@ -90,6 +98,30 @@ They all live here so a host provider depends on the contracts artifact alone.
 - **`SyncEvent` `DELETED` carries `payload=null`, and that is not a Kafka tombstone.** Topics use
   bounded retention, not log compaction, so consumers MUST handle the `DELETED` op explicitly rather
   than relying on the null-value tombstone protocol.
+- **Closed vocabularies are enums, constant name on the wire.** `ActivityType` (`domain.character`),
+  `SessionSource`, `LogoutReason`, `ServerOnlineBucket`, `UsageUnit`, `AppSessionRefusalReason`. A new value is an api
+  release first, then the platform enum and CHECK, then the host. A wire consumer must treat an unknown constant as
+  data it cannot place (skip with a metric), never as a reason to stop a partition.
+- **`CharacterPresenceEvent` is validated in the constructor, and Gson/Jackson may bypass it.** `source` is required;
+  `activity` exactly when `source=APP`; `resumed` only on `online=true` + APP; `logoutReason` exactly when
+  `online=false`. A consumer re-checks what it depends on. For an APP event `sessionId` is the app session id, `ip` the
+  initiator IP of the app request and `hwid` the snapshot the character carried.
+- **`characteractivityusage` is packed per character.** One row per `characterId`, payload = the COMPLETE set of that
+  character's usage rows (`CharacterActivityUsagesDto`); the platform replaces the character's rows with it, so an
+  empty list means "no rows", not "unchanged". At most one row per `(type, key)`.
+- **`ServerOnlineSnapshotEvent.buckets` keys are `ServerOnlineBucket` constant names.** Buckets are independent axes
+  and overlap; `TOTAL` and `UNIQUE` are required, nothing is derived by summing.
+- **Settings ride one topic.** `SyncTopics.settings` maps every settings entity to `<tenant>.gs.settings.sync`; the
+  consumer routes by the envelope `entityName`. Each record is the full current settings of the server.
+- **`OfflineSessionHost` is called from adapter IO threads, which block on it.** The host hops to its game thread
+  itself (inline when already there). `NxAppSessions.start` / `stop` / `updateTypeState` return futures completed on
+  the IO pool: wait on them from the consumer thread or a host thread, never from `ctx.io()`. A start never surfaces
+  SQL: every table conflict is an `AppSessionStartOutcome` status. `onClientLogin` answers `PENDING` when its bounded
+  wait runs out: the host refuses that login with "try again". New app-session types use `characterId`, never `charId`
+  (the legacy `charId` of older DTOs stays as it is on the wire).
+- **App-session command refusals** carry `reason` (an `AppSessionRefusalReason` name), plus `retryAt` (ISO-8601
+  instant) or `scope` (`AlreadyActiveScope`) where the reason defines them; the `CommandStatus` per reason is on the
+  enum.
 - **`CharacterRuntimeDto` must keep exactly ONE constructor.** It binds through implicit
   constructor-parameter names; adding an overload (even a back-compat one) makes creator detection
   ambiguous and consumers silently stop deserializing the whole channel.
@@ -114,8 +146,8 @@ They all live here so a host provider depends on the contracts artifact alone.
   aborted, no marker) rather than an empty collection. See spec 030 §2.
 - **`ConnectContext.io()` / `CommandContext.io()` (binary-breaking for external implementers).**
   `CommandContext.io()` is abstract — any external implementer (test doubles, alternate adapters)
-  MUST implement it. `ConnectContext` gained an `io` field and now has a 10-arg canonical constructor
-  with the 9-arg one preserved for positional callers. Blocking IO (JDBC, HTTP) MUST hop onto these
+  MUST implement it. `ConnectContext` has one canonical constructor that grows with every capability (`io`,
+  `appSessions`, ...): build it with the builder. Blocking IO (JDBC, HTTP) MUST hop onto these
   executors. Sanctioned exception: the db-sync resync handlers resolve cascades synchronously because
   the ack needs the counts, bounded by `ResyncRowsCommand.MAX_PKS`.
 

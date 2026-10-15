@@ -19,6 +19,7 @@ import app.l2nx.gs.adapter.api.spi.model.PrimarySource;
 import app.l2nx.gs.adapter.api.spi.model.RowFilter;
 import app.l2nx.gs.adapter.api.spi.provider.DbSchemaProvider;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
+import app.l2nx.gs.commons.spi.ServiceProviders;
 import app.l2nx.gs.db.sync.engine.*;
 import app.l2nx.gs.db.sync.engine.jdbc.SqlIdent;
 import app.l2nx.gs.db.sync.engine.persist.FileSnapshotPersistence;
@@ -131,7 +132,8 @@ public final class DbSyncModule implements AdapterModule {
         }
         if (jdbcImpls.size() > 1) {
             log.error(
-                    "Multiple JdbcConnectionSource impls on classpath: [{}]. db-sync FAILED.", classNamesOf(jdbcImpls));
+                    "Multiple JdbcConnectionSource impls on classpath: [{}]. db-sync FAILED.",
+                    ServiceProviders.classNames(jdbcImpls));
             state = STATE_FAILED;
             return;
         }
@@ -149,7 +151,9 @@ public final class DbSyncModule implements AdapterModule {
             return;
         }
         if (schemaImpls.size() > 1) {
-            log.error("Multiple DbSchemaProvider impls on classpath: [{}]. db-sync FAILED.", classNamesOf(schemaImpls));
+            log.error(
+                    "Multiple DbSchemaProvider impls on classpath: [{}]. db-sync FAILED.",
+                    ServiceProviders.classNames(schemaImpls));
             state = STATE_FAILED;
             return;
         }
@@ -669,18 +673,7 @@ public final class DbSyncModule implements AdapterModule {
     }
 
     private static <T> List<T> loadAll(Class<T> spi) {
-        ClassLoader saved = Thread.currentThread().getContextClassLoader();
-        try {
-            Thread.currentThread().setContextClassLoader(DbSyncModule.class.getClassLoader());
-            ServiceLoader<T> loader = ServiceLoader.load(spi);
-            List<T> result = new ArrayList<T>();
-            for (T item : loader) {
-                result.add(item);
-            }
-            return Collections.unmodifiableList(result);
-        } finally {
-            Thread.currentThread().setContextClassLoader(saved);
-        }
+        return ServiceProviders.loadAll(spi, DbSyncModule.class);
     }
 
     private static void sendViaNxKafka(String topic, byte[] key, Object value, Callback callback) {
@@ -711,14 +704,5 @@ public final class DbSyncModule implements AdapterModule {
                         t.getClass().getName());
             }
         }
-    }
-
-    private static <T> String classNamesOf(List<T> impls) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < impls.size(); i++) {
-            if (i > 0) sb.append(", ");
-            sb.append(impls.get(i).getClass().getName());
-        }
-        return sb.toString();
     }
 }

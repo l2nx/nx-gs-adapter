@@ -105,8 +105,19 @@ future DB-reading modules) consume the resolved `JdbcConnectionSource` transpare
     tick per entity, returned at end-of-tick); a pool sized for the
     host-game-server's own concurrency alone can deadlock the CDC engine
     when every entity is scheduled to tick in the same window.
-  - A `GRANT SELECT`-only MySQL user is still recommended as
-    defence-in-depth.
+  - **One source serves reads and the adapter's own writes.** The schema
+    migrator ([`037`](037-schema-migrations.md)) and the adapter's stores
+    (app sessions, [`038`](038-app-offline-sessions.md)) borrow from the same
+    single `JdbcConnectionSource`, make the connection writable for their own
+    transaction and hand it back in the read-only / auto-commit modes it was
+    lent with. So the database user behind it MUST be allowed to write and run
+    DDL on the adapter-owned `l2nx_*` tables (`l2nx_command_receipts`,
+    `l2nx_offline_sessions`, the migrator's `l2nx_databasechangelog` and
+    `l2nx_databasechangeloglock`) and to create new `l2nx_*` tables in that
+    schema. A `GRANT SELECT`-only user is no longer enough. Least privilege
+    stays possible: a host that wants it grants `SELECT` on its game tables and
+    write + DDL rights only on the `l2nx_*` tables (plus `CREATE` in the schema
+    for tables a future changelog adds); the adapter never writes anything else.
 
 - [done] R4. Consumers MUST close the borrowed `Connection` via `try-with-resources` (or
   equivalent finally-close) at the end of every query. Provider impls do NOT need to

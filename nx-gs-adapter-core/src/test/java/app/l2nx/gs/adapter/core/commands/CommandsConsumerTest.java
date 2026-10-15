@@ -9,6 +9,7 @@ import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.spi.HostExecutorTimeoutException;
 import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
+import app.l2nx.gs.adapter.core.appsessions.AppSessionsRuntime;
 import app.l2nx.gs.adapter.core.kafka.gson.AdapterGson;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -81,6 +82,7 @@ class CommandsConsumerTest {
                 new FakeNxEvents(),
                 Runnable::run,
                 new app.l2nx.gs.adapter.core.sync.NxSyncImpl(),
+                AppSessionsRuntime.facade(),
                 registry,
                 new DeferredReplies(CommandsConfig.DEFAULT_DEFERRED_REPLY_MAX_MS),
                 mockConsumer,

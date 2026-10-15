@@ -7,11 +7,13 @@ import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStorePurchaseEve
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.PrivateStoreSide;
 import app.l2nx.gs.adapter.api.kafka.events.raid.kill.RaidKillEvent;
-import app.l2nx.gs.adapter.api.kafka.events.serveronline.ServerOnlineSnapshotEvent;
-import app.l2nx.gs.adapter.api.kafka.events.serveronline.model.WellKnownServerOnlineBuckets;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerOnlineSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.model.ServerOnlineBucket;
 import app.l2nx.gs.commons.UUIDv7;
 import app.l2nx.gs.commons.bytes.LongBytes;
 import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +22,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class NxEventsImplTest {
+
+    private static Map<ServerOnlineBucket, Long> buckets(long total) {
+        Map<ServerOnlineBucket, Long> buckets = new EnumMap<ServerOnlineBucket, Long>(ServerOnlineBucket.class);
+        buckets.put(ServerOnlineBucket.TOTAL, total);
+        buckets.put(ServerOnlineBucket.UNIQUE, total);
+        return buckets;
+    }
 
     private EventsPublisher publisher;
 
@@ -114,7 +123,7 @@ class NxEventsImplTest {
         NxEventsImpl events = new NxEventsImpl(publisher, registry);
         ServerOnlineSnapshotEvent event = ServerOnlineSnapshotEvent.builder()
                 .eventId(UUIDv7.generate())
-                .buckets(Collections.singletonMap(WellKnownServerOnlineBuckets.TOTAL, 1808L))
+                .buckets(buckets(1808L))
                 .build();
 
         events.publish(event);
@@ -149,7 +158,7 @@ class NxEventsImplTest {
         NxEventsImpl events = new NxEventsImpl(publisher, registry);
         events.publish(ServerOnlineSnapshotEvent.builder()
                 .eventId(UUIDv7.generate())
-                .buckets(Collections.singletonMap(WellKnownServerOnlineBuckets.TOTAL, 1L))
+                .buckets(buckets(1L))
                 .build());
 
         assertEquals(0, publisher.queueDepth(), "disabled family must not enqueue an envelope");

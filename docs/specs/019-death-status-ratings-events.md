@@ -182,7 +182,7 @@ bot), operators (server-status menu section), and platform-side consumers
   information menu (`InfoMenuHandler` / `InfoMenuRenderer` hub), mirroring the
   existing Events / Bosses / Castles sections:
     - Display: 🟢/🔴 status, uptime (`now − started_at`), and current online by
-      bucket (`TOTAL` / `UNIQUE` / `OFFLINE_TRADE` / `FISHING`, plus `APP` / `OFFLINE_FISHING`).
+      bucket (`TOTAL` / `UNIQUE` / `OFFLINE_PRIVATE_STORE` / `FISHING`, plus `APP` / `OFFLINE_FISHING`).
     - Data read directly from the shared `nexus` DB via new read-only adapters:
       `gs_server_status` (status / started_at) + the existing online-bucket
       table(s) populated by `ServerOnlineIngestor`.

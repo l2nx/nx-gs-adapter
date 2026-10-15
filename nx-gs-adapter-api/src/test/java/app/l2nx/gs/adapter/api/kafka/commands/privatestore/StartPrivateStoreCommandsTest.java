@@ -8,6 +8,7 @@ import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
@@ -21,12 +22,13 @@ class StartPrivateStoreCommandsTest {
 
     private static final SellLine LINE_1 = new SellLine(1, 1L, 100L);
     private static final SellLine LINE_2 = new SellLine(2, 1L, 100L);
+    private static final UUID KEY = UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001");
 
     static Stream<Arguments> constructors() {
         Function<List<SellLine>, Object> sell =
-                lines -> new StartPrivateStoreSellCommand(1, null, lines, null, null, false, null);
+                lines -> new StartPrivateStoreSellCommand(1, null, lines, null, null, false, null, KEY, null);
         Function<List<SellLine>, Object> packageSell =
-                lines -> new StartPrivateStorePackageSellCommand(1, null, lines, null, null, false, null);
+                lines -> new StartPrivateStorePackageSellCommand(1, null, lines, null, null, false, null, KEY, null);
         return Stream.of(Arguments.of("sell", sell), Arguments.of("package-sell", packageSell));
     }
 
@@ -45,7 +47,15 @@ class StartPrivateStoreCommandsTest {
         @Test
         void constructor_shouldKeepSellerFeePercent_whenAtMax() {
             StartPrivateStoreSellCommand actual = new StartPrivateStoreSellCommand(
-                    1, null, Collections.singletonList(LINE_1), PrivateStoreFees.MAX_FEE_PERCENT, null, false, null);
+                    1,
+                    null,
+                    Collections.singletonList(LINE_1),
+                    PrivateStoreFees.MAX_FEE_PERCENT,
+                    null,
+                    false,
+                    null,
+                    KEY,
+                    null);
 
             assertEquals(Integer.valueOf(50), actual.getSellerFeePercent());
         }
@@ -57,7 +67,8 @@ class StartPrivateStoreCommandsTest {
 
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> new StartPrivateStorePackageSellCommand(1, null, lines, sellerFeePercent, null, false, null));
+                    () -> new StartPrivateStorePackageSellCommand(
+                            1, null, lines, sellerFeePercent, null, false, null, KEY, null));
         }
     }
 
@@ -80,8 +91,8 @@ class StartPrivateStoreCommandsTest {
 
         @Test
         void constructor_shouldKeepDistinctLines() {
-            StartPrivateStoreSellCommand actual =
-                    new StartPrivateStoreSellCommand(1, null, Arrays.asList(LINE_1, LINE_2), null, null, false, null);
+            StartPrivateStoreSellCommand actual = new StartPrivateStoreSellCommand(
+                    1, null, Arrays.asList(LINE_1, LINE_2), null, null, false, null, KEY, null);
 
             assertEquals(Arrays.asList(LINE_1, LINE_2), actual.getLines());
         }

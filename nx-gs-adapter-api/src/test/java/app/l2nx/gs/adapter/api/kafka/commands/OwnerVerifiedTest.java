@@ -50,9 +50,9 @@ class OwnerVerifiedTest {
         return Stream.of(
                 Arguments.of(new StopPrivateStoreCommand(1, true, null)),
                 Arguments.of(new StartPrivateStoreSellCommand(
-                        1, "t", Collections.singletonList(sell), null, null, true, null)),
+                        1, "t", Collections.singletonList(sell), null, null, true, null, UUID.randomUUID(), null)),
                 Arguments.of(new StartPrivateStorePackageSellCommand(
-                        1, "t", Collections.singletonList(sell), null, null, true, null)),
+                        1, "t", Collections.singletonList(sell), null, null, true, null, UUID.randomUUID(), null)),
                 Arguments.of(new BuyFromPrivateStoreCommand(
                         1,
                         2,

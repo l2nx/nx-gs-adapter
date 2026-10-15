@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.core.modules;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStatus;
 import app.l2nx.gs.adapter.api.spi.AdapterModule;
 import app.l2nx.gs.adapter.api.spi.ConnectContext;
+import app.l2nx.gs.commons.spi.ServiceProviders;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.util.*;
@@ -21,20 +22,8 @@ public final class ModuleRegistry {
     private final List<AdapterModule> modules = new ArrayList<AdapterModule>();
     private final Map<String, LifecycleState> states = new HashMap<String, LifecycleState>();
 
-    /** Loads on adapter-core's own classloader to avoid host-CL surprises. */
     public void discover() {
-        ClassLoader saved = Thread.currentThread().getContextClassLoader();
-        try {
-            Thread.currentThread().setContextClassLoader(ModuleRegistry.class.getClassLoader());
-            ServiceLoader<AdapterModule> loader = ServiceLoader.load(AdapterModule.class);
-            List<AdapterModule> found = new ArrayList<AdapterModule>();
-            for (AdapterModule m : loader) {
-                found.add(m);
-            }
-            installFound(found);
-        } finally {
-            Thread.currentThread().setContextClassLoader(saved);
-        }
+        installFound(new ArrayList<AdapterModule>(ServiceProviders.loadAll(AdapterModule.class, ModuleRegistry.class)));
     }
 
     void discoverFrom(List<AdapterModule> input) {

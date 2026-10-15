@@ -6,6 +6,7 @@ import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -23,6 +24,8 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
     private final @Nullable Boolean offlineAllowed;
     private final boolean ownerVerified;
     private final @Nullable Instant deadline;
+    private final @Nullable UUID idempotencyKey;
+    private final @Nullable String initiatorIp;
 
     StartPrivateStoreCommand(
             int charId,
@@ -31,7 +34,9 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
             @Nullable Integer sellerFeePercent,
             @Nullable Boolean offlineAllowed,
             boolean ownerVerified,
-            @Nullable Instant deadline) {
+            @Nullable Instant deadline,
+            UUID idempotencyKey,
+            @Nullable String initiatorIp) {
         this.charId = charId;
         this.title = title;
         PrivateStoreFees.checkPercent(sellerFeePercent, "sellerFeePercent");
@@ -40,6 +45,8 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
         this.offlineAllowed = offlineAllowed;
         this.ownerVerified = ownerVerified;
         this.deadline = deadline;
+        this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey");
+        this.initiatorIp = initiatorIp == null || initiatorIp.trim().isEmpty() ? null : initiatorIp;
     }
 
     public int getCharId() {
@@ -82,6 +89,19 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
         return deadline;
     }
 
+    /**
+     * Business identity of the start, stable across retries unlike {@code correlationId}. Gson bypasses the
+     * constructor, so a command from a platform that predates the field reads {@code null}.
+     */
+    public @Nullable UUID getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    /** IP of the app request that triggered the start, put in by the platform; {@code null} when unknown. */
+    public @Nullable String getInitiatorIp() {
+        return initiatorIp;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -93,19 +113,31 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
                 && Objects.equals(lines, that.lines)
                 && Objects.equals(sellerFeePercent, that.sellerFeePercent)
                 && Objects.equals(offlineAllowed, that.offlineAllowed)
-                && Objects.equals(deadline, that.deadline);
+                && Objects.equals(deadline, that.deadline)
+                && Objects.equals(idempotencyKey, that.idempotencyKey)
+                && Objects.equals(initiatorIp, that.initiatorIp);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                getClass(), charId, title, lines, sellerFeePercent, offlineAllowed, ownerVerified, deadline);
+                getClass(),
+                charId,
+                title,
+                lines,
+                sellerFeePercent,
+                offlineAllowed,
+                ownerVerified,
+                deadline,
+                idempotencyKey,
+                initiatorIp);
     }
 
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[charId=" + charId + ", title=" + title + ", lines=" + lines
                 + ", sellerFeePercent=" + sellerFeePercent + ", offlineAllowed=" + offlineAllowed
-                + ", ownerVerified=" + ownerVerified + ", deadline=" + deadline + "]";
+                + ", ownerVerified=" + ownerVerified + ", deadline=" + deadline + ", idempotencyKey=" + idempotencyKey
+                + ", initiatorIp=" + initiatorIp + "]";
     }
 }

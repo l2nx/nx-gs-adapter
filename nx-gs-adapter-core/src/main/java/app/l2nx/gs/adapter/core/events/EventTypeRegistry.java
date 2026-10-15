@@ -17,9 +17,9 @@ import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreSnapshotEve
 import app.l2nx.gs.adapter.api.kafka.events.privatetrade.PrivateTradeFinishedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.raid.kill.RaidKillEvent;
 import app.l2nx.gs.adapter.api.kafka.events.raid.respawn.BossRespawnSnapshotEvent;
-import app.l2nx.gs.adapter.api.kafka.events.serveronline.ServerOnlineSnapshotEvent;
-import app.l2nx.gs.adapter.api.kafka.events.serveronline.ServerStartedEvent;
-import app.l2nx.gs.adapter.api.kafka.events.serveronline.ServerStoppingEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerOnlineSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerStartedEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerStoppingEvent;
 import app.l2nx.gs.adapter.api.kafka.events.sync.ResyncCompletedEvent;
 import app.l2nx.gs.commons.bytes.LongBytes;
 import java.nio.charset.StandardCharsets;

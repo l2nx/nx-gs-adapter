@@ -7,10 +7,13 @@ import app.l2nx.gs.adapter.api.rest.KafkaCredentials;
 import app.l2nx.gs.adapter.api.rest.MessagingTopics;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.*;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.capability.NxCommands;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxGameData;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
+import app.l2nx.gs.adapter.api.spi.provider.SchemaMigrationException;
+import app.l2nx.gs.adapter.core.appsessions.AppSessionsRuntime;
 import app.l2nx.gs.adapter.core.commands.CommandsBootstrap;
 import app.l2nx.gs.adapter.core.commands.CommandsConfig;
 import app.l2nx.gs.adapter.core.commands.CommandsConsumer;
@@ -34,6 +37,7 @@ import app.l2nx.gs.adapter.core.kafka.KafkaInitializer;
 import app.l2nx.gs.adapter.core.lifecycle.AdapterVersion;
 import app.l2nx.gs.adapter.core.lifecycle.StartupBanner;
 import app.l2nx.gs.adapter.core.modules.ModuleRegistry;
+import app.l2nx.gs.adapter.core.schema.SchemaMigration;
 import app.l2nx.gs.adapter.core.sync.NxSyncImpl;
 import app.l2nx.gs.commons.concurrent.DaemonThreadFactory;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
@@ -83,6 +87,7 @@ public final class NxAdapter {
     private static volatile NxSyncImpl syncFacade;
     private static volatile NxGameDataImpl gameDataFacade;
     private static final AtomicReference<Executor> hostExecutorRef = new AtomicReference<Executor>();
+    private static volatile SchemaMigration schemaMigration = new SchemaMigration();
 
     private NxAdapter() {}
 
@@ -102,6 +107,24 @@ public final class NxAdapter {
         return STATE.get();
     }
 
+    /**
+     * App-session engine for host code outside modules and command handlers. Never null; before {@link #start()} and
+     * without an {@code OfflineSessionHost} it starts nothing and finds nothing, and a login waits for the engine boot.
+     */
+    public static NxAppSessions appSessions() {
+        return AppSessionsRuntime.facade();
+    }
+
+    /**
+     * Migrates the adapter-owned {@code l2nx_*} tables; a host reading them before {@link #start()} calls this first.
+     * Runs once per JVM: later calls return at once after a success and rethrow the first failure after one.
+     *
+     * @throws SchemaMigrationException no or several migrators or connection sources, or the migration failed
+     */
+    public static void migrateSchema() throws SchemaMigrationException {
+        schemaMigration.run();
+    }
+
     public static NxAdapter start() {
         if (!started.compareAndSet(false, true)) {
             log.warn(
@@ -117,12 +140,14 @@ public final class NxAdapter {
             config = new ConfigResolver().resolve();
         } catch (Throwable t) {
             log.error("Adapter failed to start due to config error: {}", t.getMessage(), t);
+            AppSessionsRuntime.disable("adapter config error");
             transition(AdapterState.FAILED);
             return INSTANCE;
         }
 
         if (!config.isEnabled()) {
             log.info("L2NX adapter is disabled (l2nx.enabled=false) — set l2nx.enabled=true to activate");
+            AppSessionsRuntime.disable("l2nx.enabled=false");
             transition(AdapterState.DISABLED);
             return INSTANCE;
         }
@@ -152,7 +177,23 @@ public final class NxAdapter {
         Consumer<HostConnectFlow<?>> onActive = active -> initKafka(kafkaInit, active);
         ConnectFlow flow = new ConnectFlow(
                 hostFlow, new DefaultBackoffSchedule(), scheduler, NxAdapter::handleConnectOutcome, onActive);
-        scheduler.submit(SafeRunnable.wrap(flow, log));
+        boolean gameServer = !"ls".equals(config.getHostType());
+        if (gameServer) {
+            AppSessionsRuntime.booting();
+        } else {
+            AppSessionsRuntime.disable("login server");
+        }
+        scheduler.submit(SafeRunnable.wrap(
+                () -> {
+                    if (!gameServer) {
+                        flow.run();
+                    } else if (migrateBeforeConnect()) {
+                        // Before the platform connect: a login must find the open sessions even while it is down.
+                        AppSessionsRuntime.boot(ioExecutor, config.getIoWorkers());
+                        flow.run();
+                    }
+                },
+                log));
 
         // Hook is registered last so FAILED / DISABLED paths never leave one attached.
         registerShutdownHook();
@@ -209,6 +250,7 @@ public final class NxAdapter {
             }
             moduleRegistry = null;
         }
+        AppSessionsRuntime.shutdown();
 
         // Consumer first so in-flight handlers can emit replies before the producer is torn down
         CommandsConsumer cmds = commandsConsumer;
@@ -257,6 +299,19 @@ public final class NxAdapter {
         }
 
         transition(AdapterState.CLOSED);
+    }
+
+    private static boolean migrateBeforeConnect() {
+        try {
+            schemaMigration.run();
+            return true;
+        } catch (Throwable t) {
+            // Throwable: an Error escaping here would leave app sessions BOOTING and logins waiting forever.
+            log.error("Adapter schema migration failed, adapter FAILED and no module starts: {}", t.getMessage(), t);
+            AppSessionsRuntime.disable("adapter schema migration failed");
+            transition(AdapterState.FAILED);
+            return false;
+        }
     }
 
     private static ScheduledExecutorService createConnectScheduler() {
@@ -396,6 +451,7 @@ public final class NxAdapter {
                         .io(ioExecutor)
                         .sync(sync)
                         .gameData(gameData)
+                        .appSessions(AppSessionsRuntime.facade())
                         .build();
                 registry.connect(ctx);
             } catch (Throwable t) {
@@ -493,6 +549,7 @@ public final class NxAdapter {
                     ioExecutor,
                     events,
                     sync,
+                    AppSessionsRuntime.facade(),
                     deferred,
                     replySender,
                     commandsConfig);
@@ -511,6 +568,7 @@ public final class NxAdapter {
                 ioExecutor,
                 events,
                 sync,
+                AppSessionsRuntime.facade(),
                 deferred,
                 replySender,
                 commandsConfig);
@@ -617,6 +675,10 @@ public final class NxAdapter {
         }
     }
 
+    static void setSchemaMigrationForTesting(SchemaMigration migration) {
+        schemaMigration = migration;
+    }
+
     static void setKafkaFactoryForTesting(KafkaFactory factory) {
         kafkaFactoryOverride = factory;
     }
@@ -719,6 +781,8 @@ public final class NxAdapter {
         wasActive.set(false);
         kafkaFactoryOverride = null;
         failEventsBootstrapForTesting = false;
+        schemaMigration = new SchemaMigration();
+        AppSessionsRuntime.resetForTesting();
     }
 
     static void failEventsBootstrapForTesting(boolean fail) {

@@ -1,132 +1,145 @@
-package app.l2nx.gs.adapter.api.kafka.events.serveronline;
+package app.l2nx.gs.adapter.api.kafka.events.server.online;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import app.l2nx.gs.adapter.api.kafka.events.serveronline.model.WellKnownServerOnlineBuckets;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.model.ServerOnlineBucket;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class ServerOnlineSnapshotEventTest {
 
-    @Test
-    void getBuckets_shouldReturnEmptyMap_whenBuilderOmits() {
-        ServerOnlineSnapshotEvent event =
-                ServerOnlineSnapshotEvent.builder().eventId(UUID.randomUUID()).build();
-
-        assertTrue(event.getBuckets().isEmpty());
+    private static Map<ServerOnlineBucket, Long> required(long total, long unique) {
+        Map<ServerOnlineBucket, Long> buckets = new EnumMap<ServerOnlineBucket, Long>(ServerOnlineBucket.class);
+        buckets.put(ServerOnlineBucket.TOTAL, total);
+        buckets.put(ServerOnlineBucket.UNIQUE, unique);
+        return buckets;
     }
 
-    @Test
-    void getBuckets_shouldReturnEmptyMap_whenBuilderPassesNull() {
-        ServerOnlineSnapshotEvent event = ServerOnlineSnapshotEvent.builder()
-                .eventId(UUID.randomUUID())
-                .buckets(null)
-                .build();
-
-        assertTrue(event.getBuckets().isEmpty());
+    private static ServerOnlineSnapshotEvent.Builder valid() {
+        return ServerOnlineSnapshotEvent.builder().eventId(UUID.randomUUID()).buckets(required(100L, 95L));
     }
 
-    @Test
-    void getBuckets_shouldBeUnmodifiable() {
-        Map<String, Long> source = new HashMap<String, Long>();
-        source.put(WellKnownServerOnlineBuckets.TOTAL, 100L);
+    @Nested
+    class Constructor {
 
-        ServerOnlineSnapshotEvent event = ServerOnlineSnapshotEvent.builder()
-                .eventId(UUID.randomUUID())
-                .buckets(source)
-                .build();
+        @Test
+        void constructor_shouldReject_whenBucketsOmitted() {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> ServerOnlineSnapshotEvent.builder()
+                            .eventId(UUID.randomUUID())
+                            .build());
+        }
 
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> event.getBuckets().put(WellKnownServerOnlineBuckets.UNIQUE, 99L));
+        @Test
+        void constructor_shouldReject_whenTotalMissing() {
+            Map<ServerOnlineBucket, Long> buckets = required(1L, 1L);
+            buckets.remove(ServerOnlineBucket.TOTAL);
+
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> valid().buckets(buckets).build());
+        }
+
+        @Test
+        void constructor_shouldReject_whenUniqueMissing() {
+            Map<ServerOnlineBucket, Long> buckets = required(1L, 1L);
+            buckets.remove(ServerOnlineBucket.UNIQUE);
+
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> valid().buckets(buckets).build());
+        }
+
+        @Test
+        void getBuckets_shouldBeUnmodifiable() {
+            ServerOnlineSnapshotEvent event = valid().build();
+
+            assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> event.getBuckets().put(ServerOnlineBucket.APP, 1L));
+        }
+
+        @Test
+        void constructor_shouldDefensivelyCopyBucketsMap() {
+            Map<ServerOnlineBucket, Long> source = required(100L, 95L);
+
+            ServerOnlineSnapshotEvent event = valid().buckets(source).build();
+            source.put(ServerOnlineBucket.APP, 5L);
+
+            assertEquals(2, event.getBuckets().size());
+        }
     }
 
-    @Test
-    void constructor_shouldDefensivelyCopyBucketsMap() {
-        Map<String, Long> source = new HashMap<String, Long>();
-        source.put(WellKnownServerOnlineBuckets.TOTAL, 100L);
+    @Nested
+    class Builder {
 
-        ServerOnlineSnapshotEvent event = ServerOnlineSnapshotEvent.builder()
-                .eventId(UUID.randomUUID())
-                .buckets(source)
-                .build();
+        @Test
+        void toBuilder_shouldRoundtripAllFields() {
+            Map<ServerOnlineBucket, Long> buckets = required(1808L, 1640L);
+            buckets.put(ServerOnlineBucket.OFFLINE_PRIVATE_STORE, 22L);
+            buckets.put(ServerOnlineBucket.FISHING, 15L);
+            buckets.put(ServerOnlineBucket.APP, 9L);
+            buckets.put(ServerOnlineBucket.OFFLINE_FISHING, 4L);
 
-        source.put(WellKnownServerOnlineBuckets.UNIQUE, 95L);
+            ServerOnlineSnapshotEvent original = valid().buckets(buckets).build();
 
-        assertEquals(1, event.getBuckets().size());
-        assertEquals(Long.valueOf(100L), event.getBuckets().get(WellKnownServerOnlineBuckets.TOTAL));
+            ServerOnlineSnapshotEvent copy = original.toBuilder().build();
+            assertEquals(original, copy);
+            assertNotSame(original, copy);
+        }
     }
 
-    @Test
-    void toBuilder_shouldRoundtripAllFields() {
-        Map<String, Long> buckets = new LinkedHashMap<String, Long>();
-        buckets.put(WellKnownServerOnlineBuckets.TOTAL, 1808L);
-        buckets.put(WellKnownServerOnlineBuckets.UNIQUE, 1640L);
-        buckets.put(WellKnownServerOnlineBuckets.OFFLINE_TRADE, 22L);
-        buckets.put(WellKnownServerOnlineBuckets.FISHING, 15L);
+    @Nested
+    class Equality {
 
-        ServerOnlineSnapshotEvent original = ServerOnlineSnapshotEvent.builder()
-                .eventId(UUID.randomUUID())
-                .buckets(buckets)
-                .build();
+        @Test
+        void equals_shouldDistinguishEventId() {
+            assertNotEquals(valid().build(), valid().build());
+        }
 
-        ServerOnlineSnapshotEvent copy = original.toBuilder().build();
-        assertEquals(original, copy);
-        assertNotSame(original, copy);
+        @Test
+        void equals_shouldDistinguishBucketCounts() {
+            UUID id = UUID.randomUUID();
+
+            assertNotEquals(
+                    valid().eventId(id).buckets(required(100L, 95L)).build(),
+                    valid().eventId(id).buckets(required(101L, 95L)).build());
+        }
+
+        @Test
+        void toString_shouldRenderEventIdAndBuckets() {
+            UUID id = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000000");
+
+            String s = valid().eventId(id).buckets(required(1808L, 1L)).build().toString();
+
+            assertTrue(s.contains("eventId=" + id));
+            assertTrue(s.contains("TOTAL=1808"));
+        }
     }
 
-    @Test
-    void equals_shouldDistinguishEventId() {
-        Map<String, Long> buckets = new HashMap<String, Long>();
-        buckets.put(WellKnownServerOnlineBuckets.TOTAL, 100L);
+    @Nested
+    class GsonRoundtrip {
 
-        ServerOnlineSnapshotEvent a = ServerOnlineSnapshotEvent.builder()
-                .eventId(UUID.randomUUID())
-                .buckets(buckets)
-                .build();
-        ServerOnlineSnapshotEvent b = ServerOnlineSnapshotEvent.builder()
-                .eventId(UUID.randomUUID())
-                .buckets(buckets)
-                .build();
+        @Test
+        void gson_shouldWriteEnumMapKeysAsConstantNames_andReadThemBack() {
+            Gson gson = new Gson();
+            Map<ServerOnlineBucket, Long> buckets = required(10L, 9L);
+            buckets.put(ServerOnlineBucket.OFFLINE_FISHING, 3L);
+            ServerOnlineSnapshotEvent original = valid().buckets(buckets).build();
 
-        assertNotEquals(a, b);
-    }
+            String json = gson.toJson(original);
 
-    @Test
-    void equals_shouldDistinguishBucketCounts() {
-        UUID id = UUID.randomUUID();
-        Map<String, Long> bucketsA = new HashMap<String, Long>();
-        bucketsA.put(WellKnownServerOnlineBuckets.TOTAL, 100L);
-        Map<String, Long> bucketsB = new HashMap<String, Long>();
-        bucketsB.put(WellKnownServerOnlineBuckets.TOTAL, 101L);
-
-        ServerOnlineSnapshotEvent a = ServerOnlineSnapshotEvent.builder()
-                .eventId(id)
-                .buckets(bucketsA)
-                .build();
-        ServerOnlineSnapshotEvent b = ServerOnlineSnapshotEvent.builder()
-                .eventId(id)
-                .buckets(bucketsB)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void toString_shouldRenderEventIdAndBuckets() {
-        UUID id = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000000");
-        Map<String, Long> buckets = new LinkedHashMap<String, Long>();
-        buckets.put(WellKnownServerOnlineBuckets.TOTAL, 1808L);
-
-        ServerOnlineSnapshotEvent event =
-                ServerOnlineSnapshotEvent.builder().eventId(id).buckets(buckets).build();
-
-        String s = event.toString();
-        assertTrue(s.contains("eventId=" + id));
-        assertTrue(s.contains("total"));
-        assertTrue(s.contains("1808"));
+            JsonObject written = gson.fromJson(json, JsonObject.class).getAsJsonObject("buckets");
+            assertEquals(3, written.size());
+            assertEquals(10L, written.get("TOTAL").getAsLong());
+            assertEquals(3L, written.get("OFFLINE_FISHING").getAsLong());
+            assertEquals(original, gson.fromJson(json, ServerOnlineSnapshotEvent.class));
+        }
     }
 }

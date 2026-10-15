@@ -1,6 +1,7 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore;
 
 import java.util.Objects;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 public final class StartPrivateStoreResult {
@@ -8,14 +9,17 @@ public final class StartPrivateStoreResult {
     private final String storeType;
     private final int acceptedCount;
     private final @Nullable Boolean offline;
+    private final @Nullable UUID sessionId;
 
-    public StartPrivateStoreResult(String storeType, int acceptedCount, @Nullable Boolean offline) {
+    public StartPrivateStoreResult(
+            String storeType, int acceptedCount, @Nullable Boolean offline, @Nullable UUID sessionId) {
         if (storeType == null) {
             throw new IllegalArgumentException("storeType is required");
         }
         this.storeType = storeType;
         this.acceptedCount = acceptedCount;
         this.offline = offline;
+        this.sessionId = sessionId;
     }
 
     /** Host-defined open vocabulary (e.g. {@code "SELL"}, {@code "PACKAGE_SELL"}), not a closed enum. */
@@ -35,8 +39,17 @@ public final class StartPrivateStoreResult {
         return offline;
     }
 
+    /** App session id when the store was opened as an app session; {@code null} otherwise and from an older host. */
+    public @Nullable UUID getSessionId() {
+        return sessionId;
+    }
+
     public Builder toBuilder() {
-        return new Builder().storeType(storeType).acceptedCount(acceptedCount).offline(offline);
+        return new Builder()
+                .storeType(storeType)
+                .acceptedCount(acceptedCount)
+                .offline(offline)
+                .sessionId(sessionId);
     }
 
     public static Builder builder() {
@@ -50,25 +63,28 @@ public final class StartPrivateStoreResult {
         StartPrivateStoreResult that = (StartPrivateStoreResult) o;
         return acceptedCount == that.acceptedCount
                 && Objects.equals(offline, that.offline)
+                && Objects.equals(sessionId, that.sessionId)
                 && Objects.equals(storeType, that.storeType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(storeType, acceptedCount, offline);
+        return Objects.hash(storeType, acceptedCount, offline, sessionId);
     }
 
     @Override
     public String toString() {
         return "StartPrivateStoreResult[storeType=" + storeType
                 + ", acceptedCount=" + acceptedCount
-                + ", offline=" + offline + "]";
+                + ", offline=" + offline
+                + ", sessionId=" + sessionId + "]";
     }
 
     public static final class Builder {
         private @Nullable String storeType;
         private int acceptedCount;
         private @Nullable Boolean offline;
+        private @Nullable UUID sessionId;
 
         public Builder storeType(String storeType) {
             this.storeType = storeType;
@@ -85,8 +101,13 @@ public final class StartPrivateStoreResult {
             return this;
         }
 
+        public Builder sessionId(@Nullable UUID sessionId) {
+            this.sessionId = sessionId;
+            return this;
+        }
+
         public StartPrivateStoreResult build() {
-            return new StartPrivateStoreResult(storeType, acceptedCount, offline);
+            return new StartPrivateStoreResult(storeType, acceptedCount, offline, sessionId);
         }
     }
 }

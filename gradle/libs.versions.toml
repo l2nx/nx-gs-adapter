@@ -5,6 +5,7 @@ gson = "2.14.0"
 slf4j = "2.0.20"
 fastutil-core = "8.5.19"
 jspecify = "1.0.1"
+liquibase = "5.0.4"
 # tests
 junit = "5.14.4"
 jackson = "2.22.3"
@@ -12,6 +13,8 @@ mockito = "5.24.0"
 wiremock = "2.35.2"
 # integ tests
 testcontainers = "1.21.4"
+postgresql = "42.7.13"
+mariadb-java-client = "3.5.10"
 # formatting
 spotless = "7.2.1"
 palantir = "2.93.0"
@@ -23,6 +26,7 @@ slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 fastutil-core = { module = "it.unimi.dsi:fastutil-core", version.ref = "fastutil-core" }
 jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+liquibase-core = { module = "org.liquibase:liquibase-core", version.ref = "liquibase" }
 # tests
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
@@ -31,10 +35,14 @@ mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
 jackson-module-parameter-names = { module = "com.fasterxml.jackson.module:jackson-module-parameter-names", version.ref = "jackson" }
 wiremock = { module = "com.github.tomakehurst:wiremock-jre8", version.ref = "wiremock" }
-# integ tests (nx-gs-kafka)
+# integ tests
 testcontainers-kafka = { module = "org.testcontainers:kafka", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
 testcontainers-mysql = { module = "org.testcontainers:mysql", version.ref = "testcontainers" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
+testcontainers-mariadb = { module = "org.testcontainers:mariadb", version.ref = "testcontainers" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+mariadb-java-client = { module = "org.mariadb.jdbc:mariadb-java-client", version.ref = "mariadb-java-client" }
 mysql-connector = { module = "com.mysql:mysql-connector-j", version = "8.4.0" }
 
 [plugins]

@@ -55,19 +55,21 @@ when a feature carries companion docs). `NNN` is a zero-padded sequential id; th
 | `:nx-gs-adapter-api`       | `app.l2nx.gs.adapter.api`  | wire contracts (REST + Kafka DTOs) and the SPI tiers. Zero runtime deps.   | see `nx-gs-adapter-api/CLAUDE.md` |
 | `:nx-gs-commons`           | `app.l2nx.gs.commons`      | shared utilities for adapter modules and tenant providers                  | —                                 |
 | `:nx-gs-kafka`             | `app.l2nx.gs.kafka`        | lightweight Kafka client facade (producer/consumer, static headers)        | 008-messaging                     |
-| `:nx-gs-adapter-core`      | `app.l2nx.gs.adapter.core` | runtime: config, `/connect`, heartbeat, module discovery, events, commands | 001, 002, 008, 009, 011           |
+| `:nx-gs-adapter-core`      | `app.l2nx.gs.adapter.core` | runtime: config, `/connect`, heartbeat, module discovery, events, commands, the app-session engine (built-in module `app-sessions`) | 001, 002, 008, 009, 011, 038 |
 | `:nx-gs-db-sync-core`      | `app.l2nx.gs.db.sync`      | DB-sync module: CRC32 two-phase CDC engine over the Tier-2 schema SPI      | 003, 004, 005, 007, 012, 021      |
 | `:nx-gs-runtime-sync-core` | `app.l2nx.gs.runtime.sync` | runtime-sync module: in-memory snapshot+diff over the Tier-2 state SPI     | 006-runtime-sync                  |
 | `:nx-gs-gd-sync-core`      | `app.l2nx.gs.gd.sync`      | gd-sync module: static game-data catalog snapshots                         | 030-gamedata-sync                 |
+| `:nx-gs-db-migrations`     | `app/l2nx/gs/db/migrations` (resources) | Liquibase changelog of the adapter-owned `l2nx_*` tables; no code | 037-schema-migrations             |
+| `:nx-gs-db-migrator-liquibase5` | `app.l2nx.gs.db.migrator.liquibase5` | `SchemaMigrator` on Liquibase 5.x, Java 17; `liquibase-core` is `compileOnly`, the host brings it | 037-schema-migrations |
 | `:nx-gs-log`               | `app.l2nx.gs.log`          | internal logging facade — NOT published, bundled into the jars above       | —                                 |
 
 Every published module shadow-includes `:nx-gs-log`. Library code never imports SLF4J directly:
 the facade auto-detects it by reflection and falls back to console output.
 
 SPI tiers: Tier-1 `AdapterModule` (a module), Tier-2 the per-domain provider SPIs the host
-implements (`DbSchemaProvider`, `RuntimeStateProvider`, the gd catalog providers), Tier-3
-`JdbcConnectionSource`. All of them are declared in `:nx-gs-adapter-api` so a host provider depends
-on the contracts artifact alone.
+implements (`DbSchemaProvider`, `RuntimeStateProvider`, the gd catalog providers, `OfflineSessionHost`), Tier-3
+`JdbcConnectionSource`, plus `SchemaMigrator` (implemented by the adapter's own wrapper module, not the host). All of
+them are declared in `:nx-gs-adapter-api` so a host provider depends on the contracts artifact alone.
 
 **Planned external Tier-1 consumer.** `nx-sac-agent-adapter` (repo `nx-sac`) is planned to implement
 `AdapterModule` from outside this repository. Today the SAC packet-capture agent is started by the
@@ -105,6 +107,18 @@ Things that cost time to learn and are not visible from the code you are editing
   `<persist.dir>/.lock`; losing it puts the module in `FAILED` rather than corrupting snapshots.
 - **runtime-sync emits no tombstone on logout.** "Permanently gone" is db-sync's semantics; the
   runtime channel only carries volatile state.
+- **The adapter owns its `l2nx_*` tables.** Their DDL lives only in the `nx-gs-db-migrations` changelog: append-only
+  changesets, abstract changes and portable types, adoption guards for tables a host created before. A game-server
+  `start()` migrates on the connect thread before connecting and goes `FAILED` on error; a host reading those tables
+  in its own boot calls `NxAdapter.migrateSchema()` first (once per JVM). See 037.
+- **The app-session engine boots before the platform connect.** Right after the schema migration, on the connect thread,
+  so `NxAdapter.appSessions().onClientLogin(...)` finds a character's open session even while the platform is down;
+  presence events of that window are buffered until the `app-sessions` module connects, and the restore waits for it.
+  The engine calls `OfflineSessionHost` from IO threads and blocks on it: the host hops to its game thread itself, and
+  `onClientLogin` must not run on the thread those hops target unless they run inline. A `PENDING` login outcome means
+  the host refuses that login with "try again". The engine holds at most half of `l2nx.io.workers` at once (restore
+  batches are capped to it), and a session end the table refused is retried until it lands, the character staying busy
+  meanwhile. See 038.
 - **`SNAPSHOT_COMPLETE` is a reconcile point.** A `count=0` marker deletes every row of that entity
   on the platform, so a provider with nothing to give returns `null` (burst aborted, nothing
   reconciled) — never an empty collection. See 030-gamedata-sync §2.
@@ -126,6 +140,7 @@ Adapter-owned threads (all daemon — never block JVM exit):
 | `nx-cdc-pool-<schema>-N` | configurable | Shared CDC engine pool (db-sync, all entities)        |
 | `nx-runtime-sync-pool-N` | configurable | Shared runtime-sync engine pool (all entities)        |
 | `nx-gd-sync-scheduler`   | 0-1          | gd-sync host-readiness polling + periodic resync      |
+| `nx-app-sessions-scheduler` | 0-1       | App-session restore batches, end-by-time timers, `active_ms` flush tick (work hops to `nx-io-N`) |
 | Kafka producer I/O       | 1            | Internal to `KafkaProducer` (kafka-clients-managed)   |
 
 Pool sizing keys: `l2nx.io.workers`, `l2nx.cdc-engine.workers`, `l2nx.runtime-sync.workers` (all
@@ -145,7 +160,8 @@ namespaces are independent on purpose — `l2nx.cdc-engine.*`, `l2nx.runtime-syn
   other core-specific logic into adapter Javadoc / spec. Generalizes the proprietary-schema rule
   (Distribution & licensing) from table/column names to _logic_: we focus on L2 game logic, not a
   specific core's implementation.
-- **Java 8 source + target** — host JVMs span Java 8 to 25+. No `var`, no `Stream.toList()`, no
+- **Java 8 source + target** — host JVMs span Java 8 to 25+. Sole exception: `nx-gs-db-migrator-liquibase5` (Java 17,
+  because Liquibase 5 is); nothing else may depend on it. No `var`, no `Stream.toList()`, no
   records, no `Map.of`, no text blocks, no switch expressions, no pattern matching. Stream API +
   lambda + Optional + `try-with-resources` are fine.
 - **No Spring** — the adapter loads into a host JVM that may have its own classpath; Spring would
@@ -175,7 +191,7 @@ or column layouts.
 ## Versioning
 
 Per-module independent versioning via slash-namespaced git tags: `api/`, `commons/`, `kafka/`,
-`core/`, `db-sync/`, `runtime-sync/`, `gd-sync/` + `vX.Y.Z`; future `db-l2j/`, `dp-l2j/`, … CI parses
+`core/`, `db-sync/`, `runtime-sync/`, `gd-sync/`, `db-migrations/`, `db-migrator-liquibase5/` + `vX.Y.Z`; future `db-l2j/`, `dp-l2j/`, … CI parses
 the tag, maps the prefix to its subproject, passes `-P<subproject>.version=X.Y.Z`, and publishes
 ONLY that module — the others stay at the fallback literal in their own `build.gradle.kts`.
 `nx-gs-log` is internal-only (no tag namespace, no publication).

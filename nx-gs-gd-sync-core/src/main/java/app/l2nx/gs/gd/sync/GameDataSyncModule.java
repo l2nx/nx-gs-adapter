@@ -32,6 +32,7 @@ import app.l2nx.gs.adapter.api.spi.provider.SkillProvider;
 import app.l2nx.gs.adapter.api.spi.provider.SoulCrystalTemplateProvider;
 import app.l2nx.gs.commons.concurrent.DaemonThreadFactory;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
+import app.l2nx.gs.commons.spi.ServiceProviders;
 import app.l2nx.gs.kafka.KafkaException;
 import app.l2nx.gs.kafka.NxKafka;
 import app.l2nx.gs.log.NxLog;
@@ -211,7 +212,7 @@ public final class GameDataSyncModule implements AdapterModule {
         if (discovered.size() > 1) {
             log.error(
                     "Multiple GameDataReadinessProvider impls on classpath: [{}]. gd-sync FAILED.",
-                    classNamesOf(discovered));
+                    ServiceProviders.classNames(discovered));
             state = STATE_FAILED;
             return;
         }
@@ -517,18 +518,7 @@ public final class GameDataSyncModule implements AdapterModule {
     }
 
     private static <T> List<T> loadProviders(Class<T> spi) {
-        ClassLoader saved = Thread.currentThread().getContextClassLoader();
-        try {
-            Thread.currentThread().setContextClassLoader(GameDataSyncModule.class.getClassLoader());
-            ServiceLoader<T> loader = ServiceLoader.load(spi);
-            List<T> result = new ArrayList<T>();
-            for (T item : loader) {
-                result.add(item);
-            }
-            return Collections.unmodifiableList(result);
-        } finally {
-            Thread.currentThread().setContextClassLoader(saved);
-        }
+        return ServiceProviders.loadAll(spi, GameDataSyncModule.class);
     }
 
     private static void sendViaNxKafka(ProducerRecord<byte[], Object> record, Callback callback) {
@@ -557,15 +547,6 @@ public final class GameDataSyncModule implements AdapterModule {
         }
     }
 
-    private static <T> String classNamesOf(List<T> impls) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < impls.size(); i++) {
-            if (i > 0) sb.append(", ");
-            sb.append(impls.get(i).getClass().getName());
-        }
-        return sb.toString();
-    }
-
     static final class EntityDescriptor<P, T> {
 
         private final Class<P> spi;
@@ -588,7 +569,7 @@ public final class GameDataSyncModule implements AdapterModule {
         EntitySync<T> resolve() {
             List<P> providers = loadProviders(spi);
             if (providers.size() > 1) {
-                throw new DuplicateProviderException(spi.getSimpleName(), classNamesOf(providers));
+                throw new DuplicateProviderException(spi.getSimpleName(), ServiceProviders.classNames(providers));
             }
             if (providers.isEmpty()) {
                 return null;

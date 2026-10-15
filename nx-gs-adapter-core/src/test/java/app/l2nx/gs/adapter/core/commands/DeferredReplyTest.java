@@ -8,6 +8,7 @@ import app.l2nx.gs.adapter.api.kafka.commands.CommandStatus;
 import app.l2nx.gs.adapter.api.spi.CommandContext;
 import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
 import app.l2nx.gs.adapter.api.spi.capability.DeferredReply;
+import app.l2nx.gs.adapter.core.appsessions.AppSessionsRuntime;
 import app.l2nx.gs.adapter.core.commands.CommandsConsumerTest.CapturingReplySender;
 import app.l2nx.gs.adapter.core.commands.CommandsConsumerTest.FakeCommand;
 import app.l2nx.gs.adapter.core.commands.CommandsConsumerTest.FakeNxEvents;
@@ -50,6 +51,7 @@ class DeferredReplyTest {
                 new FakeNxEvents(),
                 Runnable::run,
                 new NxSyncImpl(),
+                AppSessionsRuntime.facade(),
                 registry,
                 deferredReplies,
                 new MockConsumer<byte[], byte[]>(OffsetResetStrategy.EARLIEST),

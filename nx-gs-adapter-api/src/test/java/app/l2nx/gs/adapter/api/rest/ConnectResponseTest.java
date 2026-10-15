@@ -107,4 +107,17 @@ class ConnectResponseTest {
                 "acme.gs.events.premiumpurchase",
                 response.getMessagingTopics().getEvents().get("premiumpurchase"));
     }
+
+    @Test
+    void syncTopics_shouldExposeSettingsNamespace_andDefaultToEmpty() {
+        SyncTopics withSettings = SyncTopics.builder()
+                .settings(Collections.singletonMap("appsettings", "acme.gs.settings.sync"))
+                .build();
+        SyncTopics without = SyncTopics.builder().build();
+
+        assertEquals("acme.gs.settings.sync", withSettings.getSettings().get("appsettings"));
+        assertTrue(without.getSettings().isEmpty());
+        assertNotEquals(withSettings, without);
+        assertEquals(withSettings, withSettings.toBuilder().build());
+    }
 }

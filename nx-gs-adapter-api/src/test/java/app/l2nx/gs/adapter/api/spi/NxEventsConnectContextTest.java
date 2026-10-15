@@ -20,7 +20,7 @@ class NxEventsConnectContextTest {
                 .serverSlug("primary")
                 .serverName("Acme")
                 .adapterVersion("0.13.0")
-                .syncTopics(new SyncTopics(null, null, null))
+                .syncTopics(new SyncTopics(null, null, null, null))
                 .build();
 
         assertNotNull(ctx.events());

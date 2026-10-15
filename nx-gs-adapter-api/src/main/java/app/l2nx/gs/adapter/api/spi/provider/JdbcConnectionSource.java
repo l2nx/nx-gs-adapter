@@ -6,12 +6,12 @@ import java.sql.SQLException;
 import java.util.Optional;
 
 /**
- * Source of read-only JDBC {@link Connection}s for DB-reading adapter modules, discovered via
- * {@link java.util.ServiceLoader}. Intended to wrap the host's existing pool, not open a second one.
+ * Source of JDBC {@link Connection}s to the host database, discovered via {@link java.util.ServiceLoader}. Intended to
+ * wrap the host's existing pool, not open a second one.
  *
- * <p>Consumers call {@link Connection#setReadOnly(boolean) setReadOnly(true)} after every borrow,
- * since the pool is host-owned. Providers may pre-set it as defense in depth, closing the connection
- * on failure.</p>
+ * <p>Read-only is the consumer's choice, set after every borrow because the pool is host-owned: db-sync calls
+ * {@link Connection#setReadOnly(boolean) setReadOnly(true)}, while the {@link SchemaMigrator} and the adapter's
+ * {@code l2nx_*} stores call {@code setReadOnly(false)}. A provider must not force read-only.</p>
  */
 public interface JdbcConnectionSource {
 

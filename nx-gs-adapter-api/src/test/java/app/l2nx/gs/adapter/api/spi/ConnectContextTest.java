@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.spi;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
+import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
 import java.util.Collections;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,16 @@ class ConnectContextTest {
         assertEquals("primary", ctx.getServerSlug());
         assertEquals("Acme Primary", ctx.getServerName());
         assertEquals("0.1.0", ctx.getAdapterVersion());
+    }
+
+    @Test
+    void appSessions_shouldDefaultToNoOp_whenBuilderOmitsIt() {
+        ConnectContext ctx = ConnectContext.builder().build();
+
+        assertFalse(ctx.appSessions().findActive(1).isPresent());
+        assertEquals(
+                ClientLoginOutcome.Status.NONE,
+                ctx.appSessions().onClientLogin(1).getStatus());
     }
 
     @Test

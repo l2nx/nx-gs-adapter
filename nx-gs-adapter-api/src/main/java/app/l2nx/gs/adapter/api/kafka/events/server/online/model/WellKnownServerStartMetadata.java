@@ -1,7 +1,7 @@
-package app.l2nx.gs.adapter.api.kafka.events.serveronline.model;
+package app.l2nx.gs.adapter.api.kafka.events.server.online.model;
 
-import app.l2nx.gs.adapter.api.kafka.events.serveronline.ServerStartedEvent;
-import app.l2nx.gs.adapter.api.kafka.events.serveronline.ServerStoppingEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerStartedEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerStoppingEvent;
 
 /**
  * Canonical keys of the {@code metadata} map of {@link ServerStartedEvent} and {@link ServerStoppingEvent}.

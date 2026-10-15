@@ -174,7 +174,9 @@ consecutiveErrors }` — populated by `cdc-engine` per cycle; surfaced through t
 
 - **Specific module implementations** (`db-sync`, `dp-sync`, `metrics`) — their own
   features. They depend on this slice for the SPI contract; they ship their own
-  `META-INF/services/app.l2nx.gs.adapter.api.spi.AdapterModule` descriptors.
+  `META-INF/services/app.l2nx.gs.adapter.api.spi.AdapterModule` descriptors. adapter-core
+  itself ships one built-in module the same way, `app-sessions`
+  ([`038`](../038-app-offline-sessions.md)), so it is discovered and sorted like any other.
 - **Sub-tier SPIs inside modules** (`DbSchemaProvider`, `JdbcConnectionSource`) — those
   are concerns of the consumer modules; this feature only delivers Tier-1.
 - **Per-module config switches** like `l2nx.modules.<name>.enabled=false`.

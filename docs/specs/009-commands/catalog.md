@@ -684,7 +684,7 @@ bait. The host decides every rule; the reply carries a reason code from the shar
 
 | Field             | Type      | Required | Notes                                                                                                                                       |
 | ----------------- | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `charId`          | `int`     | yes      | Character that goes fishing                                                                                                                 |
+| `characterId`     | `int`     | yes      | Character that goes fishing                                                                                                                 |
 | `masterAccountId` | `UUID`    | yes      | Master account of the initiator, set by the platform; used for the one-fishing limit                                                        |
 | `initiatorIp`     | `String?` | no       | IP of the app request, set by the platform; stored in the session and returned in the session event                                         |
 | `durationMs`      | `long`    | yes      | Chosen duration, positive; outside the host's minimum..maximum it is refused with `INVALID_DURATION`; a longer-than-allowed-today value yields a shorter effective plan |
@@ -716,11 +716,11 @@ reason: `NO_ROD` / `NO_BAIT` and every other state refusal are `INVALID_STATE`; 
 
 ### `StopOfflineFishingCommand`
 
-**Purpose.** End the character's running offline fishing session (end reason `STOPPED`). Stopping a character with no
+**Purpose.** End the character's running offline fishing session (end reason `APP_STOPPED`). Stopping a character with no
 running session is an idempotent edge flow, see [`offline-fishing.md`](./offline-fishing.md).
 
-**Inputs.** `charId`, `masterAccountId`, `initiatorIp`, `ownerVerified`, `deadline`, `idempotencyKey` (same meaning as on
-start; the session is addressed by `charId`).
+**Inputs.** `characterId`, `masterAccountId`, `initiatorIp`, `ownerVerified`, `deadline`, `idempotencyKey` (same meaning
+as on start; the session is addressed by `characterId`).
 
 **Result** (`StopOfflineFishingResult`)
 
@@ -750,7 +750,7 @@ window would not list is not listable here either).
 **Offline-only start.** The command opens a store only for a character that is NOT in the game. A character online with
 a client is refused with `CHARACTER_ONLINE`; a character that left the game less than N minutes ago (N from the host's
 app settings file, default 2) is refused with `RECENTLY_LOGGED_OUT` plus `retryAt`, the same rule as for offline
-fishing. There is no online start. Every store started by this command is an app `OFFLINE_TRADE` session
+fishing. There is no online start. Every store started by this command is an app `OFFLINE_PRIVATE_STORE` session
 (see [`038`](../038-app-offline-sessions.md)), so the seller fee always lives in the session's `type_state`.
 
 **Inputs**
@@ -774,7 +774,7 @@ host parses commands leniently and drops unknown fields).
 
 | Field           | Type                | Notes                                                                                                                                                                                                                                                                                                                                                                              |
 | --------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sessionId`     | `UUID`              | The app `OFFLINE_TRADE` session the store runs in; the platform writes it to its audit                                                                                                                                                                                                                                                                                             |
+| `sessionId`     | `UUID`              | The app `OFFLINE_PRIVATE_STORE` session the store runs in; the platform writes it to its audit                                                                                                                                                                                                                                                                                             |
 | `storeType`     | `String`            | Open-string store-type token the host opened (e.g. `"SELL"` / `"PACKAGE_SELL"`); host-defined vocabulary, not a closed adapter enum                                                                                                                                                                                                                                                |
 | `acceptedCount` | `int`               | Number of requested lines the host actually listed                                                                                                                                                                                                                                                                                                                                 |
 | `offline`       | `boolean`           | Always `true` for a successful start: the store is opened offline (it occupies an offline seat); there is no online start. Kept for wire compatibility                                                                                                                                                              |
@@ -855,9 +855,9 @@ is rejected with `VALIDATION_FAILED`, never clamped. Deserialization bypasses th
 (sell, package-sell, or buy). Executed by the host's private-store
 subsystem on the character's game thread.
 
-The command closes ANY private store of the player's own character: an app `OFFLINE_TRADE` session, a native `.offline`
+The command closes ANY private store of the player's own character: an app `OFFLINE_PRIVATE_STORE` session, a native `.offline`
 store or a live player's store. Only the start is offline-only. For an app session the stop closes the session (reason
-`STOPPED`) and applies the return rule (origin only if the session lasted less than the return threshold of the host's app settings, the same as for fishing; otherwise the character stays at the store spot); for a store not started from the app it just closes the store.
+`APP_STOPPED`) and applies the return rule (origin only if the session lasted less than the return threshold of the host's app settings, the same as for fishing; otherwise the character stays at the store spot); for a store not started from the app it just closes the store.
 
 **Inputs**
 
@@ -1117,7 +1117,7 @@ skew between platform and core.
 - `itemId` — per-stack object-id assigned by the host on creation.
   Unique per game-server lifetime; identifies one specific stack.
 - `charId` — character primary key in the host DB. Stable. Spelled
-  `characterId` on commands added from 2026-09 onward (`SendChatMessageCommand`),
+  `characterId` on commands added from 2026-09 onward (`SendChatMessageCommand`, the offline-fishing commands),
   per the platform naming canon; older fields keep the short form because
   renaming a released wire field breaks the rail for no functional gain.
 - All wire ids are `Long` to accommodate hosts that may use 64-bit ids;

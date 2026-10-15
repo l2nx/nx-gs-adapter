@@ -7,7 +7,7 @@ Essence game server core and connects it to the L2NX platform.
 
 - **Organization:** nexuslabsio
 - **Group:** `app.l2nx`
-- **Java:** 8 (source + target)
+- **Java:** 8 (source + target); `nx-gs-db-migrator-liquibase5` alone is Java 17 (Liquibase 5)
 - **Build:** Gradle (Kotlin DSL), multimodule, per-module versioning
 
 ## Modules
@@ -16,8 +16,10 @@ Essence game server core and connects it to the L2NX platform.
 |----------------------|-------------------------------|----------------------|------------------------------------------------------------------------------------|
 | `nx-gs-adapter-api`  | `app.l2nx:nx-gs-adapter-api`  | yes                  | Wire contracts (REST + Kafka DTOs) + Tier-1/Tier-3 SPI shared with the platform    |
 | `nx-gs-kafka`        | `app.l2nx:nx-gs-kafka`        | yes                  | Lightweight Kafka client facade for Java 8+ host JVMs                              |
-| `nx-gs-adapter-core` | `app.l2nx:nx-gs-adapter-core` | yes                  | Adapter runtime — connect, heartbeat, ServiceLoader-based module discovery         |
+| `nx-gs-adapter-core` | `app.l2nx:nx-gs-adapter-core` | yes                  | Adapter runtime — connect, heartbeat, ServiceLoader-based module discovery, app-session engine |
 | `nx-gs-db-sync-core` | `app.l2nx:nx-gs-db-sync-core` | yes                  | DB-sync `AdapterModule` — CRC32 CDC engine, Tier-2 SPI host, per-entity stats      |
+| `nx-gs-db-migrations` | `app.l2nx:nx-gs-db-migrations` | yes                 | Liquibase changelog of the adapter-owned `l2nx_*` tables (resources only)          |
+| `nx-gs-db-migrator-liquibase5` | `app.l2nx:nx-gs-db-migrator-liquibase5` | yes | `SchemaMigrator` on Liquibase 5.x (Java 17+); the host brings `liquibase-core` |
 | `nx-gs-log`          | —                             | no (shadow-included) | Internal logging facade — bundled into `nx-gs-kafka` and `nx-gs-adapter-core` jars |
 
 Future modules:
@@ -38,6 +40,8 @@ Open-core model — Apache 2.0, published to Maven Central:
 - `nx-gs-kafka` (Kafka facade)
 - `nx-gs-adapter-core` (runtime)
 - `nx-gs-db-sync-core` (DB-sync engine + Tier-2 SPI host)
+- `nx-gs-db-migrations`, `nx-gs-db-migrator-liquibase5` (schema of the adapter-owned `l2nx_*` tables; Liquibase
+  itself is not redistributed)
 - `nx-gs-db-l2j`, `nx-gs-db-lucera`, `nx-gs-dp-l2j`, `nx-gs-dp-lucera` (vanilla sync
   modules — community schemas, future)
 
@@ -57,6 +61,8 @@ Per-module independent versioning via slash-namespaced git tags:
 - `kafka/vX.Y.Z` → release `nx-gs-kafka`
 - `core/vX.Y.Z` → release `nx-gs-adapter-core`
 - `db-sync/vX.Y.Z` → release `nx-gs-db-sync-core`
+- `db-migrations/vX.Y.Z` → release `nx-gs-db-migrations`
+- `db-migrator-liquibase5/vX.Y.Z` → release `nx-gs-db-migrator-liquibase5`
 - `db-l2j/v…`, `dp-l2j/v…`, `db-lucera/v…`, `dp-lucera/v…` (future)
 
 Each module's `build.gradle.kts` declares
@@ -95,6 +101,11 @@ operator-local fallback for the bundled-Hikari pool. Creds NEVER travel through 
 platform; they live only on the operator's machine. If the host (e.g. a reference integration)
 already exposes a `JdbcConnectionSource` via `META-INF/services`, leave the `l2nx.db.*`
 keys unset — the adapter will reuse the host's existing pool.
+
+**Adapter-owned tables (game-server hosts):** the adapter keeps its state in `l2nx_*` tables of the host
+database and migrates them itself (spec 037). Put `nx-gs-db-migrator-liquibase5` and `org.liquibase:liquibase-core`
+5.x on the classpath and register a `JdbcConnectionSource`; without them a game-server adapter goes `FAILED` at
+start. A host that reads an adapter-owned table during its own boot calls `NxAdapter.migrateSchema()` first.
 
 **CDC engine tuning (`nx-gs-db-sync-core`):** the engine reads `l2nx.cdc-engine.*`
 keys from the same source chain (file-first, sysprop fallback). All have sane defaults

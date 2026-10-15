@@ -50,9 +50,11 @@ jobs:
             db-sync)      GRADLE_MODULE="nx-gs-db-sync-core" ;;
             runtime-sync) GRADLE_MODULE="nx-gs-runtime-sync-core" ;;
             gd-sync)      GRADLE_MODULE="nx-gs-gd-sync-core" ;;
+            db-migrations)          GRADLE_MODULE="nx-gs-db-migrations" ;;
+            db-migrator-liquibase5) GRADLE_MODULE="nx-gs-db-migrator-liquibase5" ;;
             *)
               echo "Unknown module prefix in tag: $MODULE"
-              echo "Supported prefixes: api, commons, kafka, core, db-sync, runtime-sync, gd-sync"
+              echo "Supported prefixes: api, commons, kafka, core, db-sync, runtime-sync, gd-sync, db-migrations, db-migrator-liquibase5"
               exit 1
               ;;
           esac

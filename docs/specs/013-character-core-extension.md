@@ -77,16 +77,17 @@ online=false}`) для каждого id, который был в `previousOnli
     с timestamp-gated UPSERT (newest `presence_at` wins). Чтение —
     тривиальный `SELECT online`.
 
-- [todo] R14. Logout-событие `CharacterPresenceEvent` (`online=false`) MUST нести причину закрытия сессии в
+- [wip] R14. Logout-событие `CharacterPresenceEvent` (`online=false`) MUST нести причину закрытия сессии в
   обязательном enum-поле `logoutReason` (см. R15). Metadata-ключ `logout_reason` и его lower_snake токены
   (`disconnect`, `offline_trade`, `server_stop`) удалены из api целиком. Для клиентской сессии значения: `LOGOUT` -
-  обычный выход сам / кик (раньше «без ключа»), `DISCONNECT` - потеря соединения, `OFFLINE_TRADE` - игрок ушёл,
+  обычный выход игрока (раньше «без ключа»), `DISCONNECT` - потеря соединения (кик сюда больше не входит: он приходит как
+  `KICKED`, бан - `BANNED`), `OFFLINE_PRIVATE_STORE` - игрок ушёл,
   персонаж остался офлайн-торговцем (сессия закрыта, торговцу новая не открывается, в том числе после рестарта),
   `SERVER_STOP` - host шлёт каждому игроку в мире при остановке сервера. Платформа строит из этого журнал сессий и
   «последний вход / выход» (`nx-gameservers/docs/specs/043-sessions/spec.md`); уведомление о выходе шлётся только на
   `DISCONNECT`.
 
-- [todo] R15. `CharacterPresenceEvent` MUST gain the fields below. Additive on the wire, but the API release that adds
+- [wip] R15. `CharacterPresenceEvent` MUST gain the fields below. Additive on the wire, but the API release that adds
   them also removes the `metadata.logout_reason` constants of `WellKnownPresenceMetadata` (the adapter keeps no
   `@Deprecated` copy; the platform and nx-social read the old form of not-yet-restarted hosts with their own legacy
   mapping until every game server of the tenant restarted on the new host). There are no separate session-end or
@@ -95,13 +96,13 @@ online=false}`) для каждого id, который был в `previousOnli
     no "null reads as `CLIENT`" in the adapter contract (only the platform maps the missing field of an old core to
     `CLIENT`, in its own legacy mapping);
   - `activity` (`ActivityType`, see [`017`](017-character-runtime-activity.md)), only with `source = APP`:
-    `OFFLINE_FISHING` or `OFFLINE_TRADE` (app private store);
+    `OFFLINE_FISHING` or `OFFLINE_PRIVATE_STORE` (app private store);
   - `sessionId` (`APP` only);
   - `resumed` flag (`true` only on the `online = true` event of a session restored after a restart, same `sessionId`);
   - `logoutReason` (`LogoutReason`, closed enum, constant name on the wire), REQUIRED on every `online = false` event,
-    a plain logout included. Client values: `LOGOUT`, `DISCONNECT`, `OFFLINE_TRADE`, `SERVER_STOP`. App-session values:
-    `TIME_UP`, `STOPPED`, `STOPPED_BEFORE_RESTORE`, `LOGIN`, `OUT_OF_BAIT`, `DAILY_LIMIT`, `INVENTORY_FULL`,
-    `SOLD_OUT`, `BANNED`, `KICKED`, `RESTORE_FAILED`.
+    a plain logout included. Client values: `LOGOUT`, `DISCONNECT` (involuntary connection loss: network drop, client crash, DDoS), `OFFLINE_PRIVATE_STORE`, `SERVER_STOP`. Common to client and app sessions: `BANNED`, `KICKED` (a client session reports a kick or a ban with them, not as `DISCONNECT`). App-only values:
+    `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL`,
+    `APP_SOLD_OUT`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`.
 
   There is no `report` field: the session report is an initial design only, not approved and not in this contract
   ([`038`](038-app-offline-sessions.md) › Session report).

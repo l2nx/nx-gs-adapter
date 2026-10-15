@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.core.commands;
 import app.l2nx.gs.adapter.api.spi.CommandContext;
 import app.l2nx.gs.adapter.api.spi.capability.DeferredReply;
 import app.l2nx.gs.adapter.api.spi.capability.HostExecutor;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
 import java.util.UUID;
@@ -20,6 +21,7 @@ final class CommandContextImpl implements CommandContext {
     private final NxEvents events;
     private final Executor io;
     private final NxSync sync;
+    private final NxAppSessions appSessions;
     private final DeferredReplies deferredReplies;
     private final byte[] replyMessageTypeBytes;
     private final DeferredReplies.Publisher publisher;
@@ -32,6 +34,7 @@ final class CommandContextImpl implements CommandContext {
             NxEvents events,
             Executor io,
             NxSync sync,
+            NxAppSessions appSessions,
             DeferredReplies deferredReplies,
             byte[] replyMessageTypeBytes,
             DeferredReplies.Publisher publisher) {
@@ -40,6 +43,7 @@ final class CommandContextImpl implements CommandContext {
         this.events = events;
         this.io = io;
         this.sync = sync;
+        this.appSessions = appSessions;
         this.deferredReplies = deferredReplies;
         this.replyMessageTypeBytes = replyMessageTypeBytes;
         this.publisher = publisher;
@@ -68,6 +72,11 @@ final class CommandContextImpl implements CommandContext {
     @Override
     public NxSync sync() {
         return sync;
+    }
+
+    @Override
+    public NxAppSessions appSessions() {
+        return appSessions;
     }
 
     @Override

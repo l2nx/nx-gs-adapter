@@ -54,10 +54,10 @@ the slice's contract from its supporting types. The same smell exists inside cor
   | `kafka.events.privatestore`    | `Offer`, `TradeLine`, `PrivateStoreSide`, `WellKnownPrivateStoreMetadata`                                                   |
   | `kafka.events.premiumpurchase` | `Payment`, `PurchaseItem`, `PurchaseService`, `WellKnownServices`                                                           |
   | `kafka.events.olympiad`        | `OlympiadGameType`, `OlympiadMatchReason`, `OlympiadMatchResult`                                                            |
-  | `kafka.events.character`       | `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`, `WellKnownPresenceMetadata`                         |
-  | `kafka.events.serveronline`    | `WellKnownServerOnlineBuckets`, `WellKnownServerStartMetadata`                                                              |
+  | `kafka.events.character`       | `LogoutReason`, `SessionSource`, `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`                     |
+  | `kafka.events.server.online`    | `ServerOnlineBucket`, `WellKnownServerStartMetadata`                                                                        |
   | `kafka.ops`                    | `ChangesSummary`, `CommandsStats`, `EntityState`, `EntityStats`, `EventsStats`, `ModuleStates`, `ModuleStatus`, `PoolStats` |
-  | `kafka.sync.runtime.character` | `Activity`, `WellKnownActivities`, `WellKnownActivityMetadata`, `WellKnownAiStatuses`                                       |
+  | `kafka.sync.runtime.character` | `CharacterEffect`, `CharacterEffectOffline`, `WellKnownAiStatuses`                                                          |
   | `kafka.sync.gd.npctemplate`    | `WellKnownNpcTypes`                                                                                                         |
   | `kafka.sync.gd.gearscore`      | `GearScoreRule`, `GearScoreRuleGroup`, `GearScoreScalingStep`, `WellKnownGearScoreEnchantProfiles`                          |
 
@@ -108,14 +108,25 @@ the slice's contract from its supporting types. The same smell exists inside cor
 
   `Skill`, `SkillLevel`, `SkillFlags`, `SkillEnchantRoute` and `GearScoreContribution` stay in
   `kafka.sync.gd.skill` (the aggregate root and single files of their kind). `domain.character`
-  keeps `CharacterPrivateStore`, `CharacterRace`, `CharacterSex` and `clazz/`.
+  keeps `ActivityType` (shared by the usage entity, the presence event and the settings),
+  `CharacterPrivateStore`, `CharacterRace`, `CharacterSex` and `clazz/`.
+
+- [done] R7. The app-session slices follow the same rule:
+
+  | Package                                         | Content                                                                                    |
+  | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
+  | `kafka.sync.runtime.characteractivityusage`     | `CharacterActivityUsagesDto` (root); `ActivityUsage`, `UsageStep`, `UsageUnit` in `model/` |
+  | `kafka.sync.settings`                           | `SettingsSyncEvent` envelope (root)                                                        |
+  | `kafka.sync.settings.appsettings`               | `AppSettings`, `AppSessionTypeSettings` (one aggregate, flat)                              |
+  | `kafka.commands.offline.fishing`                 | `Start/StopOfflineFishingCommand` and `Start/StopOfflineFishingResult`                     |
+  | `kafka.commands.session`                     | `AppSessionRefusal` (extension keys); `AppSessionRefusalReason`, `AlreadyActiveScope` in `model/` |
 
 ## Compatibility
 
 Source- and binary-breaking for every consumer that imports a moved type; wire-compatible (nothing on
-the wire references a package). Because nothing changes on the wire, the two-release `@Deprecated`
-path (root `CLAUDE.md` → "Versioning") does not apply — there is no producer/consumer deploy window,
-only a compile break. Released in one step as `api/v0.89.0`, with every module that compiles
+the wire references a package). Because nothing changes on the wire, the straddle of the root
+`CLAUDE.md` → "Versioning" (platform legacy reader) does not apply — there is no producer/consumer
+deploy window, only a compile break. Released in one step as `api/v0.89.0`, with every module that compiles
 against the api re-released in the same pass (`core/v0.38.1`, `db-sync`, `runtime-sync`, `gd-sync`),
 since their published jars reference the old packages. Each consumer bumps and fixes imports in the
 same pass; an un-bumped consumer keeps working on the old jars until it next upgrades.

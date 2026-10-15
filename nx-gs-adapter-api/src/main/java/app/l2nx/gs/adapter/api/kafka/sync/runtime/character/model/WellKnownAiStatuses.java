@@ -6,7 +6,7 @@ import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.CharacterRuntimeDto;
  * Canonical lower_snake_case values for {@link CharacterRuntimeDto#getAiStatus()}, the engine-native control
  * intention. Open vocabulary: hosts may emit other values, consumers treat unknown ones as opaque.
  *
- * <p>Orthogonal to {@link WellKnownActivities}: a fishing character is typically {@link #IDLE} here.</p>
+ * <p>Orthogonal to {@code ActivityType}: a fishing character is typically {@link #IDLE} here.</p>
  */
 public final class WellKnownAiStatuses {
 

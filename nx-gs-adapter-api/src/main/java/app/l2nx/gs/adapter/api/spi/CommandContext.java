@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.spi;
 import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
 import app.l2nx.gs.adapter.api.spi.capability.DeferredReply;
 import app.l2nx.gs.adapter.api.spi.capability.HostExecutor;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
 import java.util.UUID;
@@ -27,6 +28,11 @@ public interface CommandContext {
 
     /** Same instance as {@link ConnectContext#sync()}; never null, no-op when no module registered the entity. */
     NxSync sync();
+
+    /** Same instance as {@link ConnectContext#appSessions()}; a no-op for contexts built without it. */
+    default NxAppSessions appSessions() {
+        return NoOpAppSessions.INSTANCE;
+    }
 
     /**
      * Takes the deferred reply: the handler returns {@link DeferredReply#pending()} and completes the handle

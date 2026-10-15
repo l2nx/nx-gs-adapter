@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.shadow)
 }
 
-version = findProperty("${project.name}.version") as String? ?: "0.39.0"
+version = findProperty("${project.name}.version") as String? ?: "0.40.0"
 
 java {
     withSourcesJar()
@@ -44,6 +44,42 @@ tasks.test {
     useJUnitPlatform {
         findProperty("excludeTags")?.toString()?.let { excludeTags(it) }
     }
+}
+
+// Store tests against real databases with the real changelog. A source set of their own because Liquibase 5 and the
+// migrator are Java 17 bytecode, while main and test stay on the Java 8 release, and because the migrator's
+// ServiceLoader entry would collide with the test classpath's NoOpSchemaMigrator.
+val integrationTest: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+
+configurations[integrationTest.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
+configurations[integrationTest.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
+
+dependencies {
+    "integrationTestImplementation"(project(":nx-gs-db-migrator-liquibase5"))
+    "integrationTestImplementation"(libs.liquibase.core)
+    "integrationTestImplementation"(libs.testcontainers.junit.jupiter)
+    "integrationTestImplementation"(libs.testcontainers.postgresql)
+    "integrationTestImplementation"(libs.testcontainers.mariadb)
+    "integrationTestImplementation"(libs.testcontainers.mysql)
+    "integrationTestRuntimeOnly"(libs.postgresql)
+    "integrationTestRuntimeOnly"(libs.mariadb.java.client)
+    "integrationTestRuntimeOnly"(libs.mysql.connector)
+}
+
+tasks.named<JavaCompile>(integrationTest.compileJavaTaskName) {
+    options.release.set(17)
+}
+
+tasks.register<Test>("integrationTest") {
+    description = "Runs the Testcontainers store tests on PostgreSQL, MariaDB and MySQL."
+    group = "verification"
+    testClassesDirs = integrationTest.output.classesDirs
+    classpath = integrationTest.runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter(tasks.test)
 }
 
 // Only "missing" is silenced; other doclint categories stay active

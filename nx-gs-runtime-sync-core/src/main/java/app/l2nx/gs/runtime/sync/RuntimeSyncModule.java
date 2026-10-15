@@ -7,6 +7,7 @@ import app.l2nx.gs.adapter.api.spi.AdapterModule;
 import app.l2nx.gs.adapter.api.spi.ConnectContext;
 import app.l2nx.gs.adapter.api.spi.model.RuntimeEntityMapping;
 import app.l2nx.gs.adapter.api.spi.provider.RuntimeStateProvider;
+import app.l2nx.gs.commons.spi.ServiceProviders;
 import app.l2nx.gs.kafka.NxKafka;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
@@ -87,7 +88,7 @@ public final class RuntimeSyncModule implements AdapterModule {
         if (providers.size() > 1) {
             log.error(
                     "Multiple RuntimeStateProvider impls on classpath: [{}]. runtime-sync FAILED.",
-                    classNamesOf(providers));
+                    ServiceProviders.classNames(providers));
             state = STATE_FAILED;
             return;
         }
@@ -196,18 +197,7 @@ public final class RuntimeSyncModule implements AdapterModule {
     }
 
     private static List<RuntimeStateProvider> loadProviders() {
-        ClassLoader saved = Thread.currentThread().getContextClassLoader();
-        try {
-            Thread.currentThread().setContextClassLoader(RuntimeSyncModule.class.getClassLoader());
-            ServiceLoader<RuntimeStateProvider> loader = ServiceLoader.load(RuntimeStateProvider.class);
-            List<RuntimeStateProvider> result = new ArrayList<RuntimeStateProvider>();
-            for (RuntimeStateProvider item : loader) {
-                result.add(item);
-            }
-            return Collections.unmodifiableList(result);
-        } finally {
-            Thread.currentThread().setContextClassLoader(saved);
-        }
+        return ServiceProviders.loadAll(RuntimeStateProvider.class, RuntimeSyncModule.class);
     }
 
     private static void sendViaNxKafka(String topic, byte[] key, Object value, Callback callback) {
@@ -228,15 +218,6 @@ public final class RuntimeSyncModule implements AdapterModule {
                 log.warn("KafkaSender callback threw {}", t.getClass().getName());
             }
         }
-    }
-
-    private static String classNamesOf(List<?> impls) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < impls.size(); i++) {
-            if (i > 0) sb.append(", ");
-            sb.append(impls.get(i).getClass().getName());
-        }
-        return sb.toString();
     }
 
     String stateForTesting() {

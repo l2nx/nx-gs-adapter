@@ -143,6 +143,13 @@ it is picked up, it moves to "Done / moved into a spec".
   4.x line, so it is not built speculatively. Build it when a Java 8/11 host appears.
 - **Related:** [`037-schema-migrations`](specs/037-schema-migrations.md) R5.
 
+### 13. Configurable online snapshot cadence
+
+- **Want:** the online snapshot interval as a host configuration property instead of a constant.
+- **To decide:** whether the platform should be able to tune it per server, and the lower bound.
+- **Why:** the host builds the snapshot on a fixed delay; no operator has asked for another interval yet, so it is not built.
+- **Related:** [`011-events-online-snapshot`](specs/011-events-online-snapshot.md) R7.
+
 ## Done / moved into a spec
 
 - **`SendMailCommand` / `SendMailResult` / `ItemDeliveryError` Javadoc aligned with the receipt contract** - retry

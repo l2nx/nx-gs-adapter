@@ -1,9 +1,7 @@
 package app.l2nx.gs.adapter.api.kafka.sync.runtime.character;
 
 import app.l2nx.gs.adapter.api.domain.character.clazz.CharacterClass;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.Activity;
 import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.CharacterEffect;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.model.WellKnownActivities;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -14,8 +12,7 @@ import org.jspecify.annotations.Nullable;
  * Volatile runtime state of one character; only {@code id} is required. {@code online} null/omitted means ONLINE;
  * explicit {@code false} is a one-shot tombstone with everything else null.
  *
- * <p>An offline trader is not a tombstone: it ticks with {@code online=false} and an
- * {@link WellKnownActivities#OFFLINE_TRADE} activity.</p>
+ * <p>An offline trader is not a tombstone: it ticks with {@code online=false} and keeps its other volatile fields.</p>
  */
 public final class CharacterRuntimeDto {
 
@@ -37,7 +34,6 @@ public final class CharacterRuntimeDto {
     private final @Nullable Integer level;
     private final @Nullable Long exp;
     private final @Nullable Long sp;
-    private final @Nullable List<Activity> activities;
     private final @Nullable Integer curInventorySlots;
     private final @Nullable Integer maxInventorySlots;
     private final @Nullable Integer curQuestInventorySlots;
@@ -70,7 +66,6 @@ public final class CharacterRuntimeDto {
             @Nullable Integer level,
             @Nullable Long exp,
             @Nullable Long sp,
-            @Nullable List<Activity> activities,
             @Nullable Integer curInventorySlots,
             @Nullable Integer maxInventorySlots,
             @Nullable Integer curQuestInventorySlots,
@@ -97,7 +92,6 @@ public final class CharacterRuntimeDto {
         this.level = level;
         this.exp = exp;
         this.sp = sp;
-        this.activities = copy(activities);
         this.curInventorySlots = curInventorySlots;
         this.maxInventorySlots = maxInventorySlots;
         this.curQuestInventorySlots = curQuestInventorySlots;
@@ -137,7 +131,6 @@ public final class CharacterRuntimeDto {
                 || level != null
                 || exp != null
                 || sp != null
-                || activities != null
                 || curInventorySlots != null
                 || maxInventorySlots != null
                 || curQuestInventorySlots != null
@@ -244,11 +237,6 @@ public final class CharacterRuntimeDto {
         return maxWeight;
     }
 
-    /** Independent of {@link #getAiStatus() aiStatus}. */
-    public @Nullable List<Activity> getActivities() {
-        return activities;
-    }
-
     /**
      * Status-bar effects in bar order. Null on a state-carrying row means the host does not report effects; the consumer
      * then has none, same as an empty list.
@@ -289,7 +277,6 @@ public final class CharacterRuntimeDto {
                 .level(level)
                 .exp(exp)
                 .sp(sp)
-                .activities(activities)
                 .curInventorySlots(curInventorySlots)
                 .maxInventorySlots(maxInventorySlots)
                 .curQuestInventorySlots(curQuestInventorySlots)
@@ -327,7 +314,6 @@ public final class CharacterRuntimeDto {
                 && Objects.equals(level, that.level)
                 && Objects.equals(exp, that.exp)
                 && Objects.equals(sp, that.sp)
-                && Objects.equals(activities, that.activities)
                 && Objects.equals(curInventorySlots, that.curInventorySlots)
                 && Objects.equals(maxInventorySlots, that.maxInventorySlots)
                 && Objects.equals(curQuestInventorySlots, that.curQuestInventorySlots)
@@ -359,7 +345,6 @@ public final class CharacterRuntimeDto {
                 level,
                 exp,
                 sp,
-                activities,
                 curInventorySlots,
                 maxInventorySlots,
                 curQuestInventorySlots,
@@ -384,7 +369,6 @@ public final class CharacterRuntimeDto {
                 + ", level=" + level
                 + ", exp=" + exp
                 + ", sp=" + sp
-                + ", activities=" + activities
                 + ", curInventorySlots=" + curInventorySlots + ", maxInventorySlots=" + maxInventorySlots
                 + ", curQuestInventorySlots=" + curQuestInventorySlots
                 + ", maxQuestInventorySlots=" + maxQuestInventorySlots
@@ -412,7 +396,6 @@ public final class CharacterRuntimeDto {
         private @Nullable Integer level;
         private @Nullable Long exp;
         private @Nullable Long sp;
-        private @Nullable List<Activity> activities;
         private @Nullable Integer curInventorySlots;
         private @Nullable Integer maxInventorySlots;
         private @Nullable Integer curQuestInventorySlots;
@@ -512,11 +495,6 @@ public final class CharacterRuntimeDto {
             return this;
         }
 
-        public Builder activities(@Nullable List<Activity> activities) {
-            this.activities = activities;
-            return this;
-        }
-
         public Builder curInventorySlots(@Nullable Integer curInventorySlots) {
             this.curInventorySlots = curInventorySlots;
             return this;
@@ -577,7 +555,6 @@ public final class CharacterRuntimeDto {
                     level,
                     exp,
                     sp,
-                    activities,
                     curInventorySlots,
                     maxInventorySlots,
                     curQuestInventorySlots,
