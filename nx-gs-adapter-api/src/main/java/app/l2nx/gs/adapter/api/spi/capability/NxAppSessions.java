@@ -87,7 +87,9 @@ public interface NxAppSessions {
     Optional<OfflineSession> findActive(int characterId);
 
     /**
-     * Stores the host's per-type JSON of an open session.
+     * Stores the host's per-type JSON of an open session. Called on the thread the engine runs an
+     * {@code OfflineSessionHost} callback of the same session on, it runs inline and the returned future is already done;
+     * from a thread that callback hopped to it runs only after the callback returns, so waiting there deadlocks.
      *
      * @return {@code false} when the session is not open
      */

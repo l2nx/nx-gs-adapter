@@ -119,7 +119,8 @@ They all live here so a host provider depends on the contracts artifact alone.
   itself (inline when already there). `NxAppSessions.start` / `stop` / `updateTypeState` return futures completed on
   the IO pool: wait on them from the consumer thread or a host thread, never from `ctx.io()`. A start never surfaces
   SQL: every table conflict is an `AppSessionStartOutcome` status. `onClientLogin` answers `PENDING` when its bounded
-  wait runs out: the host refuses that login with "try again". Sessions open before a restart are restored only after
+  wait runs out: the host refuses that login with "try again". `placeInWorld` returns the type state it changed instead
+  of writing it, and `refusedForNow` makes a restore retry later. Sessions open before a restart are restored only after
   the host calls `NxAppSessions.hostReady()` once its world is loaded; a host that never calls it never gets them back.
   New app-session types use `characterId`, never `charId`
   (the legacy `charId` of older DTOs stays as it is on the wire).

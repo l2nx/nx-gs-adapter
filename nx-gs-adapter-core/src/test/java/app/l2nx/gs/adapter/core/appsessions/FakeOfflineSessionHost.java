@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /** Records every call as {@code "<method>:<sessionId>[:<flag>]"}; placement and failures are scriptable. */
@@ -18,6 +19,8 @@ final class FakeOfflineSessionHost implements OfflineSessionHost {
     final List<Boolean> returnFlags = new ArrayList<Boolean>();
     Function<OfflineSession, OfflineSessionPlacement> placement = s -> OfflineSessionPlacement.placed(s.getSpotId());
     boolean failStartAction;
+    final List<OfflineSession> startedSessions = new ArrayList<OfflineSession>();
+    Consumer<OfflineSession> onStartAction = s -> {};
     /** When set, {@code removeFromWorld} blocks until it opens (at most 10 s), like a busy game thread. */
     volatile CountDownLatch removeGate;
 
@@ -37,9 +40,11 @@ final class FakeOfflineSessionHost implements OfflineSessionHost {
     @Override
     public synchronized void startAction(OfflineSession session) {
         calls.add("startAction:" + session.getId());
+        startedSessions.add(session);
         if (failStartAction) {
             throw new IllegalStateException("simulated action failure");
         }
+        onStartAction.accept(session);
     }
 
     @Override

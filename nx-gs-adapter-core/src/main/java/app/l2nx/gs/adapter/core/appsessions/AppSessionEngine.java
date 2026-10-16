@@ -52,6 +52,7 @@ final class AppSessionEngine {
     static final long FLUSH_INTERVAL_MS = 60_000L;
     static final long LOGIN_CLOSE_TIMEOUT_MS = 15_000L;
     static final long SHUTDOWN_FLUSH_TIMEOUT_MS = 5_000L;
+    static final int RESTORE_ATTEMPTS = 5;
 
     static final Set<LogoutReason> HOST_END_REASONS = Collections.unmodifiableSet(EnumSet.of(
             LogoutReason.APP_OUT_OF_BAIT,
@@ -82,6 +83,7 @@ final class AppSessionEngine {
     private final AtomicBoolean retrying = new AtomicBoolean();
     private final ConcurrentLinkedQueue<Slot> restoreQueue = new ConcurrentLinkedQueue<Slot>();
     private final AtomicBoolean scheduled = new AtomicBoolean();
+    private final AtomicBoolean restoreBatchScheduled = new AtomicBoolean();
     private final AtomicBoolean hostReady = new AtomicBoolean();
     private final AtomicBoolean restoreBegun = new AtomicBoolean();
     private final AtomicBoolean stopped = new AtomicBoolean();
@@ -167,8 +169,19 @@ final class AppSessionEngine {
         }
         pending.sort(Comparator.comparing((Slot s) -> s.row.getStartedAt()).thenComparing(s -> s.id));
         restoreQueue.addAll(pending);
-        log.info("App sessions: restoring {} session(s)", pending.size());
-        schedule(this::restoreBatch, 0L);
+        OfflineSessionSettings settings = settings();
+        log.info(
+                "App sessions: restoring {} session(s), {} every {} ms",
+                pending.size(),
+                Math.min(settings.getRestoreBatchSize(), work.limit()),
+                settings.getRestoreBatchIntervalMs());
+        scheduleRestoreBatch(0L);
+    }
+
+    private void scheduleRestoreBatch(long delayMs) {
+        if (restoreBatchScheduled.compareAndSet(false, true) && schedule(this::restoreBatch, delayMs) == null) {
+            restoreBatchScheduled.set(false);
+        }
     }
 
     void shutdown() {
@@ -358,7 +371,7 @@ final class AppSessionEngine {
         }
         String value = typeState == null || typeState.trim().isEmpty() ? null : typeState;
         CompletableFuture<Boolean> result = new CompletableFuture<Boolean>();
-        slot.ops.execute(() -> {
+        Runnable write = () -> {
             if (slot.phase == Phase.CLOSED) {
                 result.complete(Boolean.FALSE);
                 return;
@@ -373,7 +386,12 @@ final class AppSessionEngine {
                 log.error("App sessions: storing type_state of {} failed: {}", slot.id, e.getMessage(), e);
                 result.complete(Boolean.FALSE);
             }
-        });
+        };
+        if (slot.ops.runsOnCurrentThread()) {
+            write.run();
+        } else {
+            slot.ops.execute(write);
+        }
         return result;
     }
 
@@ -450,14 +468,18 @@ final class AppSessionEngine {
                     ? AppSessionStartOutcome.unavailable("placeInWorld threw")
                     : AppSessionStartOutcome.placementRefused(placement.getRefusal(), placement.getDetail());
         }
+        // re-read: an inline updateTypeState from inside placeInWorld changed it
+        row = slot.row;
         Instant startedAt = nowSeconds();
         OfflineSession placed = row.toBuilder()
                 .spotId(placement.getSpotId())
                 .startedAt(startedAt)
+                .typeState(placement.getTypeState() != null ? placement.getTypeState() : row.getTypeState())
                 .build();
         OfflineSessionStore.PlaceResult stored;
         try {
-            stored = store.place(placed.getId(), placed.getSpotPool(), placed.getSpotId(), startedAt);
+            stored = store.place(
+                    placed.getId(), placed.getSpotPool(), placed.getSpotId(), startedAt, placement.getTypeState());
         } catch (RuntimeException e) {
             rollBack(slot, placed, true);
             return AppSessionStartOutcome.unavailable("database: " + e.getMessage());
@@ -506,6 +528,7 @@ final class AppSessionEngine {
     }
 
     private void restoreBatch() {
+        restoreBatchScheduled.set(false);
         if (stopped.get()) {
             return;
         }
@@ -515,8 +538,10 @@ final class AppSessionEngine {
         OfflineSessionSettings settings = settings();
         int batchSize = Math.min(settings.getRestoreBatchSize(), work.limit());
         int submitted = 0;
+        // a restore refused for now queues itself again and must wait for the next batch, not run in this one
+        int queued = restoreQueue.size();
         Slot next;
-        while (submitted < batchSize && (next = restoreQueue.poll()) != null) {
+        while (submitted < batchSize && queued-- > 0 && (next = restoreQueue.poll()) != null) {
             Slot slot = next;
             if (slot.phase != Phase.PENDING_RESTORE) {
                 continue;
@@ -525,7 +550,7 @@ final class AppSessionEngine {
             submitted++;
         }
         if (!restoreQueue.isEmpty()) {
-            schedule(this::restoreBatch, settings.getRestoreBatchIntervalMs());
+            scheduleRestoreBatch(settings.getRestoreBatchIntervalMs());
         }
     }
 
@@ -547,6 +572,20 @@ final class AppSessionEngine {
             return;
         }
         OfflineSessionPlacement placement = placeQuietly(row);
+        if (placement != null
+                && !placement.isPlaced()
+                && placement.isTransientRefusal()
+                && ++slot.restoreAttempts < RESTORE_ATTEMPTS) {
+            log.info(
+                    "App sessions: restore of session {} refused for now ({}), attempt {} of {}, tried again later",
+                    row.getId(),
+                    placement,
+                    slot.restoreAttempts,
+                    RESTORE_ATTEMPTS);
+            restoreQueue.add(slot);
+            scheduleRestoreBatch(settings().getRestoreBatchIntervalMs());
+            return;
+        }
         if (placement == null || !placement.isPlaced()) {
             log.warn(
                     "App sessions: restore of session {} refused by the host: {}",
@@ -555,14 +594,29 @@ final class AppSessionEngine {
             close(slot, LogoutReason.APP_RESTORE_FAILED);
             return;
         }
-        if (placement.getSpotId() != row.getSpotId()) {
-            OfflineSession moved = row.toBuilder().spotId(placement.getSpotId()).build();
+        row = slot.row;
+        String typeState = placement.getTypeState();
+        boolean typeStateChanged = typeState != null && !typeState.equals(row.getTypeState());
+        if (placement.getSpotId() != row.getSpotId() || typeStateChanged) {
+            OfflineSession moved = row.toBuilder()
+                    .spotId(placement.getSpotId())
+                    .typeState(typeStateChanged ? typeState : row.getTypeState())
+                    .build();
             slot.row = moved;
             OfflineSessionStore.PlaceResult stored;
             try {
-                stored = store.place(moved.getId(), moved.getSpotPool(), moved.getSpotId(), null);
+                stored = store.place(
+                        moved.getId(),
+                        moved.getSpotPool(),
+                        moved.getSpotId(),
+                        null,
+                        typeStateChanged ? typeState : null);
             } catch (RuntimeException e) {
-                log.error("App sessions: moving session {} to a new spot failed: {}", moved.getId(), e.getMessage(), e);
+                log.error(
+                        "App sessions: storing the placement of session {} failed: {}",
+                        moved.getId(),
+                        e.getMessage(),
+                        e);
                 stored = OfflineSessionStore.PlaceResult.NOT_OPEN;
             }
             if (stored != OfflineSessionStore.PlaceResult.PLACED) {
@@ -814,13 +868,14 @@ final class AppSessionEngine {
         }
     }
 
-    /** {@link #row} and {@link #phase} change only on {@link #ops}. */
+    /** {@link #row}, {@link #phase} and {@link #restoreAttempts} change only on {@link #ops}. */
     static final class Slot {
         final UUID id;
         final SerialExecutor ops;
         volatile OfflineSession row;
         volatile Phase phase;
         volatile @Nullable CompletableFuture<AppSessionStartOutcome> startOutcome;
+        int restoreAttempts;
 
         private long activeBaseMs;
         private long countingSinceMs = -1L;

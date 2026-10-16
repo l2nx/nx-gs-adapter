@@ -230,7 +230,38 @@ class AppSessionEngineTest {
         }
 
         @Test
-        void start_shouldStoreTheHostsSpot_whenHostPlacesOnAnotherSpot() {
+        void start_shouldStoreThePlacementsTypeStateBeforeTheAction_whenTheHostReturnsOne() {
+            host.placement = s -> OfflineSessionPlacement.placed(s.getSpotId(), "{\"rod\":1,\"seat\":3}");
+
+            OfflineSession actual = started(request().build());
+
+            assertEquals("{\"rod\":1,\"seat\":3}", store.row(actual.getId()).getTypeState());
+            assertEquals("{\"rod\":1,\"seat\":3}", host.startedSessions.get(0).getTypeState());
+            assertEquals("{\"rod\":1,\"seat\":3}", actual.getTypeState());
+        }
+
+        @Test
+        void start_shouldKeepTheRequestsTypeState_whenThePlacementReturnsNone() {
+            OfflineSession actual = started(request().build());
+
+            assertEquals("{\"rod\":1}", store.row(actual.getId()).getTypeState());
+            assertEquals("{\"rod\":1}", host.startedSessions.get(0).getTypeState());
+        }
+
+        @Test
+        void start_shouldReportRefusedForNowAsARefusal() {
+            host.placement =
+                    s -> OfflineSessionPlacement.refusedForNow(AppSessionRefusalReason.CHARACTER_ONLINE, "locked");
+
+            AppSessionStartOutcome actual = engine.start(request().build()).join();
+
+            assertEquals(Status.PLACEMENT_REFUSED, actual.getStatus());
+            assertEquals(AppSessionRefusalReason.CHARACTER_ONLINE, actual.getRefusal());
+            assertTrue(store.rows.isEmpty());
+        }
+
+        @Test
+        void start_shouldStoreHostSpot_whenHostPlacesOnAnotherSpot() {
             host.placement = s -> OfflineSessionPlacement.placed(7);
 
             OfflineSession actual = started(request().build());
@@ -518,6 +549,31 @@ class AppSessionEngineTest {
         }
 
         @Test
+        void updateTypeState_shouldRunInline_whenCalledFromInsideAHostCallbackOfTheSession() {
+            List<Boolean> done = new ArrayList<Boolean>();
+            host.onStartAction = s ->
+                    done.add(engine.updateTypeState(s.getId(), "{\"inline\":1}").isDone());
+
+            OfflineSession session = started(request().build());
+
+            assertEquals(Arrays.asList(Boolean.TRUE), done);
+            assertEquals("{\"inline\":1}", store.row(session.getId()).getTypeState());
+        }
+
+        @Test
+        void start_shouldKeepAnInlineTypeStateWrite_whenThePlacementMadeIt() {
+            host.placement = s -> {
+                engine.updateTypeState(s.getId(), "{\"fromPlace\":1}");
+                return OfflineSessionPlacement.placed(s.getSpotId());
+            };
+
+            OfflineSession session = started(request().build());
+
+            assertEquals("{\"fromPlace\":1}", store.row(session.getId()).getTypeState());
+            assertEquals("{\"fromPlace\":1}", host.startedSessions.get(0).getTypeState());
+        }
+
+        @Test
         void updateTypeState_shouldReturnFalse_whenSessionIsClosed() {
             OfflineSession session = started(request().build());
             engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
@@ -603,6 +659,85 @@ class AppSessionEngineTest {
 
             assertEquals(8, store.row(row.getId()).getSpotId());
             assertEquals(8, engine.findActive(CHAR_ID).get().getSpotId());
+        }
+
+        @Test
+        void restore_shouldStoreThePlacementsTypeState_whenTheHostChangedIt() {
+            OfflineSession row = openRow(CHAR_ID, 5, 0L).toBuilder()
+                    .typeState("{\"lots\":2}")
+                    .build();
+            host.placement = s -> OfflineSessionPlacement.placed(5, "{\"lots\":1}");
+            bootWith(row);
+
+            hostReady();
+
+            assertEquals("{\"lots\":1}", store.row(row.getId()).getTypeState());
+            assertEquals("{\"lots\":1}", host.startedSessions.get(0).getTypeState());
+        }
+
+        @Test
+        void restore_shouldTryAgainAfterTheBatchPause_whenTheHostRefusesForNow() {
+            OfflineSession row = openRow(CHAR_ID, 5, 0L);
+            List<OfflineSessionPlacement> answers = new ArrayList<OfflineSessionPlacement>(Arrays.asList(
+                    OfflineSessionPlacement.refusedForNow(AppSessionRefusalReason.CHARACTER_ONLINE, "locked"),
+                    OfflineSessionPlacement.placed(5)));
+            host.placement = s -> answers.remove(0);
+            bootWith(row);
+
+            hostReady();
+            assertTrue(store.row(row.getId()).isOpen());
+            assertTrue(events.events.isEmpty());
+
+            time.advance(host.settings.getRestoreBatchIntervalMs());
+
+            assertTrue(host.called("startAction:" + row.getId()));
+            assertTrue(events.single().isResumed());
+        }
+
+        @Test
+        void restore_shouldPutARefusedForNowSessionBehindTheOthers() {
+            host.settings = host.settings.toBuilder().restoreBatchSize(1).build();
+            OfflineSession first = openRow(1, 1, 0L);
+            OfflineSession second = openRow(2, 2, 0L).toBuilder()
+                    .startedAt(first.getStartedAt().plusSeconds(1))
+                    .build();
+            List<UUID> refusedOnce = new ArrayList<UUID>();
+            host.placement = s -> {
+                if (s.getId().equals(first.getId()) && refusedOnce.isEmpty()) {
+                    refusedOnce.add(s.getId());
+                    return OfflineSessionPlacement.refusedForNow(AppSessionRefusalReason.CHARACTER_ONLINE, null);
+                }
+                return OfflineSessionPlacement.placed(s.getSpotId());
+            };
+            bootWith(first, second);
+
+            hostReady();
+            assertTrue(events.events.isEmpty());
+            time.advance(host.settings.getRestoreBatchIntervalMs());
+            assertEquals(
+                    Arrays.asList("place:" + first.getId(), "place:" + second.getId(), "startAction:" + second.getId()),
+                    host.calls);
+            time.advance(host.settings.getRestoreBatchIntervalMs());
+
+            assertTrue(host.called("startAction:" + first.getId()));
+            assertEquals(2, events.events.size());
+        }
+
+        @Test
+        void restore_shouldCloseWithRestoreFailed_whenTheHostRefusesForNowEveryAttempt() {
+            OfflineSession row = openRow(CHAR_ID, 5, 0L);
+            host.placement = s -> OfflineSessionPlacement.refusedForNow(AppSessionRefusalReason.CHARACTER_ONLINE, null);
+            bootWith(row);
+
+            hostReady();
+            time.advance(AppSessionEngine.RESTORE_ATTEMPTS * host.settings.getRestoreBatchIntervalMs());
+
+            assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
+            int places = 0;
+            for (String call : host.calls) {
+                places += call.startsWith("place:") ? 1 : 0;
+            }
+            assertEquals(AppSessionEngine.RESTORE_ATTEMPTS, places);
         }
 
         @Test

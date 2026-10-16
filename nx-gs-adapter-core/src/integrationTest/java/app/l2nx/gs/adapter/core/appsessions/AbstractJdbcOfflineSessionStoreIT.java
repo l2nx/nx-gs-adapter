@@ -161,17 +161,28 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
     class Place {
 
         @Test
-        void place_shouldMoveSpotAndRecordTheStart() {
-            OfflineSession row = session(7, 1).build();
+        void place_shouldMoveSpotRecordTheStartAndStoreTheTypeState() {
+            OfflineSession row = session(7, 1).typeState("{\"a\":1}").build();
             store.insert(row);
             Instant realStart = STARTED.plusSeconds(3);
 
-            assertEquals(PlaceResult.PLACED, store.place(row.getId(), "harbor", 4, realStart));
+            assertEquals(PlaceResult.PLACED, store.place(row.getId(), "harbor", 4, realStart, "{\"a\":2}"));
 
             OfflineSession actual = store.findOpenByCharacterId(7).get();
             assertEquals(4, actual.getSpotId());
             assertEquals(realStart, actual.getStartedAt());
+            assertEquals("{\"a\":2}", actual.getTypeState());
             assertEquals(InsertResult.INSERTED, store.insert(session(8, 1).build()));
+        }
+
+        @Test
+        void place_shouldKeepTheTypeState_whenNoneIsGiven() {
+            OfflineSession row = session(7, 1).typeState("{\"a\":1}").build();
+            store.insert(row);
+
+            assertEquals(PlaceResult.PLACED, store.place(row.getId(), "harbor", 4, null, null));
+
+            assertEquals("{\"a\":1}", store.findOpenByCharacterId(7).get().getTypeState());
         }
 
         @Test
@@ -180,7 +191,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.insert(row);
             store.insert(session(8, 4).build());
 
-            assertEquals(PlaceResult.SPOT_TAKEN, store.place(row.getId(), "harbor", 4, null));
+            assertEquals(PlaceResult.SPOT_TAKEN, store.place(row.getId(), "harbor", 4, null, null));
             assertEquals(1, store.findOpenByCharacterId(7).get().getSpotId());
         }
 
@@ -190,7 +201,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.insert(row);
             store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
 
-            assertEquals(PlaceResult.NOT_OPEN, store.place(row.getId(), "harbor", 4, null));
+            assertEquals(PlaceResult.NOT_OPEN, store.place(row.getId(), "harbor", 4, null, null));
         }
     }
 

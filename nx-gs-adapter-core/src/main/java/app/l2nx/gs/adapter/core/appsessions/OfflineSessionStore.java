@@ -39,7 +39,8 @@ interface OfflineSessionStore {
 
     void delete(UUID id);
 
-    PlaceResult place(UUID id, String spotPool, int spotId, @Nullable Instant startedAt);
+    /** {@code typeState} {@code null} keeps the stored one. */
+    PlaceResult place(UUID id, String spotPool, int spotId, @Nullable Instant startedAt, @Nullable String typeState);
 
     /** Never lowers a stored value and never touches a closed row. */
     void flushActiveMs(Map<UUID, Long> activeMsById);

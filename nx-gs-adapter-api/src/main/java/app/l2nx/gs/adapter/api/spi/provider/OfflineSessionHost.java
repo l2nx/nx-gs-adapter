@@ -14,7 +14,9 @@ import java.util.ServiceLoader;
  * <p><b>Threads.</b> The engine calls every method except {@link #settings()} from an adapter IO thread, never from
  * the game thread or the Kafka consumer thread, and waits for the result. An implementation hops to its game thread
  * itself and blocks until the work is done, or runs inline when already on it. Calls for one session never overlap;
- * calls for different sessions may.</p>
+ * calls for different sessions may. {@link NxAppSessions#updateTypeState} called on the engine's thread inside one of
+ * these calls runs inline; called from a thread the call hopped to, it runs after the call returns, so a hop must not
+ * wait for it.</p>
  *
  * <p>The host checks its rules before {@link NxAppSessions#start} and again in {@link #placeInWorld} (a spot may be
  * taken after a restart). A method that throws is logged; what the engine does then is stated per method.</p>
@@ -28,14 +30,16 @@ public interface OfflineSessionHost {
      * the session's own.
      *
      * <p>Refused or thrown: the character is not in the world. A start is rolled back (no row, no event); a restore
-     * closes the session with {@code APP_RESTORE_FAILED}.</p>
+     * closes the session with {@code APP_RESTORE_FAILED}, or tries again later on
+     * {@link OfflineSessionPlacement#refusedForNow}. A type state the placement changed goes back in the answer, not
+     * through {@link NxAppSessions#updateTypeState}.</p>
      */
     OfflineSessionPlacement placeInWorld(OfflineSession session);
 
     /**
      * Starts the session's action for a character {@link #placeInWorld} placed, reading what it needs from
-     * {@link OfflineSession#getTypeState()}. When the action ends on its own the host reports it through
-     * {@link NxAppSessions#onActionEnded}.
+     * {@link OfflineSession#getTypeState()}, already including what the placement returned. When the action ends on its
+     * own the host reports it through {@link NxAppSessions#onActionEnded}.
      *
      * <p>Thrown: a start removes the character again ({@link #removeFromWorld} with return) and is rolled back; a restore
      * closes the session with {@code APP_RESTORE_FAILED}.</p>

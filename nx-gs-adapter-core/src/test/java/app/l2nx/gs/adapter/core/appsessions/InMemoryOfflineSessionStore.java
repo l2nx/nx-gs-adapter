@@ -98,7 +98,8 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
-    public synchronized PlaceResult place(UUID id, String spotPool, int spotId, @Nullable Instant startedAt) {
+    public synchronized PlaceResult place(
+            UUID id, String spotPool, int spotId, @Nullable Instant startedAt, @Nullable String typeState) {
         OfflineSession row = rows.get(id);
         if (row == null || !row.isOpen()) {
             return PlaceResult.NOT_OPEN;
@@ -109,6 +110,9 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
         OfflineSession.Builder moved = row.toBuilder().spotId(spotId);
         if (startedAt != null) {
             moved.startedAt(startedAt);
+        }
+        if (typeState != null) {
+            moved.typeState(typeState);
         }
         rows.put(id, moved.build());
         return PlaceResult.PLACED;

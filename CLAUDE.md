@@ -50,18 +50,18 @@ when a feature carries companion docs). `NNN` is a zero-padded sequential id; th
 
 ## Modules
 
-| module                     | package root               | what it is                                                                 | primary specs                     |
-| -------------------------- | -------------------------- | -------------------------------------------------------------------------- | --------------------------------- |
-| `:nx-gs-adapter-api`       | `app.l2nx.gs.adapter.api`  | wire contracts (REST + Kafka DTOs) and the SPI tiers. Zero runtime deps.   | see `nx-gs-adapter-api/CLAUDE.md` |
-| `:nx-gs-commons`           | `app.l2nx.gs.commons`      | shared utilities for adapter modules and tenant providers                  | —                                 |
-| `:nx-gs-kafka`             | `app.l2nx.gs.kafka`        | lightweight Kafka client facade (producer/consumer, static headers)        | 008-messaging                     |
-| `:nx-gs-adapter-core`      | `app.l2nx.gs.adapter.core` | runtime: config, `/connect`, heartbeat, module discovery, events, commands, the app-session engine (built-in module `app-sessions`), the command-receipts store | 001, 002, 008, 009, 011, 038, 040 |
-| `:nx-gs-db-sync-core`      | `app.l2nx.gs.db.sync`      | DB-sync module: CRC32 two-phase CDC engine over the Tier-2 schema SPI      | 003, 004, 005, 007, 012, 021      |
-| `:nx-gs-runtime-sync-core` | `app.l2nx.gs.runtime.sync` | runtime-sync module: in-memory snapshot+diff over the Tier-2 state SPI     | 006-runtime-sync                  |
-| `:nx-gs-gd-sync-core`      | `app.l2nx.gs.gd.sync`      | gd-sync module: static game-data catalog snapshots                         | 030-gamedata-sync                 |
-| `:nx-gs-db-migrations`     | `app/l2nx/gs/db/migrations` (resources) | Liquibase changelog of the adapter-owned `l2nx_*` tables; no code | 037-schema-migrations             |
-| `:nx-gs-db-migrator-liquibase5` | `app.l2nx.gs.db.migrator.liquibase5` | `SchemaMigrator` on Liquibase 5.x, Java 17; `liquibase-core` is `compileOnly`, the host brings it | 037-schema-migrations |
-| `:nx-gs-log`               | `app.l2nx.gs.log`          | internal logging facade — NOT published, bundled into the jars above       | —                                 |
+| module                          | package root                            | what it is                                                                                                                                                      | primary specs                     |
+| ------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `:nx-gs-adapter-api`            | `app.l2nx.gs.adapter.api`               | wire contracts (REST + Kafka DTOs) and the SPI tiers. Zero runtime deps.                                                                                        | see `nx-gs-adapter-api/CLAUDE.md` |
+| `:nx-gs-commons`                | `app.l2nx.gs.commons`                   | shared utilities for adapter modules and tenant providers                                                                                                       | —                                 |
+| `:nx-gs-kafka`                  | `app.l2nx.gs.kafka`                     | lightweight Kafka client facade (producer/consumer, static headers)                                                                                             | 008-messaging                     |
+| `:nx-gs-adapter-core`           | `app.l2nx.gs.adapter.core`              | runtime: config, `/connect`, heartbeat, module discovery, events, commands, the app-session engine (built-in module `app-sessions`), the command-receipts store | 001, 002, 008, 009, 011, 038, 040 |
+| `:nx-gs-db-sync-core`           | `app.l2nx.gs.db.sync`                   | DB-sync module: CRC32 two-phase CDC engine over the Tier-2 schema SPI                                                                                           | 003, 004, 005, 007, 012, 021      |
+| `:nx-gs-runtime-sync-core`      | `app.l2nx.gs.runtime.sync`              | runtime-sync module: in-memory snapshot+diff over the Tier-2 state SPI                                                                                          | 006-runtime-sync                  |
+| `:nx-gs-gd-sync-core`           | `app.l2nx.gs.gd.sync`                   | gd-sync module: static game-data catalog snapshots                                                                                                              | 030-gamedata-sync                 |
+| `:nx-gs-db-migrations`          | `app/l2nx/gs/db/migrations` (resources) | Liquibase changelog of the adapter-owned `l2nx_*` tables; no code                                                                                               | 037-schema-migrations             |
+| `:nx-gs-db-migrator-liquibase5` | `app.l2nx.gs.db.migrator.liquibase5`    | `SchemaMigrator` on Liquibase 5.x, Java 17; `liquibase-core` is `compileOnly`, the host brings it                                                               | 037-schema-migrations             |
+| `:nx-gs-log`                    | `app.l2nx.gs.log`                       | internal logging facade — NOT published, bundled into the jars above                                                                                            | —                                 |
 
 Every published module shadow-includes `:nx-gs-log`. Library code never imports SLF4J directly:
 the facade auto-detects it by reflection and falls back to console output.
@@ -120,7 +120,10 @@ Things that cost time to learn and are not visible from the code you are editing
   module has started AND the host has called `NxAppSessions.hostReady()` (its world loaded), whichever comes last; no
   timer, no fallback, so a host that never calls it never gets its sessions back.
   The engine calls `OfflineSessionHost` from IO threads and blocks on it: the host hops to its game thread itself, and
-  `onClientLogin` must not run on the thread those hops target unless they run inline. A `PENDING` login outcome means
+  `onClientLogin` must not run on the thread those hops target unless they run inline. A type state the placement
+  changed goes back in `OfflineSessionPlacement.placed(spotId, typeState)` and is stored with the spot; an
+  `updateTypeState` on the engine's thread inside a host callback of the same session runs inline (from a hop it
+  queues behind the callback: do not wait for it there). A `PENDING` login outcome means
   the host refuses that login with "try again". The engine holds at most half of `l2nx.io.workers` at once (restore
   batches are capped to it), and a session end the table refused is retried until it lands, the character staying busy
   meanwhile. See 038.
@@ -132,21 +135,21 @@ Things that cost time to learn and are not visible from the code you are editing
 
 Adapter-owned threads (all daemon — never block JVM exit):
 
-| Thread name              | Count        | Purpose                                               |
-| ------------------------ | ------------ | ----------------------------------------------------- |
-| `nx-adapter-connect`     | 1            | `POST /connect` + reconnect retries (±25% jitter)     |
-| `nx-adapter-heartbeat`   | 1            | Periodic heartbeat POSTs                              |
-| `nx-gs-kafka-shutdown`   | 1            | JVM shutdown hook                                     |
-| `nx-gs-kafka-health`     | 1            | Persistent `AdminClient.describeCluster` health ticks |
-| `nx-events-publisher`    | 1            | Bounded-queue fan-out for `NxEvents`                  |
-| `nx-commands-consumer`   | 1            | Kafka poll + dispatch for `NxCommands`                |
-| `nx-commands-deferred`   | 0-1          | Publishes deferred replies + expiry timer (lazy)      |
-| `nx-io-N`                | configurable | Adapter-owned IO pool (`ctx.io()` for JDBC/HTTP hops) |
-| `nx-cdc-pool-<schema>-N` | configurable | Shared CDC engine pool (db-sync, all entities)        |
-| `nx-runtime-sync-pool-N` | configurable | Shared runtime-sync engine pool (all entities)        |
-| `nx-gd-sync-scheduler`   | 0-1          | gd-sync host-readiness polling + periodic resync      |
-| `nx-app-sessions-scheduler` | 0-1       | App-session restore batches, end-by-time timers, `active_ms` flush tick (work hops to `nx-io-N`) |
-| Kafka producer I/O       | 1            | Internal to `KafkaProducer` (kafka-clients-managed)   |
+| Thread name                 | Count        | Purpose                                                                                          |
+| --------------------------- | ------------ | ------------------------------------------------------------------------------------------------ |
+| `nx-adapter-connect`        | 1            | `POST /connect` + reconnect retries (±25% jitter)                                                |
+| `nx-adapter-heartbeat`      | 1            | Periodic heartbeat POSTs                                                                         |
+| `nx-gs-kafka-shutdown`      | 1            | JVM shutdown hook                                                                                |
+| `nx-gs-kafka-health`        | 1            | Persistent `AdminClient.describeCluster` health ticks                                            |
+| `nx-events-publisher`       | 1            | Bounded-queue fan-out for `NxEvents`                                                             |
+| `nx-commands-consumer`      | 1            | Kafka poll + dispatch for `NxCommands`                                                           |
+| `nx-commands-deferred`      | 0-1          | Publishes deferred replies + expiry timer (lazy)                                                 |
+| `nx-io-N`                   | configurable | Adapter-owned IO pool (`ctx.io()` for JDBC/HTTP hops)                                            |
+| `nx-cdc-pool-<schema>-N`    | configurable | Shared CDC engine pool (db-sync, all entities)                                                   |
+| `nx-runtime-sync-pool-N`    | configurable | Shared runtime-sync engine pool (all entities)                                                   |
+| `nx-gd-sync-scheduler`      | 0-1          | gd-sync host-readiness polling + periodic resync                                                 |
+| `nx-app-sessions-scheduler` | 0-1          | App-session restore batches, end-by-time timers, `active_ms` flush tick (work hops to `nx-io-N`) |
+| Kafka producer I/O          | 1            | Internal to `KafkaProducer` (kafka-clients-managed)                                              |
 
 Pool sizing keys: `l2nx.io.workers`, `l2nx.cdc-engine.workers`, `l2nx.runtime-sync.workers` (all
 default `max(2, cores/2)`, or `max(2, min(entities, cores/2))` for the engines). Per-engine config

@@ -135,11 +135,13 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
-    public PlaceResult place(UUID id, String spotPool, int spotId, @Nullable Instant startedAt) {
+    public PlaceResult place(
+            UUID id, String spotPool, int spotId, @Nullable Instant startedAt, @Nullable String typeState) {
         try {
             return call("place session", c -> {
                 String sql = "UPDATE " + TABLE + " SET spot_id = ?, active_spot_key = ?"
                         + (startedAt != null ? ", started_at = ?" : "")
+                        + (typeState != null ? ", type_state = ?" : "")
                         + " WHERE id = ? AND ended_at IS NULL";
                 try (PreparedStatement ps = c.prepareStatement(sql)) {
                     int i = 1;
@@ -147,6 +149,9 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                     ps.setString(i++, spotPool + ":" + spotId);
                     if (startedAt != null) {
                         JdbcValues.setInstant(ps, i++, startedAt);
+                    }
+                    if (typeState != null) {
+                        ps.setString(i++, typeState);
                     }
                     setUuid(ps, i, id);
                     return ps.executeUpdate() > 0 ? PlaceResult.PLACED : PlaceResult.NOT_OPEN;

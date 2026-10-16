@@ -15,6 +15,7 @@ final class SerialExecutor implements Executor {
     private final Executor delegate;
     private final ArrayDeque<Runnable> queue = new ArrayDeque<Runnable>();
     private boolean draining;
+    private volatile @Nullable Thread drainer;
 
     SerialExecutor(Executor delegate) {
         this.delegate = delegate;
@@ -37,12 +38,19 @@ final class SerialExecutor implements Executor {
         }
     }
 
+    /** True on the thread running this executor's task right now: a task queued from there would wait for itself. */
+    boolean runsOnCurrentThread() {
+        return drainer == Thread.currentThread();
+    }
+
     private void drain() {
+        drainer = Thread.currentThread();
         while (true) {
             Runnable next;
             synchronized (queue) {
                 next = queue.poll();
                 if (next == null) {
+                    drainer = null;
                     draining = false;
                     return;
                 }

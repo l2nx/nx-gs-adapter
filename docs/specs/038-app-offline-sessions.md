@@ -136,7 +136,7 @@ resume) go to the platform on the existing event rail.
 INFO, two put it into `FAILED`):
 
 ```java
-OfflineSessionPlacement placeInWorld(OfflineSession session); // placed(spotId) | refused(AppSessionRefusalReason, detail)
+OfflineSessionPlacement placeInWorld(OfflineSession session); // placed(spotId[, typeState]) | refused(reason, detail) | refusedForNow(reason, detail)
 void startAction(OfflineSession session);                      // throw = the action could not start
 void stopAction(OfflineSession session);                       // every end of a started action; must be idempotent
 void removeFromWorld(OfflineSession session, boolean returnToOrigin);
@@ -144,10 +144,18 @@ OfflineSessionSettings settings(); // returnThresholdMs, retentionDays, restoreB
 ```
 
 - The engine calls every method from an adapter IO thread and waits; the host hops to its game thread itself and runs
-  inline when it is already there. Calls for one session never overlap.
+  inline when it is already there. Calls for one session never overlap. `updateTypeState` called on the engine's thread
+  inside one of these calls runs inline: queued behind the running call it would wait for itself. From a thread the call
+  hopped to it is queued, so that thread must not wait for it.
 - `placeInWorld` places on the session's spot; on a restore the spot may be taken and the host may choose another free
   spot of the same pool (the engine moves `spot_id` / `active_spot_key`; a conflict there ends the restore with
   `APP_RESTORE_FAILED`).
+- What the placement changed in the type state (a spot taken, a fee paid, lots gone during the downtime) comes back as
+  `placed(spotId, typeState)`. The engine stores it in the same write as the spot, so `startAction` already sees it and
+  a restart in between cannot lose it; `null` keeps the stored type state.
+- `refusedForNow` is a refusal expected to pass within seconds (another operation holds the character). A start reports
+  it like `refused`; a restore puts the session back at the end of the queue and tries again with a later batch, at
+  most `RESTORE_ATTEMPTS` (5) times, then ends it with `APP_RESTORE_FAILED`.
 - `removeFromWorld` covers three cases: the app-loaded character in the world (move to the origin when asked, store, take
   out); a character that is not in the world (restore failed or never happened, login before the restore: only the
   stored location changes, to the origin when asked); a character played with a client is never touched.
@@ -301,7 +309,7 @@ Cleanup: closed sessions older than the host's retention are deleted at server s
 ### Lifecycle
 
 1. Start: host validates (R8), engine inserts the row under `idempotency_key` (R5, id = UUIDv7), `placeInWorld`,
-   records the real `started_at` (and the host's spot), `startAction`, then publishes `online = true, source = APP,
+   records the real `started_at` (and the host's spot and type state), `startAction`, then publishes `online = true, source = APP,
    activity, sessionId, ip = initiatorIp, hwid, accountName`.
 2. Running: `active_ms` counts while the action runs, flushed every minute (a write never lowers the stored value and
    never touches a closed row) and on stop and shutdown (R7); a timer ends the session when `active_ms >= planned_ms`
@@ -316,9 +324,10 @@ Cleanup: closed sessions older than the host's retention are deleted at server s
 5. Restart: at engine start closed rows past the retention are deleted and rows with `ended_at IS NULL` wait for the
    restore. Once the `app-sessions` module has started and the host has called `hostReady` (whichever comes last), the
    first batch runs at once and the rest follow in batches at the host's pace (`restoreBatchSize`, capped at the
-   engine's share of the IO pool, every `restoreBatchIntervalMs`): `placeInWorld` (+ the new spot when
-   the host moved it), `startAction`, then `online = true, resumed = true` with the same `sessionId`. A refused or
-   failed placement or action ends the session with `APP_RESTORE_FAILED` (return rule applies, `removeFromWorld` of a
+   engine's share of the IO pool, every `restoreBatchIntervalMs`; the start of the restore logs the effective pace):
+   `placeInWorld` (+ the new spot and type state when the host changed them), `startAction`, then `online = true,
+   resumed = true` with the same `sessionId`. A placement refused for now goes back to the queue (see the SPI). Any
+   other refused or failed placement or action ends the session with `APP_RESTORE_FAILED` (return rule applies, `removeFromWorld` of a
    character that never re-entered the world). A row whose `active_ms` already reached `planned_ms` ends with `APP_TIME_UP`
    without being placed. A stop before the restore reached it ends with `APP_STOPPED_BEFORE_RESTORE`, a login with `APP_LOGIN`;
    either cancels its restore. Until `hostReady` every pending session stays in that state, with no timeout; stops and
