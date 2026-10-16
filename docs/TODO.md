@@ -150,6 +150,16 @@ it is picked up, it moves to "Done / moved into a spec".
 - **Why:** the host builds the snapshot on a fixed delay; no operator has asked for another interval yet, so it is not built.
 - **Related:** [`011-events-online-snapshot`](specs/011-events-online-snapshot.md) R7.
 
+### 14. Remove `PrivateStoreOfferHasher` / `OfferRow` from `nx-gs-commons`
+
+- **Want:** delete `nx-gs-commons` `PrivateStoreOfferHasher` and `OfferRow`, left over from the removed book-snapshot
+  publisher.
+- **To decide:** when the host switches to `PrivateStoreStatePublisher`: whether the state publisher reuses them for
+  change detection (then they stay); if no host uses them, remove them.
+- **Why:** dead code on the commons surface that still talks about the removed `Offer`/snapshot wire shape.
+- **Related:** [`039-private-store-state-event.md`](specs/039-private-store-state-event.md),
+  [`027-etctype-consumable-market-signals.md`](specs/027-etctype-consumable-market-signals.md) §4.
+
 ## Done / moved into a spec
 
 - **`SendMailCommand` / `SendMailResult` / `ItemDeliveryError` Javadoc aligned with the receipt contract** - retry

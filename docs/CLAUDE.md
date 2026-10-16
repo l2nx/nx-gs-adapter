@@ -24,7 +24,7 @@ work lives in [`TODO.md`](TODO.md).
 | 006 | runtime-sync                      | 2026-05-01 | [spec](specs/006-runtime-sync.md)                      |
 | 007 | per-server-sync                   | 2026-05-02 | [spec](specs/007-per-server-sync.md)                   |
 | 008 | messaging                         | 2026-05-06 | [spec](specs/008-messaging.md)                         |
-| 009 | commands (rail + every command)   | 2026-10-15 | [spec](specs/009-commands/spec.md)                     |
+| 009 | commands (rail + every command)   | 2026-10-16 | [spec](specs/009-commands/spec.md)                     |
 | 011 | events-online-snapshot (closed `ServerOnlineBucket`; started / stopping facts) | 2026-10-15 | [spec](specs/011-events-online-snapshot.md)            |
 | 012 | snapshot-persistence              | 2026-05-17 | [spec](specs/012-snapshot-persistence.md)              |
 | 013 | character-core-extension (presence `source`, `activity`, `logoutReason`, `resumed`) | 2026-10-15 | [spec](specs/013-character-core-extension.md)          |
@@ -50,6 +50,7 @@ work lives in [`TODO.md`](TODO.md).
 | 036 | character-effects                 | 2026-10-08 | [spec](specs/036-character-effects.md)                 |
 | 037 | schema-migrations (Liquibase 5 wrapper)  | 2026-10-15 | [spec](specs/037-schema-migrations.md)                 |
 | 038 | app-offline-sessions (+ settings snapshot) | 2026-10-15 | [spec](specs/038-app-offline-sessions.md)              |
+| 039 | private-store-state-event (per-trader store state; replaces the book snapshot) | 2026-10-16 | [spec](specs/039-private-store-state-event.md)         |
 
 Companion docs of the folder-form specs:
 
@@ -59,5 +60,5 @@ Companion docs of the folder-form specs:
 - `005-cdc-engine/flow.md` — block diagrams of the two-phase cycle.
 - `009-commands/catalog.md` — per-command wire contract (inputs, results, error statuses).
 - `009-commands/guide.md` — handler author's guide (lifecycle, threading, registration).
-- `009-commands/<command>.md` — one per command family: `send-mail`, `send-player-mail`, `accept-mail`,
+- `009-commands/<command>.md` — one per command family: `send-mail`, `send-player-mail`, `accept-mail`, `read-mail`,
   `ban`, `send-chat-message`, `character-admin`, `captcha`, `offline-fishing`.

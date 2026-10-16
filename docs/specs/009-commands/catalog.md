@@ -669,6 +669,34 @@ MUST be idempotent and MUST NOT move the accepted time on a duplicate.
 
 ---
 
+### `ReadMailCommand`
+
+**Purpose.** Mark one mail as read by its receiver, whether the receiver is online or offline. Moves nothing and
+charges nothing: no `idempotencyKey`, no `deadline`, not `OwnerVerified`. Idempotent: an already-read mail answers
+`OK`. The platform learns the new state only from the `MailRead` event. Full contract:
+[`read-mail.md`](read-mail.md).
+
+**Inputs**
+
+| Field    | Type   | Required | Notes                                                                             |
+| -------- | ------ | -------- | --------------------------------------------------------------------------------- |
+| `charId` | `Long` | yes      | The receiver; a different character on the live mail is `MAIL_NOT_FOUND`           |
+| `mailId` | `Long` | yes      | The host's mail id (an `int` in the core), the value `MailReadEvent.mailId` carries |
+
+**Result** — none (`Void`): the command is `NxCommand<Void>` and the reply is `CommandResult<Void>`, `ok()` with no
+typed payload. There is no `ReadMailResult` class; that name is only the routing name the reply travels under
+(`{X}Command` → `{X}Result`).
+
+**Errors** — `extensions.reason` per status (`WellKnownReadMailReasons`):
+
+| Status              | Reasons                                                        |
+| ------------------- | -------------------------------------------------------------- |
+| `NOT_FOUND`         | `MAIL_NOT_FOUND` (also a mail whose receiver is another character) |
+| `VALIDATION_FAILED` | malformed command, carrying a `field` extension                |
+| `INTERNAL_ERROR`    | host-side failure                                              |
+
+---
+
 ## Offline fishing commands
 
 Full contract, reason-code table and edge flows: [`offline-fishing.md`](./offline-fishing.md). Session mechanics:
@@ -1088,6 +1116,7 @@ Mapping:
 | `SendMailCommand`                | `character` (recipient)                           |
 | `SendPlayerMailCommand`          | `character` (sender + recipient)                  |
 | `AcceptMailCommand`              | `character` (receiver, and sender when COD paid)  |
+| `ReadMailCommand`                | none: no `requestNow`, the `MailRead` event is the signal |
 | `TelegramCharLinkCommand`        | none                                              |
 
 > The remaining commands added to this catalog (`announcement`, `ban`,
@@ -1159,3 +1188,10 @@ to players yet, so the contract is changed directly, with no deprecated fields a
   checks; a purchase from an open store withholds the seller fee.
 - **Deploy order.** Release the api, then deploy the platform and the hosts together (the platform before the
   hosts' daily restart). A mismatch window is harmless because no player-facing flow uses these commands yet.
+
+### Changes of api `0.105.0` (mail, private store)
+
+- Added: `ReadMailCommand` (`NxCommand<Void>`) and `WellKnownReadMailReasons`; see [`read-mail.md`](read-mail.md).
+- Removed (events, breaking): `PrivateStoreSnapshotEvent` and its `Offer` line, with no deprecated copy and no
+  `EventTypeRegistry` binding left. Added: `PrivateStoreStateEvent`, `StoreState`, `StoreLine`, the full state of one
+  trader's store; see [`039`](../039-private-store-state-event.md) (R8 for the removal, migration gate there).

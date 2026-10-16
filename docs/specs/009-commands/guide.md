@@ -185,7 +185,7 @@ return `CommandResult<R>` matching that `R` — the compiler enforces it.
 Commands should ship a dedicated `{X}Result` class rather than a shared
 `Payload` type, so the reply echoes confirmation data even for
 "void-success" commands. The exception in the code today is
-`DeleteAutoAnnouncementCommand implements NxCommand<Void>` — nothing to echo
+`DeleteAutoAnnouncementCommand` and `ReadMailCommand` implement `NxCommand<Void>` — nothing to echo
 beyond the status — which is what `CommandResult.ok()` (payload-less) exists
 for.
 

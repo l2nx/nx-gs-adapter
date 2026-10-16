@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.events.premiumpurchase.PremiumPurchaseEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStorePurchaseEvent;
-import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreStateEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.PrivateStoreSide;
 import app.l2nx.gs.adapter.api.kafka.events.raid.kill.RaidKillEvent;
 import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerOnlineSnapshotEvent;
@@ -201,7 +201,7 @@ class NxEventsImplTest {
     }
 
     @Test
-    void publish_shouldEnqueuePrivateStoreSnapshotPartitionedByItemId() throws InterruptedException {
+    void publish_shouldEnqueuePrivateStoreStatePartitionedByCharId() throws InterruptedException {
         ConcurrentLinkedQueue<Object> sentValues = new ConcurrentLinkedQueue<Object>();
         ConcurrentLinkedQueue<byte[]> sentKeys = new ConcurrentLinkedQueue<byte[]>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -220,21 +220,20 @@ class NxEventsImplTest {
         publisher.start();
 
         NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        PrivateStoreSnapshotEvent event = PrivateStoreSnapshotEvent.builder()
+        PrivateStoreStateEvent event = PrivateStoreStateEvent.builder()
                 .eventId(UUIDv7.generate())
-                .itemTemplateId(0xCAFEBABEL)
-                .side(PrivateStoreSide.ASK)
+                .charId(0xCAFEBABEL)
                 .build();
 
         events.publish(event);
 
-        assertTrue(latch.await(2, TimeUnit.SECONDS), "publish(PrivateStoreSnapshotEvent) did not reach sender");
+        assertTrue(latch.await(2, TimeUnit.SECONDS), "publish(PrivateStoreStateEvent) did not reach sender");
         assertEquals(1, sentValues.size());
         assertEquals(event, sentValues.peek());
         assertArrayEquals(
                 LongBytes.bigEndian(0xCAFEBABEL),
                 sentKeys.peek(),
-                "snapshot event must be keyed by itemId as 8 big-endian bytes");
+                "state event must be keyed by charId as 8 big-endian bytes");
     }
 
     @Test
@@ -254,7 +253,7 @@ class NxEventsImplTest {
     }
 
     @Test
-    void publish_shouldNoOpPrivateStoreSnapshot_forNullEvent() {
+    void publish_shouldNoOpPrivateStoreState_forNullEvent() {
         EventTypeRegistry registry = new EventTypeRegistry();
         publisher = new EventsPublisher(
                 Collections.singletonMap("privatestore", "acme.gs.events.privatestore"),
@@ -382,7 +381,7 @@ class NxEventsImplTest {
                 Collections.singletonMap("premiumpurchase", "topic-b"), sender2, cfg(50, 200L), registry2);
         next.start();
         events.swap(next, registry2);
-        publisher = next; // ensure tearDown stops it
+        publisher = next;
 
         events.publish(PremiumPurchaseEvent.builder()
                 .eventId(UUIDv7.generate())

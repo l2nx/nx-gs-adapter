@@ -156,7 +156,8 @@ host-side authors hooking raid-death paths.
 - [todo] R10. The host MUST extend the host's events module
   to bind a new `RaidKillPublisher` static facade alongside the existing
   publishers (`PremiumPurchasePublisher`, `ServerOnlineSnapshotPublisher`,
-  `PrivateStorePurchasePublisher`, `PrivateStoreSnapshotPublisher`,
+  `PrivateStorePurchasePublisher`, `PrivateStoreSnapshotPublisher` (replaced by
+  `PrivateStoreStatePublisher`, see 039),
   `CharacterPresencePublisher`). No new `AdapterModule` ServiceLoader entry —
   rides the same host events module.
 

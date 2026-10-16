@@ -72,14 +72,15 @@ checks) live entirely in `nx-gameservers` / the host — this contract only name
 
 ## 4. `events.privatestore.Offer.packaged`
 
-New `@Nullable Boolean packaged` field on `Offer` (the per-offer line of
-`PrivateStoreSnapshotEvent`'s order book — see the `events.privatestore` family in the repo-root
-[`CLAUDE.md`](../../CLAUDE.md)). `null` = legacy producer / not reported, treated as `false`
-(regular `SELL`) by consumers. `nx-gs-commons` `PrivateStoreOfferHasher` mixes `packaged` into the
-order-book hash (`PrivateStoreOfferHasher.hash`) — a `SELL`↔`PACKAGE_SELL` re-seat with otherwise
-identical items/prices must still change the hash so the snapshot daemon re-publishes; without it
-the change-detection would treat the two states as identical and never emit. `nx-gs-commons`
-`OfferRow` carries the same field for the pre-hash intermediate representation.
+New `@Nullable Boolean packaged` field on `Offer` (the per-offer line of the since-removed
+`PrivateStoreSnapshotEvent` order book; `Offer` and the snapshot event are gone as of api `0.105.0` and the
+package/seat signal now rides `StoreState.type` of `PrivateStoreStateEvent`, see
+[`039-private-store-state-event`](039-private-store-state-event.md)). `null` = legacy producer / not reported, treated as `false`
+(regular `SELL`) by consumers. `nx-gs-commons` `PrivateStoreOfferHasher` mixed `packaged` into the
+order-book hash (`PrivateStoreOfferHasher.hash`) so that a `SELL`↔`PACKAGE_SELL` re-seat with otherwise
+identical items/prices still changed the hash and the host book-snapshot publisher re-published. That
+publisher was removed with 039; the hasher and `nx-gs-commons` `OfferRow` (the pre-hash intermediate
+representation, same field) remain only until the cleanup tracked in `docs/TODO.md` §14.
 
 ## Compatibility
 

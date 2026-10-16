@@ -51,7 +51,7 @@ the slice's contract from its supporting types. The same smell exists inside cor
   | `kafka.commands.ban`           | `WellKnownBanTargetTypes`, `WellKnownBanTypes`                                                                              |
   | `kafka.commands.mail`          | `ItemDeliveryError`, `MailItem`                                                                                             |
   | `kafka.commands.captcha` (new) | `CaptchaRoundResult`, `WellKnownCaptchaOutcomes`                                                                            |
-  | `kafka.events.privatestore`    | `Offer`, `TradeLine`, `PrivateStoreSide`, `WellKnownPrivateStoreMetadata`                                                   |
+  | `kafka.events.privatestore`    | `StoreLine`, `StoreState`, `TradeLine`, `PrivateStoreSide`, `WellKnownPrivateStoreMetadata`                                    |
   | `kafka.events.premiumpurchase` | `Payment`, `PurchaseItem`, `PurchaseService`, `WellKnownServices`                                                           |
   | `kafka.events.olympiad`        | `OlympiadGameType`, `OlympiadMatchReason`, `OlympiadMatchResult`                                                            |
   | `kafka.events.character`       | `LogoutReason`, `SessionSource`, `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`                     |

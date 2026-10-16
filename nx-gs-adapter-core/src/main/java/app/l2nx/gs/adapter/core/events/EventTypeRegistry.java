@@ -13,7 +13,7 @@ import app.l2nx.gs.adapter.api.kafka.events.olympiad.HeroGrantedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.olympiad.OlympiadMatchResultEvent;
 import app.l2nx.gs.adapter.api.kafka.events.premiumpurchase.PremiumPurchaseEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStorePurchaseEvent;
-import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreStateEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatetrade.PrivateTradeFinishedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.raid.kill.RaidKillEvent;
 import app.l2nx.gs.adapter.api.kafka.events.raid.respawn.BossRespawnSnapshotEvent;
@@ -27,7 +27,7 @@ import java.util.*;
 import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 
-/** Not pluggable; graduate to an SPI once 3+ event families exist. */
+/** Not pluggable. TODO: graduate to an SPI once 3+ event families exist. */
 final class EventTypeRegistry {
 
     private final Map<Class<?>, EventTypeBinding> bindings;
@@ -51,9 +51,9 @@ final class EventTypeRegistry {
         register(
                 map,
                 families,
-                PrivateStoreSnapshotEvent.class,
+                PrivateStoreStateEvent.class,
                 "privatestore",
-                evt -> LongBytes.bigEndian(((PrivateStoreSnapshotEvent) evt).getItemTemplateId()));
+                evt -> LongBytes.bigEndian(((PrivateStoreStateEvent) evt).getCharId()));
         register(
                 map,
                 families,

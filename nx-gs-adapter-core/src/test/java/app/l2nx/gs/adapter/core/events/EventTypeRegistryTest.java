@@ -16,7 +16,7 @@ import app.l2nx.gs.adapter.api.kafka.events.olympiad.model.OlympiadMatchReason;
 import app.l2nx.gs.adapter.api.kafka.events.olympiad.model.OlympiadMatchResult;
 import app.l2nx.gs.adapter.api.kafka.events.premiumpurchase.PremiumPurchaseEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStorePurchaseEvent;
-import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreStateEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.PrivateStoreSide;
 import app.l2nx.gs.adapter.api.kafka.events.privatetrade.PrivateTradeFinishedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatetrade.TradeParty;
@@ -25,6 +25,7 @@ import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerOnlineSnapshotEv
 import app.l2nx.gs.adapter.api.kafka.events.server.online.model.ServerOnlineBucket;
 import app.l2nx.gs.adapter.api.kafka.events.sync.ResyncCompletedEvent;
 import app.l2nx.gs.commons.UUIDv7;
+import app.l2nx.gs.commons.bytes.LongBytes;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.EnumMap;
@@ -122,28 +123,24 @@ class EventTypeRegistryTest {
     }
 
     @Test
-    void lookup_shouldResolvePrivateStoreSnapshotEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateStoreSnapshotEvent.class);
+    void lookup_shouldResolvePrivateStoreStateEvent() {
+        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateStoreStateEvent.class);
 
         assertNotNull(binding);
         assertEquals("privatestore", binding.familyKey());
-        assertEquals("PrivateStoreSnapshotEvent", binding.messageType());
+        assertEquals("PrivateStoreStateEvent", binding.messageType());
     }
 
     @Test
-    void partitionKeyExtractor_shouldReturnItemIdAsLongBytes_forPrivateStoreSnapshotEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateStoreSnapshotEvent.class);
-        PrivateStoreSnapshotEvent event = PrivateStoreSnapshotEvent.builder()
+    void partitionKeyExtractor_shouldReturnCharIdAsLongBytes_forPrivateStoreStateEvent() {
+        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateStoreStateEvent.class);
+        PrivateStoreStateEvent event = PrivateStoreStateEvent.builder()
                 .eventId(UUIDv7.generate())
-                .itemTemplateId(0xDEADBEEFL)
-                .side(PrivateStoreSide.ASK)
+                .charId(42L)
                 .build();
 
-        byte[] key = binding.partitionKeyExtractor().apply(event);
-
-        assertEquals(8, key.length);
-        long extracted = ByteBuffer.wrap(key).getLong();
-        assertEquals(0xDEADBEEFL, extracted);
+        assertArrayEquals(
+                LongBytes.bigEndian(42L), binding.partitionKeyExtractor().apply(event));
     }
 
     @Test
