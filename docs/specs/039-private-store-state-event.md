@@ -30,7 +30,7 @@ Audience: platform market and trader-list authors; host authors wiring the publi
   holds for `charId` with `store.lines`.
 - [todo] R3. `store == null` is a **tombstone**: the trader has no market store any more (closed, sold out, logged out,
   switched to a non-market state). The consumer drops everything it holds for `charId`. A tombstone is sent once per
-  close; the periodic full resend (R6) covers open stores only.
+  close and MAY be repeated on the next full resend (R6); consumers treat a repeated tombstone as a no-op.
 - [todo] R4. Payload:
 
   | Field      | Type                  | Notes                                                                |

@@ -1195,3 +1195,9 @@ to players yet, so the contract is changed directly, with no deprecated fields a
 - Removed (events, breaking): `PrivateStoreSnapshotEvent` and its `Offer` line, with no deprecated copy and no
   `EventTypeRegistry` binding left. Added: `PrivateStoreStateEvent`, `StoreState`, `StoreLine`, the full state of one
   trader's store; see [`039`](../039-private-store-state-event.md) (R8 for the removal, migration gate there).
+
+### Changes of api `0.107.0` (push facts moved out)
+
+- Removed package `kafka.events.push` (`EffectRemovedEvent`, `ItemDepletedEvent`). These are platform-internal business facts
+  on `<tenant>.push.events`, produced by the platform, not by hosts; their contract now lives outside the adapter. Hosts are
+  not affected (no host produces or reads them); the wire is unchanged.
