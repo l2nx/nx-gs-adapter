@@ -149,6 +149,15 @@ it is picked up, it moves to "Done / moved into a spec".
 - **Related:** [`039-private-store-state-event.md`](specs/039-private-store-state-event.md),
   [`027-etctype-consumable-market-signals.md`](specs/027-etctype-consumable-market-signals.md) §4.
 
+### 15. `PlayerMailItem` into `commands/mail/model/`
+
+- **Want:** move `commands/mail/PlayerMailItem` next to `MailItem` in `commands/mail/model/` (two item DTOs of one
+  family, the package rule of [`034-api-package-layout`](specs/034-api-package-layout.md) R2).
+- **To decide:** which api release carries it; the host and nx-gameservers bump their imports in the same pin bump.
+  The JSON wire shape does not change, only the Java package.
+- **Why:** the only item DTO of the mail command family left in the slice root.
+- **Related:** [`009-commands/send-player-mail.md`](specs/009-commands/send-player-mail.md).
+
 ## Done / moved into a spec
 
 - **`l2nx_command_receipts` SQL moved from the host into an adapter store** - `NxCommandReceipts`
