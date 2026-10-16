@@ -314,6 +314,16 @@ public final class JdbcCommandReceipts implements NxCommandReceipts {
     }
 
     @Override
+    public void clearMailId(Connection con, String key) throws SQLException {
+        sources.get();
+        try (PreparedStatement ps =
+                con.prepareStatement("UPDATE " + TABLE + " SET mail_id=NULL WHERE correlation_id=?")) {
+            ps.setString(1, key);
+            ps.executeUpdate();
+        }
+    }
+
+    @Override
     public boolean markFailed(Connection con, String key) {
         try {
             markFailedInTx(con, key);

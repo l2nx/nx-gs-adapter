@@ -116,6 +116,12 @@ public interface NxCommandReceipts {
     void markFailedInTx(Connection con, String key) throws SQLException;
 
     /**
+     * Clears the mail id in the caller's transaction and leaves the status as it is: the goods staged under that id went
+     * back to their owner, and the host may hand the id to another mail. A missing receipt is a no-op.
+     */
+    void clearMailId(Connection con, String key) throws SQLException;
+
+    /**
      * {@link #markFailedInTx} that logs a database failure, the miss included, and answers {@code false} instead of
      * throwing; only the readiness gate's {@link IllegalStateException} escapes.
      */

@@ -21,7 +21,7 @@ values and its engine dialect. The host must not know the adapter-owned tables a
 - [done] R1. `nx-gs-adapter-api` MUST define a capability `NxCommandReceipts` (`spi.capability`, value types in
   `spi.model.receipt`) whose operations cover everything a host does with receipts: claim with a replay / in-flight
   answer, lookup, the status transitions (charge, settle, fail, refund, amend the claim, mark follow-up steps done),
-  stale release, insert of an already completed receipt, pruning, and the queries boot recovery and sweeps need. Every
+  clearing the mail id of goods handed back (status untouched, the host reuses mail ids), stale release, insert of an already completed receipt, pruning, and the queries boot recovery and sweeps need. Every
   status transition is a compare-and-set on the current status, as the host's own ledger did.
 - [done] R2. Operations a host runs inside its own game-database transaction MUST take the host's
   `java.sql.Connection` and run on it without committing, rolling back, closing or reconfiguring it, so the receipt

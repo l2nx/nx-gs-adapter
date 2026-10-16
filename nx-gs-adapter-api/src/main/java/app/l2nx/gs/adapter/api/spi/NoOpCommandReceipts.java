@@ -99,6 +99,11 @@ final class NoOpCommandReceipts implements NxCommandReceipts {
     }
 
     @Override
+    public void clearMailId(Connection con, String key) {
+        throw unwired();
+    }
+
+    @Override
     public boolean markFailed(Connection con, String key) {
         throw unwired();
     }

@@ -306,6 +306,7 @@ class JdbcCommandReceiptsTest {
                     () -> r.markOkIfOpen(con, "k", 1L, "{}"),
                     () -> r.markOkIfOpen(con, "k", 1L, "{}", "{}"),
                     () -> r.markFailedInTx(con, "k"),
+                    () -> r.clearMailId(con, "k"),
                     () -> r.markFailed(con, "k"),
                     () -> r.markFailedOwnTx("k"),
                     () -> r.failStale("k"),

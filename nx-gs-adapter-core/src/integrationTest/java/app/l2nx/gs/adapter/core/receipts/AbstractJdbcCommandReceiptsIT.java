@@ -259,6 +259,25 @@ abstract class AbstractJdbcCommandReceiptsIT {
         }
 
         @Test
+        void clearMailId_shouldKeepTheStatus_andRollBackWithTheCaller() throws SQLException {
+            receipts.claim("k1", CMD, ReceiptClaim.purchase(1, 2, 3));
+            receipts.markChargedOwnTx("k1", 10L);
+            try (Connection con = source.getConnection()) {
+                con.setAutoCommit(false);
+                receipts.clearMailId(con, "k1");
+                con.rollback();
+            }
+            assertEquals("3", text("SELECT mail_id FROM " + JdbcCommandReceipts.TABLE + " WHERE correlation_id=?", "k1"));
+
+            try (Connection con = source.getConnection()) {
+                receipts.clearMailId(con, "k1");
+            }
+
+            assertEquals(ReceiptStatus.CHARGED, receipts.status("k1"));
+            assertNull(text("SELECT mail_id FROM " + JdbcCommandReceipts.TABLE + " WHERE correlation_id=?", "k1"));
+        }
+
+        @Test
         void markFailed_shouldReportTheMiss_whenAlreadySettled() throws SQLException {
             claimed("k1");
             receipts.markOkOwnTx("k1", 1L, "{}");
