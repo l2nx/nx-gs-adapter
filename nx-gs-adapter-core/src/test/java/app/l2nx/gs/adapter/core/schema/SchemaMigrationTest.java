@@ -213,6 +213,40 @@ class SchemaMigrationTest {
         }
     }
 
+    @Nested
+    class MigratedSource {
+
+        @Test
+        void migratedSource_shouldTellToMigrateFirst_whenNotRunYet() {
+            SchemaMigration migration = migrationOf(new CountingMigrator());
+
+            IllegalStateException actual = assertThrows(IllegalStateException.class, migration::migratedSource);
+
+            assertTrue(actual.getMessage().contains("NxAdapter.migrateSchema()"), actual.getMessage());
+        }
+
+        @Test
+        void migratedSource_shouldReturnTheMigratedSource_whenRunSucceeded() throws SchemaMigrationException {
+            SchemaMigration migration = migrationOf(new CountingMigrator());
+            migration.run();
+
+            assertSame(SOURCE, migration.migratedSource());
+        }
+
+        @Test
+        void migratedSource_shouldCarryTheFailure_whenRunFailed() {
+            CountingMigrator migrator = new CountingMigrator();
+            migrator.failure = new SchemaMigrationException("no DDL rights");
+            SchemaMigration migration = migrationOf(migrator);
+            assertThrows(SchemaMigrationException.class, migration::run);
+
+            IllegalStateException actual = assertThrows(IllegalStateException.class, migration::migratedSource);
+
+            assertTrue(actual.getMessage().contains("no DDL rights"), actual.getMessage());
+            assertSame(migrator.failure, actual.getCause());
+        }
+    }
+
     private static final class CountingMigrator implements SchemaMigrator {
         final AtomicInteger calls = new AtomicInteger();
         volatile JdbcConnectionSource lastSource;

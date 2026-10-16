@@ -8,6 +8,7 @@ import app.l2nx.gs.adapter.api.rest.MessagingTopics;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.*;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
+import app.l2nx.gs.adapter.api.spi.capability.NxCommandReceipts;
 import app.l2nx.gs.adapter.api.spi.capability.NxCommands;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxGameData;
@@ -37,6 +38,7 @@ import app.l2nx.gs.adapter.core.kafka.KafkaInitializer;
 import app.l2nx.gs.adapter.core.lifecycle.AdapterVersion;
 import app.l2nx.gs.adapter.core.lifecycle.StartupBanner;
 import app.l2nx.gs.adapter.core.modules.ModuleRegistry;
+import app.l2nx.gs.adapter.core.receipts.JdbcCommandReceipts;
 import app.l2nx.gs.adapter.core.schema.SchemaMigration;
 import app.l2nx.gs.adapter.core.sync.NxSyncImpl;
 import app.l2nx.gs.commons.concurrent.DaemonThreadFactory;
@@ -46,6 +48,7 @@ import app.l2nx.gs.kafka.KafkaState;
 import app.l2nx.gs.kafka.NxKafka;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
+import java.time.Clock;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -88,6 +91,8 @@ public final class NxAdapter {
     private static volatile NxGameDataImpl gameDataFacade;
     private static final AtomicReference<Executor> hostExecutorRef = new AtomicReference<Executor>();
     private static volatile SchemaMigration schemaMigration = new SchemaMigration();
+    private static final NxCommandReceipts commandReceipts =
+            new JdbcCommandReceipts(() -> schemaMigration.migratedSource(), Clock.systemUTC());
 
     private NxAdapter() {}
 
@@ -113,6 +118,14 @@ public final class NxAdapter {
      */
     public static NxAppSessions appSessions() {
         return AppSessionsRuntime.facade();
+    }
+
+    /**
+     * Usable once {@link #migrateSchema()} (or {@link #start()}) has migrated the schema, also with the platform down or
+     * the adapter disabled; before that, and after a failed migration, every call throws {@link IllegalStateException}.
+     */
+    public static NxCommandReceipts commandReceipts() {
+        return commandReceipts;
     }
 
     /**

@@ -141,7 +141,6 @@ final class AppSessionEngine {
         beginRestoreIfReady();
     }
 
-    /** Non-blocking: the first batch runs on the scheduler. */
     void hostReady() {
         if (hostReady.compareAndSet(false, true)) {
             log.info("App sessions: the host reported its world loaded");

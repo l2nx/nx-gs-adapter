@@ -12,6 +12,11 @@ class MariaDbLiquibase5SchemaMigratorIT extends AbstractLiquibase5SchemaMigrator
     private static final MariaDBContainer<?> DB = new MariaDBContainer<>("mariadb:11.4");
 
     @Override
+    protected boolean mysqlFamily() {
+        return true;
+    }
+
+    @Override
     protected JdbcDatabaseContainer<?> container() {
         return DB;
     }

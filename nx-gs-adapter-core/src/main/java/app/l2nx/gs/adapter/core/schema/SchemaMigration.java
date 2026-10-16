@@ -23,6 +23,7 @@ public final class SchemaMigration {
     private final Object lock = new Object();
     private boolean done;
     private @Nullable SchemaMigrationException failure;
+    private volatile @Nullable JdbcConnectionSource migratedSource;
 
     public SchemaMigration() {
         this(
@@ -78,7 +79,34 @@ public final class SchemaMigration {
                 migrator.getClass().getName(),
                 source.name());
         migrator.migrate(source);
+        migratedSource = source;
         log.info("Adapter schema is current ({} ms)", (System.nanoTime() - startedAt) / 1_000_000L);
+    }
+
+    /**
+     * The source the schema was migrated over; the adapter's own stores work only on a current schema.
+     *
+     * @throws IllegalStateException the migration has not run yet in this JVM, or it failed
+     */
+    public JdbcConnectionSource migratedSource() {
+        JdbcConnectionSource source = migratedSource;
+        if (source != null) {
+            return source;
+        }
+        synchronized (lock) {
+            if (failure != null) {
+                throw new IllegalStateException(
+                        "The adapter-owned l2nx_* tables are unusable, their schema migration failed: "
+                                + failure.getMessage(),
+                        failure);
+            }
+            source = migratedSource;
+            if (source == null) {
+                throw new IllegalStateException("The adapter-owned l2nx_* tables are not migrated yet: call"
+                        + " NxAdapter.migrateSchema() before using them");
+            }
+            return source;
+        }
     }
 
     private List<SchemaMigrator> discoverMigrators() throws SchemaMigrationException {

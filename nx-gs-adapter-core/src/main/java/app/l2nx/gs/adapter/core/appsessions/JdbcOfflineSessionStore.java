@@ -4,22 +4,20 @@ import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
+import app.l2nx.gs.adapter.core.jdbc.JdbcValues;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TimeZone;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
@@ -64,7 +62,7 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
         return call("delete closed sessions", c -> {
             try (PreparedStatement ps =
                     c.prepareStatement("DELETE FROM " + TABLE + " WHERE ended_at IS NOT NULL AND ended_at < ?")) {
-                setInstant(ps, 1, cutoff);
+                JdbcValues.setInstant(ps, 1, cutoff);
                 return ps.executeUpdate();
             }
         });
@@ -103,8 +101,8 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                     setUuid(ps, 5, s.getMasterAccountId());
                     ps.setString(6, s.getActivity().name());
                     ps.setString(7, s.getAccountName());
-                    setString(ps, 8, s.getHwid());
-                    setString(ps, 9, s.getInitiatorIp());
+                    JdbcValues.setNullableString(ps, 8, s.getHwid());
+                    JdbcValues.setNullableString(ps, 9, s.getInitiatorIp());
                     ps.setString(10, s.getSpotPool());
                     ps.setInt(11, s.getSpotId());
                     ps.setString(12, s.spotKey());
@@ -112,10 +110,10 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                     ps.setInt(14, s.getOriginY());
                     ps.setInt(15, s.getOriginZ());
                     ps.setInt(16, s.getOriginHeading());
-                    setInstant(ps, 17, s.getStartedAt());
-                    setLong(ps, 18, s.getPlannedMs());
+                    JdbcValues.setInstant(ps, 17, s.getStartedAt());
+                    JdbcValues.setNullableLong(ps, 18, s.getPlannedMs());
                     ps.setLong(19, s.getActiveMs());
-                    setString(ps, 20, s.getTypeState());
+                    JdbcValues.setNullableString(ps, 20, s.getTypeState());
                     ps.executeUpdate();
                     return InsertResult.INSERTED;
                 }
@@ -148,7 +146,7 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                     ps.setInt(i++, spotId);
                     ps.setString(i++, spotPool + ":" + spotId);
                     if (startedAt != null) {
-                        setInstant(ps, i++, startedAt);
+                        JdbcValues.setInstant(ps, i++, startedAt);
                     }
                     setUuid(ps, i, id);
                     return ps.executeUpdate() > 0 ? PlaceResult.PLACED : PlaceResult.NOT_OPEN;
@@ -185,7 +183,7 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                     + " SET active_ms = ?, ended_at = ?, end_reason = ?, active_character_id = NULL, active_spot_key ="
                     + " NULL WHERE id = ? AND ended_at IS NULL")) {
                 ps.setLong(1, activeMs);
-                setInstant(ps, 2, endedAt);
+                JdbcValues.setInstant(ps, 2, endedAt);
                 ps.setString(3, reason.name());
                 setUuid(ps, 4, id);
                 ps.executeUpdate();
@@ -198,7 +196,7 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
         return call("update type_state", c -> {
             try (PreparedStatement ps =
                     c.prepareStatement("UPDATE " + TABLE + " SET type_state = ? WHERE id = ? AND ended_at IS NULL")) {
-                setString(ps, 1, typeState);
+                JdbcValues.setNullableString(ps, 1, typeState);
                 setUuid(ps, 2, id);
                 return ps.executeUpdate() > 0;
             }
@@ -252,7 +250,7 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
         ActivityType activity = parse(ActivityType.class, rs.getString("activity"));
         String endReasonRaw = rs.getString("end_reason");
         LogoutReason endReason = endReasonRaw == null ? null : parse(LogoutReason.class, endReasonRaw);
-        Instant endedAt = getInstant(rs, "ended_at");
+        Instant endedAt = JdbcValues.getInstant(rs, "ended_at");
         if (activity == null || (endedAt != null && endReason == null)) {
             // written by a newer adapter (rollback after an upgrade); skipping keeps the rest usable
             log.error(
@@ -262,8 +260,6 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                     endReasonRaw);
             return null;
         }
-        long plannedMs = rs.getLong("planned_ms");
-        Long planned = rs.wasNull() ? null : plannedMs;
         String master = rs.getString("master_account_id");
         return OfflineSession.builder()
                 .id(UUID.fromString(id))
@@ -280,8 +276,8 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                 .originY(rs.getInt("origin_y"))
                 .originZ(rs.getInt("origin_z"))
                 .originHeading(rs.getInt("origin_heading"))
-                .startedAt(getInstant(rs, "started_at"))
-                .plannedMs(planned)
+                .startedAt(JdbcValues.getInstant(rs, "started_at"))
+                .plannedMs(JdbcValues.getNullableLong(rs, "planned_ms"))
                 .activeMs(rs.getLong("active_ms"))
                 .typeState(rs.getString("type_state"))
                 .endedAt(endedAt)
@@ -319,36 +315,6 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
             nativeUuid = known;
         }
         return known;
-    }
-
-    private static void setString(PreparedStatement ps, int index, @Nullable String value) throws SQLException {
-        if (value == null) {
-            ps.setNull(index, Types.VARCHAR);
-        } else {
-            ps.setString(index, value);
-        }
-    }
-
-    private static void setLong(PreparedStatement ps, int index, @Nullable Long value) throws SQLException {
-        if (value == null) {
-            ps.setNull(index, Types.BIGINT);
-        } else {
-            ps.setLong(index, value);
-        }
-    }
-
-    private static void setInstant(PreparedStatement ps, int index, Instant value) throws SQLException {
-        ps.setTimestamp(index, Timestamp.from(value), utc());
-    }
-
-    private static @Nullable Instant getInstant(ResultSet rs, String column) throws SQLException {
-        Timestamp ts = rs.getTimestamp(column, utc());
-        return ts == null ? null : ts.toInstant();
-    }
-
-    /** {@link Calendar} is mutable and drivers may write to it. */
-    private static Calendar utc() {
-        return Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
     }
 
     private void run(String operation, SqlVoid work) {

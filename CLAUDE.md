@@ -55,7 +55,7 @@ when a feature carries companion docs). `NNN` is a zero-padded sequential id; th
 | `:nx-gs-adapter-api`       | `app.l2nx.gs.adapter.api`  | wire contracts (REST + Kafka DTOs) and the SPI tiers. Zero runtime deps.   | see `nx-gs-adapter-api/CLAUDE.md` |
 | `:nx-gs-commons`           | `app.l2nx.gs.commons`      | shared utilities for adapter modules and tenant providers                  | —                                 |
 | `:nx-gs-kafka`             | `app.l2nx.gs.kafka`        | lightweight Kafka client facade (producer/consumer, static headers)        | 008-messaging                     |
-| `:nx-gs-adapter-core`      | `app.l2nx.gs.adapter.core` | runtime: config, `/connect`, heartbeat, module discovery, events, commands, the app-session engine (built-in module `app-sessions`) | 001, 002, 008, 009, 011, 038 |
+| `:nx-gs-adapter-core`      | `app.l2nx.gs.adapter.core` | runtime: config, `/connect`, heartbeat, module discovery, events, commands, the app-session engine (built-in module `app-sessions`), the command-receipts store | 001, 002, 008, 009, 011, 038, 040 |
 | `:nx-gs-db-sync-core`      | `app.l2nx.gs.db.sync`      | DB-sync module: CRC32 two-phase CDC engine over the Tier-2 schema SPI      | 003, 004, 005, 007, 012, 021      |
 | `:nx-gs-runtime-sync-core` | `app.l2nx.gs.runtime.sync` | runtime-sync module: in-memory snapshot+diff over the Tier-2 state SPI     | 006-runtime-sync                  |
 | `:nx-gs-gd-sync-core`      | `app.l2nx.gs.gd.sync`      | gd-sync module: static game-data catalog snapshots                         | 030-gamedata-sync                 |
@@ -111,6 +111,9 @@ Things that cost time to learn and are not visible from the code you are editing
   changesets, abstract changes and portable types, adoption guards for tables a host created before. A game-server
   `start()` migrates on the connect thread before connecting and goes `FAILED` on error; a host reading those tables
   in its own boot calls `NxAdapter.migrateSchema()` first (once per JVM). See 037.
+- **The host never touches an `l2nx_*` table itself.** Command receipts go through `NxAdapter.commandReceipts()`
+  (`NxCommandReceipts`): no SQL and no table names in the host. Operations taking a `Connection` join the host's
+  transaction; every call throws until `migrateSchema()` has succeeded, never a silent no-op. See 040.
 - **The app-session engine boots before the platform connect.** Right after the schema migration, on the connect thread,
   so `NxAdapter.appSessions().onClientLogin(...)` finds a character's open session even while the platform is down;
   presence events of that window are buffered until the `app-sessions` module connects. The restore runs only once the

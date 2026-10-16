@@ -4,12 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import app.l2nx.gs.adapter.api.spi.provider.SchemaMigrationException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -42,6 +45,14 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
 
     protected abstract JdbcDatabaseContainer<?> container();
 
+    protected boolean mysqlFamily() {
+        return false;
+    }
+
+    private int changesetCount() {
+        return mysqlFamily() ? 5 : 4;
+    }
+
     protected TestConnectionSource source() {
         JdbcDatabaseContainer<?> c = container();
         return new TestConnectionSource(c.getJdbcUrl(), c.getUsername(), c.getPassword());
@@ -70,6 +81,9 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
             expected.put("0002-command-receipts-steps-done-at", "EXECUTED");
             expected.put("0003-command-receipts-open-steps-index", "EXECUTED");
             expected.put("0004-offline-sessions-table", "EXECUTED");
+            if (mysqlFamily()) {
+                expected.put("0007-command-receipts-utc-datetime", "EXECUTED");
+            }
             assertEquals(expected, actual);
             assertTrue(columnExists(RECEIPTS, "steps_done_at"));
         }
@@ -82,7 +96,7 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
             new Liquibase5SchemaMigrator().migrate(source());
 
             assertEquals(expected, changelog());
-            assertEquals(4, count("SELECT COUNT(*) FROM " + CHANGELOG));
+            assertEquals(changesetCount(), count("SELECT COUNT(*) FROM " + CHANGELOG));
         }
 
         @Test
@@ -96,7 +110,7 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
                 System.clearProperty("liquibase.databaseChangelogLockTableName");
             }
 
-            assertEquals(4, count("SELECT COUNT(*) FROM " + CHANGELOG));
+            assertEquals(changesetCount(), count("SELECT COUNT(*) FROM " + CHANGELOG));
             assertFalse(tableExists("host_changelog"));
         }
 
@@ -197,6 +211,87 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
     }
 
     @Nested
+    class UtcDatetime {
+
+        @Test
+        void migrate_shouldConvertHostTimestampsToUtcDatetime_whenSessionZoneIsNotUtc() throws Exception {
+            assumeTrue(mysqlFamily(), "TIMESTAMP session-zone conversion exists only on MariaDB/MySQL");
+            long insertedAtEpochSec;
+            try (Connection c = source().getConnection();
+                    Statement st = c.createStatement()) {
+                st.execute("SET time_zone = '+03:00'");
+                st.execute(HOST_RECEIPTS_DDL);
+                st.execute("ALTER TABLE " + RECEIPTS + " ADD COLUMN steps_done_at TIMESTAMP NULL DEFAULT NULL");
+                st.execute("CREATE INDEX idx_l2nx_receipts_command_status_steps ON " + RECEIPTS
+                        + " (command, status, steps_done_at)");
+                st.execute("INSERT INTO " + RECEIPTS + " (correlation_id, command, status, completed_at, steps_done_at)"
+                        + " VALUES ('kept', 'SEND_MAIL', 'OK', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
+                try (ResultSet rs = st.executeQuery("SELECT UNIX_TIMESTAMP()")) {
+                    rs.next();
+                    insertedAtEpochSec = rs.getLong(1);
+                }
+            }
+
+            new Liquibase5SchemaMigrator().migrate(source());
+
+            assertEquals("EXECUTED", changelog().get("0007-command-receipts-utc-datetime"));
+            for (String column : new String[] {"created_at", "completed_at", "steps_done_at"}) {
+                assertEquals("datetime", dataType(column), column);
+                long storedAsUtc = LocalDateTime.parse(text("SELECT DATE_FORMAT(" + column
+                                + ", '%Y-%m-%dT%H:%i:%s') FROM " + RECEIPTS + " WHERE correlation_id = 'kept'"))
+                        .toEpochSecond(ZoneOffset.UTC);
+                assertTrue(Math.abs(storedAsUtc - insertedAtEpochSec) <= 1, column + " holds UTC wall time");
+            }
+            assertEquals(1, count("SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics"
+                    + " WHERE table_schema = DATABASE() AND index_name = 'idx_l2nx_receipts_command_status_steps'"));
+        }
+
+        @Test
+        void migrate_shouldRestoreTheSessionZone_afterConverting() throws Exception {
+            assumeTrue(mysqlFamily(), "TIMESTAMP session-zone conversion exists only on MariaDB/MySQL");
+            execute(HOST_RECEIPTS_DDL);
+            execute("ALTER TABLE " + RECEIPTS + " ADD COLUMN steps_done_at TIMESTAMP NULL DEFAULT NULL");
+            TestConnectionSource source = source();
+            source.sessionTimeZone = "+03:00";
+
+            new Liquibase5SchemaMigrator().migrate(source);
+
+            assertEquals("EXECUTED", changelog().get("0007-command-receipts-utc-datetime"));
+            assertEquals("+03:00", source.lastTimeZoneOnClose);
+        }
+
+        @Test
+        void migrate_shouldMatchFreshColumns_whenConvertingHostTable() throws Exception {
+            assumeTrue(mysqlFamily(), "TIMESTAMP session-zone conversion exists only on MariaDB/MySQL");
+            new Liquibase5SchemaMigrator().migrate(source());
+            String fresh = columnShapes();
+            dropAdapterTables();
+            execute(HOST_RECEIPTS_DDL);
+            execute("ALTER TABLE " + RECEIPTS + " ADD COLUMN steps_done_at TIMESTAMP NULL DEFAULT NULL");
+
+            new Liquibase5SchemaMigrator().migrate(source());
+
+            assertEquals(fresh, columnShapes());
+        }
+
+        private String dataType(String column) throws SQLException {
+            return text("SELECT data_type FROM information_schema.columns WHERE table_schema = DATABASE()"
+                    + " AND table_name = '" + RECEIPTS + "' AND column_name = '" + column + "'");
+        }
+
+        private String columnShapes() throws SQLException {
+            StringBuilder out = new StringBuilder();
+            for (String column : new String[] {"created_at", "completed_at", "steps_done_at"}) {
+                out.append(text("SELECT CONCAT(column_type, ' ', is_nullable, ' ', COALESCE(column_default, 'none'))"
+                                + " FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '"
+                                + RECEIPTS + "' AND column_name = '" + column + "'"))
+                        .append('|');
+            }
+            return out.toString();
+        }
+    }
+
+    @Nested
     class Failures {
 
         @Test
@@ -230,6 +325,15 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
                 ResultSet rs = st.executeQuery(sql)) {
             rs.next();
             return rs.getInt(1);
+        }
+    }
+
+    protected String text(String sql) throws SQLException {
+        try (Connection c = source().getConnection();
+                Statement st = c.createStatement();
+                ResultSet rs = st.executeQuery(sql)) {
+            rs.next();
+            return rs.getString(1);
         }
     }
 

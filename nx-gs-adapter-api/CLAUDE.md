@@ -76,8 +76,10 @@ in its root and splits effect / condition / learn / produced types into sub-pack
 - **Capabilities** (`spi.capability`) handed to modules through `ConnectContext` / `CommandContext`:
   `NxEvents`, `NxCommands` (+ `CommandHandler`, `HostExecutor`, `DeferredReply`), `NxSync`,
   `NxGameData`, `NxAppSessions` (+ `AppSessionStartRequest`, `AppSessionStartOutcome`, `ClientLoginOutcome` in
-  `spi.model`; also reachable as the static `NxAdapter.appSessions()` for host code outside a module). Each ships a
-  `NoOp*` fallback so a context wired without that runtime never returns null.
+  `spi.model`; also reachable as the static `NxAdapter.appSessions()` for host code outside a module),
+  `NxCommandReceipts` (+ `spi.model.receipt`; via `CommandContext` and the static `NxAdapter.commandReceipts()`, spec
+  040). Each ships a `NoOp*` fallback so a context wired without that runtime never returns null; the receipts
+  fallback throws instead of doing nothing, since a dropped receipt write loses money.
 
 They all live here so a host provider depends on the contracts artifact alone.
 
@@ -121,6 +123,10 @@ They all live here so a host provider depends on the contracts artifact alone.
   the host calls `NxAppSessions.hostReady()` once its world is loaded; a host that never calls it never gets them back.
   New app-session types use `characterId`, never `charId`
   (the legacy `charId` of older DTOs stays as it is on the wire).
+- **`NxCommandReceipts` is the host's only door to the receipts table.** Operations taking a `Connection` run inside
+  the host's transaction and never commit, roll back or close it; `...OwnTx` ones report a database failure as
+  `false`. Every call throws `IllegalStateException` until the schema is migrated in the JVM. Status names
+  (`ReceiptStatus`) are stored values.
 - **App-session command refusals** carry `reason` (an `AppSessionRefusalReason` name), plus `retryAt` (ISO-8601
   instant) or `scope` (`AlreadyActiveScope`) where the reason defines them; the `CommandStatus` per reason is on the
   enum.

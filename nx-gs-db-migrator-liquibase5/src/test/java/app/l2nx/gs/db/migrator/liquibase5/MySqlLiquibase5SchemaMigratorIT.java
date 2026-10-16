@@ -12,6 +12,11 @@ class MySqlLiquibase5SchemaMigratorIT extends AbstractLiquibase5SchemaMigratorIT
     private static final MySQLContainer<?> DB = new MySQLContainer<>("mysql:8.4");
 
     @Override
+    protected boolean mysqlFamily() {
+        return true;
+    }
+
+    @Override
     protected JdbcDatabaseContainer<?> container() {
         return DB;
     }

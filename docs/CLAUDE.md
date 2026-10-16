@@ -51,6 +51,7 @@ work lives in [`TODO.md`](TODO.md).
 | 037 | schema-migrations (Liquibase 5 wrapper)  | 2026-10-15 | [spec](specs/037-schema-migrations.md)                 |
 | 038 | app-offline-sessions (+ settings snapshot) | 2026-10-15 | [spec](specs/038-app-offline-sessions.md)              |
 | 039 | private-store-state-event (per-trader store state; replaces the book snapshot) | 2026-10-16 | [spec](specs/039-private-store-state-event.md)         |
+| 040 | command-receipts (adapter-side store of `l2nx_command_receipts`) | 2026-10-16 | [spec](specs/040-command-receipts.md)                  |
 
 Companion docs of the folder-form specs:
 

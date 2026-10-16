@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Portable across PostgreSQL, MariaDB and MySQL: abstract changes only, enum-like columns validated in Java. -->
+<!-- Portable across PostgreSQL, MariaDB and MySQL: abstract changes only (raw SQL only where a session setting must
+     wrap the change), enum-like columns validated in Java. -->
 <databaseChangeLog
         xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -137,5 +138,22 @@
         <createIndex tableName="l2nx_offline_sessions" indexName="idx_l2nx_offline_sessions_ended">
             <column name="ended_at"/>
         </createIndex>
+    </changeSet>
+
+    <!--
+        A host-created table may carry TIMESTAMP columns, converted through the session zone; altering them under a UTC
+        session keeps UTC wall time. Raw SQL so the zone is set and restored on the connection running the ALTER. No
+        precondition: Liquibase 5 disables sqlCheck, and on a fresh DATETIME table the ALTER changes nothing.
+    -->
+    <changeSet id="0007-command-receipts-utc-datetime" author="nx-gs-adapter" dbms="mariadb,mysql">
+        <sql splitStatements="true" stripComments="true">
+            SET @l2nx_saved_time_zone = @@session.time_zone;
+            SET time_zone = '+00:00';
+            ALTER TABLE l2nx_command_receipts
+                MODIFY created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                MODIFY completed_at DATETIME NULL,
+                MODIFY steps_done_at DATETIME NULL;
+            SET time_zone = @l2nx_saved_time_zone;
+        </sql>
     </changeSet>
 </databaseChangeLog>

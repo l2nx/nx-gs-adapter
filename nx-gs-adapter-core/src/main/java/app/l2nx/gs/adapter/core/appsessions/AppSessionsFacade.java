@@ -140,7 +140,7 @@ final class AppSessionsFacade implements NxAppSessions {
         if (!hostReady.compareAndSet(false, true)) {
             return;
         }
-        // remembered for an engine still booting; ready() forwards it, the engine ignores a second call
+        // an engine still booting gets it from ready()
         AppSessionEngine e = engine;
         if (e == null) {
             return;

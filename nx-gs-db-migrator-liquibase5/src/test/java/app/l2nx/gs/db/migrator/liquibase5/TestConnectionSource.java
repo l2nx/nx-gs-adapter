@@ -5,7 +5,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 /** Stands in for a host pool: hands out driver connections and records the state each one is returned in. */
 final class TestConnectionSource implements JdbcConnectionSource {
@@ -17,6 +19,8 @@ final class TestConnectionSource implements JdbcConnectionSource {
     boolean lendReadOnly;
     volatile Connection lastConnection;
     volatile boolean lastAutoCommitOnClose;
+    volatile String sessionTimeZone;
+    volatile String lastTimeZoneOnClose;
 
     TestConnectionSource(String url, String user, String password) {
         this.url = url;
@@ -35,10 +39,22 @@ final class TestConnectionSource implements JdbcConnectionSource {
         if (lendReadOnly) {
             raw.setReadOnly(true);
         }
+        if (sessionTimeZone != null) {
+            try (Statement st = raw.createStatement()) {
+                st.execute("SET time_zone = '" + sessionTimeZone + "'");
+            }
+        }
         Connection tracked = (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(), new Class<?>[] {Connection.class}, (proxy, method, args) -> {
                     if ("close".equals(method.getName()) && !raw.isClosed()) {
                         lastAutoCommitOnClose = raw.getAutoCommit();
+                        if (sessionTimeZone != null) {
+                            try (Statement st = raw.createStatement();
+                                    ResultSet rs = st.executeQuery("SELECT @@session.time_zone")) {
+                                rs.next();
+                                lastTimeZoneOnClose = rs.getString(1);
+                            }
+                        }
                     }
                     try {
                         return method.invoke(raw, args);

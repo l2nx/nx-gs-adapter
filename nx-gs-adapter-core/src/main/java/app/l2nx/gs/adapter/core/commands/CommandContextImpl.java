@@ -4,8 +4,10 @@ import app.l2nx.gs.adapter.api.spi.CommandContext;
 import app.l2nx.gs.adapter.api.spi.capability.DeferredReply;
 import app.l2nx.gs.adapter.api.spi.capability.HostExecutor;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
+import app.l2nx.gs.adapter.api.spi.capability.NxCommandReceipts;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
+import app.l2nx.gs.adapter.core.NxAdapter;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import org.jspecify.annotations.Nullable;
@@ -77,6 +79,11 @@ final class CommandContextImpl implements CommandContext {
     @Override
     public NxAppSessions appSessions() {
         return appSessions;
+    }
+
+    @Override
+    public NxCommandReceipts commandReceipts() {
+        return NxAdapter.commandReceipts();
     }
 
     @Override

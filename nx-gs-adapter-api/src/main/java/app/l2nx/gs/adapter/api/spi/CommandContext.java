@@ -4,6 +4,7 @@ import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
 import app.l2nx.gs.adapter.api.spi.capability.DeferredReply;
 import app.l2nx.gs.adapter.api.spi.capability.HostExecutor;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
+import app.l2nx.gs.adapter.api.spi.capability.NxCommandReceipts;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
 import java.util.UUID;
@@ -32,6 +33,14 @@ public interface CommandContext {
     /** Same instance as {@link ConnectContext#appSessions()}; a no-op for contexts built without it. */
     default NxAppSessions appSessions() {
         return NoOpAppSessions.INSTANCE;
+    }
+
+    /**
+     * The adapter's command-receipt store, the same one as {@code NxAdapter.commandReceipts()}. For contexts built
+     * without it every call throws {@link IllegalStateException}: receipts guard money and are never silently dropped.
+     */
+    default NxCommandReceipts commandReceipts() {
+        return NoOpCommandReceipts.INSTANCE;
     }
 
     /**

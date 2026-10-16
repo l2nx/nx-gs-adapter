@@ -27,7 +27,8 @@ migration framework into the host.
 - [done] R2. A new module `nx-gs-db-migrations` MUST carry the single Liquibase changelog (XML) that creates and evolves
   every adapter-owned `l2nx_*` table. It MUST use only abstract, engine-neutral changes (`createTable`, `addColumn`,
   `createIndex`, `addUniqueConstraint`) and portable column types (`uuid`, `int`, `bigint`, `varchar`, `clob`,
-  `datetime` stored as UTC). No raw SQL, generated columns, partial indexes, triggers or views.
+  `datetime` stored as UTC). No raw SQL, generated columns, partial indexes, triggers or views. One sanctioned
+  exception: `0007-command-receipts-utc-datetime`, a `dbms="mariadb,mysql"` raw-SQL repair (see Edge cases).
 - [done] R3. The changelog MUST run unchanged on PostgreSQL, MariaDB and MySQL.
 - [wip] R4. The changelog MUST adopt an already existing `l2nx_command_receipts` table (including its `steps_done_at`
   column) without recreating it: each change is guarded with `tableExists` / `columnExists` preconditions with
@@ -72,6 +73,12 @@ migration framework into the host.
   the lock is an operator action, the adapter does not force-release a lock it did not take.
 - **Existing `l2nx_command_receipts` without `steps_done_at`:** the column is added; with the column present the change
   is marked run.
+- **Existing `l2nx_command_receipts` with `TIMESTAMP` columns (MariaDB/MySQL):** `0007` converts `created_at`,
+  `completed_at` and `steps_done_at` to `DATETIME` under a `+00:00` session, so legacy values become UTC wall time, and
+  restores the session zone afterwards (a failed `ALTER` leaves that one pooled connection on `+00:00`; the migration
+  failure stops the start anyway). It runs once on every MariaDB/MySQL database: on a fresh `DATETIME` table the
+  `ALTER` changes nothing, which is why it carries no precondition (Liquibase 5 disables `sqlCheck` by default).
+  PostgreSQL skips it. See [`040`](040-command-receipts.md).
 - **Host changelog also touches `l2nx_*` tables:** unsupported. The adapter owns those tables from this spec onward and
   does not look at the host's changelog.
 
@@ -157,12 +164,11 @@ without `steps_done_at`; failure modes (no implementation, no DDL rights, stale 
 
 ## Open questions
 
-- [ ] Moving the SQL of `l2nx_command_receipts` out of the host into an adapter-side store is deferred, see
-      [`TODO §8`](../TODO.md#8-move-l2nx_command_receipts-sql-from-the-host-into-an-adapter-store). This spec only moves the
-      table's DDL.
+- [x] Moving the SQL of `l2nx_command_receipts` out of the host into an adapter-side store: done in
+      [`040-command-receipts`](040-command-receipts.md). This spec only moves the table's DDL.
 
 ## Links
 
 - Consumer of the migrated schema: [`038-app-offline-sessions`](038-app-offline-sessions.md)
-- Receipts: [`009-commands/spec.md`](009-commands/spec.md)
+- Receipts: [`040-command-receipts`](040-command-receipts.md), [`009-commands/spec.md`](009-commands/spec.md)
 - Counterpart in the host repo: host documentation, not linked here (this repository does not name tenant hosts).
