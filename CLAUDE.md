@@ -113,7 +113,9 @@ Things that cost time to learn and are not visible from the code you are editing
   in its own boot calls `NxAdapter.migrateSchema()` first (once per JVM). See 037.
 - **The app-session engine boots before the platform connect.** Right after the schema migration, on the connect thread,
   so `NxAdapter.appSessions().onClientLogin(...)` finds a character's open session even while the platform is down;
-  presence events of that window are buffered until the `app-sessions` module connects, and the restore waits for it.
+  presence events of that window are buffered until the `app-sessions` module connects. The restore runs only once the
+  module has started AND the host has called `NxAppSessions.hostReady()` (its world loaded), whichever comes last; no
+  timer, no fallback, so a host that never calls it never gets its sessions back.
   The engine calls `OfflineSessionHost` from IO threads and blocks on it: the host hops to its game thread itself, and
   `onClientLogin` must not run on the thread those hops target unless they run inline. A `PENDING` login outcome means
   the host refuses that login with "try again". The engine holds at most half of `l2nx.io.workers` at once (restore

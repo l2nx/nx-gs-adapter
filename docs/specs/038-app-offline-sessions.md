@@ -140,7 +140,7 @@ OfflineSessionPlacement placeInWorld(OfflineSession session); // placed(spotId) 
 void startAction(OfflineSession session);                      // throw = the action could not start
 void stopAction(OfflineSession session);                       // every end of a started action; must be idempotent
 void removeFromWorld(OfflineSession session, boolean returnToOrigin);
-OfflineSessionSettings settings(); // returnThresholdMs, retentionDays, restoreDelayMs, restoreBatchSize, restoreBatchIntervalMs
+OfflineSessionSettings settings(); // returnThresholdMs, retentionDays, restoreBatchSize, restoreBatchIntervalMs
 ```
 
 - The engine calls every method from an adapter IO thread and waits; the host hops to its game thread itself and runs
@@ -165,6 +165,7 @@ one instance, usable from JVM start; a context built without it gets a no-op. No
 CompletableFuture<AppSessionStartOutcome> start(AppSessionStartRequest request);
 CompletableFuture<Optional<OfflineSession>> stop(int characterId, ActivityType activity);
 void onActionEnded(UUID sessionId, LogoutReason reason);   // async; APP_OUT_OF_BAIT, APP_DAILY_LIMIT, APP_INVENTORY_FULL, APP_SOLD_OUT, BANNED, KICKED
+void hostReady();                                          // the world is loaded; releases the restore, idempotent
 ClientLoginOutcome onClientLogin(int characterId);         // synchronous, bounded wait: CLOSED(session) | NONE | PENDING
 Optional<OfflineSession> findActive(int characterId);      // in-memory, game-thread safe
 CompletableFuture<Boolean> updateTypeState(UUID sessionId, @Nullable String typeStateJson);
@@ -189,6 +190,11 @@ void publishSettings(AppSettings settings);
   host refuses this login with a "try again" message, and the close goes on in the background (after a boot wait, as
   soon as the engine is ready), so the next attempt finds the session closed. It must not run on the thread the host's
   SPI hops to unless those hops run inline.
+- `hostReady` is the host's signal that its world is loaded and can take characters back; the host calls it once, after
+  its own offline characters are back, so app sessions come back right behind them. It returns at once from any thread;
+  a call before the engine has booted (the host may load its world before the platform connect) is remembered and
+  forwarded when the engine is ready; a second call does nothing. Without it pending sessions are never restored (see
+  Lifecycle, Restart).
 - `findActive` also returns, until the retry reaches the table, a session the engine ended (carrying `endedAt`) or a
   start it rolled back whose write the table refused; the character stays busy for starts meanwhile.
 - Futures complete on adapter threads; a handler waits on its own thread, never on `ctx.io()`.
@@ -222,7 +228,13 @@ second precision because MariaDB and MySQL `DATETIME` keep no fraction. Rows wri
 **`AppSessionsModule`** (`app-sessions`, built into core, registered in core's
 `META-INF/services/...AdapterModule`). `onConnect` binds the presence events and the settings topic; `start` arms the
 restore and the flush; `stop` stores `active_ms`. Its order against `db-sync`, `gd-sync`, `runtime-sync` and host modules
-does not matter: it reads only its own context and the restore runs after the host's delay, not inside `start()`.
+does not matter: it reads only its own context and the restore waits for `hostReady`, not for the module order.
+
+**Restore trigger.** The engine keeps two one-way flags, "module started" (set by `AppSessionsModule.start()`) and "host
+ready" (set by `NxAppSessions.hostReady()`); whichever is set last queues the pending sessions and schedules the first
+batch at once, and a third flag lets only one of the two racing callers do so. The module starts before the host has
+loaded its world, so the restore cannot follow the module start alone: a timer would be a guess, and a slow boot would
+place characters into a world not yet loaded.
 
 **`AppSessionsRuntime`** boots the engine on the adapter's connect thread right after the schema migration and before
 the platform connect: it discovers the SPI and the connection source, deletes closed sessions past the retention and
@@ -302,12 +314,15 @@ Cleanup: closed sessions older than the host's retention are deleted at server s
    at the next start (see Engine).
 4. Server stop: running sessions keep their row open; `active_ms` is stored; nothing is published.
 5. Restart: at engine start closed rows past the retention are deleted and rows with `ended_at IS NULL` wait for the
-   restore; after the host's delay they are restored in batches at the host's pace: `placeInWorld` (+ the new spot when
+   restore. Once the `app-sessions` module has started and the host has called `hostReady` (whichever comes last), the
+   first batch runs at once and the rest follow in batches at the host's pace (`restoreBatchSize`, capped at the
+   engine's share of the IO pool, every `restoreBatchIntervalMs`): `placeInWorld` (+ the new spot when
    the host moved it), `startAction`, then `online = true, resumed = true` with the same `sessionId`. A refused or
    failed placement or action ends the session with `APP_RESTORE_FAILED` (return rule applies, `removeFromWorld` of a
    character that never re-entered the world). A row whose `active_ms` already reached `planned_ms` ends with `APP_TIME_UP`
    without being placed. A stop before the restore reached it ends with `APP_STOPPED_BEFORE_RESTORE`, a login with `APP_LOGIN`;
-   either cancels its restore. Ends still queued for a retry are written before the next restore batch, and a
+   either cancels its restore. Until `hostReady` every pending session stays in that state, with no timeout; stops and
+   logins keep closing them this way. Ends still queued for a retry are written before the next restore batch, and a
    character with such an end is never restored.
 
 End reasons (the `LogoutReason` values of app sessions; the set is closed):
@@ -366,7 +381,7 @@ lives on the platform, in its own private legacy mapping (see Rollout).
 Detail of R18. A game server's app behaviour is configured by the game designer in a settings file of the host (the
 adapter does not prescribe its name or format; it is separate from the file with the adapter connection and credentials).
 It holds which session types are enabled, the rule parameters (recently-left-the-game minutes, start cooldown, the one return
-threshold shared by all session types, restart window, restore delay and batch size, fishing minimum and maximum duration), the placed character's
+threshold shared by all session types, restart window, restore batch size and interval, fishing minimum and maximum duration), the placed character's
 title text and colour, and the retention of the host's session history. Spot pools are separate data files.
 
 Host-side behaviour the contract relies on (host configuration, summarized because the snapshot follows it):

@@ -24,7 +24,6 @@ final class FakeOfflineSessionHost implements OfflineSessionHost {
     OfflineSessionSettings settings = OfflineSessionSettings.builder()
             .returnThresholdMs(30L * 60_000L)
             .retentionDays(30)
-            .restoreDelayMs(60_000L)
             .restoreBatchSize(10)
             .restoreBatchIntervalMs(1_000L)
             .build();

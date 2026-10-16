@@ -82,6 +82,8 @@ final class AppSessionEngine {
     private final AtomicBoolean retrying = new AtomicBoolean();
     private final ConcurrentLinkedQueue<Slot> restoreQueue = new ConcurrentLinkedQueue<Slot>();
     private final AtomicBoolean scheduled = new AtomicBoolean();
+    private final AtomicBoolean hostReady = new AtomicBoolean();
+    private final AtomicBoolean restoreBegun = new AtomicBoolean();
     private final AtomicBoolean stopped = new AtomicBoolean();
     private volatile @Nullable OfflineSessionSettings lastSettings;
 
@@ -136,6 +138,25 @@ final class AppSessionEngine {
         }
         scheduler.scheduleWithFixedDelay(
                 SafeRunnable.wrap(this::flushTick, log), FLUSH_INTERVAL_MS, FLUSH_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        beginRestoreIfReady();
+    }
+
+    /** Non-blocking: the first batch runs on the scheduler. */
+    void hostReady() {
+        if (hostReady.compareAndSet(false, true)) {
+            log.info("App sessions: the host reported its world loaded");
+            beginRestoreIfReady();
+        }
+    }
+
+    /**
+     * Both {@link #startScheduling} and {@link #hostReady} set their flag before calling this, so whichever comes last
+     * sees both; {@link #restoreBegun} keeps a race between them to one restore.
+     */
+    private void beginRestoreIfReady() {
+        if (stopped.get() || !scheduled.get() || !hostReady.get() || !restoreBegun.compareAndSet(false, true)) {
+            return;
+        }
         List<Slot> pending = new ArrayList<Slot>();
         for (Slot slot : byId.values()) {
             if (slot.phase == Phase.PENDING_RESTORE) {
@@ -147,9 +168,8 @@ final class AppSessionEngine {
         }
         pending.sort(Comparator.comparing((Slot s) -> s.row.getStartedAt()).thenComparing(s -> s.id));
         restoreQueue.addAll(pending);
-        long delayMs = settings().getRestoreDelayMs();
-        log.info("App sessions: restoring {} session(s) in {} ms", pending.size(), delayMs);
-        schedule(this::restoreBatch, delayMs);
+        log.info("App sessions: restoring {} session(s)", pending.size());
+        schedule(this::restoreBatch, 0L);
     }
 
     void shutdown() {

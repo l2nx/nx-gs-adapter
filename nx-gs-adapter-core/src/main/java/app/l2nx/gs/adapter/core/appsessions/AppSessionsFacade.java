@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -40,6 +41,7 @@ final class AppSessionsFacade implements NxAppSessions {
     private volatile @Nullable AppSessionEngine engine;
     private volatile CountDownLatch booted = new CountDownLatch(1);
     private final Set<Integer> lateLogins = ConcurrentHashMap.newKeySet();
+    private final AtomicBoolean hostReady = new AtomicBoolean();
 
     AppSessionsFacade(AppSettingsPublisher settingsPublisher, long bootWaitMs) {
         this.settingsPublisher = settingsPublisher;
@@ -69,6 +71,9 @@ final class AppSessionsFacade implements NxAppSessions {
         state = State.READY;
         booted.countDown();
         drainLateLogins(ready);
+        if (hostReady.get()) {
+            ready.hostReady();
+        }
     }
 
     void disable() {
@@ -81,6 +86,7 @@ final class AppSessionsFacade implements NxAppSessions {
         engine = null;
         state = State.IDLE;
         lateLogins.clear();
+        hostReady.set(false);
         booted.countDown();
         booted = new CountDownLatch(1);
     }
@@ -126,6 +132,23 @@ final class AppSessionsFacade implements NxAppSessions {
             e.onActionEnded(sessionId, reason);
         } catch (Throwable t) {
             log.error("App sessions: onActionEnded threw {}", t.getClass().getName(), t);
+        }
+    }
+
+    @Override
+    public void hostReady() {
+        if (!hostReady.compareAndSet(false, true)) {
+            return;
+        }
+        // remembered for an engine still booting; ready() forwards it, the engine ignores a second call
+        AppSessionEngine e = engine;
+        if (e == null) {
+            return;
+        }
+        try {
+            e.hostReady();
+        } catch (Throwable t) {
+            log.error("App sessions: hostReady threw {}", t.getClass().getName(), t);
         }
     }
 

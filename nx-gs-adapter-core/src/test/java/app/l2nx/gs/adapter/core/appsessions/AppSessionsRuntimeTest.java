@@ -147,6 +147,30 @@ class AppSessionsRuntimeTest {
         }
     }
 
+    @Nested
+    class HostReady {
+
+        @Test
+        void hostReady_shouldBeRemembered_whenCalledWhileTheEngineBoots() {
+            InMemoryOfflineSessionStore store = new InMemoryOfflineSessionStore();
+            OfflineSession open = openSession(7);
+            store.seed(open);
+            FakeOfflineSessionHost host = new FakeOfflineSessionHost();
+            ManualScheduler time = new ManualScheduler();
+            AppSessionEngine engine = new AppSessionEngine(store, host, Runnable::run, 4, time, time, 1_000L);
+            AppSessionsFacade facade = new AppSessionsFacade(AppSettingsPublisher.viaNxKafka(), 5_000L);
+            facade.booting();
+
+            facade.hostReady();
+            engine.boot();
+            facade.ready(engine);
+            engine.startScheduling();
+            time.advance(0L);
+
+            assertTrue(host.called("place:" + open.getId()));
+        }
+    }
+
     private static OfflineSession openSession(int characterId) {
         return OfflineSession.builder()
                 .id(UUID.randomUUID())

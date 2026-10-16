@@ -115,6 +115,11 @@ class AppSessionEngineTest {
         engine.startScheduling();
     }
 
+    private void hostReady() {
+        engine.hostReady();
+        time.advance(0L);
+    }
+
     @Nested
     class Start {
 
@@ -255,7 +260,7 @@ class AppSessionEngineTest {
             OfflineSession row = openRow(CHAR_ID, 5, 10 * MINUTE);
             bootWith(row);
 
-            time.advance(host.settings.getRestoreDelayMs());
+            hostReady();
             time.advance(MINUTE);
 
             assertEquals(11 * MINUTE, store.row(row.getId()).getActiveMs());
@@ -310,7 +315,7 @@ class AppSessionEngineTest {
             OfflineSession row = openRow(CHAR_ID, 5, 60 * MINUTE);
             bootWith(row);
 
-            time.advance(host.settings.getRestoreDelayMs());
+            hostReady();
 
             assertEquals(LogoutReason.APP_TIME_UP, store.row(row.getId()).getEndReason());
             assertFalse(host.called("place:"));
@@ -390,7 +395,7 @@ class AppSessionEngineTest {
 
             Optional<OfflineSession> actual =
                     engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
-            time.advance(host.settings.getRestoreDelayMs());
+            hostReady();
 
             assertEquals(LogoutReason.APP_STOPPED_BEFORE_RESTORE, actual.get().getEndReason());
             assertEquals(Arrays.asList("remove:" + row.getId() + ":false"), host.calls);
@@ -427,7 +432,7 @@ class AppSessionEngineTest {
             bootWith(row);
 
             ClientLoginOutcome actual = engine.onClientLogin(CHAR_ID);
-            time.advance(host.settings.getRestoreDelayMs());
+            hostReady();
 
             assertEquals(LogoutReason.APP_LOGIN, actual.getSession().getEndReason());
             assertFalse(host.called("place:"));
@@ -525,13 +530,23 @@ class AppSessionEngineTest {
     class Restore {
 
         @Test
-        void restore_shouldPlaceStartAndPublishResumed_whenDelayPassed() {
+        void restore_shouldNotRun_whenHostIsNotReady() {
             OfflineSession row = openRow(CHAR_ID, 5, 0L);
             bootWith(row);
 
-            time.advance(host.settings.getRestoreDelayMs() - 1);
+            time.advance(24 * 60 * MINUTE);
+
             assertFalse(host.called("place:"));
-            time.advance(1);
+            assertTrue(engine.findActive(CHAR_ID).isPresent());
+            assertTrue(events.events.isEmpty());
+        }
+
+        @Test
+        void hostReady_shouldPlaceStartAndPublishResumedAtOnce_whenModuleIsStarted() {
+            OfflineSession row = openRow(CHAR_ID, 5, 0L);
+            bootWith(row);
+
+            hostReady();
 
             assertEquals(Arrays.asList("place:" + row.getId(), "startAction:" + row.getId()), host.calls);
             CharacterPresenceEvent event = events.single();
@@ -542,12 +557,49 @@ class AppSessionEngineTest {
         }
 
         @Test
+        void startScheduling_shouldRestoreAtOnce_whenHostWasReadyBefore() {
+            OfflineSession row = openRow(CHAR_ID, 5, 0L);
+            store.seed(row);
+            engine.boot();
+            engine.hostReady();
+            time.advance(MINUTE);
+            assertFalse(host.called("place:"));
+
+            engine.startScheduling();
+            time.advance(0L);
+
+            assertEquals(Arrays.asList("place:" + row.getId(), "startAction:" + row.getId()), host.calls);
+        }
+
+        @Test
+        void hostReady_shouldDoNothing_whenCalledAgain() {
+            OfflineSession row = openRow(CHAR_ID, 5, 0L);
+            bootWith(row);
+            hostReady();
+
+            hostReady();
+
+            assertEquals(Arrays.asList("place:" + row.getId(), "startAction:" + row.getId()), host.calls);
+            assertEquals(1, events.events.size());
+        }
+
+        @Test
+        void hostReady_shouldNotRestore_whenEngineIsShutDown() {
+            bootWith(openRow(CHAR_ID, 5, 0L));
+            engine.shutdown();
+
+            hostReady();
+
+            assertFalse(host.called("place:"));
+        }
+
+        @Test
         void restore_shouldStoreTheNewSpot_whenHostPlacesOnAnotherSpotOfThePool() {
             OfflineSession row = openRow(CHAR_ID, 5, 0L);
             host.placement = s -> OfflineSessionPlacement.placed(8);
             bootWith(row);
 
-            time.advance(host.settings.getRestoreDelayMs());
+            hostReady();
 
             assertEquals(8, store.row(row.getId()).getSpotId());
             assertEquals(8, engine.findActive(CHAR_ID).get().getSpotId());
@@ -559,7 +611,7 @@ class AppSessionEngineTest {
             host.placement = s -> OfflineSessionPlacement.refused(AppSessionRefusalReason.NO_FREE_SPOT, null);
             bootWith(row);
 
-            time.advance(host.settings.getRestoreDelayMs());
+            hostReady();
 
             assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
             assertFalse(host.called("startAction:"));
@@ -576,7 +628,7 @@ class AppSessionEngineTest {
             host.failStartAction = true;
             bootWith(row);
 
-            time.advance(host.settings.getRestoreDelayMs());
+            hostReady();
 
             assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
             assertTrue(host.called("remove:" + row.getId() + ":true"));
@@ -592,7 +644,8 @@ class AppSessionEngineTest {
             capped.boot();
             capped.startScheduling();
 
-            time.advance(host.settings.getRestoreDelayMs());
+            capped.hostReady();
+            time.advance(0L);
             assertEquals(2, events.events.size());
             time.advance(host.settings.getRestoreBatchIntervalMs());
             assertEquals(3, events.events.size());
@@ -606,7 +659,7 @@ class AppSessionEngineTest {
                     .build();
             bootWith(openRow(1, 1, 0L), openRow(2, 2, 0L), openRow(3, 3, 0L));
 
-            time.advance(host.settings.getRestoreDelayMs());
+            hostReady();
             assertEquals(2, events.events.size());
             time.advance(4_999L);
             assertEquals(2, events.events.size());
@@ -754,7 +807,7 @@ class AppSessionEngineTest {
             store.failCloses = 1;
             engine.onClientLogin(CHAR_ID);
 
-            time.advance(host.settings.getRestoreDelayMs());
+            hostReady();
 
             assertEquals(LogoutReason.APP_LOGIN, store.row(first.getId()).getEndReason());
             assertFalse(host.called("place:" + first.getId()));

@@ -34,6 +34,9 @@ final class NoOpAppSessions implements NxAppSessions {
     public void onActionEnded(UUID sessionId, LogoutReason reason) {}
 
     @Override
+    public void hostReady() {}
+
+    @Override
     public ClientLoginOutcome onClientLogin(int characterId) {
         return ClientLoginOutcome.none();
     }

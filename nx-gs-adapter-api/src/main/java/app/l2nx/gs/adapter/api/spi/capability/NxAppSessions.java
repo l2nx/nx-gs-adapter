@@ -52,6 +52,17 @@ public interface NxAppSessions {
     void onActionEnded(UUID sessionId, LogoutReason reason);
 
     /**
+     * The host's world is loaded and can take characters back. Sessions open before the restart are restored only
+     * after this call and once the {@code app-sessions} module has started, whichever comes last; until then a stop
+     * closes such a session with {@code APP_STOPPED_BEFORE_RESTORE} and a login with {@code APP_LOGIN}, and without
+     * the call they are never restored.
+     *
+     * <p>Call it once the world is loaded, after the host's own offline characters are back. Returns at once from any
+     * thread; a call before the engine has booted is remembered, a second call does nothing.</p>
+     */
+    void hostReady();
+
+    /**
      * A client is logging in to {@code characterId}. Closes the character's open session (also one still waiting for
      * its restore) with {@code APP_LOGIN} and returns only when it is closed, so the host calls it under the
      * character's mutation lock before loading the live character.
