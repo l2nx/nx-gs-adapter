@@ -40,9 +40,9 @@ assuming):
 - **db sync**: `alliance`, `announcement`, `ban`, `character`, `clan`, `item`, `rating`
 - **gd sync**: `armorsettemplate`, `classtemplate`, `experiencelevel`, `gearscore`, `instancetemplate`,
   `itemtemplate`, `npctemplate`, `recipetemplate`, `skill`, `soulcrystaltemplate`
-- **runtime sync**: `character`, `characteractivityusage` (a per-character usage pack, also rides the db channel,
+- **runtime sync**: `character`, `character.activity.usage` (entity name `characteractivityusage`: a per-character usage pack, also rides the db channel,
   routed by entity name)
-- **settings sync**: `appsettings`
+- **settings sync**: `app` (entity name `appsettings`)
 - **events**: `account`, `castle`, `character`, `characterlog`, `chat`, `gameevents`,
   `mail`, `olympiad`, `premiumpurchase`, `privatestore`, `privatetrade`, `raid`, `schedule`,
   `server.online` (family key `serveronline`), `sync`; `push` — facts published by platform services (not the host) to

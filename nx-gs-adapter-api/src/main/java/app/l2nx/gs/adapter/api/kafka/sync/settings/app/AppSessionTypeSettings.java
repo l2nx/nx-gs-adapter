@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.kafka.sync.settings.appsettings;
+package app.l2nx.gs.adapter.api.kafka.sync.settings.app;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import java.util.Objects;

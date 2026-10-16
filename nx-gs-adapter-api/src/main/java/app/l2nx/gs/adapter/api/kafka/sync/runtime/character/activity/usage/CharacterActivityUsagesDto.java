@@ -1,6 +1,6 @@
-package app.l2nx.gs.adapter.api.kafka.sync.runtime.characteractivityusage;
+package app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage;
 
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.characteractivityusage.model.ActivityUsage;
+import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage.model.ActivityUsage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;

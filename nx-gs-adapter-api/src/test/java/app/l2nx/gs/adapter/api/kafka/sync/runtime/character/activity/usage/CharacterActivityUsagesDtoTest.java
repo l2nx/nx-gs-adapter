@@ -1,11 +1,11 @@
-package app.l2nx.gs.adapter.api.kafka.sync.runtime.characteractivityusage;
+package app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.characteractivityusage.model.ActivityUsage;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.characteractivityusage.model.UsageStep;
-import app.l2nx.gs.adapter.api.kafka.sync.runtime.characteractivityusage.model.UsageUnit;
+import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage.model.ActivityUsage;
+import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage.model.UsageStep;
+import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage.model.UsageUnit;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializer;

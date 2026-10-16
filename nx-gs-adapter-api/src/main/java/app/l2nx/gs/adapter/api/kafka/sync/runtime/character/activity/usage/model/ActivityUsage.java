@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.kafka.sync.runtime.characteractivityusage.model;
+package app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage.model;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import java.time.Instant;

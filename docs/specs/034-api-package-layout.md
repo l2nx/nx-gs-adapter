@@ -115,9 +115,9 @@ the slice's contract from its supporting types. The same smell exists inside cor
 
   | Package                                         | Content                                                                                    |
   | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
-  | `kafka.sync.runtime.characteractivityusage`     | `CharacterActivityUsagesDto` (root); `ActivityUsage`, `UsageStep`, `UsageUnit` in `model/` |
+  | `kafka.sync.runtime.character.activity.usage`     | `CharacterActivityUsagesDto` (root); `ActivityUsage`, `UsageStep`, `UsageUnit` in `model/` |
   | `kafka.sync.settings`                           | `SettingsSyncEvent` envelope (root)                                                        |
-  | `kafka.sync.settings.appsettings`               | `AppSettings`, `AppSessionTypeSettings` (one aggregate, flat)                              |
+  | `kafka.sync.settings.app`               | `AppSettings`, `AppSessionTypeSettings` (one aggregate, flat)                              |
   | `kafka.commands.offline.fishing`                 | `Start/StopOfflineFishingCommand` and `Start/StopOfflineFishingResult`                     |
   | `kafka.commands.session`                     | `AppSessionRefusal` (extension keys); `AppSessionRefusalReason`, `AlreadyActiveScope` in `model/` |
 

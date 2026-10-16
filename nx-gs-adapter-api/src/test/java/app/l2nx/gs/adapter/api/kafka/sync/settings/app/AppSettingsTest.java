@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.kafka.sync.settings.appsettings;
+package app.l2nx.gs.adapter.api.kafka.sync.settings.app;
 
 import static org.junit.jupiter.api.Assertions.*;
 

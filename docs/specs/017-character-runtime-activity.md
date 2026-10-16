@@ -154,7 +154,7 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
 - [resolved: two independent fields, not one unified "state".]
 - [resolved: activity and usage are one entity, `characteractivityusage`, not a second parallel list.]
 - [resolved: `type` is the closed `UPPER_SNAKE_CASE` enum `ActivityType`; no lower_snake on the wire.]
-- [resolved: one DTO, `CharacterActivityUsagesDto` in `kafka.sync.runtime.characteractivityusage` (entity name `characteractivityusage`), one row per character with the COMPLETE set of its usage rows; it rides the existing character topics of the db and runtime channels, routed by entity name.]
+- [resolved: one DTO, `CharacterActivityUsagesDto` in `kafka.sync.runtime.character.activity.usage` (entity name `characteractivityusage`), one row per character with the COMPLETE set of its usage rows; it rides the existing character topics of the db and runtime channels, routed by entity name.]
 - [resolved: `steps[].after` is measured in the row's `unit`.]
 - [resolved: `remaining` is `limit - used`, floored at zero, when `limit` is set; `null` when `limit` is `null`.]
 

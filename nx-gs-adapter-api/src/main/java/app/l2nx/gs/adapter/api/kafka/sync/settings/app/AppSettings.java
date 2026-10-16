@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.kafka.sync.settings.appsettings;
+package app.l2nx.gs.adapter.api.kafka.sync.settings.app;
 
 import app.l2nx.gs.adapter.api.kafka.sync.settings.SettingsSyncEvent;
 import java.time.Instant;

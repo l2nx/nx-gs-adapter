@@ -2,7 +2,7 @@ package app.l2nx.gs.adapter.core.appsessions;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
-import app.l2nx.gs.adapter.api.kafka.sync.settings.appsettings.AppSettings;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;

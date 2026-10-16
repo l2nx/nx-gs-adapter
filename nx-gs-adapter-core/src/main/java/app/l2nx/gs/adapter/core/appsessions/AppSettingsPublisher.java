@@ -2,7 +2,7 @@ package app.l2nx.gs.adapter.core.appsessions;
 
 import app.l2nx.gs.adapter.api.kafka.NxHeaders;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.SettingsSyncEvent;
-import app.l2nx.gs.adapter.api.kafka.sync.settings.appsettings.AppSettings;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.kafka.KafkaException;
 import app.l2nx.gs.kafka.NxKafka;
