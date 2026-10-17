@@ -5,7 +5,7 @@ Essence game server core and connects it to the L2NX platform.
 
 ## Project
 
-- **Organization:** nexuslabsio
+- **Organization:** l2nx
 - **Group:** `app.l2nx`
 - **Java:** 8 (source + target); `nx-gs-db-migrator-liquibase5` alone is Java 17 (Liquibase 5)
 - **Build:** Gradle (Kotlin DSL), multimodule, per-module versioning

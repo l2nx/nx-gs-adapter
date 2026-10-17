@@ -77,7 +77,7 @@ publishing {
             pom {
                 name.set("nx-gs-gd-sync-core")
                 description.set("L2NX game-server adapter — game-data (datapack) sync module")
-                url.set("https://github.com/nexuslabsio/nx-gs-adapter")
+                url.set("https://github.com/l2nx/nx-gs-adapter")
 
                 licenses {
                     license {
@@ -95,9 +95,9 @@ publishing {
                 }
 
                 scm {
-                    connection.set("scm:git:git://github.com/nexuslabsio/nx-gs-adapter.git")
-                    developerConnection.set("scm:git:ssh://github.com:nexuslabsio/nx-gs-adapter.git")
-                    url.set("https://github.com/nexuslabsio/nx-gs-adapter")
+                    connection.set("scm:git:git://github.com/l2nx/nx-gs-adapter.git")
+                    developerConnection.set("scm:git:ssh://github.com:l2nx/nx-gs-adapter.git")
+                    url.set("https://github.com/l2nx/nx-gs-adapter")
                 }
             }
         }

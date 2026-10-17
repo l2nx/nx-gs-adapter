@@ -63,7 +63,7 @@ publishing {
             pom {
                 name.set("nx-gs-db-migrator-liquibase5")
                 description.set("Liquibase 5 SchemaMigrator for the L2NX game-server adapter; the host brings liquibase-core 5.x (Java 17+)")
-                url.set("https://github.com/nexuslabsio/nx-gs-adapter")
+                url.set("https://github.com/l2nx/nx-gs-adapter")
 
                 licenses {
                     license {
@@ -81,9 +81,9 @@ publishing {
                 }
 
                 scm {
-                    connection.set("scm:git:git://github.com/nexuslabsio/nx-gs-adapter.git")
-                    developerConnection.set("scm:git:ssh://github.com:nexuslabsio/nx-gs-adapter.git")
-                    url.set("https://github.com/nexuslabsio/nx-gs-adapter")
+                    connection.set("scm:git:git://github.com/l2nx/nx-gs-adapter.git")
+                    developerConnection.set("scm:git:ssh://github.com:l2nx/nx-gs-adapter.git")
+                    url.set("https://github.com/l2nx/nx-gs-adapter")
                 }
             }
         }

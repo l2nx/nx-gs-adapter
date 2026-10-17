@@ -393,7 +393,7 @@ gd topic is kept for 48 h.
 ## 8. Links
 
 - Skill record contract (api 0.101.0): [`skill-contract.md`](skill-contract.md)
-- Issue: [nexuslabsio/nx-gs-adapter#8](https://github.com/nexuslabsio/nx-gs-adapter/issues/8)
+- Issue: [l2nx/nx-gs-adapter#8](https://github.com/l2nx/nx-gs-adapter/issues/8)
 - `docs/specs/023-platform-sync-fixes-2026-06.md` — Fix ③, the gear-score deploy gap that first
   shipped the `gearscore` entity (`gd-sync/v0.10.0`); a version-skew incident, not a design record.
 - Host side: the host's game-data module (boot-ordering gate and

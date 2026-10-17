@@ -5,7 +5,7 @@ the network between the adapter and any consumer that speaks its protocol.
 
 ## Project
 
-- **Organization:** nexuslabsio
+- **Organization:** l2nx
 - **Group:** `app.l2nx`
 - **Artifact:** `nx-gs-adapter-api`
 - **Package:** `app.l2nx.gs.adapter.api`
