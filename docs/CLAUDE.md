@@ -25,7 +25,7 @@ work lives in [`TODO.md`](TODO.md).
 | 007 | per-server-sync                   | 2026-05-02 | [spec](specs/007-per-server-sync.md)                   |
 | 008 | messaging                         | 2026-05-06 | [spec](specs/008-messaging.md)                         |
 | 009 | commands (rail + every command)   | 2026-10-16 | [spec](specs/009-commands/spec.md)                     |
-| 011 | events-online-snapshot (closed `ServerOnlineBucket`; started / stopping facts) | 2026-10-15 | [spec](specs/011-events-online-snapshot.md)            |
+| 011 | events-online-snapshot (closed `ServerOnlineBucket`; per-clan breakdown; started / stopping facts) | 2026-10-15 | [spec](specs/011-events-online-snapshot.md)            |
 | 012 | snapshot-persistence              | 2026-05-17 | [spec](specs/012-snapshot-persistence.md)              |
 | 013 | character-core-extension (presence `source`, `activity`, `logoutReason`, `resumed`) | 2026-10-15 | [spec](specs/013-character-core-extension.md)          |
 | 014 | events-raid                       | 2026-05-19 | [spec](specs/014-events-raid.md)                       |

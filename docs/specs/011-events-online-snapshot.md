@@ -14,6 +14,10 @@ Counts are build-agnostic, so the buckets are a closed vocabulary of generic con
 (`ServerOnlineBucket`); a host publishes the ones that apply to it, and a new concept is an api release first, like every
 other closed enum of the contract.
 
+The same snapshot optionally carries a per-clan breakdown (`clans`): the same buckets and the same counting rules,
+scoped to the members of each clan. The platform uses it for clan business metrics (live online of a clan over time);
+the clan a character belongs to is the one at the moment of the snapshot, which no other channel records.
+
 Audience: platform consumers (dashboards, time-series ingest) and host authors writing the snapshot builder.
 
 ## Requirements
@@ -33,6 +37,7 @@ Audience: platform consumers (dashboards, time-series ingest) and host authors w
   - `Map<ServerOnlineBucket, Long> buckets` - non-negative counts; the wire key is the enum constant name. The
     constructor requires `TOTAL` and `UNIQUE`; a null map normalizes to empty (and then fails that check). The getter is
     unmodifiable. Gson bypasses the constructor, so a consumer re-checks the required keys.
+  - `@Nullable Map<Long, Map<ServerOnlineBucket, Long>> clans` - per-clan breakdown, R8.
   - `@Nullable Map<String, String> metadata` - open map of snapshot attributes (no counts); hosts may add keys without
     an api release, consumers ignore unknown ones.
 
@@ -74,6 +79,17 @@ Audience: platform consumers (dashboards, time-series ingest) and host authors w
   of collapsing them into one sentinel entry: accuracy of `UNIQUE` beats reflecting the login window. A public online
   number is not part of the contract.
 
+- [todo] R8. `clans` is keyed by the clan id (the same `long` as `ClanDbDto.id`); each value is a bucket map with the
+  same rules as `buckets`: non-negative counts, `TOTAL` and `UNIQUE` required (checked in the constructor, re-checked by
+  a consumer), the other buckets optional. `null` means the host does not report a breakdown; an empty map means it does
+  and no clan has a character in the world. Both maps are unmodifiable. The field is optional for a host: a consumer
+  treats `null` as "no data", never as zero.
+- [host rule] R9. Clan breakdown counting. A clan entry is the R6 rules applied to the characters of that clan: the same
+  "live player" predicate and the same `UNIQUE` identity tuple, shared in code with the server-wide count so the two
+  cannot drift. A clan is present only when its `TOTAL` is above zero, and then with every bucket the host publishes,
+  zeros included. Characters without a clan are in no entry. The breakdown is built in the same pass as `buckets`, so it
+  has the same `eventId` and the same instant.
+
 **Could:**
 
 - [todo] R7. A configurable snapshot cadence ([`TODO §13`](../TODO.md#13-configurable-online-snapshot-cadence)).
@@ -95,6 +111,9 @@ Audience: platform consumers (dashboards, time-series ingest) and host authors w
 - **Reconnect mid-tick.** The `NxEvents` facade from `ConnectContext.events()` keeps its identity across reconnects, so a
   snapshot built before and published after lands on the new producer; the module caches the handle once.
 - **Family disabled.** The platform did not configure the topic: the call is dropped with a DEBUG, nothing is enqueued.
+- **Clan sums.** `sum(clans[*][TOTAL])` is at most `buckets[TOTAL]` (clanless characters are out); `sum` of the clan
+  `UNIQUE` values may exceed `buckets[UNIQUE]`: one person with characters in two clans counts once per clan and once
+  for the server. Consumers never derive server numbers from the breakdown.
 - **Overlap.** A fishing player is in `FISHING`, `UNIQUE` and `TOTAL`; an app fisher is in `TOTAL`, `APP` and
   `OFFLINE_FISHING`, not in `FISHING`.
 
@@ -121,8 +140,8 @@ catches it). The host suppresses both during scheduled restarts and reports `gm_
 
 ```
 host scheduler (fixed delay)
-  -> snapshot builder: one pass over the players, counters per bucket
-  -> ServerOnlineSnapshotEvent(eventId = UUIDv7, buckets, metadata)
+  -> snapshot builder: one pass over the players, counters per bucket and per clan
+  -> ServerOnlineSnapshotEvent(eventId = UUIDv7, buckets, clans, metadata)
   -> NxEvents.publish
      -> EventTypeRegistry lookup -> family enabled? -> EventsPublisher queue
      -> Kafka record with Nx-Message-Type and Nx-Server-Id headers
@@ -135,6 +154,12 @@ host scheduler (fixed delay)
 - **Host-pushed.** Symmetric with the other event families; cadence is per host rather than tunable from the platform.
 - **Map keyed by a closed enum.** Open string keys let each host invent spellings (`app_fishing`) the platform could not
   aggregate or validate. Rollout order for a new bucket: adapter enum (api release), platform enum and CHECK, host.
+- **Clan breakdown in the same event.** A separate event would duplicate the predicate, the cadence and the instant;
+  one pass yields both, and a consumer can compare a clan with its server at the same `eventId`. The bucket enum is
+  reused: the scope differs, the meaning does not.
+- **Only clans with a character in the world.** Most clans on a live server are dead (prod 2026-10-17: 78 of 1825 on
+  one server); a row per clan per tick would cost the platform ~50M rows a day. The price is that a consumer averages
+  as `sum / ticks reported`, not as `avg` over rows; `null` versus empty `clans` tells it which ticks count.
 - **Partition key `null`.** Snapshots are rare; ordering comes from the UUIDv7 `eventId` and grouping from the
   `Nx-Server-Id` header, so no key extractor is needed.
 
