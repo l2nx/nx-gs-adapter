@@ -15,6 +15,9 @@ concurrency:
 jobs:
   publish:
     runs-on: [ self-hosted, linux, nexus ]
+    outputs:
+      module: ${{ steps.parsed.outputs.module }}
+      version: ${{ steps.parsed.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -135,3 +138,43 @@ jobs:
         run: gh release create "$GITHUB_REF_NAME" --generate-notes --title "${{ steps.parsed.outputs.module }} ${{ steps.parsed.outputs.version }}"
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # Separate job so "Re-run failed jobs" retries only this push, never the Central publish.
+  release-notes:
+    needs: publish
+    runs-on: [ self-hosted, linux, nexus ]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: l2nx/nx-dev-web
+          token: ${{ secrets.NX_DEV_WEB_PAT }}
+
+      - name: Publish release notes to l2nx.dev
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODULE: ${{ needs.publish.outputs.module }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          FILE="src/content/releases/${MODULE}/${VERSION}.md"
+          mkdir -p "$(dirname "$FILE")"
+          PUBLISHED_AT=$(gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --json publishedAt --jq .publishedAt)
+          {
+            printf -- '---\nmodule: %s\nversion: "%s"\ntag: "%s"\ndate: "%s"\n---\n\n' "$MODULE" "$VERSION" "$GITHUB_REF_NAME" "$PUBLISHED_AT"
+            # The changelog page titles each release with an h2; the notes' own headings go one level below it.
+            gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --json body --jq .body | sed -E 's/^(#{1,5}) /#\1 /'
+          } > "$FILE"
+          git config user.name "ci-${{ github.repository }}"
+          git config user.email "ci@l2nx.invalid"
+          git add "$FILE"
+          if git diff --cached --quiet; then
+            echo "::notice::Release notes for ${MODULE} ${VERSION} already published"
+            exit 0
+          fi
+          git commit -m "docs(releases): ${MODULE} ${VERSION}"
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin main && git push origin main && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 10 + 5))
+          done
+          echo "::error::Failed to push after 5 retries"
+          exit 1

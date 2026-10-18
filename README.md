@@ -3,6 +3,8 @@
 L2NX game-server adapter — multimodule library that embeds into the JVM process of an L2J / Lucera /
 Essence game server core and connects it to the L2NX platform.
 
+Integration guide, configuration reference and changelog: **https://l2nx.dev/adapter/overview/**.
+
 ## Project
 
 - **Organization:** l2nx
@@ -15,9 +17,12 @@ Essence game server core and connects it to the L2NX platform.
 | Module               | Artifact                      | Published            | Purpose                                                                            |
 |----------------------|-------------------------------|----------------------|------------------------------------------------------------------------------------|
 | `nx-gs-adapter-api`  | `app.l2nx:nx-gs-adapter-api`  | yes                  | Wire contracts (REST + Kafka DTOs) + Tier-1/Tier-3 SPI shared with the platform    |
+| `nx-gs-commons`      | `app.l2nx:nx-gs-commons`      | yes                  | Shared utilities for adapter modules and host providers                            |
 | `nx-gs-kafka`        | `app.l2nx:nx-gs-kafka`        | yes                  | Lightweight Kafka client facade for Java 8+ host JVMs                              |
 | `nx-gs-adapter-core` | `app.l2nx:nx-gs-adapter-core` | yes                  | Adapter runtime — connect, heartbeat, ServiceLoader-based module discovery, app-session engine |
 | `nx-gs-db-sync-core` | `app.l2nx:nx-gs-db-sync-core` | yes                  | DB-sync `AdapterModule` — CRC32 CDC engine, Tier-2 SPI host, per-entity stats      |
+| `nx-gs-runtime-sync-core` | `app.l2nx:nx-gs-runtime-sync-core` | yes         | Runtime-sync `AdapterModule` — in-memory snapshot + diff of live game state        |
+| `nx-gs-gd-sync-core` | `app.l2nx:nx-gs-gd-sync-core` | yes                  | Game-data sync `AdapterModule` — static catalog snapshots                          |
 | `nx-gs-db-migrations` | `app.l2nx:nx-gs-db-migrations` | yes                 | Liquibase changelog of the adapter-owned `l2nx_*` tables (resources only)          |
 | `nx-gs-db-migrator-liquibase5` | `app.l2nx:nx-gs-db-migrator-liquibase5` | yes | `SchemaMigrator` on Liquibase 5.x (Java 17+); the host brings `liquibase-core` |
 | `nx-gs-log`          | —                             | no (shadow-included) | Internal logging facade — bundled into `nx-gs-kafka` and `nx-gs-adapter-core` jars |
@@ -39,7 +44,9 @@ Open-core model — Apache 2.0, published to Maven Central:
 - `nx-gs-adapter-api` (contracts + SPI)
 - `nx-gs-kafka` (Kafka facade)
 - `nx-gs-adapter-core` (runtime)
+- `nx-gs-commons` (shared utilities)
 - `nx-gs-db-sync-core` (DB-sync engine + Tier-2 SPI host)
+- `nx-gs-runtime-sync-core`, `nx-gs-gd-sync-core` (runtime-state and game-data sync modules)
 - `nx-gs-db-migrations`, `nx-gs-db-migrator-liquibase5` (schema of the adapter-owned `l2nx_*` tables; Liquibase
   itself is not redistributed)
 - `nx-gs-db-l2j`, `nx-gs-db-lucera`, `nx-gs-dp-l2j`, `nx-gs-dp-lucera` (vanilla sync
@@ -58,12 +65,17 @@ They extend the vanilla module via the template-method pattern.
 Per-module independent versioning via slash-namespaced git tags:
 
 - `api/vX.Y.Z` → release `nx-gs-adapter-api`
+- `commons/vX.Y.Z` → release `nx-gs-commons`
 - `kafka/vX.Y.Z` → release `nx-gs-kafka`
 - `core/vX.Y.Z` → release `nx-gs-adapter-core`
 - `db-sync/vX.Y.Z` → release `nx-gs-db-sync-core`
+- `runtime-sync/vX.Y.Z` → release `nx-gs-runtime-sync-core`
+- `gd-sync/vX.Y.Z` → release `nx-gs-gd-sync-core`
 - `db-migrations/vX.Y.Z` → release `nx-gs-db-migrations`
 - `db-migrator-liquibase5/vX.Y.Z` → release `nx-gs-db-migrator-liquibase5`
 - `db-l2j/v…`, `dp-l2j/v…`, `db-lucera/v…`, `dp-lucera/v…` (future)
+
+A successful release also publishes its GitHub release notes to https://l2nx.dev/adapter/changelog/.
 
 Each module's `build.gradle.kts` declares
 `version = findProperty("${project.name}.version") as String? ?: "<base>"`.
