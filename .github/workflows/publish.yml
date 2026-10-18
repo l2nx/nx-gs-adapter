@@ -147,7 +147,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: l2nx/nx-dev-web
-          token: ${{ secrets.NX_DEV_WEB_PAT }}
+          token: ${{ secrets.NX_INFRA_PAT }}
 
       - name: Publish release notes to l2nx.dev
         env:
