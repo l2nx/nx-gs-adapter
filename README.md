@@ -107,54 +107,18 @@ at) and fill in the real `gs-key` + `platform-url`.
 Required: `l2nx.gs-key`, `l2nx.platform-url`. Optional: `l2nx.enabled` (default `false` — must be
 `true` for the adapter to actually run; otherwise it transitions to `DISABLED` at startup).
 
-**DB credentials (only when DB-sync modules ship and host JVM doesn't register a
-`JdbcConnectionSource` via SPI):** `l2nx.db.url`, `l2nx.db.username`, `l2nx.db.password` —
-operator-local fallback for the bundled-Hikari pool. Creds NEVER travel through the
-platform; they live only on the operator's machine. If the host (e.g. a reference integration)
-already exposes a `JdbcConnectionSource` via `META-INF/services`, leave the `l2nx.db.*`
-keys unset — the adapter will reuse the host's existing pool.
+**Database:** there are no `l2nx.db.*` keys. The adapter reads the game database only through the
+`JdbcConnectionSource` the host registers via `META-INF/services`, reusing the host's pool; DB credentials never
+reach the adapter config or the platform. A bundled-pool fallback configured by `l2nx.db.*` is planned, not
+built (spec 004, R6).
 
 **Adapter-owned tables (game-server hosts):** the adapter keeps its state in `l2nx_*` tables of the host
 database and migrates them itself (spec 037). Put `nx-gs-db-migrator-liquibase5` and `org.liquibase:liquibase-core`
 5.x on the classpath and register a `JdbcConnectionSource`; without them a game-server adapter goes `FAILED` at
 start. A host that reads an adapter-owned table during its own boot calls `NxAdapter.migrateSchema()` first.
 
-**CDC engine tuning (`nx-gs-db-sync-core`):** the engine reads `l2nx.cdc-engine.*`
-keys from the same source chain (file-first, sysprop fallback). All have sane defaults
-sized for a 12M-row items table:
-
-| Key                                                       | Default                          | Purpose                                                                    |
-|-----------------------------------------------------------|----------------------------------|----------------------------------------------------------------------------|
-| `l2nx.cdc-engine.tick-interval-seconds`                   | `60`                             | Cycle period per entity                                                    |
-| `l2nx.cdc-engine.rows-per-window`                         | `500000`                         | PK-window size; large entities split into multiple windows                 |
-| `l2nx.cdc-engine.query-timeout-seconds`                   | `10`                             | Per-statement JDBC timeout                                                 |
-| `l2nx.cdc-engine.publish-flush-seconds`                   | `5`                              | End-of-cycle Kafka-ack wait budget; failed PKs replay                      |
-| `l2nx.cdc-engine.workers`                                 | `max(2, min(entities, cores/2))` | Shared engine pool size (replaces thread-per-entity)                       |
-| `l2nx.cdc-engine.fetch-size`                              | `10000`                          | JDBC fetch-size hint (Postgres cursor batch; MySQL auto-uses streaming)    |
-| `l2nx.cdc-engine.persist.dir`                             | `nx-cdc-snapshot`                | Directory for on-disk snapshot cache (relative to JVM cwd unless absolute) |
-| `l2nx.cdc-engine.persist.checkpoint-min-interval-seconds` | `300`                            | Per-entity throttle on snapshot file rewrite                               |
-
-Snapshot persistence is always on — the per-entity PK→CRC32 store is
-periodically flushed to `<persist.dir>/<schemaName>/<entityName>.snap`
-(tmp → fsync → atomic rename) and reloaded on restart so the next cycle's
-diff produces DELETE events for rows removed from the host DB while the
-adapter was offline. A directory-level file lock (`.lock`) refuses a second
-adapter JVM pointed at the same directory.
-
-**Runtime-sync engine tuning (`nx-gs-runtime-sync-core`):**
-
-| Key                         | Default                          | Purpose                                              |
-|-----------------------------|----------------------------------|------------------------------------------------------|
-| `l2nx.runtime-sync.workers` | `max(2, min(entities, cores/2))` | Shared engine pool size (replaces thread-per-entity) |
-
-**Adapter IO pool (`l2nx.io.*`):** the adapter owns a shared executor (daemon
-threads `nx-io-N`) for handler/module blocking IO (JDBC, HTTP). Handlers MUST
-hop here via `ctx.io()` instead of running blocking work on the game thread or
-Kafka consumer thread.
-
-| Key               | Default           | Purpose                    |
-|-------------------|-------------------|----------------------------|
-| `l2nx.io.workers` | `max(2, cores/2)` | Adapter-owned IO pool size |
+**Every key** (CDC engine, runtime sync, game data sync, events, commands, Kafka producer, IO pool) with its default
+and meaning: **https://l2nx.dev/adapter/configuration/**. The starter `l2nx.properties` carries the game-server tuning keys with their defaults.
 
 ```bash
 # Option A: l2nx.properties in the JVM working directory (implicit fallback)
