@@ -178,3 +178,43 @@ jobs:
           done
           echo "::error::Failed to push after 5 retries"
           exit 1
+
+  # Separate job so "Re-run failed jobs" retries only the docs sync, never the Central publish.
+  docs:
+    needs: publish
+    runs-on: [ self-hosted, linux, nexus ]
+    # No concurrency group: it cancels pending runs; sync-docs.sh serializes released-together module tags itself.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: source
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Here, not in front of the Central publish: drifted docs must not block a module release.
+      - name: Verify configuration docs cover the keys read in code
+        working-directory: source
+        run: |
+          chmod +x gradlew
+          ./gradlew :nx-gs-adapter-core:docsCoverageTest
+
+      - uses: actions/checkout@v4
+        with:
+          repository: l2nx/nx-dev-web
+          token: ${{ secrets.NX_INFRA_PAT }}
+          path: portal
+          fetch-depth: 0
+
+      - name: Publish docs to l2nx.dev
+        working-directory: portal
+        env:
+          VERSION: ${{ github.ref_name }}
+          DOCS_DENYLIST: ${{ secrets.DOCS_DENYLIST }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: bash scripts/sync-docs.sh adapter "$GITHUB_WORKSPACE/source" "$VERSION"

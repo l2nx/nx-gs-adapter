@@ -44,7 +44,22 @@ tasks.test {
     useJUnitPlatform {
         findProperty("excludeTags")?.toString()?.let { excludeTags(it) }
     }
+    filter { excludeTestsMatching("*DocsCoverageTest") }
 }
+
+// Own task: its disk-read inputs (public docs, every module's sources) must not invalidate the core suite, yet
+// undeclared they would leave it UP-TO-DATE after a docs or sibling-module edit.
+val docsCoverageTest by tasks.registering(Test::class) {
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    filter { includeTestsMatching("*DocsCoverageTest") }
+    inputs.dir(rootProject.file("docs/public")).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(rootProject.subprojects.map { it.file("src/main/java") }.filter { it.isDirectory })
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+tasks.check { dependsOn(docsCoverageTest) }
 
 // Store tests against real databases with the real changelog. A source set of their own because Liquibase 5 and the
 // migrator are Java 17 bytecode, while main and test stay on the Java 8 release, and because the migrator's

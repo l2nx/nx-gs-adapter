@@ -301,6 +301,10 @@ shipped before this rule: `docs/specs/029-character-class-state-sync.md` (`subcl
 - **Commands are the exception to "one feature, one `NNN`":** every command spec lives in
   `docs/specs/009-commands/<command>.md` (no number) next to the rail `spec.md`, `catalog.md` and
   `guide.md`. Never open a top-level `NNN` for a command.
+- `docs/public/{en,ru}/` — source of the l2nx.dev «Adapter» section (except `changelog.mdx`, owned by the portal),
+  published by `publish.yml` on every module release. Public content: no internal hosts, topics or tenant names.
+  English source + full Russian translation in the same commit. `DocsCoverageTest` (core) keeps the
+  `configuration.md` tables in sync with the `l2nx.*` keys read in code.
 - `nx-gs-adapter-api/CLAUDE.md` — the wire-contract map (packages, families, contracts worth calling
   out). Anything about DTO shape belongs there or in a spec, not in this file.
 - **No tenant names in docs or Javadoc.** Never name a concrete tenant / server or link its files (repo paths, its classes, its tickets) — in specs, guides, READMEs or public Javadoc. Describe the host generically; this repo is a tenant-agnostic product and a named competitor scares off potential clients.
