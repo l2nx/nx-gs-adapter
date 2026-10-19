@@ -16,8 +16,8 @@ testcontainers = "1.21.4"
 postgresql = "42.7.14"
 mariadb-java-client = "3.5.10"
 # formatting
-spotless = "7.2.1"
-palantir = "2.93.0"
+spotless = "8.10.4"
+palantir = "2.102.0"
 
 [libraries]
 kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka-clients" }
