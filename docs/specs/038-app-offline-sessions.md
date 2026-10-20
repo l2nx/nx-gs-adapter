@@ -59,7 +59,7 @@ reason the mechanism is generalized; the private store from the app moves onto i
 - [done] R11. A session survives a restart as open: the engine restores it on the schedule below with the same `id`.
   Restore that cannot happen ends the session with `APP_RESTORE_FAILED`. The platform's server-generation close does not
   touch `APP` sessions, and `SUPERSEDED` for an `APP` session has no generation boundary (a session lives across
-  restarts). Reconciling `APP` sessions left open by mistake is a platform task (`nx-gameservers/docs/TODO.md` §72).
+  restarts). Reconciling `APP` sessions left open by mistake is a platform task ([nx-gameservers#85](https://github.com/l2nx/nx-gameservers/issues/85)).
 - [done] R12. There are no dedicated session events. The existing `CharacterPresenceEvent` is the session event: the end
   of a session is `online = false` with the required `logoutReason` (R15); a session restored after a restart is
   `online = true` with the same `sessionId` and `resumed = true` (R15).
