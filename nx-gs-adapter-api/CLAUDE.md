@@ -53,7 +53,7 @@ assuming):
 The command group is a code-organization bucket only — the commands topic stays single.
 
 Layout rule (spec 034): inside a slice, two or more supporting types of one kind (value objects,
-enums, `WellKnown*` vocabularies) live in `model/`; the slice root keeps its commands / events and
+enums, vocabulary enums) live in `model/`; the slice root keeps its commands / events and
 singles. Package-private helpers (`*Lists`, `NoOp*`) stay with the classes that use them — moving
 them would force them public. Entity DTO aggregates (`sync.db.*`, `sync.gd.npctemplate`) stay flat; `sync.gd.skill` keeps the aggregate
 in its root and splits effect / condition / learn / produced types into sub-packages.
@@ -170,9 +170,10 @@ They all live here so a host provider depends on the contracts artifact alone.
 - **Units live in the field name** — `respawnSec`, `reuseDelayMs`, `chancePercent`. Non-physical
   counts / ids stay unsuffixed.
 - **Boolean fields carry no `is` prefix.**
-- **Well-known open vocabularies ship as `WellKnown*` constant classes** next to their DTO
-  (`WellKnownServices`, `WellKnownDeathMetadata`, `WellKnownBossStatuses`, …). Open by design: hosts
-  MAY publish keys outside the canonical set, so consumers must tolerate unknown values.
+- **Vocabularies are enums** (root `CLAUDE.md` → Naming conventions): an open vocabulary gets a lenient
+  `fromToken(String)` returning `null` for an unknown token (delegate to `Vocabularies.fromToken(Class, String)`, never a hand-written loop), because hosts MAY publish tokens outside the canonical
+  set and consumers must tolerate them. Legacy `WellKnown*` constant classes convert when their family is touched
+  ([#33](https://github.com/l2nx/nx-gs-adapter/issues/33)).
 
 ## Constraints
 

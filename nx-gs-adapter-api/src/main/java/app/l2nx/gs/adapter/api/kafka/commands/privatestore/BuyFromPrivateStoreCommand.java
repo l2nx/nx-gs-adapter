@@ -11,12 +11,9 @@ import java.util.Set;
 
 /**
  * Remote "buy now" from another character's open sell-store. All-or-nothing: every line at exactly the requested count
- * and price, validated against the live trade list first, or nothing is charged or moved.
+ * and price, or nothing is charged or moved. More lines than the host's mail attachment limit: {@code TOO_MANY_LINES}.
  */
 public final class BuyFromPrivateStoreCommand implements OwnerVerified, NxCommand<BuyFromPrivateStoreResult> {
-
-    /** One mail slot per line; the engine's attachment cap ({@code Config.MAIL_MAX_ATTACHMENTS}) is 36. */
-    public static final int MAX_LINES = 36;
 
     private final int buyerCharId;
     private final int sellerCharId;
@@ -50,10 +47,6 @@ public final class BuyFromPrivateStoreCommand implements OwnerVerified, NxComman
         if (lines == null || lines.isEmpty()) {
             throw new IllegalArgumentException("lines is required and must be non-empty");
         }
-        if (lines.size() > MAX_LINES) {
-            throw new IllegalArgumentException(
-                    "lines must not exceed MAX_LINES=" + MAX_LINES + " (got " + lines.size() + ")");
-        }
         Set<Integer> seenItemIds = new HashSet<>();
         for (BuyLine line : lines) {
             if (line == null) {
@@ -63,7 +56,12 @@ public final class BuyFromPrivateStoreCommand implements OwnerVerified, NxComman
                 throw new IllegalArgumentException("lines must not repeat itemId (duplicate " + line.getItemId() + ")");
             }
         }
-        PrivateStoreFees.requirePercent(buyerFeePercent, "buyerFeePercent");
+        if (buyerFeePercent == null) {
+            throw new IllegalArgumentException("buyerFeePercent is required");
+        }
+        if (buyerFeePercent < 0) {
+            throw new IllegalArgumentException("buyerFeePercent must not be negative (got " + buyerFeePercent + ")");
+        }
         this.buyerCharId = buyerCharId;
         this.sellerCharId = sellerCharId;
         this.lines = PrivateStoreLists.freeze(lines);
@@ -97,8 +95,8 @@ public final class BuyFromPrivateStoreCommand implements OwnerVerified, NxComman
     }
 
     /**
-     * Whole percent burned on top of the lot price, {@code 0} = no fee. A missing value (Gson bypasses the constructor) or
-     * one outside {@code 0..}{@link PrivateStoreFees#MAX_FEE_PERCENT} is {@code VALIDATION_FAILED}, never clamped or read as {@code 0}.
+     * Whole percent burned on top of the lot price, {@code 0} = no fee. Missing (Gson bypasses the constructor) or
+     * negative is {@code VALIDATION_FAILED}, never read as {@code 0}.
      */
     public Integer getBuyerFeePercent() {
         return buyerFeePercent;

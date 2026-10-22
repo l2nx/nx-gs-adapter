@@ -157,7 +157,7 @@ rather than posting twice.
 | `audienceId`          | `Long?`   | cond.    | Character id for `CHARACTER` (or `targetCharacterName` instead), clan id for `CLAN`, alliance id for `ALLIANCE`; `null` for `PARTY` and `ALL_ONLINE`                                                                                                                                                                                                                                                                                                                       |
 | `senderCharacterId`   | `Long?`   | no       | Who speaks legally — drives the host's gates, the packet's `objectId` and platform attribution. `null` means the platform itself speaks                                                                                                                                                                                                                                                                                                                                    |
 | `senderDisplayName`   | `String?` | cond.    | What the client renders for nameless senders (`"System"`, `"Дед Мороз"`; empty string reproduces the nameless announcement line). Planned (spec R23): nullable when `senderCharacterId` is set — if present an updated host ignores it and builds the name itself, incl. the offline `*` postfix (older hosts use it verbatim); required when `senderCharacterId` is `null`, except channel `ANNOUNCEMENT`, where `null` renders the nameless announcement line (spec R30) |
-| `source`              | `String`  | yes      | Where the message originates (`APP` for the player app, `AUTO_ANNOUNCEMENT`, …). Echoed into the event metadata under `ChatMetadataKeys.SOURCE`; the host cannot infer the surface, and without it analysis cannot tell platform traffic from what players typed in-game                                                                                                                                                                                                 |
+| `source`              | `String`  | yes      | Where the message originates (`APP` for the player app, `AUTO_ANNOUNCEMENT`, …). Echoed into the event metadata under `ChatMetadataKeys.SOURCE`; the host cannot infer the surface, and without it analysis cannot tell platform traffic from what players typed in-game                                                                                                                                                                                                   |
 | `text`                | `String`  | yes      | Body in the neutral chat micro-format, at most 300 characters (spec R29): plain text, LF hard line breaks, bare `http(s)://` URLs for auto-linking; URL translation is a host concern. Planned (spec R25): item links as game-native `\b\tType=1 \tID=<objectId> ...\b` tokens built by the platform and ownership-verified by the host (foreign / missing item is `VALIDATION_FAILED`)                                                                                    |
 | `targetCharacterName` | `String?` | cond.    | Whisper addressee by name, used with audience `CHARACTER` when `audienceId` is `null`; trailing `*` stripped. Exactly one of the two for `CHARACTER`; both or neither is `VALIDATION_FAILED` (planned, spec R24)                                                                                                                                                                                                                                                           |
 | `ownerVerified`       | `boolean` | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                                                                                                                                                                                                                                        |
@@ -427,12 +427,12 @@ event reward, support compensation.
 
 **Errors**
 
-| Status              | When                                                                   |
-| ------------------- | ---------------------------------------------------------------------- |
-| `NOT_FOUND`         | Character does not exist (charId not in DB), or template id unknown    |
+| Status              | When                                                                                                                                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NOT_FOUND`         | Character does not exist (charId not in DB), or template id unknown                                                                                                                                                                                          |
 | `INVALID_STATE`     | Inventory slots full (extension `limitsExact`, as in `TransferItemToCharacterCommand`); reason `STACK_OVERFLOW` when the target stack would pass its cap; unsupported `location` for v1. Weight is a player policy and is not checked for this staff command |
-| `VALIDATION_FAILED` | Missing required field, non-positive `count`, out-of-int-range id      |
-| `INTERNAL_ERROR`    | Unexpected failure (IdFactory exhausted, DB write threw, etc.)         |
+| `VALIDATION_FAILED` | Missing required field, non-positive `count`, out-of-int-range id                                                                                                                                                                                            |
+| `INTERNAL_ERROR`    | Unexpected failure (IdFactory exhausted, DB write threw, etc.)                                                                                                                                                                                               |
 
 **Side effects on success.** Host emits `NxSync.requestNow("item", itemId)` and
 `requestNow("character", charId)` — sync engine ticks both entities on the
@@ -465,13 +465,13 @@ stack size, never errors on excess.
 
 **Errors**
 
-| Status              | When                                                                       |
-| ------------------- | -------------------------------------------------------------------------- |
-| `NOT_FOUND`         | No stack with that object-id owned by this character |
+| Status              | When                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NOT_FOUND`         | No stack with that object-id owned by this character                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `INVALID_STATE`     | Item in an unsupported location (auction, freight, etc.); destroy rejected; critical refusals `ITEM_IN_STORE` (the stack is listed in an open private store; close the store first) and `ITEM_IN_USE` (the stack is held by a live engine object, e.g. the control item of a summoned companion, an item in an active enchant, an item the character is casting with; release it first); reason `CHARACTER_BUSY` when the character mutation lock times out or the character logs in or out mid-command; reason `RESTORE_IN_PROGRESS` while the character is being restored as an offline trader |
-| `VALIDATION_FAILED` | Missing required field, non-positive `count`, `charId` out of `int` range |
-| `UNAVAILABLE`       | DB error on the offline path before anything was written (nothing changed, safe to retry) |
-| `INTERNAL_ERROR`    | Unexpected handler failure; reason `OUTCOME_UNKNOWN` when the offline commit or a rollback after the write failed, or the online hop timed out while running - the stack may already be decremented, so a retry is a new deletion |
+| `VALIDATION_FAILED` | Missing required field, non-positive `count`, `charId` out of `int` range                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `UNAVAILABLE`       | DB error on the offline path before anything was written (nothing changed, safe to retry)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `INTERNAL_ERROR`    | Unexpected handler failure; reason `OUTCOME_UNKNOWN` when the offline commit or a rollback after the write failed, or the online hop timed out while running - the stack may already be decremented, so a retry is a new deletion                                                                                                                                                                                                                                                                                                                                                                |
 
 **Side effects on success.** `requestNow("item", itemId)` and
 `requestNow("character", charId)`.
@@ -503,12 +503,12 @@ handles all four online/offline source-target combinations.
 
 **Errors**
 
-| Status              | When                                                                             |
-| ------------------- | -------------------------------------------------------------------------------- |
-| `NOT_FOUND`         | Either character or the item not found                                           |
+| Status              | When                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NOT_FOUND`         | Either character or the item not found                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `INVALID_STATE`     | Target inventory slot capacity exceeded (extension `limitsExact`: `false` when an out-of-world receiver was judged by a base limit, so the refusal may be false); reason `STACK_OVERFLOW` when the receiver's stack would pass its cap; item in an unsupported location; critical refusals `ITEM_IN_STORE` (the stack is listed in an open private store) and `ITEM_IN_USE` (the stack is held by a live engine object, see `DeleteItemCommand`) |
-| `VALIDATION_FAILED` | Same-character transfer, missing field, non-positive count                       |
-| `INTERNAL_ERROR`    | Unexpected handler failure                                                       |
+| `VALIDATION_FAILED` | Same-character transfer, missing field, non-positive count                                                                                                                                                                                                                                                                                                                                                                                       |
+| `INTERNAL_ERROR`    | Unexpected handler failure                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 **Critical refusals.** Staff item commands skip player-policy checks (weight, bans, item lock, tradeability)
 but never data-integrity ones. A host MUST refuse `ITEM_IN_STORE` and `ITEM_IN_USE` (above) for delete and
@@ -534,15 +534,15 @@ into several mails, delivered all together or not at all. Details:
 
 **Inputs**
 
-| Field    | Type             | Required | Notes                                                  |
-| -------- | ---------------- | -------- | ------------------------------------------------------ |
-| `charId` | `Long`           | yes      | Recipient character                                    |
-| `author` | `String?`        | no       | Display author. Defaults to system character on host   |
-| `title`  | `String`         | yes      | Mail subject; non-empty                                |
-| `body`   | `String?`        | no       | Mail body; `null` = empty                              |
-| `items`  | `List<MailItem>` | no       | Each `MailItem`: `itemTemplateId: Long`, `count: Long` |
-| `adena`  | `Long?`          | no       | Adena in the mail; positive; additive                  |
-| `idempotencyKey` | `UUID?`  | no       | Business identity of the send, stable across retries; host dedups and replays by it; `correlationId` is one attempt only; `null` = host falls back to `correlationId` |
+| Field            | Type             | Required | Notes                                                                                                                                                                 |
+| ---------------- | ---------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `charId`         | `Long`           | yes      | Recipient character                                                                                                                                                   |
+| `author`         | `String?`        | no       | Display author. Defaults to system character on host                                                                                                                  |
+| `title`          | `String`         | yes      | Mail subject; non-empty                                                                                                                                               |
+| `body`           | `String?`        | no       | Mail body; `null` = empty                                                                                                                                             |
+| `items`          | `List<MailItem>` | no       | Each `MailItem`: `itemTemplateId: Long`, `count: Long`                                                                                                                |
+| `adena`          | `Long?`          | no       | Adena in the mail; positive; additive                                                                                                                                 |
+| `idempotencyKey` | `UUID?`          | no       | Business identity of the send, stable across retries; host dedups and replays by it; `correlationId` is one attempt only; `null` = host falls back to `correlationId` |
 
 **Result** (`SendMailResult`)
 
@@ -553,12 +553,12 @@ into several mails, delivered all together or not at all. Details:
 
 **Errors**
 
-| Status              | When                                                                          |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `VALIDATION_FAILED` | Missing `charId` / `title`, malformed or unknown-template item line           |
-| `NOT_FOUND`         | Recipient character does not exist, or the host's mail manager rejects input  |
-| `INVALID_STATE`     | Offline traders (or the recipient) still being restored after a server start  |
-| `INTERNAL_ERROR`    | Delivery failed, or a repeat while the first attempt's receipt is still open  |
+| Status              | When                                                                         |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `VALIDATION_FAILED` | Missing `charId` / `title`, malformed or unknown-template item line          |
+| `NOT_FOUND`         | Recipient character does not exist, or the host's mail manager rejects input |
+| `INVALID_STATE`     | Offline traders (or the recipient) still being restored after a server start |
+| `INTERNAL_ERROR`    | Delivery failed, or a repeat while the first attempt's receipt is still open |
 
 A repeat of a completed correlation id replays the stored `createdMailIds`.
 
@@ -583,33 +583,33 @@ enforced on the platform, the host does not gate mail by quota. Full contract:
 | Field             | Type                   | Required | Notes                                                                                                                                                                      |
 | ----------------- | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `senderCharId`    | `Long`                 | yes      | Character the mail is sent from                                                                                                                                            |
-| `recipientCharId` | `Long`                 | yes      | Single recipient, MUST differ from the sender; same account as the sender is allowed |
+| `recipientCharId` | `Long`                 | yes      | Single recipient, MUST differ from the sender; same account as the sender is allowed                                                                                       |
 | `title`           | `String`               | yes      | Non-blank; at most 128 chars and 255 UTF-8 bytes; text allowlist                                                                                                           |
 | `body`            | `String?`              | no       | `null` = empty; at most 512 chars; text allowlist                                                                                                                          |
 | `items`           | `List<PlayerMailItem>` | no       | Lines `PlayerMailItem{Long itemId, Long count}`: sender inventory instance id, positive count, no duplicate id; an adena stack is refused, adena goes only through `adena` |
 | `adena`           | `Long?`                | no       | Adena in the mail; positive; counts as one attachment line (limit and fee)                                                                                                 |
-| `codPrice`        | `Long?`                | no       | COD, positive, requires at least one `items` line (`COD_REQUIRES_ITEMS`), adena alone does not satisfy it; paid to the sender |
+| `codPrice`        | `Long?`                | no       | COD, positive, requires at least one `items` line (`COD_REQUIRES_ITEMS`), adena alone does not satisfy it; paid to the sender                                              |
 | `ownerVerified`   | `boolean`              | no       | See Cross-cutting › Owner verification; `true` bypasses the item lock. The command is produced only for the owner of the sender; the host still validates the wire         |
-| `idempotencyKey`  | `UUID`                 | yes      | Business identity of the send, stable across retries; non-null; host dedups and replays by it, `correlationId` is one attempt only |
-| `deadline`        | `Instant`              | yes      | Non-null; checked first, host replies `COMMAND_EXPIRED` before touching anything once passed |
+| `idempotencyKey`  | `UUID`                 | yes      | Business identity of the send, stable across retries; non-null; host dedups and replays by it, `correlationId` is one attempt only                                         |
+| `deadline`        | `Instant`              | yes      | Non-null; checked first, host replies `COMMAND_EXPIRED` before touching anything once passed                                                                               |
 
 **Result** (`SendPlayerMailResult`)
 
-| Field      | Type   | Notes                                  |
-| ---------- | ------ | -------------------------------------- |
-| `mailId`   | `long` | Created mail                           |
+| Field      | Type   | Notes                                              |
+| ---------- | ------ | -------------------------------------------------- |
+| `mailId`   | `long` | Created mail                                       |
 | `feeAdena` | `long` | Adena the host charged (host-defined fee; never 0) |
 
 **Errors** — `extensions.reason` per status (full table in the command spec):
 
-| Status              | Reasons                                                                                                                                                                                                                                                        |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NOT_FOUND`         | `RECIPIENT_NOT_FOUND` (also a recipient pending deletion) |
-| `FORBIDDEN`         | `CHARACTER_BANNED`, `RECIPIENT_BANNED`, `CHARACTER_JAILED`, `TRANSACTIONS_FORBIDDEN`, `ITEM_LOCKED`, `RECIPIENT_BLOCKED_SENDER`, `RECIPIENT_GM_ONLY`                                                                                                                                              |
+| Status              | Reasons                                                                                                                                                                                                                                                                                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NOT_FOUND`         | `RECIPIENT_NOT_FOUND` (also a recipient pending deletion)                                                                                                                                                                                                                                                                                        |
+| `FORBIDDEN`         | `CHARACTER_BANNED`, `RECIPIENT_BANNED`, `CHARACTER_JAILED`, `TRANSACTIONS_FORBIDDEN`, `ITEM_LOCKED`, `RECIPIENT_BLOCKED_SENDER`, `RECIPIENT_GM_ONLY`                                                                                                                                                                                             |
 | `VALIDATION_FAILED` | `SELF_SEND`, `TOO_MANY_ATTACHMENTS`, `TOO_MANY_LINES`, `ADENA_OVERFLOW`, `COD_REQUIRES_ITEMS`, `ITEM_NOT_TRANSFERABLE`; malformed command, carrying a `field` extension instead of a reason (null required field, id out of `int` range, bad count, duplicate `itemId`, adena stack in `items`, text outside the allowlist, title/body too long) |
-| `INVALID_STATE`     | `NOT_ENOUGH_ADENA`, `RECIPIENT_INBOX_FULL`, `OUTBOX_FULL`, `CHARACTER_BUSY`, `NOT_IN_PEACE_ZONE` (attachments while the sender, online or by its last known position, is outside a peace zone), `MAIL_DISABLED`, `ATTACHMENTS_DISABLED`, `LEVEL_TOO_LOW`, `RESTORE_IN_PROGRESS`                                                                                                   |
-| `COMMAND_EXPIRED`   | its own status; `deadline` passed, nothing changed                                                                                                                                                                                                             |
-| `INTERNAL_ERROR`    | `MAIL_DELIVERY_FAILED` (dirty rollback / persist failure); `OUTCOME_UNKNOWN` for a replay that finds the first attempt in flight (platform holds its guard, not retry-safe)                                                                                    |
+| `INVALID_STATE`     | `NOT_ENOUGH_ADENA`, `RECIPIENT_INBOX_FULL`, `OUTBOX_FULL`, `CHARACTER_BUSY`, `NOT_IN_PEACE_ZONE` (attachments while the sender, online or by its last known position, is outside a peace zone), `MAIL_DISABLED`, `ATTACHMENTS_DISABLED`, `LEVEL_TOO_LOW`, `RESTORE_IN_PROGRESS`                                                                  |
+| `COMMAND_EXPIRED`   | its own status; `deadline` passed, nothing changed                                                                                                                                                                                                                                                                                               |
+| `INTERNAL_ERROR`    | `MAIL_DELIVERY_FAILED` (dirty rollback / persist failure); `OUTCOME_UNKNOWN` for a replay that finds the first attempt in flight (platform holds its guard, not retry-safe)                                                                                                                                                                      |
 
 ---
 
@@ -625,16 +625,16 @@ released. Full contract: [`accept-mail.md`](accept-mail.md).
 
 **Inputs**
 
-| Field              | Type      | Required | Notes                                                                                                   |
-| ------------------ | --------- | -------- | ------------------------------------------------------------------------------------------------------- |
-| `receiverCharId`   | `Long`    | yes      | Character that accepts; a different recipient on the live mail is `MAIL_NOT_FOUND`                                  |
-| `mailId`           | `Long`    | yes      | Mail to accept                                                                                          |
-| `expectedSenderCharId` | `Long` | yes | Sender the player saw; a different sender on the live mail is `MAIL_NOT_FOUND` |
-| `expectedCodAdena` | `Long`    | yes      | COD the player saw, `0` without COD; a mismatch with the live mail is `MAIL_NOT_FOUND`, nothing charged  |
-| `acceptedFeeAdena` | `Long?`   | no       | Consent to the receive fee: the largest fee the player agreed to; `null` = no consent yet               |
-| `ownerVerified`    | `boolean` | no       | See Cross-cutting › Owner verification; `true` bypasses the item lock                                   |
-| `idempotencyKey`   | `UUID`    | yes      | Business identity of the accept, stable across retries; non-null; host dedups and replays by it         |
-| `deadline`         | `Instant` | yes      | Non-null; checked first, host replies `COMMAND_EXPIRED` before touching anything once passed            |
+| Field                  | Type      | Required | Notes                                                                                                   |
+| ---------------------- | --------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `receiverCharId`       | `Long`    | yes      | Character that accepts; a different recipient on the live mail is `MAIL_NOT_FOUND`                      |
+| `mailId`               | `Long`    | yes      | Mail to accept                                                                                          |
+| `expectedSenderCharId` | `Long`    | yes      | Sender the player saw; a different sender on the live mail is `MAIL_NOT_FOUND`                          |
+| `expectedCodAdena`     | `Long`    | yes      | COD the player saw, `0` without COD; a mismatch with the live mail is `MAIL_NOT_FOUND`, nothing charged |
+| `acceptedFeeAdena`     | `Long?`   | no       | Consent to the receive fee: the largest fee the player agreed to; `null` = no consent yet               |
+| `ownerVerified`        | `boolean` | no       | See Cross-cutting › Owner verification; `true` bypasses the item lock                                   |
+| `idempotencyKey`       | `UUID`    | yes      | Business identity of the accept, stable across retries; non-null; host dedups and replays by it         |
+| `deadline`             | `Instant` | yes      | Non-null; checked first, host replies `COMMAND_EXPIRED` before touching anything once passed            |
 
 **Result** (`AcceptMailResult`)
 
@@ -647,14 +647,14 @@ released. Full contract: [`accept-mail.md`](accept-mail.md).
 
 **Errors** — `extensions.reason` per status (`WellKnownAcceptMailReasons`; full table in the command spec):
 
-| Status              | Reasons                                                                                                                                                                                       |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NOT_FOUND`         | `MAIL_NOT_FOUND` (also a different recipient, sender or COD)                                                                                                                                               |
-| `FORBIDDEN`         | `CHARACTER_BANNED`, `TRANSACTIONS_FORBIDDEN`, `ITEM_LOCKED`, `RECEIVE_FORBIDDEN`                                                                                                         |
+| Status              | Reasons                                                                                                                                                                                                                                                                                                                     |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOT_FOUND`         | `MAIL_NOT_FOUND` (also a different recipient, sender or COD)                                                                                                                                                                                                                                                                |
+| `FORBIDDEN`         | `CHARACTER_BANNED`, `TRANSACTIONS_FORBIDDEN`, `ITEM_LOCKED`, `RECEIVE_FORBIDDEN`                                                                                                                                                                                                                                            |
 | `INVALID_STATE`     | `NO_ATTACHMENTS`, `INVENTORY_FULL` (+ `requiredSlots`, `freeSlots`), `OVERWEIGHT` (+ `requiredWeight`, `freeWeight`), `NOT_ENOUGH_ADENA` (+ `requiredAdena`, `availableAdena`), `ADENA_OVERFLOW`, `RECEIVE_FEE_REQUIRED` (+ `feeAdena`), `RECEIVER_DATA_UNAVAILABLE`, `CHARACTER_BUSY`, `STORE_OPEN`, `RESTORE_IN_PROGRESS` |
-| `VALIDATION_FAILED` | malformed command, carrying a `field` extension                                                                                                                                               |
-| `COMMAND_EXPIRED`   | its own status; `deadline` passed, nothing changed                                                                                                                                            |
-| `INTERNAL_ERROR`    | `OUTCOME_UNKNOWN` (replay finds the first attempt in flight, or the commit outcome is unknown; platform holds its guard, not retry-safe). A problem only, no payload: the caller treats an accept as done only on status `OK` |
+| `VALIDATION_FAILED` | malformed command, carrying a `field` extension                                                                                                                                                                                                                                                                             |
+| `COMMAND_EXPIRED`   | its own status; `deadline` passed, nothing changed                                                                                                                                                                                                                                                                          |
+| `INTERNAL_ERROR`    | `OUTCOME_UNKNOWN` (replay finds the first attempt in flight, or the commit outcome is unknown; platform holds its guard, not retry-safe). A problem only, no payload: the caller treats an accept as done only on status `OK`                                                                                               |
 
 An active jail sanction is `RECEIVE_FORBIDDEN` regardless of the receiver's location. A receiver with an open
 store at the keyboard is `STORE_OPEN` (close the store first); an offline trader with an open store MAY accept.
@@ -678,9 +678,9 @@ charges nothing: no `idempotencyKey`, no `deadline`, not `OwnerVerified`. Idempo
 
 **Inputs**
 
-| Field    | Type   | Required | Notes                                                                             |
-| -------- | ------ | -------- | --------------------------------------------------------------------------------- |
-| `charId` | `Long` | yes      | The receiver; a different character on the live mail is `MAIL_NOT_FOUND`           |
+| Field    | Type   | Required | Notes                                                                               |
+| -------- | ------ | -------- | ----------------------------------------------------------------------------------- |
+| `charId` | `Long` | yes      | The receiver; a different character on the live mail is `MAIL_NOT_FOUND`            |
 | `mailId` | `Long` | yes      | The host's mail id (an `int` in the core), the value `MailReadEvent.mailId` carries |
 
 **Result** — none (`Void`): the command is `NxCommand<Void>` and the reply is `CommandResult<Void>`, `ok()` with no
@@ -689,11 +689,11 @@ typed payload. There is no `ReadMailResult` class; that name is only the routing
 
 **Errors** — `extensions.reason` per status (`WellKnownReadMailReasons`):
 
-| Status              | Reasons                                                        |
-| ------------------- | -------------------------------------------------------------- |
+| Status              | Reasons                                                            |
+| ------------------- | ------------------------------------------------------------------ |
 | `NOT_FOUND`         | `MAIL_NOT_FOUND` (also a mail whose receiver is another character) |
-| `VALIDATION_FAILED` | malformed command, carrying a `field` extension                |
-| `INTERNAL_ERROR`    | host-side failure                                              |
+| `VALIDATION_FAILED` | malformed command, carrying a `field` extension                    |
+| `INTERNAL_ERROR`    | host-side failure                                                  |
 
 ---
 
@@ -710,28 +710,28 @@ bait. The host decides every rule; the reply carries a reason code from the shar
 
 **Inputs**
 
-| Field             | Type      | Required | Notes                                                                                                                                       |
-| ----------------- | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `characterId`     | `int`     | yes      | Character that goes fishing                                                                                                                 |
-| `masterAccountId` | `UUID`    | yes      | Master account of the initiator, set by the platform; used for the one-fishing limit                                                        |
-| `initiatorIp`     | `String?` | no       | IP of the app request, set by the platform; stored in the session and returned in the session event                                         |
+| Field             | Type      | Required | Notes                                                                                                                                                                   |
+| ----------------- | --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `characterId`     | `int`     | yes      | Character that goes fishing                                                                                                                                             |
+| `masterAccountId` | `UUID`    | yes      | Master account of the initiator, set by the platform; used for the one-fishing limit                                                                                    |
+| `initiatorIp`     | `String?` | no       | IP of the app request, set by the platform; stored in the session and returned in the session event                                                                     |
 | `durationMs`      | `long`    | yes      | Chosen duration, positive; outside the host's minimum..maximum it is refused with `INVALID_DURATION`; a longer-than-allowed-today value yields a shorter effective plan |
-| `rodItemId`       | `int`     | yes      | Inventory instance id of the chosen rod                                                                                                     |
-| `baitItemId`      | `int`     | yes      | Inventory instance id of the chosen bait stack                                                                                              |
-| `ownerVerified`   | `boolean` | no       | See Cross-cutting › Owner verification; absent reads as `false`                                                                             |
-| `deadline`        | `Instant` | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED`; checked before anything is read or changed                                  |
-| `idempotencyKey`  | `UUID`    | yes      | Business identity of the start, stable across retries; the host dedups and replays by it; `correlationId` is one attempt only               |
+| `rodItemId`       | `int`     | yes      | Inventory instance id of the chosen rod                                                                                                                                 |
+| `baitItemId`      | `int`     | yes      | Inventory instance id of the chosen bait stack                                                                                                                          |
+| `ownerVerified`   | `boolean` | no       | See Cross-cutting › Owner verification; absent reads as `false`                                                                                                         |
+| `deadline`        | `Instant` | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED`; checked before anything is read or changed                                                              |
+| `idempotencyKey`  | `UUID`    | yes      | Business identity of the start, stable across retries; the host dedups and replays by it; `correlationId` is one attempt only                                           |
 
 The initiator is the envelope's `CommandInitiator`.
 
 **Result** (`StartOfflineFishingResult`)
 
-| Field                 | Type     | Notes                                                                                        |
-| --------------------- | -------- | -------------------------------------------------------------------------------------------- |
-| `sessionId`           | `UUID`   | The created (or, on a repeat, the existing) session                                          |
-| `spotPool`            | `String` | Pool of the spot the character stands on                                                     |
-| `spotId`              | `int`    | The spot inside the pool                                                                     |
-| `effectiveDurationMs` | `long`   | The duration the host will actually run, possibly shorter than requested                     |
+| Field                 | Type     | Notes                                                                    |
+| --------------------- | -------- | ------------------------------------------------------------------------ |
+| `sessionId`           | `UUID`   | The created (or, on a repeat, the existing) session                      |
+| `spotPool`            | `String` | Pool of the spot the character stands on                                 |
+| `spotId`              | `int`    | The spot inside the pool                                                 |
+| `effectiveDurationMs` | `long`   | The duration the host will actually run, possibly shorter than requested |
 
 **Errors.** A refusal carries `extensions.reason` from the shared enum: `RECENTLY_LOGGED_OUT` and `COOLDOWN` (with
 `retryAt`), `CHARACTER_ONLINE`, `DEAD`, `KARMA`, `CHARACTER_JAILED`, `CHARACTER_BANNED`, `UNSAFE_LOGOUT_LOCATION`, `IN_PRIVATE_STORE`,
@@ -752,9 +752,9 @@ as on start; the session is addressed by `characterId`).
 
 **Result** (`StopOfflineFishingResult`)
 
-| Field       | Type    | Notes                                                                                   |
-| ----------- | ------- | --------------------------------------------------------------------------------------- |
-| `sessionId` | `UUID?` | The session that was stopped; `null` when no session was running                       |
+| Field       | Type      | Notes                                                                                                                      |
+| ----------- | --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `sessionId` | `UUID?`   | The session that was stopped; `null` when no session was running                                                           |
 | `stopped`   | `boolean` | `true` when a running session was stopped; stop with no running session is the success `{sessionId: null, stopped: false}` |
 
 ---
@@ -783,33 +783,36 @@ fishing. There is no online start. Every store started by this command is an app
 
 **Inputs**
 
-| Field            | Type             | Required | Notes                                                                                                                                                                                                                                                            |
-| ---------------- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `charId`         | `int`            | yes      | Character to open the store for                                                                                                                                                                                                                                  |
-| `title`          | `String?`        | no       | Store banner text shown above the seller, max 29 characters, host-sanitized. `null` falls back to the host's default                                                                                                                                             |
-| `lines`          | `List<SellLine>` | yes      | Offered stacks, non-empty. Each `SellLine`: `itemId` (`int`, inventory instance object-id), `count` (`long`, positive), `priceAdena` (`long`, non-negative — `0` is a valid give-away price; engine charges `count * priceAdena` for the whole stack)            |
-| `sellerFeePercent` | `Integer?`     | no       | Seller fee, whole percent `0..PrivateStoreFees.MAX_FEE_PERCENT` (50); `null` = no fee. Declared on the shared base `StartPrivateStoreCommand`, so it applies to both start commands. See **Seller fee** below |
-| `offlineAllowed` | `Boolean`        | no       | Platform's verdict on the offline-store quota, taken before dispatch. `false`: the host refuses with `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`) before loading anything. `null` (older platform) reads as allowed |
-| `ownerVerified`  | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                              |
-| `deadline`       | `Instant`        | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED` instead of running the command; checked before anything is read or changed. `null` (older platform) reads as "no expiry"                                                                          |
+| Field              | Type             | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------ | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `charId`           | `int`            | yes      | Character to open the store for                                                                                                                                                                                                                                                                                                                                                                                      |
+| `title`            | `String?`        | no       | Store banner text shown above the seller, max 29 characters, host-sanitized. `null` falls back to the host's default                                                                                                                                                                                                                                                                                                 |
+| `lines`            | `List<SellLine>` | yes      | Offered stacks, non-empty. Each `SellLine`: `itemId` (`int`, inventory instance object-id), `count` (`long`, positive), `priceAdena` (`long`, non-negative — `0` is a valid give-away price; engine charges `count * priceAdena` for the whole stack)                                                                                                                                                                |
+| `sellerFeePercent` | `Integer?`       | no       | Seller fee, whole percent, not negative; `null` = no fee. The platform decides the rate; the host rejects a negative percent and one above `100` (proceeds cannot go negative). Declared on the sell branch (the abstract class shared by `StartPrivateStoreSellCommand` and `StartPrivateStorePackageSellCommand`), not on the base `StartPrivateStoreCommand`: a buy store has no seller. See **Seller fee** below |
+| `offlineAllowed`   | `Boolean`        | no       | Platform's verdict on the offline-store quota, taken before dispatch. `false`: the host refuses with `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`) before loading anything. `null` (older platform) reads as allowed                                                                                                                                                                                                    |
+| `ownerVerified`    | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                                                                                                                                                                                  |
+| `deadline`         | `Instant`        | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED` instead of running the command; checked before anything is read or changed. `null` (older platform) reads as "no expiry"                                                                                                                                                                                                                              |
 
 The start commands also carry `idempotencyKey` (`UUID`, business identity of the start, becomes the session's
 `idempotency_key`) and `initiatorIp` (`String?`, IP of the app request, stored in the session), both declared on the
-shared base `StartPrivateStoreCommand`; the platform sends them already while the host still ignores them (an older
+shared base `StartPrivateStoreCommand` (as are `charId`, `title`, `offlineAllowed`, `ownerVerified` and `deadline`); the platform sends them already while the host still ignores them (an older
 host parses commands leniently and drops unknown fields).
 
 **Result** (`StartPrivateStoreResult`)
 
-| Field           | Type                | Notes                                                                                                                                                                                                                                                                                                                                                                              |
-| --------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sessionId`     | `UUID`              | The app `OFFLINE_PRIVATE_STORE` session the store runs in; the platform writes it to its audit                                                                                                                                                                                                                                                                                             |
-| `storeType`     | `String`            | Open-string store-type token the host opened (e.g. `"SELL"` / `"PACKAGE_SELL"`); host-defined vocabulary, not a closed adapter enum                                                                                                                                                                                                                                                |
-| `acceptedCount` | `int`               | Number of requested lines the host actually listed                                                                                                                                                                                                                                                                                                                                 |
-| `offline`       | `boolean`           | Always `true` for a successful start: the store is opened offline (it occupies an offline seat); there is no online start. Kept for wire compatibility                                                                                                                                                              |
+| Field           | Type      | Notes                                                                                                                                                  |
+| --------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sessionId`     | `UUID`    | The app `OFFLINE_PRIVATE_STORE` session the store runs in; the platform writes it to its audit                                                         |
+| `storeType`     | `String`  | Open-string store-type token the host opened (e.g. `"SELL"` / `"PACKAGE_SELL"` / `"BUY"`); host-defined vocabulary, not a closed adapter enum          |
+| `acceptedCount` | `int`     | Number of requested lines the host actually listed                                                                                                     |
+| `offline`       | `boolean` | Always `true` for a successful start: the store is opened offline (it occupies an offline seat); there is no online start. Kept for wire compatibility |
 
 **Per-line rejections.** A `VALIDATION_FAILED` reply with reason `LINES_REJECTED` carries `dropped[]` in the problem extension; each
-`DroppedLine` is `itemId` (`int`) plus `reason` (`String`, open `UPPER_SNAKE_CASE` token; consumers MUST
-tolerate unknown tokens). Known reasons:
+`DroppedLine` is `lineIndex` (`int`, required, `>= 0`, 0-based index into the command's `lines`), `itemId` (`Integer?`) and
+`reason` (`String`, open `UPPER_SNAKE_CASE` token; consumers MUST tolerate unknown tokens). The host fills `lineIndex` for
+every line, sell and buy alike. A sell line also carries its inventory `itemId`; a buy line names a template, not an
+instance, so its `itemId` is `null`. Known reasons (buy lines use the subset in
+[`StartPrivateStoreBuyCommand`](#startprivatestorebuycommand)):
 
 | Reason                 | Meaning                                                                                  |
 | ---------------------- | ---------------------------------------------------------------------------------------- |
@@ -828,13 +831,13 @@ tolerate unknown tokens). Known reasons:
 
 **Errors**
 
-| Status              | When                                                                              |
-| ------------------- | --------------------------------------------------------------------------------- |
-| `NOT_FOUND`         | `charId` does not exist on this server                                            |
-| `INVALID_STATE`     | `CHARACTER_ONLINE` (the character is in the game with a client) or `RECENTLY_LOGGED_OUT` (with `retryAt`); see **Offline-only start** |
+| Status              | When                                                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NOT_FOUND`         | `charId` does not exist on this server                                                                                                                                                                                                                 |
+| `INVALID_STATE`     | `CHARACTER_ONLINE` (the character is in the game with a client) or `RECENTLY_LOGGED_OUT` (with `retryAt`); see **Offline-only start**                                                                                                                  |
 | `VALIDATION_FAILED` | `lines` missing/empty, or any `SellLine` entry is malformed. When any line cannot be listed the reply is `VALIDATION_FAILED` with reason `LINES_REJECTED`: the store is not opened and the problem extension carries `dropped[]` with per-line reasons |
-| `INVALID_STATE`     | The character cannot open a store right now (in combat, already trading, dead, …) |
-| `COMMAND_EXPIRED`   | `deadline` already passed when the host picked up the command; nothing changed    |
+| `INVALID_STATE`     | The character cannot open a store right now (in combat, already trading, dead, …)                                                                                                                                                                      |
+| `COMMAND_EXPIRED`   | `deadline` already passed when the host picked up the command; nothing changed                                                                                                                                                                         |
 
 ---
 
@@ -849,17 +852,17 @@ detail beyond that equivalence).
 
 **Inputs**
 
-| Field            | Type             | Required | Notes                                                                                                                                                                                   |
-| ---------------- | ---------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `charId`         | `int`            | yes      | Character to open the store for                                                                                                                                                         |
-| `title`          | `String?`        | no       | Store banner text shown above the seller, max 29 characters, host-sanitized. `null` falls back to the host's default                                                                    |
-| `lines`          | `List<SellLine>` | yes      | Bundled stacks, non-empty, all-or-nothing at purchase time (same `SellLine` shape as `StartPrivateStoreSellCommand`)                                                                    |
-| `sellerFeePercent` | `Integer?`     | no       | Same as on `StartPrivateStoreSellCommand`; `null` = no fee |
-| `offlineAllowed` | `Boolean`        | no       | Same semantics as on `StartPrivateStoreSellCommand`: `false` refuses with `OFFLINE_QUOTA_EXCEEDED`; the start is offline-only too (`CHARACTER_ONLINE` / `RECENTLY_LOGGED_OUT`); `null` reads as allowed                                          |
-| `ownerVerified`  | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification     |
-| `deadline`       | `Instant`        | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED` instead of running the command; checked before anything is read or changed. `null` (older platform) reads as "no expiry" |
+| Field              | Type             | Required | Notes                                                                                                                                                                                                   |
+| ------------------ | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `charId`           | `int`            | yes      | Character to open the store for                                                                                                                                                                         |
+| `title`            | `String?`        | no       | Store banner text shown above the seller, max 29 characters, host-sanitized. `null` falls back to the host's default                                                                                    |
+| `lines`            | `List<SellLine>` | yes      | Bundled stacks, non-empty, all-or-nothing at purchase time (same `SellLine` shape as `StartPrivateStoreSellCommand`)                                                                                    |
+| `sellerFeePercent` | `Integer?`       | no       | Same as on `StartPrivateStoreSellCommand`; `null` = no fee                                                                                                                                              |
+| `offlineAllowed`   | `Boolean`        | no       | Same semantics as on `StartPrivateStoreSellCommand`: `false` refuses with `OFFLINE_QUOTA_EXCEEDED`; the start is offline-only too (`CHARACTER_ONLINE` / `RECENTLY_LOGGED_OUT`); `null` reads as allowed |
+| `ownerVerified`    | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                     |
+| `deadline`         | `Instant`        | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED` instead of running the command; checked before anything is read or changed. `null` (older platform) reads as "no expiry"                 |
 
-**Reasons.** Refusals carry a stable `extensions.reason` code (the platform localizes; known values include `IN_COMBAT`, `SELLING_BUFFS`, `CANNOT_ACT`, `NOT_IN_TRADE_ZONE`, `NO_FREE_SEAT`, `ADENA_OVERFLOW`, `TOO_MANY_LINES`, `CHARACTER_BANNED`, `CHARACTER_JAILED`, `OFFLINE_FEE_UNPAID`, `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`; `offlineAllowed = false`), `CHARACTER_ONLINE` and `RECENTLY_LOGGED_OUT` (`INVALID_STATE`, the latter with `retryAt`; start is offline-only), `RESTORE_IN_PROGRESS`, `COMMAND_EXPIRED`, `ITEM_LOCKED`, `TRANSACTIONS_FORBIDDEN`, `DUPLICATE_ITEM_ID`, `LINES_REJECTED`, `TITLE_TOO_LONG`, `STORE_NOT_OPEN`; the set is open). When any line cannot be listed the reply is `VALIDATION_FAILED` with reason `LINES_REJECTED` carries `dropped[]` with per-line reasons (table above); the store is not opened. The per-line `reason` is as precise as the host can make it and falls back to `NOT_AVAILABLE` for a line the host's native availability checks refuse without a finer code. A duplicate `itemId` in `lines` is `VALIDATION_FAILED` (`DUPLICATE_ITEM_ID`). Applies to the start and stop commands alike.
+**Reasons.** Refusals carry a stable `extensions.reason` code (the platform localizes; known values include `IN_COMBAT`, `SELLING_BUFFS`, `CANNOT_ACT`, `NOT_IN_TRADE_ZONE`, `NO_FREE_SEAT`, `ADENA_OVERFLOW`, `TOO_MANY_LINES`, `CHARACTER_BANNED`, `CHARACTER_JAILED`, `OFFLINE_FEE_UNPAID`, `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`; `offlineAllowed = false`), `CHARACTER_ONLINE` and `RECENTLY_LOGGED_OUT` (`INVALID_STATE`, the latter with `retryAt`; start is offline-only), `RESTORE_IN_PROGRESS`, `COMMAND_EXPIRED`, `ITEM_LOCKED`, `TRANSACTIONS_FORBIDDEN`, `DUPLICATE_ITEM_ID`, `LINES_REJECTED`, `TITLE_TOO_LONG`, `STORE_NOT_OPEN`, and for the buy start `NOT_ENOUGH_ADENA` and `DUPLICATE_ITEM_TEMPLATE_ID`; the set is open; the start and stop tokens are the constants of the one enum `PrivateStoreReason`, read with its lenient `fromToken`). When any line cannot be listed the reply is `VALIDATION_FAILED` with reason `LINES_REJECTED` carries `dropped[]` with per-line reasons (table above); the store is not opened. The per-line `reason` is as precise as the host can make it and falls back to `NOT_AVAILABLE` for a line the host's native availability checks refuse without a finer code. A duplicate `itemId` in `lines` is `VALIDATION_FAILED` (`DUPLICATE_ITEM_ID`). One reason set applies to the start and stop commands alike (the stop uses `STORE_NOT_OPEN`).
 
 **Result** (`StartPrivateStoreResult`) — same shape as
 `StartPrivateStoreSellCommand`'s result, above.
@@ -872,8 +875,88 @@ purchase alike), withholds `ceilDiv(totalPrice * sellerFeePercent, 100)` from th
 burns it. The buyer pays the lot price only (plus the buyer fee on a platform buy, see
 `BuyFromPrivateStoreCommand`). Rounded up, so at a price of 1 adena the seller receives 0. The rate ends
 with the store, whatever ends it (close, sold out, logout, not restored): a store opened later in game
-carries no fee, and stores opened in game never have a seller fee. A value outside `0..PrivateStoreFees.MAX_FEE_PERCENT`
-is rejected with `VALIDATION_FAILED`, never clamped. Deserialization bypasses the constructor check, so the host re-validates it. Staff-started stores carry the same rate: every platform start command sets it.
+carries no fee, and stores opened in game never have a seller fee. The rate is the platform's decision; a negative percent, or one above `100` (the
+proceeds would go negative), is rejected with `VALIDATION_FAILED`, never clamped. Deserialization bypasses the constructor check, so the host re-validates it. Staff-started stores carry the same rate: every platform start command sets it.
+
+---
+
+### `StartPrivateStoreBuyCommand`
+
+**Purpose.** Open a buy store ("wanted" list) on behalf of a character: the owner states which item templates it buys, how
+many and at what price per unit; any seller, in the game or later from the app, fills the lines. Same rail as the sell
+starts: executed by the host's private-store subsystem on the character's game thread, offline-only start (see
+**Offline-only start** under `StartPrivateStoreSellCommand`), every store is an app `OFFLINE_PRIVATE_STORE` session
+([`038`](../038-app-offline-sessions.md)). **Strict all-or-nothing start**: if ANY line cannot be listed the host rejects the
+whole command with `LINES_REJECTED`, nothing is charged. The host judges each line with the same item rules as its native
+buy-store listing path.
+
+Adena is NOT reserved at start (same as the native in-game buy store): the start only checks that the owner can cover the
+whole list plus the buyer fee (and the offline-mode price when it is paid in adena), and every later fill re-checks the owner's
+adena (price plus fee); a fill the owner cannot cover is refused. A restore of the store does not re-check adena. A restore is
+all-or-nothing like the sell stores: if the list cannot be rebuilt as stored, the store is not restored. The host does not
+match a fill by anything but the template and the price.
+
+**Inputs**
+
+| Field             | Type               | Required | Notes                                                                                                                 |
+| ----------------- | ------------------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `charId`          | `int`              | yes      | Character to open the store for                                                                                       |
+| `title`           | `String?`          | no       | Store banner text, max 29 characters, host-sanitized. `null` falls back to the host's default                         |
+| `lines`           | `List<WantedLine>` | yes      | Wanted items, non-empty; the host's buy-store slot limit applies (`TOO_MANY_LINES`). See **WantedLine** below         |
+| `buyerFeePercent` | `Integer?`         | no       | Buyer fee, whole percent, not negative; `null` / `0` = no fee. The platform decides the rate. See **Buyer fee** below |
+| `offlineAllowed`  | `Boolean`          | no       | Same as on `StartPrivateStoreSellCommand`                                                                             |
+| `ownerVerified`   | `boolean`          | no       | Same as on `StartPrivateStoreSellCommand`                                                                             |
+| `deadline`        | `Instant`          | yes      | Same as on `StartPrivateStoreSellCommand`                                                                             |
+
+`idempotencyKey` and `initiatorIp` come from the shared base, as on the sell starts.
+
+**`WantedLine`** (package `kafka.commands.privatestore.model`)
+
+| Field            | Type   | Notes                                                                                                                             |
+| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `itemTemplateId` | `long` | Item template the owner buys, `> 0`                                                                                               |
+| `count`          | `long` | Units wanted, `> 0`                                                                                                               |
+| `priceAdena`     | `long` | Per unit, `>= 0`; `count * priceAdena` MUST NOT overflow `long` (the host also bounds each line and the total by its adena limit) |
+
+Two lines with the same `itemTemplateId` are `VALIDATION_FAILED` with reason `DUPLICATE_ITEM_TEMPLATE_ID`; a second line of
+the same template would be unreachable, because the host's fill matches by template and price only. Deserialization bypasses the constructors, so the host re-validates the lines (non-empty, bounds, duplicates),
+the fee and the total: `Σ(count * priceAdena)` and the buyer fee, computed with exact arithmetic, must stay within the
+host's adena limit, otherwise `ADENA_OVERFLOW`.
+
+**Matching is host-defined.** The host's fill matches a seller's item to a line by template and price only; the adapter
+contract does not define more. `WantedLine` carries no enchant level, attributes or augmentation; adding them later is additive. A buy store has
+no package variant.
+
+**Buyer fee (`buyerFeePercent`).** The mirror of the seller fee: the fee is always borne by the owner of the app store. When
+non-null and greater than `0`, the host remembers the rate with the store and, on EVERY fill of it (a seller in the game
+or, later, one from the app), the owner pays `totalPrice + ceilDiv(totalPrice * buyerFeePercent, 100)`; the surcharge is
+burned and the seller receives exactly the listed price. The rate ends with the store, whatever ends it; stores opened in
+the game never carry a fee. A negative percent is `VALIDATION_FAILED`, never clamped; the rate is the platform's decision;
+deserialization bypasses the constructor check, so the host re-validates it. The rate lives in the session's `type_state`
+([`038`](../038-app-offline-sessions.md)); the purchase event reports the fee of each fill
+([`019`](../019-death-status-ratings-events.md) R27).
+
+**Result** (`StartPrivateStoreResult`) — same shape as `StartPrivateStoreSellCommand`'s result, with `storeType = "BUY"`;
+`acceptedCount` is the number of wanted lines listed.
+
+**Per-line reasons.** `LINES_REJECTED` carries `dropped[]` as for the sell starts, with `itemId = null` and `lineIndex` set.
+Reasons a buy line can get (meanings in the table under `StartPrivateStoreSellCommand`): `NOT_FOUND` (unknown template),
+`NOT_TRADEABLE` (quest items included), `ITEM_BLOCKED`, `BAD_COUNT` (a non-stackable template with `count > 1`),
+`PRICE_OVERFLOW`, `ADENA` (the currency item cannot be wanted), `NOT_AVAILABLE`. The inventory-bound reasons (`EQUIPPED`,
+`PET_CONTROL_ITEM`, ...) do not apply: a buy line holds no stack. The tokens are the constants of
+the enum `DroppedLineReason` (lenient `fromToken`; the problem extension name is `DroppedLine.EXTENSION`).
+
+**Errors**
+
+| Status              | When                                                                                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOT_FOUND`         | `charId` does not exist on this server                                                                                                                                |
+| `INVALID_STATE`     | `CHARACTER_ONLINE` or `RECENTLY_LOGGED_OUT` (with `retryAt`), as for the sell starts                                                                                  |
+| `INVALID_STATE`     | `NOT_ENOUGH_ADENA`: `Σ(count * priceAdena)` plus the buyer fee, plus the offline-mode price when that price is paid in adena, exceeds the owner's adena at start      |
+| `VALIDATION_FAILED` | `lines` missing/empty, a `WantedLine` is malformed, `buyerFeePercent` negative, `DUPLICATE_ITEM_TEMPLATE_ID`, or `LINES_REJECTED` with `dropped[]`                |
+| `VALIDATION_FAILED` | The other start reasons, as for the sell starts: `TOO_MANY_LINES`, `ADENA_OVERFLOW`, `TITLE_TOO_LONG`                                                                 |
+| `INVALID_STATE`     | The character cannot open a store right now (in combat, already trading, dead, ...), `OFFLINE_QUOTA_EXCEEDED` (`offlineAllowed = false`), and the other start reasons |
+| `COMMAND_EXPIRED`   | `deadline` already passed when the host picked up the command; nothing changed                                                                                        |
 
 ---
 
@@ -881,7 +964,8 @@ is rejected with `VALIDATION_FAILED`, never clamped. Deserialization bypasses th
 
 **Purpose.** Close whatever private store a character currently has open
 (sell, package-sell, or buy). Executed by the host's private-store
-subsystem on the character's game thread.
+subsystem on the character's game thread. No separate stop exists for a buy store: the same command closes a buy store
+started by `StartPrivateStoreBuyCommand` (`previousStoreType = "BUY"`).
 
 The command closes ANY private store of the player's own character: an app `OFFLINE_PRIVATE_STORE` session, a native `.offline`
 store or a live player's store. Only the start is offline-only. For an app session the stop closes the session (reason
@@ -897,8 +981,8 @@ store or a live player's store. Only the start is offline-only. For an app sessi
 
 **Result** (`StopPrivateStoreResult`)
 
-| Field               | Type     | Notes                                                                                                                                          |
-| ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Field               | Type     | Notes                                                                                                                                                                                               |
+| ------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `previousStoreType` | `String` | Open-string store-type token that was open before this command closed it (e.g. `"SELL"` / `"SELL_MANAGE"` / `"PACKAGE_SELL"` / `"BUY"` / `"BUY_MANAGE"` / `"MANUFACTURE"`); host-defined vocabulary |
 
 **Errors**
@@ -906,7 +990,7 @@ store or a live player's store. Only the start is offline-only. For an app sessi
 | Status            | When                                                   |
 | ----------------- | ------------------------------------------------------ |
 | `NOT_FOUND`       | `charId` does not exist / is not online on this server |
-| `INVALID_STATE`   | The character has no private store open                |
+| `INVALID_STATE`   | The character has no private store open (reason `STORE_NOT_OPEN`) |
 | `COMMAND_EXPIRED` | `deadline` already passed; nothing changed             |
 
 ---
@@ -931,35 +1015,35 @@ verbatim — it composes no text of its own.
 
 **Inputs**
 
-| Field           | Type            | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| --------------- | --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `buyerCharId`   | `int`           | yes      | Character paying for the goods. Need not be online — the host loads an offline character for the duration of the deal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `sellerCharId`  | `int`           | yes      | Character whose open sell-store is being bought from. MUST be in the world (online or offline-trading) with a sell-store open. MUST differ from `buyerCharId`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `lines`         | `List<BuyLine>` | yes      | Lots to buy, non-empty, at most `MAX_LINES` = 36 entries, no duplicate `itemId`. Each `BuyLine`: `itemId` (`int`, the instance object-id the buyer saw — primary identity key), `itemTemplateId` (`long`), `enchantLevel` (`Integer?`, `0..127`, `null` if the offer carried none), `attributes` (`Map<Attribute,Integer>`, empty if the offer carried none), `count` (`long`, positive — host buys exactly this many or fails, never silently shrinks), `unitPriceAdena` (`long`, non-negative). Fields beyond `itemId` are an optimistic lock, not a search filter — a mismatch against the live lot fails the whole command rather than buying something else |
-| `buyerFeePercent` | `Integer`     | yes      | Buyer-side fee in whole percent (`5` = 5%) charged on top of the lot price and burned: `ceilDiv(itemsTotal * pct, 100)`. A value outside `0..PrivateStoreFees.MAX_FEE_PERCENT` (50) is rejected with `VALIDATION_FAILED`, never clamped. Fractional rates unsupported; `0` means no fee. `null` is `VALIDATION_FAILED` (absence is never read as `0`) |
-| `deadline`      | `Instant`       | yes      | Moment after which the host MUST refuse to execute this command instead of running it — checked before resolving the seller or touching the seller's trade list. Guards against a command sitting in the Kafka backlog while the game-server was down                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `mailSender`    | `String`        | yes      | Author shown on the delivery mail, non-blank. Platform-authored, player-facing, already localized; written verbatim                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `mailSubject`   | `String`        | yes      | Subject of the delivery mail, non-blank. Same rules as `mailSender`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `mailBody`      | `String`        | yes      | Body of the delivery mail, non-blank, final text (no placeholders). Same rules as `mailSender`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `ownerVerified` | `boolean`       | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Field             | Type            | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------- | --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buyerCharId`     | `int`           | yes      | Character paying for the goods. Need not be online — the host loads an offline character for the duration of the deal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `sellerCharId`    | `int`           | yes      | Character whose open sell-store is being bought from. MUST be in the world (online or offline-trading) with a sell-store open. MUST differ from `buyerCharId`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `lines`           | `List<BuyLine>` | yes      | Lots to buy, non-empty, no duplicate `itemId`; more lines than the host's own delivery-mail attachment limit are refused with `TOO_MANY_LINES`. Each `BuyLine`: `itemId` (`int`, the instance object-id the buyer saw — primary identity key), `itemTemplateId` (`long`), `enchantLevel` (`Integer?`, `0..127`, `null` if the offer carried none), `attributes` (`Map<Attribute,Integer>`, empty if the offer carried none), `count` (`long`, positive — host buys exactly this many or fails, never silently shrinks), `unitPriceAdena` (`long`, non-negative). Fields beyond `itemId` are an optimistic lock, not a search filter — a mismatch against the live lot fails the whole command rather than buying something else |
+| `buyerFeePercent` | `Integer`       | yes      | Buyer-side fee in whole percent (`5` = 5%) charged on top of the lot price and burned: `ceilDiv(itemsTotal * pct, 100)`. A negative value is rejected with `VALIDATION_FAILED`, never clamped; the platform decides the rate. Fractional rates unsupported; `0` means no fee. `null` is `VALIDATION_FAILED` (absence is never read as `0`)                                                                                                                                                                                                                                                                                                                       |
+| `deadline`        | `Instant`       | yes      | Moment after which the host MUST refuse to execute this command instead of running it — checked before resolving the seller or touching the seller's trade list. Guards against a command sitting in the Kafka backlog while the game-server was down                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mailSender`      | `String`        | yes      | Author shown on the delivery mail, non-blank. Platform-authored, player-facing, already localized; written verbatim                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `mailSubject`     | `String`        | yes      | Subject of the delivery mail, non-blank. Same rules as `mailSender`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `mailBody`        | `String`        | yes      | Body of the delivery mail, non-blank, final text (no placeholders). Same rules as `mailSender`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `ownerVerified`   | `boolean`       | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 **Result** (`BuyFromPrivateStoreResult`)
 
-| Field             | Type               | Notes                                                                                                                                                                                                                           |
-| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `itemsTotalAdena` | `long`             | Lot price total the buyer pays for the items; the seller is credited this minus `sellerFeeAdena`                                                                                                                                                                                          |
-| `buyerFeeAdena`   | `long`             | Buyer fee burned: debited from the buyer on top of the lots, credited to nobody                                                                                                                           |
-| `sellerFeeAdena`  | `long`             | Seller fee burned: withheld from `itemsTotalAdena` before the seller is credited; `0` when the store carries none. The seller receives `itemsTotalAdena - sellerFeeAdena`                                                         |
-| `paidTotalAdena`  | `long`             | Total debited from the buyer; always `itemsTotalAdena + buyerFeeAdena` (the seller fee is not paid by the buyer)                                                                                                                |
+| Field             | Type               | Notes                                                                                                                                                                                                                                |
+| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `itemsTotalAdena` | `long`             | Lot price total the buyer pays for the items; the seller is credited this minus `sellerFeeAdena`                                                                                                                                     |
+| `buyerFeeAdena`   | `long`             | Buyer fee burned: debited from the buyer on top of the lots, credited to nobody                                                                                                                                                      |
+| `sellerFeeAdena`  | `long`             | Seller fee burned: withheld from `itemsTotalAdena` before the seller is credited; `0` when the store carries none. The seller receives `itemsTotalAdena - sellerFeeAdena`                                                            |
+| `paidTotalAdena`  | `long`             | Total debited from the buyer; always `itemsTotalAdena + buyerFeeAdena` (the seller fee is not paid by the buyer)                                                                                                                     |
 | `bought`          | `List<BoughtLine>` | The executed lots. Each `BoughtLine`: `itemId`, `itemTemplateId`, `enchantLevel` (`Integer?`), `count`, `unitPriceAdena` (seller price only — the burned surcharge is not included per-line, it is reported once on `buyerFeeAdena`) |
-| `storeClosed`     | `boolean`          | `true` when this deal emptied the seller's store and the host closed it — the caller drops the whole store from its order book instead of decrementing the bought lots                                                          |
-| `mailId`          | `long`             | Id of the delivery mail carrying the bought items; eventual-consistent — resolving it via the mail-read API immediately after this reply may still 404 until mail-ingest catches up                                             |
+| `storeClosed`     | `boolean`          | `true` when this deal emptied the seller's store and the host closed it — the caller drops the whole store from its order book instead of decrementing the bought lots                                                               |
+| `mailId`          | `long`             | Id of the delivery mail carrying the bought items; eventual-consistent — resolving it via the mail-read API immediately after this reply may still 404 until mail-ingest catches up                                                  |
 
 **Errors**
 
 | Status              | When                                                                                                                                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `VALIDATION_FAILED` | Malformed `lines`, blank mail text, `buyerFeePercent` missing, or buyer and seller are the same character                                                                         |
+| `VALIDATION_FAILED` | Malformed `lines`, `TOO_MANY_LINES` (more lines than the host's delivery-mail attachment limit), blank mail text, `buyerFeePercent` missing, or buyer and seller are the same character                                              |
 | `NOT_FOUND`         | The seller is not in the world or has no open sell-store                                                                                               |
 | `INVALID_STATE`     | The lot no longer matches the request, the store type is not served, or the buyer cannot receive the goods (adena, weight, slots, regulated combat, …) |
 | `FORBIDDEN`         | The buyer is barred from trading at all (security lock, cursed weapon, restricted account)                                                             |
@@ -1086,8 +1170,8 @@ resolve + side-channel send; no sync trigger needed.
 
 Commands the platform sends on behalf of a player acting with their own character implement
 `OwnerVerified` and carry `ownerVerified` (spec R28): `SendChatMessageCommand`,
-`StartPrivateStoreSellCommand`, `StartPrivateStorePackageSellCommand`, `StopPrivateStoreCommand`,
-`BuyFromPrivateStoreCommand`, `SendPlayerMailCommand`, `AcceptMailCommand`, `StartOfflineFishingCommand`,
+`StartPrivateStoreSellCommand`, `StartPrivateStorePackageSellCommand`, `StartPrivateStoreBuyCommand`,
+`StopPrivateStoreCommand`, `BuyFromPrivateStoreCommand`, `SendPlayerMailCommand`, `AcceptMailCommand`, `StartOfflineFishingCommand`,
 `StopOfflineFishingCommand`.
 
 - `true` means the platform verified, against fresh master-account data, that the acting user owns
@@ -1107,17 +1191,17 @@ reply) instead of waiting up to the configured CDC interval (default
 
 Mapping:
 
-| Command                          | Triggered entities                                |
-| -------------------------------- | ------------------------------------------------- |
-| `CreateItemCommand`              | `item` (created stack), `character` (owner)       |
-| `DeleteItemCommand`              | `item` (decremented/destroyed stack), `character` |
-| `TransferItemToCharacterCommand` | `item` (moved stack), `character` (from + to)     |
-| `TransferCharToAccountCommand`   | `character` (re-bound)                            |
-| `SendMailCommand`                | `character` (recipient)                           |
-| `SendPlayerMailCommand`          | `character` (sender + recipient)                  |
-| `AcceptMailCommand`              | `character` (receiver, and sender when COD paid)  |
+| Command                          | Triggered entities                                        |
+| -------------------------------- | --------------------------------------------------------- |
+| `CreateItemCommand`              | `item` (created stack), `character` (owner)               |
+| `DeleteItemCommand`              | `item` (decremented/destroyed stack), `character`         |
+| `TransferItemToCharacterCommand` | `item` (moved stack), `character` (from + to)             |
+| `TransferCharToAccountCommand`   | `character` (re-bound)                                    |
+| `SendMailCommand`                | `character` (recipient)                                   |
+| `SendPlayerMailCommand`          | `character` (sender + recipient)                          |
+| `AcceptMailCommand`              | `character` (receiver, and sender when COD paid)          |
 | `ReadMailCommand`                | none: no `requestNow`, the `MailRead` event is the signal |
-| `TelegramCharLinkCommand`        | none                                              |
+| `TelegramCharLinkCommand`        | none                                                      |
 
 > The remaining commands added to this catalog (`announcement`, `ban`,
 > `UpsertCharacterLockCommand`, `gd`, `privatestore`, `sync`) do not state
@@ -1155,7 +1239,7 @@ skew between platform and core.
 
 ### Partial success
 
-The private-store start commands are all-or-nothing (`LINES_REJECTED`);
+The private-store start commands (sell, package sell, buy) are all-or-nothing (`LINES_REJECTED`);
 `StartPrivateStoreResult` has no `dropped` field, per-line reasons exist only in
 the refusal extension. `SendMailCommand`
 keeps a partial-success field on the wire (`SendMailResult.itemErrors`, lines
@@ -1201,3 +1285,44 @@ to players yet, so the contract is changed directly, with no deprecated fields a
 - Removed package `kafka.events.push` (`EffectRemovedEvent`, `ItemDepletedEvent`). These are platform-internal business facts
   on `<tenant>.push.events`, produced by the platform, not by hosts; their contract now lives outside the adapter. Hosts are
   not affected (no host produces or reads them); the wire is unchanged.
+
+### Changes of the api release after `0.109.0` (private store buy start)
+
+- **Breaking (source):** `DroppedLine.itemId` changes from `int` to `Integer` (`null` for a buy line, so
+  `getItemId()` returns `Integer`) and `DroppedLine.lineIndex` is a required `int`, filled by the host for every line
+  (the constructor takes `int`; the builder throws when it is unset). Old hosts omit `lineIndex`; a consumer reading the raw
+  problem JSON treats a missing key as absent; `lines` and `sellerFeePercent` (`getLines()` / `getSellerFeePercent()`) move from the base
+  `StartPrivateStoreCommand` to a new abstract sell branch shared by `StartPrivateStoreSellCommand` and
+  `StartPrivateStorePackageSellCommand`. Callers that read them through the base type, or unbox `itemId`, must be adapted.
+  The sell commands keep the same JSON keys and values; only the Gson field order changes. JSON key order is not part of
+  the contract.
+- Added: `StartPrivateStoreBuyCommand` (wire type = class name), `WantedLine`, `DroppedLine.lineIndex`, the reasons
+  `NOT_ENOUGH_ADENA`, `DUPLICATE_ITEM_ID` and `DUPLICATE_ITEM_TEMPLATE_ID` and
+  `PrivateStoreMetadata.buyerFee(metadata)`. Both fees are one value type, `PrivateStoreFee` (`adena`, `percent`); there is
+  no `BuyerFee` and `SellerFee` is renamed to `PrivateStoreFee`.
+- **Breaking (source), wire-compatible:** the private-store vocabularies are enums, the constant holders are removed with no
+  deprecated copy. `WellKnownStartPrivateStoreReasons` is `PrivateStoreReason` (every start and stop reason the catalog lists, one
+  set for both commands, including `STORE_NOT_OPEN`; its `DROPPED` is `DroppedLine.EXTENSION`), `WellKnownDroppedLineReasons` is `DroppedLineReason`,
+  `WellKnownPrivateStoreMetadata` is `PrivateStoreMetadataKey` (wire key via `key()`), and its `sellerFee` / `buyerFee`
+  parsers move to `PrivateStoreMetadata`. Each enum has a lenient `fromToken` that returns `null` for an unknown token, backed by one shared
+  `app.l2nx.gs.adapter.api.Vocabularies.fromToken(Class, String)` (a per-enum cached map); `SessionSource` gets the same
+  `fromToken`.
+  The wire tokens and `DroppedLine.reason` (still a `String`) are unchanged; callers that referenced the old classes
+  must be adapted.
+- **Breaking (wire): the purchase `source` metadata reuses `SessionSource`.** Its values are `CLIENT` (a deal made in a
+  game client) and `APP` (a deal made by an app command), the vocabulary sessions already use; the former
+  `in_game` / `remote` values and their `SOURCE_IN_GAME` / `SOURCE_REMOTE` constants are gone. The host sends only
+  the new values from this release on; the platform reads both forms until every game server of the tenant restarted
+  on the new host.
+- **Breaking (wire): no fee rate cap in the api.** `PrivateStoreFees` and `MAX_FEE_PERCENT` (50, shipped in `0.103.0`) are
+  removed. Every fee percent (`sellerFeePercent`, `buyerFeePercent`, the purchase `buyerFeePercent`) validates only `>= 0`;
+  the seller fee is also `<= 100`, because proceeds cannot go negative (`StartPrivateStoreSellingCommand` rejects more,
+  `PrivateStoreMetadata.sellerFee` returns `null` for it). The rate is the platform's decision.
+- **Breaking (source):** `BuyFromPrivateStoreCommand.MAX_LINES` and its constructor check are removed: the line limit is the host's
+  own delivery-mail attachment limit, not an api constant. The host refuses more lines with `VALIDATION_FAILED` / `TOO_MANY_LINES`.
+  `DroppedLine` rejects a blank `reason` like a `null` one, and `StartPrivateStoreCommand.title` is trimmed, a blank one reads `null`.
+- Added: `WantedLine.firstDuplicateItemTemplateId(lines)`, mirroring `SellLine.firstDuplicateItemId` (it replaces the
+  unreleased `firstDuplicate`).
+- Rollout: release the api, then the platform; a host that has not restarted answers `UNSUPPORTED_COMMAND` for the new
+  command, and the host picks it up on its next restart. The `source` change above is the one that straddles: the platform
+  keeps reading the legacy `in_game` / `remote` values until every game server has restarted on the new host.

@@ -7,7 +7,7 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /** "Package sell" store: a buyer must purchase every line at once (enforced host-side, not by this shape). */
-public final class StartPrivateStorePackageSellCommand extends StartPrivateStoreCommand {
+public final class StartPrivateStorePackageSellCommand extends StartPrivateStoreSellingCommand {
 
     public StartPrivateStorePackageSellCommand(
             int charId,

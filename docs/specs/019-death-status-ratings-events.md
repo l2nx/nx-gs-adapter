@@ -16,7 +16,7 @@ that the legacy Telegram bot had:
 1. **Unattended death** — players who leave a character fishing/farming unattended
    want to know the moment that character dies, the way the legacy bot pinged
    them. Today the only "your character is in trouble" signal is the involuntary
-   *disconnect* notification (`events.character`, `logoutReason = DISCONNECT`);
+   _disconnect_ notification (`events.character`, `logoutReason = DISCONNECT`);
    an in-world death while autofarming or on an auto-macro produces no signal at
    all. a host may already track both unattended modes (autofarm,
    auto-macro sessions) but nothing leaves the JVM on death.
@@ -54,20 +54,20 @@ bot), operators (server-status menu section), and platform-side consumers
   ship as a new message type on the **existing `character` family** (joining
   `CharacterPresenceEvent`, which is UNCHANGED), making `character` a multi-event
   family dispatched by `Nx-Message-Type`. Fields:
-    - `UUID eventId` — REQUIRED. UUIDv7; upper 48 bits encode the death
-      occurrence timestamp. Platform consumers dedupe on this id.
-    - `long charId` — REQUIRED. The character that died. Partition key
-      (8-byte big-endian) so a character's presence + death history land in one
-      partition in occurrence order, identical to `CharacterPresenceEvent`.
-    - `@Nullable Map<String,String> metadata` — open string→string map carrying
-      killer info under the `WellKnownDeathMetadata` keys: `killer_type`
-      (a `WellKnownKillerTypes` value, R2), `killer_id` (the killer's char
-      object-id for a `player` killer, or NPC template-id for a `monster`/`boss`
-      killer; absent for `self`), and `farm_mode` (a `WellKnownFarmModes` value —
-      `autofarm` / `auto_macro` — classifying the unattended mode the character
-      was in; open string, absent when the host does not classify). No killer
-      name on the wire — the platform resolves it from `killer_id` against its
-      character / NPC catalogs.
+  - `UUID eventId` — REQUIRED. UUIDv7; upper 48 bits encode the death
+    occurrence timestamp. Platform consumers dedupe on this id.
+  - `long charId` — REQUIRED. The character that died. Partition key
+    (8-byte big-endian) so a character's presence + death history land in one
+    partition in occurrence order, identical to `CharacterPresenceEvent`.
+  - `@Nullable Map<String,String> metadata` — open string→string map carrying
+    killer info under the `WellKnownDeathMetadata` keys: `killer_type`
+    (a `WellKnownKillerTypes` value, R2), `killer_id` (the killer's char
+    object-id for a `player` killer, or NPC template-id for a `monster`/`boss`
+    killer; absent for `self`), and `farm_mode` (a `WellKnownFarmModes` value —
+    `autofarm` / `auto_macro` — classifying the unattended mode the character
+    was in; open string, absent when the host does not classify). No killer
+    name on the wire — the platform resolves it from `killer_id` against its
+    character / NPC catalogs.
 
   POJO + hand-written Builder + `equals`/`hashCode`/`toString` + Java-8 source,
   constructor parameter names preserved for Gson `-parameters` deserialization.
@@ -110,24 +110,24 @@ bot), operators (server-status menu section), and platform-side consumers
 
 - [todo] R6. `nx-social` MUST deliver a death notification to the linked
   character's owners, gated by a new per-linked-character toggle:
-    - New `LinkedCharacterNotificationType.DEATH`.
-    - The character-family consumer dispatches on `Nx-Message-Type`; on
-      `CharacterDeathEvent` it resolves subscribers with DEATH enabled and sends
-      a localized message, reusing the existing `NotificationDispatcher` dedup
-      (`tg_notification_dedup`, keyed by `eventId`).
-    - DEATH toggle added to the character-notifications menu (the same place
-      LOGIN / DISCONNECT / MAIL / PRIVATE_STORE_SALE are toggled).
-    - The consumer resolves the killer NAME from `metadata.killer_id`:
-      `killer_type=player` → char name via `CharacterRepository`; `monster`/`boss`
-      → NPC name via the wiki npc-name resolver (per subscriber language, inside
-      the render function). `notifications.yml` ru + en + uk templates; PvP/PvE
-      line when the killer resolves, HTML-escaped; killer-less generic otherwise.
-    - The message template is selected per `metadata.farm_mode`: `autofarm` /
-      `auto_macro` pick a mode-specific headline ("Character X died on
-      autofarm" / "…on auto-macro"); absent / unknown mode falls back to the
-      mode-less headline. The dying character's name rides in the headline (it
-      must survive the Telegram push preview), so the footer carries only the
-      server name.
+  - New `LinkedCharacterNotificationType.DEATH`.
+  - The character-family consumer dispatches on `Nx-Message-Type`; on
+    `CharacterDeathEvent` it resolves subscribers with DEATH enabled and sends
+    a localized message, reusing the existing `NotificationDispatcher` dedup
+    (`tg_notification_dedup`, keyed by `eventId`).
+  - DEATH toggle added to the character-notifications menu (the same place
+    LOGIN / DISCONNECT / MAIL / PRIVATE_STORE_SALE are toggled).
+  - The consumer resolves the killer NAME from `metadata.killer_id`:
+    `killer_type=player` → char name via `CharacterRepository`; `monster`/`boss`
+    → NPC name via the wiki npc-name resolver (per subscriber language, inside
+    the render function). `notifications.yml` ru + en + uk templates; PvP/PvE
+    line when the killer resolves, HTML-escaped; killer-less generic otherwise.
+  - The message template is selected per `metadata.farm_mode`: `autofarm` /
+    `auto_macro` pick a mode-specific headline ("Character X died on
+    autofarm" / "…on auto-macro"); absent / unknown mode falls back to the
+    mode-less headline. The dying character's name rides in the headline (it
+    must survive the Telegram push preview), so the footer carries only the
+    server name.
 
 ### Milestone B — Server-status section & start/stop notifications
 
@@ -136,14 +136,14 @@ bot), operators (server-status menu section), and platform-side consumers
 - [todo] R7. `nx-gs-adapter-api` MUST add two new message types to the **existing
   `serveronline` family** (joining `ServerOnlineSnapshotEvent`, UNCHANGED),
   making it a multi-event family dispatched by `Nx-Message-Type`:
-    - `ServerStartedEvent` — `UUID eventId` (REQUIRED, UUIDv7) +
-      `@Nullable Map<String,String> metadata` carrying `gm_only` ("true"/"false")
-      under the `WellKnownServerStartMetadata.GM_ONLY` key.
-    - `ServerStoppingEvent` — `UUID eventId` (REQUIRED, UUIDv7) +
-      `@Nullable Map<String,String> metadata` carrying the same `gm_only` key
-      (`WellKnownServerStartMetadata.GM_ONLY`). No stop-reason on the wire. The
-      host always reports `gm_only`; the platform (not the host) decides to mute
-      the stop notification for GM-only runs.
+  - `ServerStartedEvent` — `UUID eventId` (REQUIRED, UUIDv7) +
+    `@Nullable Map<String,String> metadata` carrying `gm_only` ("true"/"false")
+    under the `WellKnownServerStartMetadata.GM_ONLY` key.
+  - `ServerStoppingEvent` — `UUID eventId` (REQUIRED, UUIDv7) +
+    `@Nullable Map<String,String> metadata` carrying the same `gm_only` key
+    (`WellKnownServerStartMetadata.GM_ONLY`). No stop-reason on the wire. The
+    host always reports `gm_only`; the platform (not the host) decides to mute
+    the stop notification for GM-only runs.
 
   Both POJOs follow the api conventions (builder, Java-8, `-parameters`).
   Partition key `null` (round-robin); consumers group by `Nx-Server-Id` and order
@@ -167,12 +167,12 @@ bot), operators (server-status menu section), and platform-side consumers
 
 - [todo] R11. `nx-gameservers` `ServerOnlineEventConsumer` MUST dispatch on
   `Nx-Message-Type`:
-    - `ServerOnlineSnapshotEvent` → existing online-bucket ingest, UNCHANGED.
-    - `ServerStartedEvent` → upsert a new `gs_server_status` row
-      (`started_at` from `eventId`, `gm_only` read from `metadata`,
-      `status='online'`).
-    - `ServerStoppingEvent` → update `gs_server_status` (`status='stopping'`,
-      `stopped_at`).
+  - `ServerOnlineSnapshotEvent` → existing online-bucket ingest, UNCHANGED.
+  - `ServerStartedEvent` → upsert a new `gs_server_status` row
+    (`started_at` from `eventId`, `gm_only` read from `metadata`,
+    `status='online'`).
+  - `ServerStoppingEvent` → update `gs_server_status` (`status='stopping'`,
+    `stopped_at`).
 
   New Liquibase migration creates `gs_server_status`
   (PK `(tenant_id, server_id)`), watermark-gated by `eventId` timestamp so
@@ -181,31 +181,31 @@ bot), operators (server-status menu section), and platform-side consumers
 - [todo] R12. `nx-social` MUST add a **"Статус сервера"** section to the
   information menu (`InfoMenuHandler` / `InfoMenuRenderer` hub), mirroring the
   existing Events / Bosses / Castles sections:
-    - Display: 🟢/🔴 status, uptime (`now − started_at`), and current online by
-      bucket (`TOTAL` / `UNIQUE` / `OFFLINE_PRIVATE_STORE` / `FISHING`, plus `APP` / `OFFLINE_FISHING`).
-    - Data read directly from the shared `nexus` DB via new read-only adapters:
-      `gs_server_status` (status / started_at) + the existing online-bucket
-      table(s) populated by `ServerOnlineIngestor`.
-    - A 🔔/🔕 toggle for START/STOP notifications, persisted via the existing
-      `ActivitySubscriptionService` under a new `ActivityType.SERVER_STATUS`
-      (server-scoped `activity_key`, e.g. the serverId).
-    - Gated by a new `MenuFeatures` flag `info-server` (default OFF) — see R26.
+  - Display: 🟢/🔴 status, uptime (`now − started_at`), and current online by
+    bucket (`TOTAL` / `UNIQUE` / `OFFLINE_PRIVATE_STORE` / `FISHING`, plus `APP` / `OFFLINE_FISHING`).
+  - Data read directly from the shared `nexus` DB via new read-only adapters:
+    `gs_server_status` (status / started_at) + the existing online-bucket
+    table(s) populated by `ServerOnlineIngestor`.
+  - A 🔔/🔕 toggle for START/STOP notifications, persisted via the existing
+    `ActivitySubscriptionService` under a new `ActivityType.SERVER_STATUS`
+    (server-scoped `activity_key`, e.g. the serverId).
+  - Gated by a new `MenuFeatures` flag `info-server` (default OFF) — see R26.
 
 - [todo] R13. `nx-social` MUST deliver server START/STOP notifications via a
   **new event-driven path** (the existing time-driven `ActivityNotificationScheduler`
   does not fit push events):
-    - A new Kafka consumer on the `*.gs.events.serveronline` family filtering
-      `ServerStartedEvent` / `ServerStoppingEvent` (ignoring snapshots), fanning
-      out to `SERVER_STATUS` subscribers of that server.
-    - **Both STARTED and STOPPING notifications MUST be suppressed when
-      `gmOnly = true`** (read from the event `metadata`, regardless of the
-      subscriber's toggle) — GM-only runs are operator tests with frequent
-      restarts. The filter lives on the platform (telegram), not in the host:
-      the host always emits both facts with `gm_only` stamped.
-    - Dedup by `eventId` (reuse the notification dedup machinery).
-    - `info.yml` ru/en/uk templates for server up / server down (legacy copy:
-      start = "update the client" reminder, stop = "23 техника устанавливают
-      обновления").
+  - A new Kafka consumer on the `*.gs.events.serveronline` family filtering
+    `ServerStartedEvent` / `ServerStoppingEvent` (ignoring snapshots), fanning
+    out to `SERVER_STATUS` subscribers of that server.
+  - **Both STARTED and STOPPING notifications MUST be suppressed when
+    `gmOnly = true`** (read from the event `metadata`, regardless of the
+    subscriber's toggle) — GM-only runs are operator tests with frequent
+    restarts. The filter lives on the platform (telegram), not in the host:
+    the host always emits both facts with `gm_only` stamped.
+  - Dedup by `eventId` (reuse the notification dedup machinery).
+  - `info.yml` ru/en/uk templates for server up / server down (legacy copy:
+    start = "update the client" reminder, stop = "23 техника устанавливают
+    обновления").
 
 - [todo] R26. The whole server-status feature MUST be gated by a new per-bot
   `MenuFeatures` flag `info-server`, **default OFF**. It gates all three entry
@@ -229,14 +229,14 @@ bot), operators (server-status menu section), and platform-side consumers
 
 - [todo] R14. `nx-gs-adapter-api` MUST ship a **new `ratings` family** under
   `kafka.events.ratings`:
-    - `RatingSnapshotEvent` — `UUID eventId` (REQUIRED, UUIDv7),
-      `String ratingType` (REQUIRED, open string), `List<RatingEntry> entries`
-      (REQUIRED, full ranked snapshot).
-    - `RatingEntry` — `long charId`, `long score`, `int rank`. No character name
-      (platform joins `gs_characters`).
-    - `WellKnownRatingTypes` constants class: `FISHING = "fishing"` (the first
-      ranked leaderboard; future rating types add constants here without an api
-      release).
+  - `RatingSnapshotEvent` — `UUID eventId` (REQUIRED, UUIDv7),
+    `String ratingType` (REQUIRED, open string), `List<RatingEntry> entries`
+    (REQUIRED, full ranked snapshot).
+  - `RatingEntry` — `long charId`, `long score`, `int rank`. No character name
+    (platform joins `gs_characters`).
+  - `WellKnownRatingTypes` constants class: `FISHING = "fishing"` (the first
+    ranked leaderboard; future rating types add constants here without an api
+    release).
 
   POJOs follow api conventions (builder, Java-8, `-parameters`). Partition key
   `null` (round-robin); full-snapshot semantics, ordered per-server by the
@@ -254,13 +254,13 @@ bot), operators (server-status menu section), and platform-side consumers
   package is `events.ratings`).
 
 - [todo] R17. `nx-infra` MUST provision the `rating` topic in **both** places:
-    - Add `"gs.events.rating"` to the `STANDARD_TOPICS` array in
-      `komodo/l2nx/prod-kafka/scripts/create-tenant.sh` so new tenants get it on
-      creation.
-    - Document the per-tenant `gs.events.rating` topic in the per-tenant
-      Kafka runbooks (prod: 2 partitions, 3h retention; dev: 1 partition,
-      1h retention), each with the `docker exec … kafka-topics --create` runbook
-      command, matching the existing per-family sections.
+  - Add `"gs.events.rating"` to the `STANDARD_TOPICS` array in
+    `komodo/l2nx/prod-kafka/scripts/create-tenant.sh` so new tenants get it on
+    creation.
+  - Document the per-tenant `gs.events.rating` topic in the per-tenant
+    Kafka runbooks (prod: 2 partitions, 3h retention; dev: 1 partition,
+    1h retention), each with the `docker exec … kafka-topics --create` runbook
+    command, matching the existing per-family sections.
 
 - [todo] R18. The host MUST publish a `RatingSnapshotEvent` every 1 minute
   via a new `RatingSnapshotPublisher` (scheduled `scheduleAtFixedDelay`, bound in
@@ -273,20 +273,20 @@ bot), operators (server-status menu section), and platform-side consumers
 - [todo] R19. `nx-gameservers` MUST add a `rating` domain slice with a new
   `RatingsEventConsumer` (group `nx-gameservers-events-ratings`) that scope-
   replaces a **single unified** `gs_ratings` table on each snapshot:
-    - Columns: `tenant_id`, `server_id`, `rating_type`, `char_id`, `score`,
-      `rank`, `updated_at`. PK `(tenant_id, server_id, rating_type, char_id)`.
-    - Replace is scoped to `(tenant_id, server_id, rating_type)` and
-      watermark-gated by the `eventId` timestamp (stale snapshots ignored).
-    - Character names resolved by JOIN to `gs_characters` on read — never stored
-      in `gs_ratings` (consistent with the shared-DB no-snapshot convention).
-    - New Liquibase migration creates `gs_ratings`.
+  - Columns: `tenant_id`, `server_id`, `rating_type`, `char_id`, `score`,
+    `rank`, `updated_at`. PK `(tenant_id, server_id, rating_type, char_id)`.
+  - Replace is scoped to `(tenant_id, server_id, rating_type)` and
+    watermark-gated by the `eventId` timestamp (stale snapshots ignored).
+  - Character names resolved by JOIN to `gs_characters` on read — never stored
+    in `gs_ratings` (consistent with the shared-DB no-snapshot convention).
+  - New Liquibase migration creates `gs_ratings`.
 
 ### Milestone D — Private-store current-adena in trade notification
 
 **Must:**
 
-- [todo] R23. `nx-gs-adapter-api` MUST ship `WellKnownPrivateStoreMetadata` in
-  `events.privatestore` with key `STORE_OWNER_ADENA = "store_owner_adena"`. The
+- [todo] R23. `nx-gs-adapter-api` MUST ship the enum `PrivateStoreMetadataKey` in
+  `events.privatestore.model` with `STORE_OWNER_ADENA` (wire key `store_owner_adena`, via `key()`). The
   existing `PrivateStorePurchaseEvent.metadata` map carries it; no new field.
 
 - [todo] R24. The host's private-store purchase publisher MUST stamp
@@ -302,16 +302,27 @@ bot), operators (server-status menu section), and platform-side consumers
 
 - [todo] R26. **Fee metadata of the purchase event** (design, not released; commands side in
   [`009-commands/catalog.md`](009-commands/catalog.md) › Breaking changes of this release).
-  `WellKnownPrivateStoreMetadata` MUST add `BUYER_FEE_ADENA = "buyer_fee_adena"`,
-  `BUYER_FEE_PERCENT = "buyer_fee_percent"`, `SELLER_FEE_ADENA = "seller_fee_adena"` and
-  `SELLER_FEE_PERCENT = "seller_fee_percent"` (decimal strings, percent in whole percent). The buyer fee
+  `PrivateStoreMetadataKey` MUST add `BUYER_FEE_ADENA` (`buyer_fee_adena`),
+  `BUYER_FEE_PERCENT` (`buyer_fee_percent`), `SELLER_FEE_ADENA` (`seller_fee_adena`) and
+  `SELLER_FEE_PERCENT` (`seller_fee_percent`) (decimal strings, percent in whole percent). The buyer fee
   is the burned surcharge on top of the lot price (platform buys only); the seller fee is withheld from
   the seller's proceeds and burned, on every sale from a store that carries a seller fee, in-game
-  purchases included. Both are recorded per deal because the rates are platform configuration. The
+  purchases included. Both are recorded per deal because the rates are platform configuration; the parsers (`PrivateStoreMetadata.sellerFee` / `buyerFee`) return one value type, `PrivateStoreFee` (`adena`, `percent`), and reject a negative percent; `sellerFee` also rejects one above `100` (proceeds cannot go negative), so the platform never stores it. The
   host stamps the seller fee from both the platform-buy path and the
   in-game purchase path. The `seller_fee_*` keys are omitted (not written as `0` or
   blank) when the store has no seller fee. The old `TAX_ADENA` (`tax_adena`) and `TAX_PERCENT` (`tax_percent`) constants are removed
   in the same release (a rename, no fallback).
+
+- [todo] R27. **Buyer fee of an app buy store.** On every fill of a buy store started by `StartPrivateStoreBuyCommand` that
+  carries a `buyerFeePercent` (a BID deal), the host MUST stamp `buyer_fee_adena` and `buyer_fee_percent` (the keys of the fee-metadata requirement, "Fee metadata of the purchase event")
+  into `PrivateStorePurchaseEvent.metadata`: the store owner is the buyer and pays the burned surcharge on top of the
+  listed price, so R26's "platform buys only" widens to "platform buys and fills of an app buy store". The keys are
+  omitted when the store has no fee. A fill of an app buy store carries `source` `CLIENT` (no app command sells into a
+  store yet). `nx-gs-adapter-api` MUST add `PrivateStoreMetadata.buyerFee(metadata)`, symmetric to `sellerFee(metadata)`, returning the same `PrivateStoreFee`
+  value (`adena`, `percent`) as the seller fee. The host re-validates
+  the start (duplicate `itemTemplateId` is `DUPLICATE_ITEM_TEMPLATE_ID`; `Σ(count * priceAdena)` or the fee beyond its adena
+  limit, computed exactly, is `ADENA_OVERFLOW`). Command side:
+  [`009-commands/catalog.md`](009-commands/catalog.md) › `StartPrivateStoreBuyCommand`.
 
 **Should:**
 
@@ -321,7 +332,7 @@ bot), operators (server-status menu section), and platform-side consumers
 
 **Could:**
 
-- [todo] R21. Per-character death *history* storage in nx-gameservers (a
+- [todo] R21. Per-character death _history_ storage in nx-gameservers (a
   `gs_character_deaths` table) — useful for analytics, out of scope here.
 - [todo] R22. Additional rating types (PvP, raid contribution) on the same
   `ratings` family / `gs_ratings` table — the schema is built for it; no further
@@ -355,7 +366,7 @@ bot), operators (server-status menu section), and platform-side consumers
   crashed server has no JVM to emit anything.
 - **GM-only startup.** `ServerStartedEvent` is still emitted (with `gmOnly=true`)
   and still upserts `gs_server_status` so the menu shows accurate status/uptime;
-  only the bot's *notification* is suppressed.
+  only the bot's _notification_ is suppressed.
 - **Start/stop inside the maintenance window.** No events emitted at all, so the
   menu's `status` may briefly lag reality during the daily restart — acceptable;
   the next snapshot/heartbeat reconciles.
@@ -406,7 +417,7 @@ bot), operators (server-status menu section), and platform-side consumers
 - [resolved: `ratings` goes in BOTH `create-tenant.sh` `STANDARD_TOPICS` AND the
   per-tenant `.md` runbook docs — user confirmed.]
 - [ ] `gs_ratings` `score` column type: `BIGINT` assumed (championship `points`
-  is a `long`); confirm during planning.
+      is a `long`); confirm during planning.
 
 ## Links
 

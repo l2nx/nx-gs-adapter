@@ -1,23 +1,26 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 
-/**
- * Canonical {@link DroppedLine#getReason()} values. Open string so a new reason is not a breaking change.
- * {@link #NOT_AVAILABLE} is the fallback for a line the host's native availability checks refuse without a finer code.
- */
-public final class WellKnownDroppedLineReasons {
+import app.l2nx.gs.adapter.api.Vocabularies;
+import org.jspecify.annotations.Nullable;
 
-    private WellKnownDroppedLineReasons() {}
+/** Known {@link DroppedLine#getReason()} tokens; the wire token is {@link #name()}. */
+public enum DroppedLineReason {
+    NOT_FOUND,
+    NOT_TRADEABLE,
+    ITEM_BLOCKED,
+    EQUIPPED,
+    BAD_COUNT,
+    PRICE_OVERFLOW,
+    ADENA,
+    PET_CONTROL_ITEM,
+    ENCHANTING,
+    SKILL_CONSUMABLE,
+    PET_COLLAR_NOT_EMPTY,
 
-    public static final String NOT_FOUND = "NOT_FOUND";
-    public static final String NOT_TRADEABLE = "NOT_TRADEABLE";
-    public static final String ITEM_BLOCKED = "ITEM_BLOCKED";
-    public static final String EQUIPPED = "EQUIPPED";
-    public static final String BAD_COUNT = "BAD_COUNT";
-    public static final String PRICE_OVERFLOW = "PRICE_OVERFLOW";
-    public static final String ADENA = "ADENA";
-    public static final String PET_CONTROL_ITEM = "PET_CONTROL_ITEM";
-    public static final String ENCHANTING = "ENCHANTING";
-    public static final String SKILL_CONSUMABLE = "SKILL_CONSUMABLE";
-    public static final String PET_COLLAR_NOT_EMPTY = "PET_COLLAR_NOT_EMPTY";
-    public static final String NOT_AVAILABLE = "NOT_AVAILABLE";
+    /** Fallback for a line the host's native availability checks refuse without a finer code. */
+    NOT_AVAILABLE;
+
+    public static @Nullable DroppedLineReason fromToken(@Nullable String token) {
+        return Vocabularies.fromToken(DroppedLineReason.class, token);
+    }
 }

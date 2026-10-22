@@ -22,7 +22,7 @@ public final class StartPrivateStoreResult {
         this.sessionId = sessionId;
     }
 
-    /** Host-defined open vocabulary (e.g. {@code "SELL"}, {@code "PACKAGE_SELL"}), not a closed enum. */
+    /** Host-defined open vocabulary (e.g. {@code "SELL"}, {@code "PACKAGE_SELL"}, {@code "BUY"}), not a closed enum. */
     public String getStoreType() {
         return storeType;
     }

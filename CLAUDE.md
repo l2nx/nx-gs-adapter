@@ -30,6 +30,12 @@ own, fill this".
 - **The skill contract is a living doc.** Any change to the `gd.skill` DTOs or the skill/stat vocabulary enums updates
   `docs/specs/030-gamedata-sync/skill-contract.md` in the same commit.
 - Platform storage follows meaning, not the writer: see `nx-gamedata/CLAUDE.md` → first principle.
+- **The adapter is transport: no business rules live in it.** Limits, caps, quotas, rates, defaults and policy
+  (a maximum fee percent, a line limit, an allowed price range) belong to the platform, which decides them and can
+  change them per tenant without an api release. A DTO validates only what makes the value meaningful on the wire
+  (non-null where required, a percent is not negative, an id is positive, a product does not overflow); the host
+  guards only its engine's invariants (adena limit, inventory, arithmetic). A business rule found in the api is a
+  bug: move it to the platform.
 
 ## Workflow
 
@@ -269,6 +275,12 @@ shipped before this rule: `docs/specs/029-character-class-state-sync.md` (`subcl
   Free-form identifiers are NOT enum-like and stay verbatim: effect-handler names (`p_attack`),
   icon / resource names, localized text. Icon names are emitted verbatim — the platform lowercases
   them consumer-side (nx-gamedata `IconPaths.normalize`); do NOT normalize in the adapter.
+- **Vocabularies are enums, not `WellKnown*` constant holders.** A set of wire tokens (reason codes, metadata keys,
+  statuses, types) is a Java enum whose `name()` is the token (or a `key()` / `value()` for lower-case wire strings).
+  An open vocabulary (the host may send a token the platform does not know yet) gets a lenient
+  `static @Nullable X fromToken(String)` that returns `null` for an unknown token, delegating to the shared
+  `Vocabularies.fromToken(Class, String)`; consumers tolerate it. Legacy
+  `WellKnown*` classes are converted when their family is touched.
 - **Any field/column referencing an item template is `itemTemplateId` / `item_template_id`** — never
   `itemId`, `itemConsumeId`, `consumeItemId`. It is an FK to the item-template entity; the
   accompanying quantity is `itemTemplateCount`. A reference to a concrete item instance is `itemId`.

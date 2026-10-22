@@ -5,6 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSerializer;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -23,6 +30,13 @@ class StartPrivateStoreCommandsTest {
     private static final SellLine LINE_1 = new SellLine(1, 1L, 100L);
     private static final SellLine LINE_2 = new SellLine(2, 1L, 100L);
     private static final UUID KEY = UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001");
+    private static final Instant DEADLINE = Instant.parse("2026-08-11T12:00:00Z");
+    private static final Gson GSON = new GsonBuilder()
+            .registerTypeAdapter(
+                    Instant.class, (JsonSerializer<Instant>) (src, type, ctx) -> new JsonPrimitive(src.toString()))
+            .registerTypeAdapter(
+                    Instant.class, (JsonDeserializer<Instant>) (json, type, ctx) -> Instant.parse(json.getAsString()))
+            .create();
 
     static Stream<Arguments> constructors() {
         Function<List<SellLine>, Object> sell =
@@ -38,30 +52,30 @@ class StartPrivateStoreCommandsTest {
         @ParameterizedTest(name = "{0}")
         @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreCommandsTest#constructors")
         void getSellerFeePercent_shouldBeNull_whenAbsent(String name, Function<List<SellLine>, Object> constructor) {
-            StartPrivateStoreCommand actual =
-                    (StartPrivateStoreCommand) constructor.apply(Collections.singletonList(LINE_1));
+            StartPrivateStoreSellingCommand actual =
+                    (StartPrivateStoreSellingCommand) constructor.apply(Collections.singletonList(LINE_1));
 
             assertNull(actual.getSellerFeePercent());
         }
 
         @Test
-        void constructor_shouldKeepSellerFeePercent_whenAtMax() {
+        void constructor_shouldKeepSellerFeePercent_whenAboveFifty() {
             StartPrivateStoreSellCommand actual = new StartPrivateStoreSellCommand(
-                    1,
-                    null,
-                    Collections.singletonList(LINE_1),
-                    PrivateStoreFees.MAX_FEE_PERCENT,
-                    null,
-                    false,
-                    null,
-                    KEY,
-                    null);
+                    1, null, Collections.singletonList(LINE_1), 75, null, false, null, KEY, null);
 
-            assertEquals(Integer.valueOf(50), actual.getSellerFeePercent());
+            assertEquals(Integer.valueOf(75), actual.getSellerFeePercent());
+        }
+
+        @Test
+        void constructor_shouldKeepSellerFeePercent_whenHundred() {
+            StartPrivateStoreSellCommand actual = new StartPrivateStoreSellCommand(
+                    1, null, Collections.singletonList(LINE_1), 100, null, false, null, KEY, null);
+
+            assertEquals(Integer.valueOf(100), actual.getSellerFeePercent());
         }
 
         @ParameterizedTest(name = "sellerFeePercent={0}")
-        @ValueSource(ints = {-1, 51})
+        @ValueSource(ints = {-1, Integer.MIN_VALUE, 101, Integer.MAX_VALUE})
         void constructor_shouldReject_whenSellerFeePercentOutOfRange(int sellerFeePercent) {
             List<SellLine> lines = Collections.singletonList(LINE_1);
 
@@ -96,5 +110,38 @@ class StartPrivateStoreCommandsTest {
 
             assertEquals(Arrays.asList(LINE_1, LINE_2), actual.getLines());
         }
+    }
+
+    @Nested
+    class Wire {
+
+        private static final String SELL_JSON = "{\"charId\":1,\"title\":\"t\","
+                + "\"lines\":[{\"itemId\":1,\"count\":1,\"priceAdena\":100}],\"sellerFeePercent\":5,"
+                + "\"offlineAllowed\":true,\"ownerVerified\":true,\"deadline\":\"2026-08-11T12:00:00Z\","
+                + "\"idempotencyKey\":\"5b1f3c2e-0000-4000-8000-000000000001\",\"initiatorIp\":\"1.2.3.4\"}";
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreCommandsTest#fullCommands")
+        void toJson_shouldKeepTheSellWireShape(String name, StartPrivateStoreSellingCommand command) {
+            assertEquals(JsonParser.parseString(SELL_JSON), GSON.toJsonTree(command));
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreCommandsTest#fullCommands")
+        void fromJson_shouldReadTheSellWireShape(String name, StartPrivateStoreSellingCommand command) {
+            assertEquals(command, GSON.fromJson(SELL_JSON, command.getClass()));
+        }
+    }
+
+    static Stream<Arguments> fullCommands() {
+        List<SellLine> lines = Collections.singletonList(LINE_1);
+        return Stream.of(
+                Arguments.of(
+                        "sell",
+                        new StartPrivateStoreSellCommand(1, "t", lines, 5, true, true, DEADLINE, KEY, "1.2.3.4")),
+                Arguments.of(
+                        "package-sell",
+                        new StartPrivateStorePackageSellCommand(
+                                1, "t", lines, 5, true, true, DEADLINE, KEY, "1.2.3.4")));
     }
 }

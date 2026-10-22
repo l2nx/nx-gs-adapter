@@ -158,6 +158,18 @@ it is picked up, it moves to "Done / moved into a spec".
 - **Why:** the only item DTO of the mail command family left in the slice root.
 - **Related:** [`009-commands/send-player-mail.md`](specs/009-commands/send-player-mail.md).
 
+### 16. [#31](https://github.com/l2nx/nx-gs-adapter/issues/31) ArchUnit tests for the architecture invariants
+
+Details in the issue.
+
+### 17. [#32](https://github.com/l2nx/nx-gs-adapter/issues/32) Move the Liquibase changelog off XML (YAML or generic SQL)
+
+Details in the issue.
+
+### 18. [#33](https://github.com/l2nx/nx-gs-adapter/issues/33) Replace the remaining `WellKnown*` constant holders with enums
+
+Details in the issue.
+
 ## Done / moved into a spec
 
 - **`l2nx_command_receipts` SQL moved from the host into an adapter store** - `NxCommandReceipts`
@@ -176,7 +188,7 @@ it is picked up, it moves to "Done / moved into a spec".
   effect types. See [`030-gamedata-sync/skill-contract.md`](specs/030-gamedata-sync/skill-contract.md).
 - **Private-store contract renames and `dropped` removal** - done in the fee/accept wave without a compatibility
   window (the commands are not open to players yet): `tax` is `buyerFeePercent` (`Integer`, required),
-  `taxAdena` is `buyerFeeAdena`, `MAX_TAX_PERCENT` is `MAX_FEE_PERCENT`, the `tax_*` metadata keys are gone,
+  `taxAdena` is `buyerFeeAdena`, the `MAX_TAX_PERCENT` cap is removed, the `tax_*` metadata keys are gone,
   `StartPrivateStoreResult.dropped` and `ALL_LINES_DROPPED` are removed. See
   [`009-commands/catalog.md`](specs/009-commands/catalog.md) › Breaking changes of this release and
   [`019`](specs/019-death-status-ratings-events.md) R26. Former items 4 and 5.

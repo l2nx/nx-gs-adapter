@@ -24,7 +24,7 @@ class StartPrivateStoreSessionFieldsTest {
     }
 
     @Test
-    void constructor_shouldRejectNullIdempotencyKey() {
+    void constructor_shouldReject_whenIdempotencyKeyNull() {
         assertThrows(
                 NullPointerException.class, () -> sell().idempotencyKey(null).build());
         assertThrows(
@@ -53,6 +53,16 @@ class StartPrivateStoreSessionFieldsTest {
     @Test
     void initiatorIp_shouldBeNull_whenBlank() {
         assertNull(sell().initiatorIp("  ").build().getInitiatorIp());
+    }
+
+    @Test
+    void title_shouldBeNull_whenBlank() {
+        assertNull(sell().title("  ").build().getTitle());
+    }
+
+    @Test
+    void title_shouldBeTrimmed() {
+        assertEquals("WTS", sell().title(" WTS ").build().getTitle());
     }
 
     @Test

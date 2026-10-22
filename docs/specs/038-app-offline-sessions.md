@@ -49,12 +49,12 @@ reason the mechanism is generalized; the private store from the app moves onto i
   [`offline-fishing.md`](009-commands/offline-fishing.md)). The time a character left the game MUST be recorded on every
   disconnect of a live client, including the in-game command that leaves the character as an offline trader: that
   command only works in a trade zone, which is a peaceful town zone, so no special case or bypass exists.
-- [wip]  R9. A character logging in with a client MUST close its own session with reason `APP_LOGIN`, under the character's
+- [wip] R9. A character logging in with a client MUST close its own session with reason `APP_LOGIN`, under the character's
   mutation lock and before the live character is loaded, so the last action cycle finishes before the character leaves
   the world. Logging in with another character of the same account MUST NOT close the session. A login before the
   post-restart restore has reached the character cancels the session. Adapter side done
   (`NxAppSessions.onClientLogin`); the host's login path calls it in phase 2.
-- [wip]  R10. Login is never blocked by a session for good: at worst the engine's bounded wait runs out and the host
+- [wip] R10. Login is never blocked by a session for good: at worst the engine's bounded wait runs out and the host
   refuses that one attempt with "try again" (`ClientLoginOutcome.PENDING`) while the close finishes in the background.
 - [done] R11. A session survives a restart as open: the engine restores it on the schedule below with the same `id`.
   Restore that cannot happen ends the session with `APP_RESTORE_FAILED`. The platform's server-generation close does not
@@ -266,26 +266,26 @@ starts the modules, so it must answer at once without hopping to the game thread
 Table `l2nx_offline_sessions`, owned by the adapter and created by the changelog of
 [`037`](037-schema-migrations.md).
 
-| Column                 | Type                          | Purpose                                                                                                                                                                     |
-| ---------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                   | `uuid` PK                     | UUIDv7 generated in Java; equals the platform `sessionId`                                                                                                                   |
-| `idempotency_key`      | `uuid` NOT NULL UNIQUE        | start idempotency: a repeated command finds the created session                                                                                                             |
-| `character_id`         | `int` NOT NULL                | character; history and rollback                                                                                                                                             |
-| `active_character_id`  | `int` NULL UNIQUE             | equals `character_id` while the session runs, `NULL` once closed: at most one active session per character (all three engines allow many `NULL` in a unique index)          |
-| `master_account_id`    | `uuid` NULL                   | master-account limit; taken from the command                                                                                                                                |
-| `activity`             | `varchar(32)` NOT NULL        | the session's `ActivityType`: `OFFLINE_FISHING`, `OFFLINE_PRIVATE_STORE` (app private store)                                                                                        |
-| `account_name`         | `varchar(45)` NOT NULL        | per-account limit                                                                                                                                                           |
-| `hwid`                 | `varchar(300)` NULL           | snapshot of the character's hwid used for the one-fishing-per-computer limit, an empty value is stored as `NULL`; `NULL` means no per-device limit; kept for investigations |
-| `initiator_ip`         | `varchar(45)` NULL            | IP of the app request that sent the start command (`initiatorIp`); for investigations                                                                                       |
-| `spot_pool`, `spot_id` | `varchar(32)`, `int` NOT NULL | the spot: a pool name and an id inside it, both chosen by the host (fishing: a pool of fishing spots; private store: a place of a trade zone)                              |
-| `active_spot_key`      | `varchar(48)` NULL UNIQUE     | `<pool>:<spot>` while the session runs: one spot, one character                                                                                                             |
-| `origin_x/y/z/heading` | `int` NOT NULL                | where to return the character; a dangerous origin is already replaced by a town. `heading` is the facing direction (0-65535)                                                |
-| `started_at`           | `datetime` NOT NULL           | real start (the character stood on the spot); used for the cooldown                                                                                                         |
-| `planned_ms`           | `bigint` NULL                 | the chosen duration; `NULL` for a private store                                                                                                                             |
-| `active_ms`            | `bigint` NOT NULL DEFAULT 0   | time in the world excluding restart downtime; drives end-by-time and the return rule (compared with the one return threshold shared by all session types)                   |
-| `type_state`           | `clob` NULL                   | per-type JSON: fishing - rod, bait, what to return to the hands, interim catch; store - kind, lots, message, seller fee percent                                             |
-| `ended_at`             | `datetime` NULL               | `NULL` means active                                                                                                                                                         |
-| `end_reason`           | `varchar(32)` NULL            | end reason: the `LogoutReason` constant name                                                                                                                                |
+| Column                 | Type                          | Purpose                                                                                                                                                                                                        |
+| ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                   | `uuid` PK                     | UUIDv7 generated in Java; equals the platform `sessionId`                                                                                                                                                      |
+| `idempotency_key`      | `uuid` NOT NULL UNIQUE        | start idempotency: a repeated command finds the created session                                                                                                                                                |
+| `character_id`         | `int` NOT NULL                | character; history and rollback                                                                                                                                                                                |
+| `active_character_id`  | `int` NULL UNIQUE             | equals `character_id` while the session runs, `NULL` once closed: at most one active session per character (all three engines allow many `NULL` in a unique index)                                             |
+| `master_account_id`    | `uuid` NULL                   | master-account limit; taken from the command                                                                                                                                                                   |
+| `activity`             | `varchar(32)` NOT NULL        | the session's `ActivityType`: `OFFLINE_FISHING`, `OFFLINE_PRIVATE_STORE` (app private store)                                                                                                                   |
+| `account_name`         | `varchar(45)` NOT NULL        | per-account limit                                                                                                                                                                                              |
+| `hwid`                 | `varchar(300)` NULL           | snapshot of the character's hwid used for the one-fishing-per-computer limit, an empty value is stored as `NULL`; `NULL` means no per-device limit; kept for investigations                                    |
+| `initiator_ip`         | `varchar(45)` NULL            | IP of the app request that sent the start command (`initiatorIp`); for investigations                                                                                                                          |
+| `spot_pool`, `spot_id` | `varchar(32)`, `int` NOT NULL | the spot: a pool name and an id inside it, both chosen by the host (fishing: a pool of fishing spots; private store: a place of a trade zone)                                                                  |
+| `active_spot_key`      | `varchar(48)` NULL UNIQUE     | `<pool>:<spot>` while the session runs: one spot, one character                                                                                                                                                |
+| `origin_x/y/z/heading` | `int` NOT NULL                | where to return the character; a dangerous origin is already replaced by a town. `heading` is the facing direction (0-65535)                                                                                   |
+| `started_at`           | `datetime` NOT NULL           | real start (the character stood on the spot); used for the cooldown                                                                                                                                            |
+| `planned_ms`           | `bigint` NULL                 | the chosen duration; `NULL` for a private store                                                                                                                                                                |
+| `active_ms`            | `bigint` NOT NULL DEFAULT 0   | time in the world excluding restart downtime; drives end-by-time and the return rule (compared with the one return threshold shared by all session types)                                                      |
+| `type_state`           | `clob` NULL                   | per-type JSON: fishing - rod, bait, what to return to the hands, interim catch; store - kind (`SELL` / `PACKAGE_SELL` / `BUY`), lots, message, seller fee percent (`BUY`: lots by template, buyer fee percent) |
+| `ended_at`             | `datetime` NULL               | `NULL` means active                                                                                                                                                                                            |
+| `end_reason`           | `varchar(32)` NULL            | end reason: the `LogoutReason` constant name                                                                                                                                                                   |
 
 Indexes: `UNIQUE(active_character_id)`, `UNIQUE(active_spot_key)`, `UNIQUE(idempotency_key)`,
 `(account_name, ended_at)`, `(hwid, ended_at)`, `(master_account_id, ended_at)`, `(character_id, started_at)`,
@@ -294,6 +294,20 @@ Indexes: `UNIQUE(active_character_id)`, `UNIQUE(active_spot_key)`, `UNIQUE(idemp
 The seller fee of an app private store lives in `type_state` of its `OFFLINE_PRIVATE_STORE` session: the host's trade list asks the
 seller's session for the percent, so a sale pays the fee to any buyer, including a buyer in the game (stores opened in
 the game pay no fee, as before). The host keeps no separate per-character copy of the fee or of the app-store origin.
+
+- [todo] R19. A buy store started from the app (`StartPrivateStoreBuyCommand`, see [`catalog.md`](009-commands/catalog.md))
+  is an `OFFLINE_PRIVATE_STORE` session like the sell stores. Its `type_state` carries store kind `BUY`, the lots by
+  template (`itemTemplateId`, `count`, `priceAdena`; a buy lot has no item instance) and
+  `buyerFeePercent`. The buyer fee lives in `type_state` for the same reason as the seller fee: the host's trade list
+  asks the owner's session, so every fill pays it, a seller in the game included. `count` is
+  what is still wanted. The session hooks branch on the store kind: a fill decrements the buy lots from the buy list, and
+  the store is sold out when the buy list is empty after a fill (not "sell list empty"); the fee lookup, the `type_state`
+  validity check, the slot limit at start and restore (the buy-store limit for `BUY`) and the store-type token are per kind
+  too. The restore re-creates the buy list from `type_state` with the remaining counts, all-or-nothing like a sell store,
+  and does not re-check adena. When every wanted count is filled the host reports `APP_SOLD_OUT` through `onActionEnded`
+  and the session ends, as a fully sold sell store does. Adena is not reserved: every fill re-checks the owner's adena
+  (price plus fee), a fill the owner cannot cover is refused and the store stays open. A fill of an app buy store is
+  reported with the purchase-event `source` `CLIENT`: there is no app command that sells into a store.
 
 Decision 2026-10-15: starting a private store from the app is allowed ONLY for a character that is NOT in the game. A
 character online with a client is refused with `CHARACTER_ONLINE`; the recently-left-the-game rule (minutes from the
@@ -310,14 +324,14 @@ Cleanup: closed sessions older than the host's retention are deleted at server s
 
 1. Start: host validates (R8), engine inserts the row under `idempotency_key` (R5, id = UUIDv7), `placeInWorld`,
    records the real `started_at` (and the host's spot and type state), `startAction`, then publishes `online = true, source = APP,
-   activity, sessionId, ip = initiatorIp, hwid, accountName`.
+activity, sessionId, ip = initiatorIp, hwid, accountName`.
 2. Running: `active_ms` counts while the action runs, flushed every minute (a write never lowers the stored value and
    never touches a closed row) and on stop and shutdown (R7); a timer ends the session when `active_ms >= planned_ms`
    (`planned_ms` null: no time limit).
 3. End: by time (`APP_TIME_UP`), by stop command (`APP_STOPPED`), by `APP_LOGIN`, or by a host callback (action ended). The engine
    calls `stopAction` (when the action ran) and `removeFromWorld(returnToOrigin = active_ms < threshold)`, fills
    `ended_at` and `end_reason`, clears `active_character_id` and `active_spot_key`, publishes `online = false, source = APP,
-   logoutReason`. A failed close in the table is logged and retried until the table takes it (the character stays busy
+logoutReason`. A failed close in the table is logged and retried until the table takes it (the character stays busy
    meanwhile); the event goes out at once. Only if the JVM stops before a retry succeeds is the row, still open, restored
    at the next start (see Engine).
 4. Server stop: running sessions keep their row open; `active_ms` is stored; nothing is published.
@@ -326,7 +340,7 @@ Cleanup: closed sessions older than the host's retention are deleted at server s
    first batch runs at once and the rest follow in batches at the host's pace (`restoreBatchSize`, capped at the
    engine's share of the IO pool, every `restoreBatchIntervalMs`; the start of the restore logs the effective pace):
    `placeInWorld` (+ the new spot and type state when the host changed them), `startAction`, then `online = true,
-   resumed = true` with the same `sessionId`. A placement refused for now goes back to the queue (see the SPI). Any
+resumed = true` with the same `sessionId`. A placement refused for now goes back to the queue (see the SPI). Any
    other refused or failed placement or action ends the session with `APP_RESTORE_FAILED` (return rule applies, `removeFromWorld` of a
    character that never re-entered the world). A row whose `active_ms` already reached `planned_ms` ends with `APP_TIME_UP`
    without being placed. A stop before the restore reached it ends with `APP_STOPPED_BEFORE_RESTORE`, a login with `APP_LOGIN`;
@@ -362,7 +376,9 @@ lives on the platform, in its own private legacy mapping (see Rollout).
   CHECK, then the host.
 
 - R15. `CharacterPresenceEvent` gains:
-  - `source` (`CLIENT` / `APP`), REQUIRED on every presence event; the host sets `CLIENT` for a client session, there
+  - `source` (`CLIENT` / `APP`, read leniently with `SessionSource.fromToken`; the purchase-event `source` metadata uses the
+    same vocabulary and its change from `in_game` / `remote` is a breaking wire change the platform straddles until every
+    game server restarted), REQUIRED on every presence event; the host sets `CLIENT` for a client session, there
     is no "null reads as CLIENT" in this contract;
   - `activity` (`ActivityType`), only with `source = APP`: `OFFLINE_FISHING` or `OFFLINE_PRIVATE_STORE`;
   - `sessionId` (the app session's id, only with `source = APP`);
@@ -410,7 +426,7 @@ same way `<tenant>.gd.sync` is (see [`030-gamedata-sync`](030-gamedata-sync/spec
 
 | Part             | Content                                                                                                                                      |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| per session type | the `ActivityType` of the session (`OFFLINE_FISHING`, `OFFLINE_PRIVATE_STORE`) and `enabled`                                                         |
+| per session type | the `ActivityType` of the session (`OFFLINE_FISHING`, `OFFLINE_PRIVATE_STORE`) and `enabled`                                                 |
 | rule parameters  | typed values the UI needs for hints: recently-left minutes, cooldown, return threshold, restart window, fishing minimum and maximum duration |
 
 Published at adapter start and after every applied settings change; an unchanged snapshot is not republished. The

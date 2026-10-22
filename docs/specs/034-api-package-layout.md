@@ -47,14 +47,14 @@ the slice's contract from its supporting types. The same smell exists inside cor
 
   | Slice                          | Into `model/`                                                                                                               |
   | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-  | `kafka.commands.privatestore`  | `BoughtLine`, `BuyLine`, `DroppedLine`, `SellLine`                                                                          |
+  | `kafka.commands.privatestore`  | `BoughtLine`, `BuyLine`, `DroppedLine`, `DroppedLineReason`, `PrivateStoreReason`, `SellLine`, `WantedLine`               |
   | `kafka.commands.ban`           | `WellKnownBanTargetTypes`, `WellKnownBanTypes`                                                                              |
   | `kafka.commands.mail`          | `ItemDeliveryError`, `MailItem`                                                                                             |
   | `kafka.commands.captcha` (new) | `CaptchaRoundResult`, `WellKnownCaptchaOutcomes`                                                                            |
-  | `kafka.events.privatestore`    | `StoreLine`, `StoreState`, `TradeLine`, `PrivateStoreSide`, `WellKnownPrivateStoreMetadata`                                    |
+  | `kafka.events.privatestore`    | `StoreLine`, `StoreState`, `TradeLine`, `PrivateStoreSide`, `PrivateStoreMetadataKey`, `PrivateStoreMetadata`, `PrivateStoreFee` |
   | `kafka.events.premiumpurchase` | `Payment`, `PurchaseItem`, `PurchaseService`, `WellKnownServices`                                                           |
   | `kafka.events.olympiad`        | `OlympiadGameType`, `OlympiadMatchReason`, `OlympiadMatchResult`                                                            |
-  | `kafka.events.character`       | `LogoutReason`, `SessionSource`, `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`                     |
+  | `kafka.events.character`       | `LogoutReason`, `SessionSource` (lenient `fromToken`), `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`                     |
   | `kafka.events.server.online`    | `ServerOnlineBucket`, `WellKnownServerStartMetadata`                                                                        |
   | `kafka.ops`                    | `ChangesSummary`, `CommandsStats`, `EntityState`, `EntityStats`, `EventsStats`, `ModuleStates`, `ModuleStatus`, `PoolStats` |
   | `kafka.sync.runtime.character` | `CharacterEffect`, `CharacterEffectOffline`, `WellKnownAiStatuses`                                                          |
@@ -63,6 +63,9 @@ the slice's contract from its supporting types. The same smell exists inside cor
 
   Package-private helpers (`MailLists`, `PrivateStoreLists`) stay with the commands that use them;
   `BuyLine` carries its own attribute-map copy instead of reaching back into the root helper.
+
+- [done] R2a. The api root holds one single file, `Vocabularies`: the lenient `fromToken(Class, String)` lookup behind every
+  open vocabulary enum (a per-enum cached token map), shared so no enum repeats the loop.
 
 - [done] R3. Internal modules (not public API, no consumer impact):
   - core `connect` → `connect.flow` (`ConnectFlow`, `GameServerConnectFlow`, `HostConnectFlow`,

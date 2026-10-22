@@ -88,23 +88,13 @@ class BuyFromPrivateStoreCommandTest {
     }
 
     @Test
-    void constructor_shouldReject_whenLinesExceedMaxLines() {
+    void constructor_shouldAccept_whenLinesManyDistinct() {
         List<BuyLine> lines = new ArrayList<>();
-        for (int i = 1; i <= BuyFromPrivateStoreCommand.MAX_LINES + 1; i++) {
-            lines.add(line(i));
-        }
-        BuyFromPrivateStoreCommand.Builder builder = valid().lines(lines);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldAccept_whenLinesAtMaxLines() {
-        List<BuyLine> lines = new ArrayList<>();
-        for (int i = 1; i <= BuyFromPrivateStoreCommand.MAX_LINES; i++) {
+        for (int i = 1; i <= 100; i++) {
             lines.add(line(i));
         }
         BuyFromPrivateStoreCommand command = valid().lines(lines).build();
-        assertEquals(BuyFromPrivateStoreCommand.MAX_LINES, command.getLines().size());
+        assertEquals(100, command.getLines().size());
     }
 
     @Test
@@ -115,15 +105,15 @@ class BuyFromPrivateStoreCommandTest {
     }
 
     @ParameterizedTest(name = "buyerFeePercent={0}")
-    @CsvSource({"-1", "51"})
-    void constructor_shouldReject_whenBuyerFeePercentOutOfRange(int buyerFeePercent) {
+    @CsvSource({"-1", "-2147483648"})
+    void constructor_shouldReject_whenBuyerFeePercentNegative(int buyerFeePercent) {
         BuyFromPrivateStoreCommand.Builder builder = valid().buyerFeePercent(buyerFeePercent);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @ParameterizedTest(name = "buyerFeePercent={0}")
-    @CsvSource({"0", "50"})
-    void constructor_shouldAccept_whenBuyerFeePercentAtBounds(int buyerFeePercent) {
+    @CsvSource({"0", "75"})
+    void constructor_shouldAccept_whenBuyerFeePercentNotNegative(int buyerFeePercent) {
         BuyFromPrivateStoreCommand command =
                 valid().buyerFeePercent(buyerFeePercent).build();
         assertEquals(buyerFeePercent, command.getBuyerFeePercent().intValue());

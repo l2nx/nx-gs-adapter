@@ -10,11 +10,13 @@ import app.l2nx.gs.adapter.api.kafka.commands.chat.SendChatMessageCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.AcceptMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.SendPlayerMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.BuyFromPrivateStoreCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreBuyCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStorePackageSellCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreSellCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StopPrivateStoreCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.BuyLine;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
+import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.WantedLine;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializer;
@@ -53,6 +55,16 @@ class OwnerVerifiedTest {
                         1, "t", Collections.singletonList(sell), null, null, true, null, UUID.randomUUID(), null)),
                 Arguments.of(new StartPrivateStorePackageSellCommand(
                         1, "t", Collections.singletonList(sell), null, null, true, null, UUID.randomUUID(), null)),
+                Arguments.of(new StartPrivateStoreBuyCommand(
+                        1,
+                        "t",
+                        Collections.singletonList(new WantedLine(57L, 1L, 10L)),
+                        5,
+                        null,
+                        true,
+                        null,
+                        UUID.randomUUID(),
+                        null)),
                 Arguments.of(new BuyFromPrivateStoreCommand(
                         1,
                         2,

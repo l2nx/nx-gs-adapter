@@ -2,9 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.privatestore;
 
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
-import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
 import java.time.Instant;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -19,8 +17,6 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
 
     private final int charId;
     private final @Nullable String title;
-    private final List<SellLine> lines;
-    private final @Nullable Integer sellerFeePercent;
     private final @Nullable Boolean offlineAllowed;
     private final boolean ownerVerified;
     private final @Nullable Instant deadline;
@@ -30,18 +26,13 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
     StartPrivateStoreCommand(
             int charId,
             @Nullable String title,
-            List<SellLine> lines,
-            @Nullable Integer sellerFeePercent,
             @Nullable Boolean offlineAllowed,
             boolean ownerVerified,
             @Nullable Instant deadline,
             UUID idempotencyKey,
             @Nullable String initiatorIp) {
         this.charId = charId;
-        this.title = title;
-        PrivateStoreFees.checkPercent(sellerFeePercent, "sellerFeePercent");
-        this.lines = PrivateStoreLists.requireDistinctLines(lines);
-        this.sellerFeePercent = sellerFeePercent;
+        this.title = title == null || title.trim().isEmpty() ? null : title.trim();
         this.offlineAllowed = offlineAllowed;
         this.ownerVerified = ownerVerified;
         this.deadline = deadline;
@@ -56,19 +47,6 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
     /** {@code null} falls back to the host's default banner. */
     public @Nullable String getTitle() {
         return title;
-    }
-
-    public List<SellLine> getLines() {
-        return lines;
-    }
-
-    /**
-     * Whole percent withheld from the seller's proceeds and burned on every sale from this store, rounded up; {@code null} or
-     * {@code 0} = no fee. Outside {@code 0..}{@link PrivateStoreFees#MAX_FEE_PERCENT} is {@code VALIDATION_FAILED}; the host
-     * re-validates because Gson bypasses the constructor.
-     */
-    public @Nullable Integer getSellerFeePercent() {
-        return sellerFeePercent;
     }
 
     /**
@@ -102,6 +80,8 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
         return initiatorIp;
     }
 
+    abstract String storeFieldsToString();
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -110,8 +90,6 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
         return charId == that.charId
                 && ownerVerified == that.ownerVerified
                 && Objects.equals(title, that.title)
-                && Objects.equals(lines, that.lines)
-                && Objects.equals(sellerFeePercent, that.sellerFeePercent)
                 && Objects.equals(offlineAllowed, that.offlineAllowed)
                 && Objects.equals(deadline, that.deadline)
                 && Objects.equals(idempotencyKey, that.idempotencyKey)
@@ -121,23 +99,13 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
     @Override
     public int hashCode() {
         return Objects.hash(
-                getClass(),
-                charId,
-                title,
-                lines,
-                sellerFeePercent,
-                offlineAllowed,
-                ownerVerified,
-                deadline,
-                idempotencyKey,
-                initiatorIp);
+                getClass(), charId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiatorIp);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[charId=" + charId + ", title=" + title + ", lines=" + lines
-                + ", sellerFeePercent=" + sellerFeePercent + ", offlineAllowed=" + offlineAllowed
-                + ", ownerVerified=" + ownerVerified + ", deadline=" + deadline + ", idempotencyKey=" + idempotencyKey
-                + ", initiatorIp=" + initiatorIp + "]";
+        return getClass().getSimpleName() + "[charId=" + charId + ", title=" + title + ", " + storeFieldsToString()
+                + ", offlineAllowed=" + offlineAllowed + ", ownerVerified=" + ownerVerified + ", deadline=" + deadline
+                + ", idempotencyKey=" + idempotencyKey + ", initiatorIp=" + initiatorIp + "]";
     }
 }
