@@ -92,7 +92,7 @@ Audience: platform consumers (dashboards, time-series ingest) and host authors w
 
 **Could:**
 
-- [todo] R7. A configurable snapshot cadence ([`TODO §13`](../TODO.md#13-configurable-online-snapshot-cadence)).
+- [todo] R7. A configurable snapshot cadence ([#45](https://github.com/l2nx/nx-gs-adapter/issues/45)).
 
 **Non-goals:**
 

@@ -78,7 +78,7 @@ uses it.
     the host, so it excludes Kafka and platform latency; `null` when the round timed out.
 
 - [done] R4. `metadata` carries what the host did about the result. Until the format is agreed
-  (see [`TODO.md`](../../TODO.md) §1) no `WellKnown*` class is shipped and the keys are host-defined.
+  (see [#34](https://github.com/l2nx/nx-gs-adapter/issues/34)) no `WellKnown*` class is shipped and the keys are host-defined.
   Hosts SHOULD align ban-like consequences with the platform ban vocabulary: `ban.type` (a value
   from `WellKnownBanTypes`), `ban.expiresAt` (ISO-8601 instant); a disconnect is `kick=true`.
   Host-internal escalation state uses unprefixed keys (e.g. `stage`, `mode`). A host that only

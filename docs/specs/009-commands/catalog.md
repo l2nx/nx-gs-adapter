@@ -736,7 +736,7 @@ The initiator is the envelope's `CommandInitiator`.
 **Errors.** A refusal carries `extensions.reason` from the shared enum: `RECENTLY_LOGGED_OUT` and `COOLDOWN` (with
 `retryAt`), `CHARACTER_ONLINE`, `DEAD`, `KARMA`, `CHARACTER_JAILED`, `CHARACTER_BANNED`, `UNSAFE_LOGOUT_LOCATION`, `IN_PRIVATE_STORE`,
 `NO_ROD`, `NO_BAIT`, `INVALID_ROD`, `INVALID_BAIT`, `INVALID_DURATION`, `FEATURE_DISABLED`, `DAILY_LIMIT`, `RESTART_SOON`,
-`NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope` `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`), `COMMAND_EXPIRED`. Status per
+`NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope` `CHARACTER` / `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`), `COMMAND_EXPIRED`. Status per
 reason: `NO_ROD` / `NO_BAIT` and every other state refusal are `INVALID_STATE`; `INVALID_ROD` / `INVALID_BAIT` /
 `INVALID_DURATION` are `VALIDATION_FAILED`; `CHARACTER_BANNED` / `CHARACTER_JAILED` are `FORBIDDEN`.
 

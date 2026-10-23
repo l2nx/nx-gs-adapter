@@ -101,7 +101,7 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
   converts its own local server time to UTC (for example a daily reset at 06:00 on a UTC+3 server is
   `DTSTART:...T030000Z` + `RRULE:FREQ=DAILY`); if the host's clock offset changes, recomputing and republishing the
   rule is the host's job. Converting the older `RecurringSchedule` shapes to RRULE is deferred, see
-  [`TODO §7`](../TODO.md#7-recurringschedule-to-rrule).
+  [#40](https://github.com/l2nx/nx-gs-adapter/issues/40).
 - [todo] R14. Platform storage MUST key the entity by `(server, character, type, key)` with `NULL`-safe uniqueness, and
   merge two sources by freshness: the runtime channel says what is running now (`activeSince`); a runtime tombstone
   clears only `activeSince`; db-sync supplies the spend of a character that is not in the world.
@@ -121,7 +121,7 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
   is the deliberate choice.
 - [todo] R16. Tracking a character's presence inside instances as usage of an `INSTANCE` activity (`key` = instance
   template id; needs the new `ActivityType` value first), see
-  [`TODO §9`](../TODO.md#9-instance-type-activity-usage).
+  [#41](https://github.com/l2nx/nx-gs-adapter/issues/41).
 
 **Non-goals:**
 

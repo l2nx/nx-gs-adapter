@@ -36,7 +36,7 @@ migration framework into the host.
 - [done] R5. One thin wrapper, `nx-gs-db-migrator-liquibase5` (Java 17+, Liquibase 5.x), MUST implement
   `SchemaMigrator`. Liquibase is `compileOnly`: the host adds `liquibase-core` 5.x itself, and the adapter never bundles
   it. A 4.x wrapper for a host on Java 8/11 is deferred until such a host appears
-  ([`TODO §12`](../TODO.md#12-liquibase-4x-wrapper-for-a-java-811-host)). Liquibase 5 Community is FSL-licensed (each
+  ([#44](https://github.com/l2nx/nx-gs-adapter/issues/44)). Liquibase 5 Community is FSL-licensed (each
   version reverts to Apache 2.0 after two years); the adapter does not redistribute it. Liquibase 5.0 ships without JDBC
   drivers: the wrapper uses the host's JDBC connection, and MariaDB support is verified by the Testcontainers test
   before the version is pinned.
