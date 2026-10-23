@@ -382,7 +382,7 @@ replies-published == 0}` is visible as a failure rather than as silence
 - [done, `api/v0.92.0`; legacy constructors removed in `api/v0.93.1`] R28. **Owner verification.** `nx-gs-adapter-api.kafka.commands.OwnerVerified`
   is an interface with one method, `boolean isOwnerVerified()`. Every command the platform issues on
   behalf of a player acting with their own character MUST implement it. Today:
-  `BuyFromPrivateStoreCommand`, `StartPrivateStoreSellCommand`, `StartPrivateStorePackageSellCommand`,
+  `BuyFromPrivateStoreCommand`, `SellToPrivateStoreCommand`, `StartPrivateStoreSellCommand`, `StartPrivateStorePackageSellCommand`,
   `StopPrivateStoreCommand`, `SendChatMessageCommand`, `SendPlayerMailCommand` (produced only for the owner of the sender; the host still validates the wire). A new command of that kind implements it from
   its first release; the catalog marks each one (see `catalog.md` › Owner verification).
   - `true` — the platform verified, against fresh master-account data, that the acting user owns the

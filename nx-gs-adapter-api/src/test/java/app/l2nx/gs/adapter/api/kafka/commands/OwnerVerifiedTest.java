@@ -10,6 +10,7 @@ import app.l2nx.gs.adapter.api.kafka.commands.chat.SendChatMessageCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.AcceptMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.SendPlayerMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.BuyFromPrivateStoreCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.privatestore.SellToPrivateStoreCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreBuyCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStorePackageSellCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreSellCommand;
@@ -69,6 +70,16 @@ class OwnerVerifiedTest {
                         1,
                         2,
                         Collections.singletonList(buy),
+                        5,
+                        Instant.parse("2026-08-11T12:00:00Z"),
+                        "Courier",
+                        "Subject",
+                        "Body",
+                        true)),
+                Arguments.of(new SellToPrivateStoreCommand(
+                        1,
+                        2,
+                        Collections.singletonList(sell),
                         5,
                         Instant.parse("2026-08-11T12:00:00Z"),
                         "Courier",

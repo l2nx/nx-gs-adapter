@@ -1062,6 +1062,79 @@ verbatim — it composes no text of its own.
 
 ---
 
+### `SellToPrivateStoreCommand`
+
+**Purpose.** Sell the given items of `sellerCharId` into another character's open buy-store (`BID`, opened in the game
+or from the app, see `StartPrivateStoreBuyCommand`) — the mirror of `BuyFromPrivateStoreCommand`. The seller does NOT
+have to be online, in range, or in the same world instance as the store owner; the owner is always in the world (online
+or offline-trading) and receives the items directly. All-or-nothing: either every line is sold at exactly the requested
+count and price, or nothing is charged and nothing moves. What the app player gives (the items) is taken directly; what
+the app player gets (the proceeds in adena) is delivered by a durable system mail. Every non-OK reply carries a stable
+machine-readable `reason` code in `CommandProblem.extensions` (with the context of that reason in sibling keys, e.g.
+`changedLines`, `itemIds`); the platform localizes the code, the host never sends player-facing text. The mail text is
+the platform's too: `mailSender` / `mailSubject` / `mailBody` arrive ready-made in the seller's language and the host
+writes them verbatim.
+
+**Inputs**
+
+| Field              | Type             | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------ | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sellerCharId`     | `int`            | yes      | Character giving the items and receiving the proceeds. Need not be online — the host loads an offline character for the duration of the deal                                                                                                                                                                                                                                          |
+| `buyerCharId`      | `int`            | yes      | Owner of the buy-store. MUST be in the world with a buy-store open. MUST differ from `sellerCharId`                                                                                                                                                                                                                                                                                   |
+| `lines`            | `List<SellLine>` | yes      | Lots to sell, non-empty, no duplicate `itemId`; the platform caps the count. Each `SellLine`: `itemId` (`int`, the instance object-id in the seller's inventory), `count` (`long`, positive), `priceAdena` (`long`, the buy-store line's unit price the seller saw). The item template is taken from the instance |
+| `sellerFeePercent` | `Integer`        | yes      | Seller-side fee in whole percent (`5` = 5%) withheld from the proceeds and burned: `ceilDiv(itemsTotal * pct, 100)`. Negative or above `100` (the proceeds would go negative) is rejected with `VALIDATION_FAILED`, never clamped; the platform decides the rate. `0` means no fee. `null` is `VALIDATION_FAILED` (absence is never read as `0`)                                      |
+| `deadline`         | `Instant`        | yes      | Same as on `BuyFromPrivateStoreCommand`                                                                                                                                                                                                                                                                                                                                               |
+| `mailSender`       | `String`         | yes      | Author shown on the proceeds mail, non-blank. Platform-authored, already localized; written verbatim                                                                                                                                                                                                                                                                                  |
+| `mailSubject`      | `String`         | yes      | Subject of the proceeds mail, non-blank. Same rules as `mailSender`                                                                                                                                                                                                                                                                                                                   |
+| `mailBody`         | `String`         | yes      | Body of the proceeds mail, non-blank, final text (no placeholders). Same rules as `mailSender`                                                                                                                                                                                                                                                                                        |
+| `ownerVerified`    | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                                                                                                                                                   |
+
+Deserialization bypasses the constructor, so the host re-validates ids, lines, duplicates, the fee and the mail text.
+
+**Matching.** For each line the host finds the buy-store line whose item template is the template of the instance
+`itemId` and whose price equals `priceAdena` exactly; `count` must not exceed the line's remainder. Enchant level,
+attributes and augmentation are not compared, as in the native sale into a buy-store. A mismatch (no such line, another
+price, a smaller remainder, the store closed or of another kind) refuses the whole command with `OFFER_CHANGED` and
+`changedLines`; nothing is charged. There is no partial execution. The seller's item is found by `itemId` only, with no
+fall back to another item of the same template. It must pass the host's native item-manipulation check (ownership,
+count, non-stackable = `1`, pet control item, item in an active enchant, augmented item during a cast) and be tradeable;
+otherwise `SELLER_ITEM_UNAVAILABLE` with `itemIds`. The owner's adena (`itemsTotal` plus the owner's fee) is checked
+before anything moves; weight and slots of the owner are not checked, as in the native sale.
+
+**Fees.** Everyone who acts from the app pays. The seller fee is withheld from the proceeds: the mail carries
+`receivedTotal = itemsTotal - sellerFee`, `sellerFee = ceilDiv(itemsTotal * sellerFeePercent, 100)`. The owner of a store
+opened from the app also pays its buyer fee on top of the price, `ceilDiv(itemsTotal * buyerFeePercent, 100)` with the
+rate of the store (see **Buyer fee** under `StartPrivateStoreBuyCommand`); a store opened in the game carries none. Both
+fees are burned.
+
+**Result** (`SellToPrivateStoreResult`)
+
+| Field                | Type             | Notes                                                                                                                                                                             |
+| -------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `itemsTotalAdena`    | `long`           | Lot price total the store owner pays for the items                                                                                                                                |
+| `sellerFeeAdena`     | `long`           | Seller fee burned: withheld from `itemsTotalAdena` before the seller is credited; `0` at rate `0`. In `0..itemsTotalAdena`                                                        |
+| `receivedTotalAdena` | `long`           | Credited to the seller by mail; always `itemsTotalAdena - sellerFeeAdena`                                                                                                         |
+| `buyerFeeAdena`      | `long`           | The store owner's fee burned: debited from the owner on top of the lots; `0` for a store opened in the game. The owner pays `itemsTotalAdena + buyerFeeAdena`                     |
+| `sold`               | `List<SoldLine>` | The executed lots. Each `SoldLine`: `itemId` (the seller's instance), `itemTemplateId`, `enchantLevel` (`Integer?`), `count`, `unitPriceAdena` (the store price, no fee included) |
+| `storeClosed`        | `boolean`        | `true` when this deal emptied the buy-store and the host closed it                                                                                                                |
+| `mailId`             | `long`           | Id of the mail carrying the proceeds; eventual-consistent, as on `BuyFromPrivateStoreResult`                                                                                      |
+
+**Errors**
+
+| Status              | When                                                                                                                                                                                                                                                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VALIDATION_FAILED` | Malformed `lines`, a duplicate `itemId`, `sellerFeePercent` missing or out of range, blank mail text, or seller and store owner are the same character                                                                                                                                            |
+| `NOT_FOUND`         | The store owner is not in the world or has no open buy-store (`STORE_CLOSED`)                                                                                                                                                                                                                                       |
+| `INVALID_STATE`     | `OFFER_CHANGED` (with `changedLines`), `SELLER_ITEM_UNAVAILABLE` (with `itemIds`), `STORE_OWNER_INSUFFICIENT_ADENA`, `SELLER_BUSY` (trade, craft, own store), `SELLER_LOGIN_IN_PROGRESS` (race with a login), `SELLER_ITEM_LOCKED`, `ADENA_OVERFLOW`, `MAIL_DELIVERY_FAILED` (the items and the adena are returned) |
+| `FORBIDDEN`         | `SELLER_ACCESS_RESTRICTED`: the seller is barred from trading at all (ban, jail, restricted account)                                                                                                                                                                                                                |
+| `COMMAND_EXPIRED`   | `deadline` has already passed when the host picked up the command; nothing moved                                                                                                                                                                                                                                    |
+
+**Event.** The deal is reported by the existing `PrivateStorePurchaseEvent` with `storeType = BID`, `source = APP`,
+`seller_fee_*` metadata when the rate is above `0` and `buyer_fee_*` for a store opened from the app; the event api is
+unchanged.
+
+---
+
 ## Sync commands
 
 ### `ResyncEntitiesCommand`
@@ -1182,7 +1255,7 @@ resolve + side-channel send; no sync trigger needed.
 Commands the platform sends on behalf of a player acting with their own character implement
 `OwnerVerified` and carry `ownerVerified` (spec R28): `SendChatMessageCommand`,
 `StartPrivateStoreSellCommand`, `StartPrivateStorePackageSellCommand`, `StartPrivateStoreBuyCommand`,
-`StopPrivateStoreCommand`, `BuyFromPrivateStoreCommand`, `SendPlayerMailCommand`, `AcceptMailCommand`, `StartOfflineFishingCommand`,
+`StopPrivateStoreCommand`, `BuyFromPrivateStoreCommand`, `SellToPrivateStoreCommand`, `SendPlayerMailCommand`, `AcceptMailCommand`, `StartOfflineFishingCommand`,
 `StopOfflineFishingCommand`.
 
 - `true` means the platform verified, against fresh master-account data, that the acting user owns
@@ -1337,3 +1410,10 @@ to players yet, so the contract is changed directly, with no deprecated fields a
 - Rollout: release the api, then the platform; a host that has not restarted answers `UNSUPPORTED_COMMAND` for the new
   command, and the host picks it up on its next restart. The `source` change above is the one that straddles: the platform
   keeps reading the legacy `in_game` / `remote` values until every game server has restarted on the new host.
+
+### Changes of api `0.113.0` (private store sell-to-store)
+
+- Added (additive): `SellToPrivateStoreCommand` (wire type = class name, `OwnerVerified`), `SellToPrivateStoreResult` and
+  `SoldLine`. No existing member changes; the event api is unchanged (`PrivateStorePurchaseEvent` with `storeType = BID`).
+- Rollout: release the api, then the platform; a host that has not restarted answers `UNSUPPORTED_COMMAND` for the new
+  command, and the host picks it up on its next restart.
