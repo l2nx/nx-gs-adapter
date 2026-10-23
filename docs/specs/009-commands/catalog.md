@@ -1097,8 +1097,8 @@ attributes and augmentation are not compared, as in the native sale into a buy-s
 price, a smaller remainder, the store closed or of another kind) refuses the whole command with `OFFER_CHANGED` and
 `changedLines`; nothing is charged. There is no partial execution. The seller's item is found by `itemId` only, with no
 fall back to another item of the same template. It must pass the host's native item-manipulation check (ownership,
-count, non-stackable = `1`, pet control item, item in an active enchant, augmented item during a cast) and be tradeable;
-otherwise `SELLER_ITEM_UNAVAILABLE` with `itemIds`. The owner's adena (`itemsTotal` plus the owner's fee) is checked
+count, non-stackable = `1`, pet control item, item in an active enchant, augmented item during a cast), be tradeable
+and not equipped (the game client never offers an equipped item; the app bypasses the client); otherwise `SELLER_ITEM_UNAVAILABLE` with `itemIds`. The owner's adena (`itemsTotal` plus the owner's fee) is checked
 before anything moves; weight and slots of the owner are not checked, as in the native sale.
 
 **Fees.** Everyone who acts from the app pays. The seller fee is withheld from the proceeds: the mail carries
@@ -1123,7 +1123,7 @@ fees are burned.
 
 | Status              | When                                                                                                                                                                                                                                                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VALIDATION_FAILED` | Malformed `lines`, a duplicate `itemId`, `sellerFeePercent` missing or out of range, blank mail text, or seller and store owner are the same character                                                                                                                                            |
+| `VALIDATION_FAILED` | Malformed `lines`, a duplicate `itemId`, more than 36 lines (`TOO_MANY_LINES`), `sellerFeePercent` missing or out of range, blank mail text, or seller and store owner are the same character                                                                                                                                            |
 | `NOT_FOUND`         | The store owner is not in the world or has no open buy-store (`STORE_CLOSED`)                                                                                                                                                                                                                                       |
 | `INVALID_STATE`     | `OFFER_CHANGED` (with `changedLines`), `SELLER_ITEM_UNAVAILABLE` (with `itemIds`), `STORE_OWNER_INSUFFICIENT_ADENA`, `SELLER_BUSY` (trade, craft, own store), `SELLER_LOGIN_IN_PROGRESS` (race with a login), `ADENA_OVERFLOW` |
 | `FORBIDDEN`         | `SELLER_ACCESS_RESTRICTED`: the seller is barred from trading at all (ban, jail, restricted account); `SELLER_ITEM_LOCKED`: the character's item lock, unless `ownerVerified`                                                                                                                                                                                                                |
