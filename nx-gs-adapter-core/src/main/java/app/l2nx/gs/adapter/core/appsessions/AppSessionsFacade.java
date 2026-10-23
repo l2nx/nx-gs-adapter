@@ -199,25 +199,56 @@ final class AppSessionsFacade implements NxAppSessions {
         try {
             return e.findOpenByMasterAccount(masterAccountId, activity);
         } catch (Throwable t) {
-            log.error("App sessions: findOpenByMasterAccount threw {}", t.getClass().getName(), t);
+            log.error(
+                    "App sessions: findOpenByMasterAccount threw {}",
+                    t.getClass().getName(),
+                    t);
             return Collections.emptyList();
         }
     }
 
     @Override
-    public CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId, ActivityType activity) {
+    public CompletableFuture<Optional<OfflineSession>> findLastStartedByMasterAccount(
+            UUID masterAccountId, ActivityType activity) {
         AppSessionEngine e = engine;
-        if (e == null || masterAccountId == null || activity == null) {
+        if (e == null) {
+            return notReady();
+        }
+        if (masterAccountId == null) {
             return CompletableFuture.completedFuture(Optional.<OfflineSession>empty());
         }
         try {
-            return e.findLastStarted(masterAccountId, activity);
+            return e.findLastStartedByMasterAccount(masterAccountId, activity);
         } catch (Throwable t) {
-            log.error("App sessions: findLastStarted threw {}", t.getClass().getName(), t);
-            CompletableFuture<Optional<OfflineSession>> failed = new CompletableFuture<Optional<OfflineSession>>();
-            failed.completeExceptionally(t);
-            return failed;
+            log.error("App sessions: findLastStartedByMasterAccount threw {}", t.getClass().getName(), t);
+            return failed(t);
         }
+    }
+
+    @Override
+    public CompletableFuture<Optional<OfflineSession>> findLastStartedByCharacter(
+            int characterId, ActivityType activity) {
+        AppSessionEngine e = engine;
+        if (e == null) {
+            return notReady();
+        }
+        try {
+            return e.findLastStartedByCharacter(characterId, activity);
+        } catch (Throwable t) {
+            log.error("App sessions: findLastStartedByCharacter threw {}", t.getClass().getName(), t);
+            return failed(t);
+        }
+    }
+
+    /** The host must not read "no engine yet" as "no previous session" and skip its cooldown. */
+    private CompletableFuture<Optional<OfflineSession>> notReady() {
+        return failed(new IllegalStateException("app sessions not ready (" + state + ")"));
+    }
+
+    private static <T> CompletableFuture<T> failed(Throwable t) {
+        CompletableFuture<T> failed = new CompletableFuture<T>();
+        failed.completeExceptionally(t);
+        return failed;
     }
 
     private boolean awaitBoot() {

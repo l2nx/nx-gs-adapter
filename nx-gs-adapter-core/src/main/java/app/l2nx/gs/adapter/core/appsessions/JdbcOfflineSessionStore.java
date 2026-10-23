@@ -87,16 +87,31 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
-    public List<OfflineSession> findLatestStarted(UUID masterAccountId, ActivityType activity, int limit) {
+    public List<OfflineSession> findLatestStartedByMasterAccount(UUID masterAccountId, ActivityType activity, int limit) {
         return call("find the latest started sessions of a master account", c -> {
-            try (PreparedStatement ps = c.prepareStatement("SELECT " + COLUMNS + " FROM " + TABLE
-                    + " WHERE master_account_id = ? AND activity = ? ORDER BY started_at DESC, id DESC LIMIT "
-                    + Math.max(1, limit))) {
+            try (PreparedStatement ps = c.prepareStatement(latestStartedSql("master_account_id", limit))) {
                 setUuid(ps, 1, masterAccountId);
                 ps.setString(2, activity.name());
                 return readAll(ps);
             }
         });
+    }
+
+    @Override
+    public List<OfflineSession> findLatestStartedByCharacter(int characterId, ActivityType activity, int limit) {
+        return call("find the latest started sessions of a character", c -> {
+            try (PreparedStatement ps = c.prepareStatement(latestStartedSql("character_id", limit))) {
+                ps.setInt(1, characterId);
+                ps.setString(2, activity.name());
+                return readAll(ps);
+            }
+        });
+    }
+
+    /** Served by the {@code (subjectColumn, activity, started_at)} index; without one this scans. */
+    private static String latestStartedSql(String subjectColumn, int limit) {
+        return "SELECT " + COLUMNS + " FROM " + TABLE + " WHERE " + subjectColumn
+                + " = ? AND activity = ? ORDER BY started_at DESC, id DESC LIMIT " + Math.max(1, limit);
     }
 
     @Override
@@ -106,8 +121,8 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                 try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + TABLE
                         + " (id, idempotency_key, character_id, active_character_id, master_account_id, activity,"
                         + " account_name, hwid, initiator_ip, spot_pool, spot_id, active_spot_key, origin_x, origin_y,"
-                        + " origin_z, origin_heading, started_at, planned_ms, active_ms, return_threshold_ms, type_state)"
-                        + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                        + " origin_z, origin_heading, started_at, planned_ms, active_ms, return_threshold_ms,"
+                        + " type_state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
                     setUuid(ps, 1, s.getId());
                     setUuid(ps, 2, s.getIdempotencyKey());
                     ps.setInt(3, s.getCharacterId());

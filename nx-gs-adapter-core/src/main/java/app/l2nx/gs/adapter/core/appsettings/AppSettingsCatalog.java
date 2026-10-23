@@ -22,6 +22,7 @@ final class AppSettingsCatalog {
     static final String RESTART_WINDOW_MINUTES = "app.session.restart-window-minutes";
     static final String RETURN_THRESHOLD_MINUTES = "app.session.return-threshold-minutes";
     static final String PRIVATE_STORE_ENABLED = enabledKey(ActivityType.OFFLINE_PRIVATE_STORE);
+    static final String PRIVATE_STORE_START_COOLDOWN_MINUTES = "app.private-store.start-cooldown-minutes";
     static final String FISHING_ENABLED = enabledKey(ActivityType.OFFLINE_FISHING);
     static final String FISHING_START_COOLDOWN_MINUTES = "app.fishing.start-cooldown-minutes";
     static final String FISHING_MIN_DURATION_MINUTES = "app.fishing.min-duration-minutes";
@@ -159,6 +160,12 @@ final class AppSettingsCatalog {
                     r -> String.valueOf(r.sessionTypeEnabled(activity)),
                     (raw, b) -> b.sessionTypeEnabled(activity, bool(raw)));
         }
+        put(
+                keys,
+                PRIVATE_STORE_START_COOLDOWN_MINUTES,
+                r -> String.valueOf(r.privateStoreStartCooldownMinutes()),
+                (raw, b) ->
+                        b.privateStoreStartCooldownMinutes(intIn(raw, AppRules.PRIVATE_STORE_START_COOLDOWN_MINUTES)));
         put(
                 keys,
                 FISHING_START_COOLDOWN_MINUTES,

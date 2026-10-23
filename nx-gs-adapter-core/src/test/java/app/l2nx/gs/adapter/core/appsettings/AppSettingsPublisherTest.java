@@ -50,7 +50,8 @@ class AppSettingsPublisherTest {
         return AppSettings.builder()
                 .sessionTypes(Collections.singletonList(new AppSessionTypeSettings(ActivityType.OFFLINE_FISHING, true)))
                 .recentlyLeftGameMinutes(2)
-                .startCooldownMinutes(15)
+                .fishingStartCooldownMinutes(15)
+                .privateStoreStartCooldownMinutes(5)
                 .returnThresholdMinutes(returnThresholdMinutes)
                 .restartWindowMinutes(10)
                 .fishingMinDurationMs(600_000L)
@@ -138,6 +139,7 @@ class AppSettingsPublisherTest {
                     .fishingSpotPool("harbor")
                     .recentLogoutMinutes(3)
                     .fishingStartCooldownMinutes(20)
+                    .privateStoreStartCooldownMinutes(8)
                     .returnThresholdMinutes(40)
                     .restartWindowMinutes(25)
                     .fishingMinDurationMinutes(10)
@@ -151,7 +153,8 @@ class AppSettingsPublisherTest {
                             new AppSessionTypeSettings(ActivityType.OFFLINE_PRIVATE_STORE, false),
                             new AppSessionTypeSettings(ActivityType.OFFLINE_FISHING, true)))
                     .recentlyLeftGameMinutes(3)
-                    .startCooldownMinutes(20)
+                    .fishingStartCooldownMinutes(20)
+                    .privateStoreStartCooldownMinutes(8)
                     .returnThresholdMinutes(40)
                     .restartWindowMinutes(25)
                     .fishingMinDurationMs(600_000L)
@@ -166,8 +169,10 @@ class AppSettingsPublisherTest {
             publisher.connect(TOPICS, SERVER_ID);
             publisher.publish(AppRules.defaults());
 
-            publisher.publish(
-                    AppRules.builder().fishingFloatDistance(200).restoreBatchSize(2).build());
+            publisher.publish(AppRules.builder()
+                    .fishingFloatDistance(200)
+                    .restoreBatchSize(2)
+                    .build());
 
             assertEquals(1, sent.size());
         }

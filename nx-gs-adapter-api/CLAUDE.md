@@ -185,8 +185,9 @@ They all live here so a host provider depends on the contracts artifact alone.
   is the consumer's business. One exception: `org.jspecify:jspecify` for `@Nullable` / `@NonNull` —
   `RetentionPolicy.CLASS`, so no runtime cost. Wired as `api(libs.jspecify)` so consumers get the
   annotations transitively and can run their own nullness checking against the wire types.
-- **POJOs, not records** (records are Java 14+): final fields, private constructor, static
-  `builder()`, `equals`/`hashCode`. Every multi-field DTO ships a hand-written `Builder`.
+- **POJOs, not records** (records are Java 14+): final fields, static `builder()`, `equals`/`hashCode`.
+  Every multi-field DTO ships a hand-written `Builder`. The all-args constructor of a wire DTO stays public: platform
+  consumers deserialize it with Jackson, which needs a visible creator. Producers build through `builder()`.
 - **Public API → Javadoc mandatory**, by substance (semantics, units, null-rules, invariants), never
   a restatement of the field name.
 - **No framework annotations** — `@Component`, `@JsonProperty`, `@NotBlank` and friends are forbidden;

@@ -39,7 +39,10 @@ interface OfflineSessionStore {
      * At most {@code limit} sessions of the master account and activity, open or closed, latest {@code started_at}
      * first, ties by the greater id.
      */
-    List<OfflineSession> findLatestStarted(UUID masterAccountId, ActivityType activity, int limit);
+    List<OfflineSession> findLatestStartedByMasterAccount(UUID masterAccountId, ActivityType activity, int limit);
+
+    /** As {@link #findLatestStartedByMasterAccount(UUID, ActivityType, int)}, for the sessions of one character. */
+    List<OfflineSession> findLatestStartedByCharacter(int characterId, ActivityType activity, int limit);
 
     /** A unique-constraint conflict is classified in the result, never thrown. */
     InsertResult insert(OfflineSession session);

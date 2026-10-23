@@ -43,12 +43,13 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntFunction;
+import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A close or rolled-back start whose table write fails stays in {@link #pendingWrites} and is retried until it lands;
- * the character counts as busy meanwhile. If the JVM stops first the row stays open and is restored: the lesser harm
- * next to a character silently lost from the world.
+ * A failed close or rollback write stays in {@link #pendingWrites}, the character busy, until a retry lands. If the
+ * JVM stops first the row stays open and is restored: the lesser harm next to a character lost from the world.
  */
 final class AppSessionEngine {
 
@@ -120,8 +121,8 @@ final class AppSessionEngine {
     }
 
     /**
-     * Throws when the table cannot be read, leaving the engine unusable. History cleanup runs only with the file's
-     * retention: defaults standing in for a rejected file may be far shorter than intended.
+     * Throws when the table cannot be read. History cleanup runs only with the file's retention: defaults standing in
+     * for a rejected file may be far shorter than intended.
      */
     void boot() {
         if (rulesFromFile.getAsBoolean()) {
@@ -401,11 +402,25 @@ final class AppSessionEngine {
         return result;
     }
 
-    CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId, ActivityType activity) {
+    CompletableFuture<Optional<OfflineSession>> findLastStartedByMasterAccount(
+            UUID masterAccountId, ActivityType activity) {
+        return readLastStarted(
+                limit -> store.findLatestStartedByMasterAccount(masterAccountId, activity, limit),
+                row -> matches(row, masterAccountId, activity));
+    }
+
+    CompletableFuture<Optional<OfflineSession>> findLastStartedByCharacter(int characterId, ActivityType activity) {
+        return readLastStarted(
+                limit -> store.findLatestStartedByCharacter(characterId, activity, limit),
+                row -> row.getActivity() == activity && row.getCharacterId() == characterId);
+    }
+
+    private CompletableFuture<Optional<OfflineSession>> readLastStarted(
+            IntFunction<List<OfflineSession>> latest, Predicate<OfflineSession> subject) {
         CompletableFuture<Optional<OfflineSession>> result = new CompletableFuture<Optional<OfflineSession>>();
         work.execute(() -> {
             try {
-                result.complete(lastReallyStarted(masterAccountId, activity));
+                result.complete(lastReallyStarted(latest, subject));
             } catch (Throwable t) {
                 result.completeExceptionally(t);
             }
@@ -414,17 +429,17 @@ final class AppSessionEngine {
     }
 
     /**
-     * In-flight starts and rolled-back ones whose delete the table refused already have rows but never really started;
-     * they are identified after the query, which is safe because a start registers its slot before writing its row. A
-     * start that settled during the query may leave stale state in the result, then the read repeats, at most
-     * {@value #LAST_STARTED_ROUNDS} times so a busy master account cannot hold an IO worker forever; the last read answers.
+     * In-flight and delete-refused rolled-back starts have rows but never really started; they are filtered after the
+     * query, safe because a start registers its slot before writing its row. A start settling mid-query repeats the
+     * read, at most {@value #LAST_STARTED_ROUNDS} times so an IO worker is never held forever; the last read answers.
      */
-    private Optional<OfflineSession> lastReallyStarted(UUID masterAccountId, ActivityType activity) {
+    private Optional<OfflineSession> lastReallyStarted(
+            IntFunction<List<OfflineSession>> latest, Predicate<OfflineSession> subject) {
         int limit = LAST_STARTED_CANDIDATES;
         for (int round = 1; ; round++) {
             long settledBefore = settledStarts.get();
-            List<OfflineSession> candidates = store.findLatestStarted(masterAccountId, activity, limit);
-            Set<UUID> notStarted = notReallyStarted(masterAccountId, activity);
+            List<OfflineSession> candidates = latest.apply(limit);
+            Set<UUID> notStarted = notReallyStarted(subject);
             boolean settled = settledStarts.get() != settledBefore;
             Optional<OfflineSession> first = firstReallyStarted(candidates, notStarted);
             boolean complete = first.isPresent() || candidates.size() < limit;
@@ -447,15 +462,15 @@ final class AppSessionEngine {
         return Optional.empty();
     }
 
-    private Set<UUID> notReallyStarted(UUID masterAccountId, ActivityType activity) {
+    private Set<UUID> notReallyStarted(Predicate<OfflineSession> subject) {
         Set<UUID> notStarted = new HashSet<UUID>();
         for (Slot slot : byId.values()) {
-            if (slot.phase == Phase.STARTING && matches(slot.row, masterAccountId, activity)) {
+            if (slot.phase == Phase.STARTING && subject.test(slot.row)) {
                 notStarted.add(slot.id);
             }
         }
         for (PendingWrite pending : pendingWrites.values()) {
-            if (pending.delete && matches(pending.session, masterAccountId, activity)) {
+            if (pending.delete && subject.test(pending.session)) {
                 notStarted.add(pending.session.getId());
             }
         }

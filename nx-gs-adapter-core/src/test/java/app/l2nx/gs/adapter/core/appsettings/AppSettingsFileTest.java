@@ -56,6 +56,7 @@ class AppSettingsFileTest {
                     + "app.session.restart-window-minutes=20\n"
                     + "app.session.return-threshold-minutes=45\n"
                     + "app.private-store.enabled=true\n"
+                    + "app.private-store.start-cooldown-minutes=0\n"
                     + "app.fishing.enabled=true\n"
                     + "app.fishing.start-cooldown-minutes=10\n"
                     + "app.fishing.min-duration-minutes=60\n"
@@ -75,6 +76,7 @@ class AppSettingsFileTest {
                     .returnThresholdMinutes(45)
                     .sessionTypeEnabled(ActivityType.OFFLINE_PRIVATE_STORE, true)
                     .sessionTypeEnabled(ActivityType.OFFLINE_FISHING, true)
+                    .privateStoreStartCooldownMinutes(0)
                     .fishingStartCooldownMinutes(10)
                     .fishingMinDurationMinutes(60)
                     .fishingMaxDurationMinutes(600)
@@ -135,6 +137,10 @@ class AppSettingsFileTest {
                     "app.session.restart-window-minutes|-1|app.session.restart-window-minutes: out of range 0..120: -1",
                     "app.session.return-threshold-minutes|x|app.session.return-threshold-minutes: not an integer: 'x'",
                     "app.private-store.enabled|TRUE|app.private-store.enabled: expected true or false, got 'TRUE'",
+                    "app.private-store.start-cooldown-minutes|1441|app.private-store.start-cooldown-minutes: out of"
+                            + " range 0..1440: 1441",
+                    "app.private-store.start-cooldown-minutes|-1|app.private-store.start-cooldown-minutes: out of"
+                            + " range 0..1440: -1",
                     "app.fishing.enabled|yes|app.fishing.enabled: expected true or false, got 'yes'",
                     "app.fishing.start-cooldown-minutes|1441|app.fishing.start-cooldown-minutes: out of range 0..1440:"
                             + " 1441",

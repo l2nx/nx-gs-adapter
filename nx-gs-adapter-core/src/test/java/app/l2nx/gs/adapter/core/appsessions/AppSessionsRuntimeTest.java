@@ -2,11 +2,14 @@ package app.l2nx.gs.adapter.core.appsessions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStates;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
@@ -16,17 +19,26 @@ import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
 import app.l2nx.gs.adapter.core.schema.UnusableJdbcConnectionSource;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class AppSessionsRuntimeTest {
 
@@ -149,6 +161,57 @@ class AppSessionsRuntimeTest {
     }
 
     @Nested
+    class FindLastStarted {
+
+        @ParameterizedTest(name = "{0} {1}")
+        @MethodSource("app.l2nx.gs.adapter.core.appsessions.AppSessionsRuntimeTest#lastStartedWithoutAnEngine")
+        void findLastStarted_shouldCompleteExceptionally_whenTheEngineDoesNotRun(
+                AppSessionsFacade.State state, String read) {
+            AppSessionsFacade facade = new AppSessionsFacade(10L);
+            if (state == AppSessionsFacade.State.BOOTING) {
+                facade.booting();
+            } else if (state == AppSessionsFacade.State.DISABLED) {
+                facade.disable();
+            }
+
+            CompletableFuture<Optional<OfflineSession>> actual = read.equals("byCharacter")
+                    ? facade.findLastStartedByCharacter(7, ActivityType.OFFLINE_PRIVATE_STORE)
+                    : facade.findLastStartedByMasterAccount(UUID.randomUUID(), ActivityType.OFFLINE_FISHING);
+
+            assertEquals(state, facade.state());
+            CompletionException thrown = assertThrows(CompletionException.class, actual::join);
+            assertInstanceOf(IllegalStateException.class, thrown.getCause());
+        }
+
+        @Test
+        void findLastStartedByCharacter_shouldReadTheEngine_whenItRuns() {
+            InMemoryOfflineSessionStore store = new InMemoryOfflineSessionStore();
+            OfflineSession closed = openSession(7).toBuilder()
+                    .activity(ActivityType.OFFLINE_PRIVATE_STORE)
+                    .build();
+            store.seed(closed);
+            store.close(closed.getId(), 0L, closed.getStartedAt().plusSeconds(30), LogoutReason.APP_STOPPED);
+            AppSessionsFacade facade = new AppSessionsFacade(10L);
+            facade.ready(bootedEngine(store));
+
+            Optional<OfflineSession> actual = facade.findLastStartedByCharacter(7, ActivityType.OFFLINE_PRIVATE_STORE)
+                    .join();
+
+            assertEquals(closed.getId(), actual.get().getId());
+        }
+    }
+
+    static Stream<Arguments> lastStartedWithoutAnEngine() {
+        List<Arguments> cases = new ArrayList<Arguments>();
+        for (AppSessionsFacade.State state : Arrays.asList(
+                AppSessionsFacade.State.IDLE, AppSessionsFacade.State.BOOTING, AppSessionsFacade.State.DISABLED)) {
+            cases.add(Arguments.of(state, "byCharacter"));
+            cases.add(Arguments.of(state, "byMasterAccount"));
+        }
+        return cases.stream();
+    }
+
+    @Nested
     class HostReady {
 
         @Test
@@ -158,7 +221,8 @@ class AppSessionsRuntimeTest {
             store.seed(open);
             FakeOfflineSessionHost host = new FakeOfflineSessionHost();
             ManualScheduler time = new ManualScheduler();
-            AppSessionEngine engine = new AppSessionEngine(store, host, AppRules::defaults, () -> true, Runnable::run, 4, time, time, 1_000L);
+            AppSessionEngine engine = new AppSessionEngine(
+                    store, host, AppRules::defaults, () -> true, Runnable::run, 4, time, time, 1_000L);
             AppSessionsFacade facade = new AppSessionsFacade(5_000L);
             facade.booting();
 
@@ -187,8 +251,16 @@ class AppSessionsRuntimeTest {
 
     private static AppSessionEngine bootedEngine(InMemoryOfflineSessionStore store) {
         ManualScheduler time = new ManualScheduler();
-        AppSessionEngine engine =
-                new AppSessionEngine(store, new FakeOfflineSessionHost(), AppRules::defaults, () -> true, Runnable::run, 4, time, time, 1_000L);
+        AppSessionEngine engine = new AppSessionEngine(
+                store,
+                new FakeOfflineSessionHost(),
+                AppRules::defaults,
+                () -> true,
+                Runnable::run,
+                4,
+                time,
+                time,
+                1_000L);
         engine.boot();
         return engine;
     }

@@ -50,7 +50,7 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
     }
 
     private int changesetCount() {
-        return mysqlFamily() ? 7 : 6;
+        return mysqlFamily() ? 8 : 7;
     }
 
     protected TestConnectionSource source() {
@@ -86,6 +86,7 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
             }
             expected.put("0008-offline-sessions-return-threshold", "EXECUTED");
             expected.put("0009-offline-sessions-master-account-activity-started-index", "EXECUTED");
+            expected.put("0010-offline-sessions-character-activity-started-index", "EXECUTED");
             assertEquals(expected, actual);
             assertTrue(columnExists(RECEIPTS, "steps_done_at"));
         }

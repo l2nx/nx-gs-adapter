@@ -23,8 +23,8 @@ configuration. The platform checks only ownership, server liveness and its rate 
 **Status.** Phase 1 (adapter and platform) and phase 2 (host: app sessions, the private store on sessions, buy store
 included) are shipped. Offline fishing (phase 3) is not implemented in the host: its start answers `FEATURE_DISABLED`.
 The adapter parts phase 3 needs (R20-R22: the app settings file, the session-history read, `ClientIdentifiers`) are
-implemented in the adapter and not yet released; they ship in one release, with the migrations, before host phase 3
-(see [Rollout](#rollout)).
+released (api 0.111.0, core 0.45.0, db-migrations 0.3.0). The private-store start cooldown (R23) is implemented in the
+adapter and not yet released (see [Rollout](#rollout)).
 
 ## Requirements
 
@@ -85,13 +85,19 @@ implemented in the adapter and not yet released; they ship in one release, with 
   publishes it from its own file (R20).
 - [done] R20. The adapter MUST own the app settings file `l2nx-app.properties`: the key catalog, types, ranges and
   defaults, whole-file validation, hot reload, the settings snapshot, and a typed read-only view of the live values for
-  the host (`NxAppRules` / `AppRules`). See [App settings file](#app-settings-file). Implemented, not yet released.
+  the host (`NxAppRules` / `AppRules`). See [App settings file](#app-settings-file).
 - [done] R21. The adapter MUST give the host a read of session facts for its start rules, so the host never queries
-  `l2nx_*`: the open sessions of a master account and the last real start of a master account's session of a type (the
-  cooldown). See [Session-history read](#session-history-read). Implemented, not yet released; ships in the one adapter release with R20
-  and R22.
+  `l2nx_*`: the open sessions of a master account, the last real start of a master account's session of a type (the
+  fishing cooldown) and the last real start of a character's session of a type (the private-store cooldown, R23). See
+  [Session-history read](#session-history-read).
 - [done] R22. Every `hwid` and IP the adapter sends to the platform or stores in its table MUST pass
-  `ClientIdentifiers` (`nx-gs-commons`): a placeholder becomes `null`. See [Client identifiers](#client-identifiers). Implemented, not yet released.
+  `ClientIdentifiers` (`nx-gs-commons`): a placeholder becomes `null`. See [Client identifiers](#client-identifiers).
+- [host rule] R23. A new app private-store start (sell, package sell or buy) of a character MUST be refused with
+  `COOLDOWN` plus `retryAt` while less than `app.private-store.start-cooldown-minutes` passed since the real start of
+  that character's previous app private-store session (owner decision 2026-10-23, against fast price dumping). The
+  scope is the character, not the master account; only app sessions count (`OFFLINE_PRIVATE_STORE`; a store opened in
+  the game does not); stopping a store is never refused. The host enforces it; the adapter carries the key (R20) and
+  the read (R21). Implemented in the adapter, not yet released (api 0.112.0, core 0.46.0, db-migrations 0.4.0).
 
 **Non-goals:**
 
@@ -133,6 +139,8 @@ implemented in the adapter and not yet released; they ship in one release, with 
 - **Session type disabled in the app settings file:** running sessions finish normally, the host refuses a new start
   with `FEATURE_DISABLED` (see [App settings file](#app-settings-file)).
 - **Client disconnect right before a start:** counts as leaving the game (R8), including the offline-trader command.
+- **Private store restarted to change prices:** the stop always succeeds; the next start of that character waits for
+  the private-store cooldown counted from the real start of the stopped session (R23), whatever the store kind.
 - **Duplicate stop / stop of a session that is not running:** idempotent success `{sessionId: null, stopped: false}`, see
   [`offline-fishing.md`](009-commands/offline-fishing.md).
 
@@ -208,11 +216,12 @@ ClientLoginOutcome onClientLogin(int characterId);         // synchronous, bound
 Optional<OfflineSession> findActive(int characterId);      // in-memory, game-thread safe
 CompletableFuture<Boolean> updateTypeState(UUID sessionId, @Nullable String typeStateJson);
 List<OfflineSession> findOpenByMasterAccount(UUID masterAccountId, ActivityType activity);         // R21, in-memory
-CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId, ActivityType activity); // R21, table
+CompletableFuture<Optional<OfflineSession>> findLastStartedByMasterAccount(UUID masterAccountId, ActivityType activity); // R21, table
+CompletableFuture<Optional<OfflineSession>> findLastStartedByCharacter(int characterId, ActivityType activity);           // R21, table
 ```
 
 The adapter builds and publishes the settings snapshot from its own file (R20), so the capability has no publish
-method. The two R21 reads are specified in [Session-history read](#session-history-read).
+method. The R21 reads are specified in [Session-history read](#session-history-read).
 
 - `start` outcomes: `STARTED`, `EXISTING` (same `idempotencyKey`, open or closed), `CHARACTER_BUSY` (another open session
   of the character, from memory or from the table's `UNIQUE(active_character_id)`, including one whose end is still being
@@ -313,7 +322,7 @@ Table `l2nx_offline_sessions`, owned by the adapter and created by the changelog
 | `spot_pool`, `spot_id` | `varchar(32)`, `int` NOT NULL | the spot: a pool name and an id inside it, both chosen by the host (fishing: a pool of fishing spots; private store: a place of a trade zone)                                                                                                                                                                    |
 | `active_spot_key`      | `varchar(48)` NULL UNIQUE     | `<pool>:<spot>` while the session runs: one spot, one character                                                                                                                                                                                                                                                  |
 | `origin_x/y/z/heading` | `int` NOT NULL                | where to return the character; a dangerous origin is already replaced by a town. `heading` is the facing direction (0-65535)                                                                                                                                                                                     |
-| `started_at`           | `datetime` NOT NULL           | real start (the character stood on the spot); the host's cooldown reads it through R21                                                                                                                                                                                                                           |
+| `started_at`           | `datetime` NOT NULL           | real start (the character stood on the spot); the host's cooldowns read it through R21                                                                                                                                                                                                                           |
 | `planned_ms`           | `bigint` NULL                 | the chosen duration; `NULL` for a private store                                                                                                                                                                                                                                                                  |
 | `active_ms`            | `bigint` NOT NULL DEFAULT 0   | time in the world excluding restart downtime; drives end-by-time and the return rule (compared with the session's `return_threshold_ms`)                                                                                                                                                                         |
 | `return_threshold_ms`  | `bigint` NULL                 | the return threshold fixed at the real start from `app.session.return-threshold-minutes`; the end compares `active_ms` with it, so a file change never moves a running session. `NULL` only for rows written before the column (changeset `0008-offline-sessions-return-threshold`), which use the current value |
@@ -323,9 +332,12 @@ Table `l2nx_offline_sessions`, owned by the adapter and created by the changelog
 
 Indexes: `UNIQUE(active_character_id)`, `UNIQUE(active_spot_key)`, `UNIQUE(idempotency_key)`,
 `(account_name, ended_at)`, `(hwid, ended_at)`, `(master_account_id, ended_at)`,
-`(master_account_id, activity, started_at)` (R21, the cooldown read; changeset
-`0009-offline-sessions-master-account-activity-started-index`), `(character_id, started_at)`,
-`(ended_at)` (the retention delete at engine start).
+`(master_account_id, activity, started_at)` (R21, the fishing cooldown read; changeset
+`0009-offline-sessions-master-account-activity-started-index`), `(character_id, activity, started_at)` (R21, the
+private-store cooldown read, see [Session-history read](#session-history-read); changeset
+`0010-offline-sessions-character-activity-started-index`), `(character_id, started_at)` (from the table's first
+changeset; no adapter query needs it since `0010`, kept because dropping it is a separate decision), `(ended_at)` (the
+retention delete at engine start).
 
 The seller fee of an app private store lives in `type_state` of its `OFFLINE_PRIVATE_STORE` session: the host's trade list asks the
 seller's session for the percent, so a sale pays the fee to any buyer, including a buyer in the game (stores opened in
@@ -464,24 +476,25 @@ host's own configuration, never in `l2nx-app.properties`.
 **Key catalog.** Keys are lower case with dots and dashes, as in `l2nx.properties`. "Snapshot" marks a key the settings
 snapshot carries.
 
-| Key                                    | Type    | Range                                 | Default  | Meaning                                                                                                                                                                                                              |
-| -------------------------------------- | ------- | ------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app.phantom.title.text`               | string  | 1-16 code points; blank = unset       | unset    | display-only title over a placed character; unset: no override, the character shows its own title                                                                                                                    |
-| `app.phantom.title.color`              | string  | 6 hex digits, RGB                     | `FFFF00` | colour of that title; used only when the text is set                                                                                                                                                                 |
-| `app.session.recent-logout-minutes`    | int     | 0-60; 0 turns the rule off            | `2`      | no app start within this many minutes after the character left the game with a client (`RECENTLY_LOGGED_OUT`). Snapshot                                                                                              |
-| `app.session.restart-window-minutes`   | int     | 0-120                                 | `15`     | no app start when a scheduled restart is closer than this (`RESTART_SOON`). Snapshot                                                                                                                                 |
-| `app.session.return-threshold-minutes` | int     | >= 0                                  | `30`     | one threshold for every session type, fixed per session at its real start: a session that ends with `active_ms` below it returns the character to its origin, at or above it leaves the character in place. Snapshot |
-| `app.private-store.enabled`            | boolean | `true` / `false`                      | `false`  | the app private store (`OFFLINE_PRIVATE_STORE`) on this server; off: `FEATURE_DISABLED`. Snapshot                                                                                                                    |
-| `app.fishing.enabled`                  | boolean | `true` / `false`                      | `false`  | offline fishing (`OFFLINE_FISHING`) on this server; off: `FEATURE_DISABLED`. `true` requires `app.fishing.spot-pool`. Snapshot                                                                                       |
-| `app.fishing.start-cooldown-minutes`   | int     | 0-1440                                | `15`     | no new fishing start for any character of a master account within this many minutes after the real start of that master account's previous app fishing session (`COOLDOWN`, read through R21). Snapshot              |
-| `app.fishing.min-duration-minutes`     | int     | >= 1                                  | `30`     | shortest fishing a start may ask for (`INVALID_DURATION` below). Snapshot                                                                                                                                            |
-| `app.fishing.max-duration-minutes`     | int     | >= `app.fishing.min-duration-minutes` | `1440`   | longest fishing a start may ask for (`INVALID_DURATION` above); the host's daily stop may still shorten the plan. Snapshot                                                                                           |
-| `app.fishing.float-distance`           | int     | 90-250, game units                    | `170`    | fixed distance from the fisher to the float along the spot's heading                                                                                                                                                 |
-| `app.fishing.spot-order`               | enum    | `RANDOM` / `FIRST_FREE`               | `RANDOM` | how the host picks a free spot of the pool                                                                                                                                                                           |
-| `app.fishing.spot-pool`                | string  | `[a-z0-9_]{1,32}`; blank = unset      | unset    | name of the spot pool fishing uses on this server; the pool itself (spot ids, coordinates, heading) is host data                                                                                                     |
-| `app.restore.batch-size`               | int     | >= 1                                  | `10`     | sessions restored per batch after a restart (capped at the engine's share of the IO pool)                                                                                                                            |
-| `app.restore.batch-pause-millis`       | int     | >= 0                                  | `1000`   | pause between restore batches                                                                                                                                                                                        |
-| `app.history.retention-days`           | int     | >= 7                                  | `90`     | closed sessions older than this are deleted from the adapter's table at server start (R13); bounds the session-history read                                                                                          |
+| Key                                        | Type    | Range                                 | Default  | Meaning                                                                                                                                                                                                                                           |
+| ------------------------------------------ | ------- | ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app.phantom.title.text`                   | string  | 1-16 code points; blank = unset       | unset    | display-only title over a placed character; unset: no override, the character shows its own title                                                                                                                                                 |
+| `app.phantom.title.color`                  | string  | 6 hex digits, RGB                     | `FFFF00` | colour of that title; used only when the text is set                                                                                                                                                                                              |
+| `app.session.recent-logout-minutes`        | int     | 0-60; 0 turns the rule off            | `2`      | no app start within this many minutes after the character left the game with a client (`RECENTLY_LOGGED_OUT`). Snapshot                                                                                                                           |
+| `app.session.restart-window-minutes`       | int     | 0-120                                 | `15`     | no app start when a scheduled restart is closer than this (`RESTART_SOON`). Snapshot                                                                                                                                                              |
+| `app.session.return-threshold-minutes`     | int     | >= 0                                  | `30`     | one threshold for every session type, fixed per session at its real start: a session that ends with `active_ms` below it returns the character to its origin, at or above it leaves the character in place. Snapshot                              |
+| `app.private-store.enabled`                | boolean | `true` / `false`                      | `false`  | the app private store (`OFFLINE_PRIVATE_STORE`) on this server; off: `FEATURE_DISABLED`. Snapshot                                                                                                                                                 |
+| `app.private-store.start-cooldown-minutes` | int     | 0-1440; 0 turns the rule off          | `5`      | no new private-store start (sell, package sell, buy) of a character within this many minutes after the real start of that character's previous app private-store session (`COOLDOWN`, read through R21; R23). Stopping is never limited. Snapshot |
+| `app.fishing.enabled`                      | boolean | `true` / `false`                      | `false`  | offline fishing (`OFFLINE_FISHING`) on this server; off: `FEATURE_DISABLED`. `true` requires `app.fishing.spot-pool`. Snapshot                                                                                                                    |
+| `app.fishing.start-cooldown-minutes`       | int     | 0-1440                                | `15`     | no new fishing start for any character of a master account within this many minutes after the real start of that master account's previous app fishing session (`COOLDOWN`, read through R21). Snapshot                                           |
+| `app.fishing.min-duration-minutes`         | int     | >= 1                                  | `30`     | shortest fishing a start may ask for (`INVALID_DURATION` below). Snapshot                                                                                                                                                                         |
+| `app.fishing.max-duration-minutes`         | int     | >= `app.fishing.min-duration-minutes` | `1440`   | longest fishing a start may ask for (`INVALID_DURATION` above); the host's daily stop may still shorten the plan. Snapshot                                                                                                                        |
+| `app.fishing.float-distance`               | int     | 90-250, game units                    | `170`    | fixed distance from the fisher to the float along the spot's heading                                                                                                                                                                              |
+| `app.fishing.spot-order`                   | enum    | `RANDOM` / `FIRST_FREE`               | `RANDOM` | how the host picks a free spot of the pool                                                                                                                                                                                                        |
+| `app.fishing.spot-pool`                    | string  | `[a-z0-9_]{1,32}`; blank = unset      | unset    | name of the spot pool fishing uses on this server; the pool itself (spot ids, coordinates, heading) is host data                                                                                                                                  |
+| `app.restore.batch-size`                   | int     | >= 1                                  | `10`     | sessions restored per batch after a restart (capped at the engine's share of the IO pool)                                                                                                                                                         |
+| `app.restore.batch-pause-millis`           | int     | >= 0                                  | `1000`   | pause between restore batches                                                                                                                                                                                                                     |
+| `app.history.retention-days`               | int     | >= 7                                  | `90`     | closed sessions older than this are deleted from the adapter's table at server start (R13); bounds the session-history read                                                                                                                       |
 
 A new session type adds one `app.<type>.enabled` key of the same form, not a new file layout. The spot pool name goes
 into `spot_pool` of the session row; a restored session uses its stored pool, so a changed `app.fishing.spot-pool`
@@ -542,7 +555,7 @@ public interface NxAppRules {
 `AppRules` (api `spi.model.appsettings`, immutable, a Java 8 class with getters) carries every catalog key typed:
 `@Nullable String phantomTitleText()`, `int phantomTitleColorRgb()`, `int recentLogoutMinutes()`,
 `int restartWindowMinutes()`, `int returnThresholdMinutes()`, `boolean sessionTypeEnabled(ActivityType)` (`false` for a
-type the catalog has no key for), `int fishingStartCooldownMinutes()`, `int fishingMinDurationMinutes()`,
+type the catalog has no key for), `int privateStoreStartCooldownMinutes()`, `int fishingStartCooldownMinutes()`, `int fishingMinDurationMinutes()`,
 `int fishingMaxDurationMinutes()`, `int fishingFloatDistance()`, `SpotOrder fishingSpotOrder()` (enum `RANDOM`,
 `FIRST_FREE`), `@Nullable String fishingSpotPool()`, `int restoreBatchSize()`, `int restoreBatchPauseMillis()`,
 `int historyRetentionDays()`, plus `static AppRules defaults()`. There is no change listener: the host reads `current()`
@@ -564,10 +577,10 @@ The adapter publishes the snapshot (R18) itself from the live `AppRules`. It rid
 [`030-gamedata-sync`](030-gamedata-sync/spec.md) §7). The first entity is `appsettings`, DTO `AppSettings` (api
 `kafka.sync.settings.app`): one row per server.
 
-| Part             | Content                                                                                                                                                              |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| per session type | the `ActivityType` of the session (`OFFLINE_FISHING`, `OFFLINE_PRIVATE_STORE`) and `enabled`, from `app.<type>.enabled`                                              |
-| rule parameters  | the keys marked "Snapshot" above: recently-left minutes, fishing start cooldown, return threshold, restart window, fishing minimum and maximum duration (sent in ms) |
+| Part             | Content                                                                                                                                                                                                                                                          |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| per session type | the `ActivityType` of the session (`OFFLINE_FISHING`, `OFFLINE_PRIVATE_STORE`) and `enabled`, from `app.<type>.enabled`                                                                                                                                          |
+| rule parameters  | the keys marked "Snapshot" above: recently-left minutes, fishing start cooldown (`fishingStartCooldownMinutes`), private-store start cooldown (`privateStoreStartCooldownMinutes`), return threshold, restart window, fishing minimum and maximum duration (sent in ms) |
 
 Published once the `app-sessions` module connects and after every applied change; an unchanged snapshot is not
 republished. The title, restore pace, retention, float distance, spot order and spot pool do not travel. The platform
@@ -579,13 +592,15 @@ usage row.
 
 ### Session-history read
 
-Detail of R21. The host's start rules need two facts only the session table holds; the host never queries `l2nx_*`, so
-the engine answers them. Both are methods of `NxAppSessions`; the no-op capability answers an empty list / an empty
-`Optional`.
+Detail of R21. The host's start rules need facts only the session table holds; the host never queries `l2nx_*`, so
+the engine answers them. All are methods of `NxAppSessions`. The no-op capability answers an empty list for the
+in-memory read, and its two table reads complete exceptionally, as the engine's facade does while the engine does not
+run (booting, disabled, not started): neither may look like "no previous session".
 
 ```java
 List<OfflineSession> findOpenByMasterAccount(UUID masterAccountId, ActivityType activity);
-CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId, ActivityType activity);
+CompletableFuture<Optional<OfflineSession>> findLastStartedByMasterAccount(UUID masterAccountId, ActivityType activity);
+CompletableFuture<Optional<OfflineSession>> findLastStartedByCharacter(int characterId, ActivityType activity);
 ```
 
 **`findOpenByMasterAccount`** - the master-account limit ("one fishing per master account").
@@ -606,7 +621,7 @@ CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId
   account can both pass unless the host serializes its fishing starts per master account (the table does not enforce
   this limit).
 
-**`findLastStarted`** - the start cooldown (`COOLDOWN`, `retryAt = startedAt + app.fishing.start-cooldown-minutes`).
+**`findLastStartedByMasterAccount`** - the fishing start cooldown (`COOLDOWN`, `retryAt = startedAt + app.fishing.start-cooldown-minutes`).
 The cooldown is per master account: a fishing start of any character of that master account waits for the cooldown
 after the real start of the master account's previous app fishing session.
 
@@ -622,18 +637,37 @@ after the real start of the master account's previous app fishing session.
   the third the first row it read that is not in flight answers, so starts that keep settling never hold an IO worker;
   that row may be a start that settled during the read (a stale `started_at`, or a start rolled back right then). The future completes on an adapter thread; the handler waits on its own
   thread, never on `ctx.io()`.
-- Failure: a database error completes the future exceptionally. The host refuses that start as temporarily unavailable,
-  never treats it as "no previous session".
+- Failure: a database error completes the future exceptionally, and so does a read while the engine does not run
+  (`IllegalStateException`). The host refuses that start as temporarily unavailable, never treats it as "no previous
+  session".
+
+**`findLastStartedByCharacter`** - the private-store start cooldown (R23, `COOLDOWN`,
+`retryAt = startedAt + app.private-store.start-cooldown-minutes`). The cooldown is per character: a private-store start
+(sell, package sell or buy, all `OFFLINE_PRIVATE_STORE`) of a character waits for the cooldown after the real start of
+that character's previous app private-store session, open or closed. A `0` key turns the rule off and the host skips the
+read.
+
+- Input: a character id and a session activity.
+- Output, order, the starts in flight or rolled back, the bounded recheck (at most three queries) and failure: as for
+  the master-account read above, with the character instead of the master account. A row with a `NULL` master account
+  counts here: the subject is the character.
+- Source: a query of the few latest rows on the `(character_id, activity, started_at)` index (changeset
+  `0010-offline-sessions-character-activity-started-index`), the same shape as the master-account read.
+- Name: the subject is in the name (`ByMasterAccount`, `ByCharacter`), not only in the parameter type: two overloads
+  named `findLastStarted` read alike at a call site and leave the subject to the argument. The master-account read
+  shipped as `findLastStarted(UUID, ActivityType)` in api 0.111.0 with no consumer yet; api 0.112.0 renames it, with no
+  `@Deprecated` copy.
 
 **Retention.** Rows leave the table only at engine start, and only closed ones whose `ended_at` is older than
 `app.history.retention-days` (at least 7 days). The cleanup runs only when the live rules are the file's (a valid file
 applied, or no file at all): with a rejected, unreadable or half-written file the defaults only stand in for an unknown
-retention, so the engine deletes nothing that start and logs a WARN. The widest window a rule reads is the cooldown, at most 1440 minutes, so
-the read never misses a session a rule needs. Invariant: any rule window read through R21 stays below the minimum
+retention, so the engine deletes nothing that start and logs a WARN. The widest window a rule reads is a start
+cooldown (fishing or private store), at most 1440 minutes each, so the read never misses a session a rule needs. Invariant: any rule window read through R21 stays below the minimum
 retention; a key whose range would exceed it raises the retention minimum in the same change.
 
-**Release.** R21 ships in the one adapter release with R20, R22 and the migrations (changesets `0008`, `0009`), before
-host phase 3 (see [Rollout](#rollout)).
+**Release.** R21 shipped in the one adapter release with R20, R22 and the migrations (changesets `0008`, `0009`): api
+0.111.0, core 0.45.0, db-migrations 0.3.0. The per-character read and the private-store cooldown key (R23) ship in api
+0.112.0 / core 0.46.0 / db-migrations 0.4.0, with the changeset `0010` (see [Rollout](#rollout)).
 
 ### Client identifiers
 
@@ -725,12 +759,22 @@ Phases across repos, in delivery order:
    usage only, the staff online window row, the login close (R9). In this phase the host still reads its own app settings
    file and publishes the snapshot through `NxAppSessions.publishSettings`; the fishing start answers
    `FEATURE_DISABLED`.
-3. **[todo] Adapter release for fishing.** One api + core + migrations release carries R20 (the app settings file,
+3. **[done] Adapter release for fishing** (api 0.111.0, core 0.45.0, db-migrations 0.3.0, commons 0.14.0). One api + core + migrations release carries R20 (the app settings file,
    `NxAppRules` / `AppRules`; removes `OfflineSessionHost.settings()`, `OfflineSessionSettings` and
    `NxAppSessions.publishSettings`), R21 (session-history read) and R22 (`ClientIdentifiers` in commons, applied at the
    wire boundary), plus the db-migrations changesets `0008` (adds
-   `return_threshold_ms`) and `0009` (the `(master_account_id, activity, started_at)` index needed by R21). Implemented, not yet
-   released; before host phase 3.
+   `return_threshold_ms`) and `0009` (the `(master_account_id, activity, started_at)` index needed by R21).
+   **[todo] Follow-up adapter release for the private-store cooldown** (api 0.112.0, core 0.46.0, db-migrations 0.4.0,
+   R23): the key `app.private-store.start-cooldown-minutes`, `AppRules.privateStoreStartCooldownMinutes()`, the
+   snapshot field `privateStoreStartCooldownMinutes`, `NxAppSessions.findLastStartedByCharacter(int, ActivityType)`,
+   the `PrivateStoreReason.COOLDOWN` token and the changeset `0010` (the `(character_id, activity, started_at)` index).
+   The same release renames `NxAppSessions.findLastStarted(UUID, ActivityType)` to `findLastStartedByMasterAccount`
+   (no consumer yet) and the snapshot field `startCooldownMinutes` to `fishingStartCooldownMinutes` (one-release
+   rename, no `@Deprecated` copy). Order (new vocabulary value): this api release, then the platform knows `COOLDOWN`
+   for private-store refusals and reads the snapshot of a host on core before 0.46.0 with its own legacy mapping: no
+   `privateStoreStartCooldownMinutes` there, and the fishing cooldown under `startCooldownMinutes`. The platform reads
+   both cooldown names until the gate "every GS of the tenant on core 0.46.0+", then drops the old one. Then the host
+   enforces R23 in its private-store start path.
 4. **[todo] Host, second restart: offline fishing.** The host switches in one release: it reads its rule values from
    `NxAppRules`, drops its own settings-file code, uses R21 for `COOLDOWN` and the master-account limit and
    `ClientIdentifiers` for its own identifier checks, and runs offline fishing with its datapack (spot pool data, fishing

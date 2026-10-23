@@ -781,6 +781,15 @@ app settings file, default 2) is refused with `RECENTLY_LOGGED_OUT` plus `retryA
 fishing. There is no online start. Every store started by this command is an app `OFFLINE_PRIVATE_STORE` session
 (see [`038`](../038-app-offline-sessions.md)), so the seller fee always lives in the session's `type_state`.
 
+**Start cooldown.** A start of a character whose previous app private-store session (sell, package sell or buy, open or
+closed) really started less than N minutes ago is refused with `COOLDOWN` (`INVALID_STATE`) plus `retryAt` (that start
+plus N), against dumping prices by restarting the store. N is `app.private-store.start-cooldown-minutes` of the host's app
+settings file (default 5, `0` turns the rule off). The scope is the character: another character of the same master
+account is not held back, and a store opened in the game does not count. The host reads the previous start through
+`NxAppSessions.findLastStartedByCharacter(characterId, OFFLINE_PRIVATE_STORE)` ([`038`](../038-app-offline-sessions.md) R21, R23);
+a failed read refuses the start as temporarily unavailable, never as "no previous session". Every start command applies
+it (sell, package sell, buy); `StopPrivateStoreCommand` never waits for it.
+
 **Inputs**
 
 | Field              | Type             | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -834,7 +843,7 @@ instance, so its `itemId` is `null`. Known reasons (buy lines use the subset in
 | Status              | When                                                                                                                                                                                                                                                   |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `NOT_FOUND`         | `charId` does not exist on this server                                                                                                                                                                                                                 |
-| `INVALID_STATE`     | `CHARACTER_ONLINE` (the character is in the game with a client) or `RECENTLY_LOGGED_OUT` (with `retryAt`); see **Offline-only start**                                                                                                                  |
+| `INVALID_STATE`     | `CHARACTER_ONLINE` (the character is in the game with a client) or `RECENTLY_LOGGED_OUT` (with `retryAt`); see **Offline-only start**. `COOLDOWN` (with `retryAt`); see **Start cooldown**                                                             |
 | `VALIDATION_FAILED` | `lines` missing/empty, or any `SellLine` entry is malformed. When any line cannot be listed the reply is `VALIDATION_FAILED` with reason `LINES_REJECTED`: the store is not opened and the problem extension carries `dropped[]` with per-line reasons |
 | `INVALID_STATE`     | The character cannot open a store right now (in combat, already trading, dead, …)                                                                                                                                                                      |
 | `COMMAND_EXPIRED`   | `deadline` already passed when the host picked up the command; nothing changed                                                                                                                                                                         |
@@ -862,7 +871,7 @@ detail beyond that equivalence).
 | `ownerVerified`    | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                     |
 | `deadline`         | `Instant`        | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED` instead of running the command; checked before anything is read or changed. `null` (older platform) reads as "no expiry"                 |
 
-**Reasons.** Refusals carry a stable `extensions.reason` code (the platform localizes; known values include `IN_COMBAT`, `SELLING_BUFFS`, `CANNOT_ACT`, `NOT_IN_TRADE_ZONE`, `NO_FREE_SEAT`, `ADENA_OVERFLOW`, `TOO_MANY_LINES`, `CHARACTER_BANNED`, `CHARACTER_JAILED`, `OFFLINE_FEE_UNPAID`, `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`; `offlineAllowed = false`), `CHARACTER_ONLINE` and `RECENTLY_LOGGED_OUT` (`INVALID_STATE`, the latter with `retryAt`; start is offline-only), `RESTORE_IN_PROGRESS`, `COMMAND_EXPIRED`, `ITEM_LOCKED`, `TRANSACTIONS_FORBIDDEN`, `DUPLICATE_ITEM_ID`, `LINES_REJECTED`, `TITLE_TOO_LONG`, `STORE_NOT_OPEN`, and for the buy start `NOT_ENOUGH_ADENA` and `DUPLICATE_ITEM_TEMPLATE_ID`; the set is open; the start and stop tokens are the constants of the one enum `PrivateStoreReason`, read with its lenient `fromToken`). When any line cannot be listed the reply is `VALIDATION_FAILED` with reason `LINES_REJECTED` carries `dropped[]` with per-line reasons (table above); the store is not opened. The per-line `reason` is as precise as the host can make it and falls back to `NOT_AVAILABLE` for a line the host's native availability checks refuse without a finer code. A duplicate `itemId` in `lines` is `VALIDATION_FAILED` (`DUPLICATE_ITEM_ID`). One reason set applies to the start and stop commands alike (the stop uses `STORE_NOT_OPEN`).
+**Reasons.** Refusals carry a stable `extensions.reason` code (the platform localizes; known values include `IN_COMBAT`, `SELLING_BUFFS`, `CANNOT_ACT`, `NOT_IN_TRADE_ZONE`, `NO_FREE_SEAT`, `ADENA_OVERFLOW`, `TOO_MANY_LINES`, `CHARACTER_BANNED`, `CHARACTER_JAILED`, `OFFLINE_FEE_UNPAID`, `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`; `offlineAllowed = false`), `CHARACTER_ONLINE` and `RECENTLY_LOGGED_OUT` (`INVALID_STATE`, the latter with `retryAt`; start is offline-only), `COOLDOWN` (`INVALID_STATE` with `retryAt`; see **Start cooldown** under `StartPrivateStoreSellCommand`), `RESTORE_IN_PROGRESS`, `COMMAND_EXPIRED`, `ITEM_LOCKED`, `TRANSACTIONS_FORBIDDEN`, `DUPLICATE_ITEM_ID`, `LINES_REJECTED`, `TITLE_TOO_LONG`, `STORE_NOT_OPEN`, and for the buy start `NOT_ENOUGH_ADENA` and `DUPLICATE_ITEM_TEMPLATE_ID`; the set is open; the start and stop tokens are the constants of the one enum `PrivateStoreReason`, read with its lenient `fromToken`). When any line cannot be listed the reply is `VALIDATION_FAILED` with reason `LINES_REJECTED` carries `dropped[]` with per-line reasons (table above); the store is not opened. The per-line `reason` is as precise as the host can make it and falls back to `NOT_AVAILABLE` for a line the host's native availability checks refuse without a finer code. A duplicate `itemId` in `lines` is `VALIDATION_FAILED` (`DUPLICATE_ITEM_ID`). One reason set applies to the start and stop commands alike (the stop uses `STORE_NOT_OPEN`).
 
 **Result** (`StartPrivateStoreResult`) — same shape as
 `StartPrivateStoreSellCommand`'s result, above.
@@ -952,7 +961,7 @@ the enum `DroppedLineReason` (lenient `fromToken`; the problem extension name is
 | Status              | When                                                                                                                                                                  |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NOT_FOUND`         | `charId` does not exist on this server                                                                                                                                |
-| `INVALID_STATE`     | `CHARACTER_ONLINE` or `RECENTLY_LOGGED_OUT` (with `retryAt`), as for the sell starts                                                                                  |
+| `INVALID_STATE`     | `CHARACTER_ONLINE`, `RECENTLY_LOGGED_OUT` or `COOLDOWN` (both with `retryAt`), as for the sell starts                                                                 |
 | `INVALID_STATE`     | `NOT_ENOUGH_ADENA`: `Σ(count * priceAdena)` plus the buyer fee, plus the offline-mode price when that price is paid in adena, exceeds the owner's adena at start      |
 | `VALIDATION_FAILED` | `lines` missing/empty, a `WantedLine` is malformed, `buyerFeePercent` negative, `DUPLICATE_ITEM_TEMPLATE_ID`, or `LINES_REJECTED` with `dropped[]`                    |
 | `VALIDATION_FAILED` | The other start reasons, as for the sell starts: `TOO_MANY_LINES`, `ADENA_OVERFLOW`, `TITLE_TOO_LONG`                                                                 |
@@ -969,7 +978,8 @@ subsystem on the character's game thread. No separate stop exists for a buy stor
 started by `StartPrivateStoreBuyCommand` (`previousStoreType = "BUY"`).
 
 The command closes ANY private store of the player's own character: an app `OFFLINE_PRIVATE_STORE` session, a native `.offline`
-store or a live player's store. Only the start is offline-only. For an app session the stop closes the session (reason
+store or a live player's store. Only the start is offline-only and only the start waits for the start cooldown: a stop
+is never refused with `COOLDOWN`. For an app session the stop closes the session (reason
 `APP_STOPPED`) and applies the return rule (origin only if the session lasted less than the return threshold `app.session.return-threshold-minutes` of the app settings file, the same as for fishing; otherwise the character stays at the store spot); for a store not started from the app it just closes the store.
 
 **Inputs**

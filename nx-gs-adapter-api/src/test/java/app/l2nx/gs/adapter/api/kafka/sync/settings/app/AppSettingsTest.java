@@ -12,7 +12,12 @@ import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class AppSettingsTest {
 
@@ -30,7 +35,8 @@ class AppSettingsTest {
                         new AppSessionTypeSettings(ActivityType.OFFLINE_FISHING, true),
                         new AppSessionTypeSettings(ActivityType.OFFLINE_PRIVATE_STORE, false)))
                 .recentlyLeftGameMinutes(2)
-                .startCooldownMinutes(15)
+                .fishingStartCooldownMinutes(15)
+                .privateStoreStartCooldownMinutes(5)
                 .returnThresholdMinutes(30)
                 .restartWindowMinutes(10)
                 .fishingMinDurationMs(600_000L)
@@ -50,11 +56,23 @@ class AppSettingsTest {
                 () -> valid().fishingMinDurationMs(10L).fishingMaxDurationMs(9L).build());
     }
 
-    @Test
-    void build_shouldRejectNegativeMinutes() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> valid().restartWindowMinutes(-1).build());
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("negativeMinutes")
+    void build_shouldRejectNegativeMinutes(String name, UnaryOperator<AppSettings.Builder> change) {
+        assertThrows(IllegalArgumentException.class, () -> change.apply(valid()).build());
+    }
+
+    static Stream<Arguments> negativeMinutes() {
+        return Stream.of(
+                negative("recentlyLeftGameMinutes", b -> b.recentlyLeftGameMinutes(-1)),
+                negative("fishingStartCooldownMinutes", b -> b.fishingStartCooldownMinutes(-1)),
+                negative("privateStoreStartCooldownMinutes", b -> b.privateStoreStartCooldownMinutes(-1)),
+                negative("returnThresholdMinutes", b -> b.returnThresholdMinutes(-1)),
+                negative("restartWindowMinutes", b -> b.restartWindowMinutes(-1)));
+    }
+
+    private static Arguments negative(String name, UnaryOperator<AppSettings.Builder> change) {
+        return Arguments.of(name, change);
     }
 
     @Test
@@ -77,7 +95,11 @@ class AppSettingsTest {
         AppSettings original = valid().build();
 
         assertEquals(original, original.toBuilder().build());
-        assertNotEquals(original, original.toBuilder().startCooldownMinutes(16).build());
+        assertNotEquals(
+                original, original.toBuilder().fishingStartCooldownMinutes(16).build());
+        assertNotEquals(
+                original,
+                original.toBuilder().privateStoreStartCooldownMinutes(6).build());
     }
 
     @Test
@@ -96,6 +118,15 @@ class AppSettingsTest {
 
         assertTrue(json.contains("\"activity\":\"OFFLINE_FISHING\""));
         assertEquals(original, actual);
+    }
+
+    @Test
+    void gson_shouldWriteTheCooldownsUnderTheirWireNames() {
+        String actual = GSON.toJson(valid().build());
+
+        assertTrue(actual.contains("\"fishingStartCooldownMinutes\":15"), actual);
+        assertTrue(actual.contains("\"privateStoreStartCooldownMinutes\":5"), actual);
+        assertFalse(actual.contains("\"startCooldownMinutes\""), actual);
     }
 
     @Test

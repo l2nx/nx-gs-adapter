@@ -171,4 +171,12 @@
             <column name="started_at"/>
         </createIndex>
     </changeSet>
+
+    <changeSet id="0010-offline-sessions-character-activity-started-index" author="nx-gs-adapter">
+        <createIndex tableName="l2nx_offline_sessions" indexName="idx_l2nx_offline_sessions_character_activity_started">
+            <column name="character_id"/>
+            <column name="activity"/>
+            <column name="started_at"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>

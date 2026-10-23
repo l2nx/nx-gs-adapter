@@ -57,7 +57,19 @@ final class NoOpAppSessions implements NxAppSessions {
     }
 
     @Override
-    public CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId, ActivityType activity) {
-        return CompletableFuture.completedFuture(Optional.<OfflineSession>empty());
+    public CompletableFuture<Optional<OfflineSession>> findLastStartedByMasterAccount(
+            UUID masterAccountId, ActivityType activity) {
+        return notWired();
+    }
+
+    @Override
+    public CompletableFuture<Optional<OfflineSession>> findLastStartedByCharacter(int characterId, ActivityType activity) {
+        return notWired();
+    }
+
+    private static CompletableFuture<Optional<OfflineSession>> notWired() {
+        CompletableFuture<Optional<OfflineSession>> failed = new CompletableFuture<Optional<OfflineSession>>();
+        failed.completeExceptionally(new IllegalStateException("app sessions are not wired"));
+        return failed;
     }
 }

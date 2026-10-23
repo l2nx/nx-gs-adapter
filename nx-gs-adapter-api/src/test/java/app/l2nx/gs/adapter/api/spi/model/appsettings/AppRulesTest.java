@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
@@ -32,6 +33,8 @@ class AppRulesTest {
                 invalid("recent logout -1", b -> b.recentLogoutMinutes(-1)),
                 invalid("restart window 121", b -> b.restartWindowMinutes(121)),
                 invalid("return threshold -1", b -> b.returnThresholdMinutes(-1)),
+                invalid("private-store start cooldown 1441", b -> b.privateStoreStartCooldownMinutes(1441)),
+                invalid("private-store start cooldown -1", b -> b.privateStoreStartCooldownMinutes(-1)),
                 invalid("start cooldown 1441", b -> b.fishingStartCooldownMinutes(1441)),
                 invalid("min duration 0", b -> b.fishingMinDurationMinutes(0)),
                 invalid(
@@ -44,6 +47,13 @@ class AppRulesTest {
                 invalid("restore batch 0", b -> b.restoreBatchSize(0)),
                 invalid("restore pause -1", b -> b.restoreBatchPauseMillis(-1)),
                 invalid("retention 6 days", b -> b.historyRetentionDays(6)));
+    }
+
+    /** Every rule window the host reads through the session-history read. */
+    static Stream<Arguments> historyReadWindows() {
+        return Stream.of(
+                Arguments.of("private-store start cooldown", AppRules.PRIVATE_STORE_START_COOLDOWN_MINUTES),
+                Arguments.of("fishing start cooldown", AppRules.FISHING_START_COOLDOWN_MINUTES));
     }
 
     private static Arguments invalid(String name, UnaryOperator<AppRules.Builder> change) {
@@ -62,6 +72,7 @@ class AppRulesTest {
             assertEquals(2, actual.recentLogoutMinutes());
             assertEquals(15, actual.restartWindowMinutes());
             assertEquals(30, actual.returnThresholdMinutes());
+            assertEquals(5, actual.privateStoreStartCooldownMinutes());
             assertEquals(15, actual.fishingStartCooldownMinutes());
             assertEquals(30, actual.fishingMinDurationMinutes());
             assertEquals(1440, actual.fishingMaxDurationMinutes());
@@ -174,6 +185,7 @@ class AppRulesTest {
                     .recentLogoutMinutes(AppRules.RECENT_LOGOUT_MINUTES.max())
                     .restartWindowMinutes(AppRules.RESTART_WINDOW_MINUTES.max())
                     .returnThresholdMinutes(AppRules.RETURN_THRESHOLD_MINUTES.min())
+                    .privateStoreStartCooldownMinutes(AppRules.PRIVATE_STORE_START_COOLDOWN_MINUTES.max())
                     .fishingStartCooldownMinutes(AppRules.FISHING_START_COOLDOWN_MINUTES.max())
                     .fishingMinDurationMinutes(AppRules.FISHING_DURATION_MINUTES.min())
                     .fishingMaxDurationMinutes(AppRules.FISHING_DURATION_MINUTES.min())
@@ -182,6 +194,14 @@ class AppRulesTest {
                     .restoreBatchPauseMillis(AppRules.RESTORE_BATCH_PAUSE_MILLIS.min())
                     .historyRetentionDays(AppRules.HISTORY_RETENTION_DAYS.min())
                     .build();
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.spi.model.appsettings.AppRulesTest#historyReadWindows")
+        void historyReadWindow_shouldStayBelowTheMinimumRetention(String name, AppRules.Range window) {
+            long minimumRetentionMinutes = TimeUnit.DAYS.toMinutes(AppRules.HISTORY_RETENTION_DAYS.min());
+
+            assertTrue(window.bounded() && window.max() < minimumRetentionMinutes, name + " " + window);
         }
     }
 
@@ -198,6 +218,7 @@ class AppRulesTest {
                     .returnThresholdMinutes(45)
                     .sessionTypeEnabled(ActivityType.OFFLINE_PRIVATE_STORE, true)
                     .sessionTypeEnabled(ActivityType.OFFLINE_FISHING, true)
+                    .privateStoreStartCooldownMinutes(7)
                     .fishingStartCooldownMinutes(10)
                     .fishingMinDurationMinutes(60)
                     .fishingMaxDurationMinutes(600)

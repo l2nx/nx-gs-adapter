@@ -28,6 +28,12 @@ public enum PrivateStoreReason {
     /** {@code INVALID_STATE} with {@code retryAt}: the character left the game too recently for an offline start. */
     RECENTLY_LOGGED_OUT,
 
+    /**
+     * {@code INVALID_STATE} with {@code retryAt}: the character's previous app private-store session started too
+     * recently; a stop is never refused with it.
+     */
+    COOLDOWN,
+
     RESTORE_IN_PROGRESS,
     COMMAND_EXPIRED,
     ITEM_LOCKED,

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 final class InMemoryOfflineSessionStore implements OfflineSessionStore {
@@ -81,9 +82,18 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
     volatile @Nullable Runnable afterFindLatestStarted;
 
     @Override
-    public List<OfflineSession> findLatestStarted(UUID masterAccountId, ActivityType activity, int limit) {
+    public List<OfflineSession> findLatestStartedByMasterAccount(UUID masterAccountId, ActivityType activity, int limit) {
+        return latestStarted(row -> masterAccountId.equals(row.getMasterAccountId()), activity, limit);
+    }
+
+    @Override
+    public List<OfflineSession> findLatestStartedByCharacter(int characterId, ActivityType activity, int limit) {
+        return latestStarted(row -> row.getCharacterId() == characterId, activity, limit);
+    }
+
+    private List<OfflineSession> latestStarted(Predicate<OfflineSession> subject, ActivityType activity, int limit) {
         runHook(beforeFindLatestStarted);
-        List<OfflineSession> found = latestStarted(masterAccountId, activity, limit);
+        List<OfflineSession> found = latestStartedLocked(subject, activity, limit);
         runHook(afterFindLatestStarted);
         return found;
     }
@@ -94,13 +104,14 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
         }
     }
 
-    private synchronized List<OfflineSession> latestStarted(UUID masterAccountId, ActivityType activity, int limit) {
+    private synchronized List<OfflineSession> latestStartedLocked(
+            Predicate<OfflineSession> subject, ActivityType activity, int limit) {
         if (failReads) {
             throw new OfflineSessionStoreException("simulated read failure", new RuntimeException());
         }
         List<OfflineSession> found = new ArrayList<OfflineSession>();
         for (OfflineSession row : rows.values()) {
-            if (row.getActivity() == activity && masterAccountId.equals(row.getMasterAccountId())) {
+            if (row.getActivity() == activity && subject.test(row)) {
                 found.add(row);
             }
         }

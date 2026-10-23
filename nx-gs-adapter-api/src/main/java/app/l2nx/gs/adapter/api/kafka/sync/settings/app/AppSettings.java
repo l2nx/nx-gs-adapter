@@ -18,7 +18,8 @@ public final class AppSettings {
 
     private final List<AppSessionTypeSettings> sessionTypes;
     private final int recentlyLeftGameMinutes;
-    private final int startCooldownMinutes;
+    private final int fishingStartCooldownMinutes;
+    private final int privateStoreStartCooldownMinutes;
     private final int returnThresholdMinutes;
     private final int restartWindowMinutes;
     private final long fishingMinDurationMs;
@@ -28,14 +29,16 @@ public final class AppSettings {
     public AppSettings(
             @Nullable List<AppSessionTypeSettings> sessionTypes,
             int recentlyLeftGameMinutes,
-            int startCooldownMinutes,
+            int fishingStartCooldownMinutes,
+            int privateStoreStartCooldownMinutes,
             int returnThresholdMinutes,
             int restartWindowMinutes,
             long fishingMinDurationMs,
             long fishingMaxDurationMs,
             Instant updatedAt) {
         if (recentlyLeftGameMinutes < 0
-                || startCooldownMinutes < 0
+                || fishingStartCooldownMinutes < 0
+                || privateStoreStartCooldownMinutes < 0
                 || returnThresholdMinutes < 0
                 || restartWindowMinutes < 0) {
             throw new IllegalArgumentException("AppSettings minute values must not be negative");
@@ -48,7 +51,8 @@ public final class AppSettings {
                 ? Collections.<AppSessionTypeSettings>emptyList()
                 : Collections.unmodifiableList(new ArrayList<AppSessionTypeSettings>(sessionTypes));
         this.recentlyLeftGameMinutes = recentlyLeftGameMinutes;
-        this.startCooldownMinutes = startCooldownMinutes;
+        this.fishingStartCooldownMinutes = fishingStartCooldownMinutes;
+        this.privateStoreStartCooldownMinutes = privateStoreStartCooldownMinutes;
         this.returnThresholdMinutes = returnThresholdMinutes;
         this.restartWindowMinutes = restartWindowMinutes;
         this.fishingMinDurationMs = fishingMinDurationMs;
@@ -66,9 +70,14 @@ public final class AppSettings {
         return recentlyLeftGameMinutes;
     }
 
-    /** Minimum time between the real starts of two sessions of one master account. */
-    public int getStartCooldownMinutes() {
-        return startCooldownMinutes;
+    /** Minimum time between the real starts of two app fishing sessions of one master account. */
+    public int getFishingStartCooldownMinutes() {
+        return fishingStartCooldownMinutes;
+    }
+
+    /** Minimum time between the real starts of two app private-store sessions of one character; {@code 0}: no rule. */
+    public int getPrivateStoreStartCooldownMinutes() {
+        return privateStoreStartCooldownMinutes;
     }
 
     /** A session active for less than this when it ended returns the character to where it started. */
@@ -97,7 +106,8 @@ public final class AppSettings {
         return new Builder()
                 .sessionTypes(sessionTypes)
                 .recentlyLeftGameMinutes(recentlyLeftGameMinutes)
-                .startCooldownMinutes(startCooldownMinutes)
+                .fishingStartCooldownMinutes(fishingStartCooldownMinutes)
+                .privateStoreStartCooldownMinutes(privateStoreStartCooldownMinutes)
                 .returnThresholdMinutes(returnThresholdMinutes)
                 .restartWindowMinutes(restartWindowMinutes)
                 .fishingMinDurationMs(fishingMinDurationMs)
@@ -115,7 +125,8 @@ public final class AppSettings {
         if (!(o instanceof AppSettings)) return false;
         AppSettings that = (AppSettings) o;
         return recentlyLeftGameMinutes == that.recentlyLeftGameMinutes
-                && startCooldownMinutes == that.startCooldownMinutes
+                && fishingStartCooldownMinutes == that.fishingStartCooldownMinutes
+                && privateStoreStartCooldownMinutes == that.privateStoreStartCooldownMinutes
                 && returnThresholdMinutes == that.returnThresholdMinutes
                 && restartWindowMinutes == that.restartWindowMinutes
                 && fishingMinDurationMs == that.fishingMinDurationMs
@@ -129,7 +140,8 @@ public final class AppSettings {
         return Objects.hash(
                 sessionTypes,
                 recentlyLeftGameMinutes,
-                startCooldownMinutes,
+                fishingStartCooldownMinutes,
+                privateStoreStartCooldownMinutes,
                 returnThresholdMinutes,
                 restartWindowMinutes,
                 fishingMinDurationMs,
@@ -141,7 +153,8 @@ public final class AppSettings {
     public String toString() {
         return "AppSettings[sessionTypes=" + sessionTypes
                 + ", recentlyLeftGameMinutes=" + recentlyLeftGameMinutes
-                + ", startCooldownMinutes=" + startCooldownMinutes
+                + ", fishingStartCooldownMinutes=" + fishingStartCooldownMinutes
+                + ", privateStoreStartCooldownMinutes=" + privateStoreStartCooldownMinutes
                 + ", returnThresholdMinutes=" + returnThresholdMinutes
                 + ", restartWindowMinutes=" + restartWindowMinutes
                 + ", fishingMinDurationMs=" + fishingMinDurationMs
@@ -152,7 +165,8 @@ public final class AppSettings {
     public static final class Builder {
         private @Nullable List<AppSessionTypeSettings> sessionTypes;
         private int recentlyLeftGameMinutes;
-        private int startCooldownMinutes;
+        private int fishingStartCooldownMinutes;
+        private int privateStoreStartCooldownMinutes;
         private int returnThresholdMinutes;
         private int restartWindowMinutes;
         private long fishingMinDurationMs;
@@ -169,8 +183,13 @@ public final class AppSettings {
             return this;
         }
 
-        public Builder startCooldownMinutes(int startCooldownMinutes) {
-            this.startCooldownMinutes = startCooldownMinutes;
+        public Builder fishingStartCooldownMinutes(int fishingStartCooldownMinutes) {
+            this.fishingStartCooldownMinutes = fishingStartCooldownMinutes;
+            return this;
+        }
+
+        public Builder privateStoreStartCooldownMinutes(int privateStoreStartCooldownMinutes) {
+            this.privateStoreStartCooldownMinutes = privateStoreStartCooldownMinutes;
             return this;
         }
 
@@ -203,7 +222,8 @@ public final class AppSettings {
             return new AppSettings(
                     sessionTypes,
                     recentlyLeftGameMinutes,
-                    startCooldownMinutes,
+                    fishingStartCooldownMinutes,
+                    privateStoreStartCooldownMinutes,
                     returnThresholdMinutes,
                     restartWindowMinutes,
                     fishingMinDurationMs,

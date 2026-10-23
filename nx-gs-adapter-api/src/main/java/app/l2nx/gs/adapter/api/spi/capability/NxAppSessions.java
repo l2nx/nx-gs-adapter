@@ -14,22 +14,13 @@ import java.util.concurrent.CompletableFuture;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The adapter's app-session engine as the host sees it; the same instance comes from the contexts and
- * {@code NxAdapter.appSessions()}, usable from JVM start.
- *
- * <p>The engine enforces only the table's invariants (one open session per character, one character per spot, one
- * session per idempotency key); every business rule is the host's, checked before {@link #start}. Where the engine
- * does not run, starts answer {@code UNAVAILABLE}, lookups find nothing and the rest does nothing.</p>
- *
- * <p>No method throws. Never wait for a returned future on the adapter IO pool ({@code ctx.io()}), which runs the
- * work.</p>
+ * The engine enforces only the table's invariants; every business rule is the host's, checked before {@link #start}.
+ * Where the engine does not run, starts answer {@code UNAVAILABLE}, lookups find nothing and the rest does nothing.
+ * No method throws; never wait for a returned future on the adapter IO pool ({@code ctx.io()}).
  */
 public interface NxAppSessions {
 
-    /**
-     * Idempotent by {@link AppSessionStartRequest#getIdempotencyKey()}. Has the host place the character
-     * ({@link OfflineSessionHost#placeInWorld}), then publishes the {@code online=true, source=APP} presence event.
-     */
+    /** Idempotent by {@link AppSessionStartRequest#getIdempotencyKey()}. */
     CompletableFuture<AppSessionStartOutcome> start(AppSessionStartRequest request);
 
     /**
@@ -40,71 +31,50 @@ public interface NxAppSessions {
      */
     CompletableFuture<Optional<OfflineSession>> stop(int characterId, ActivityType activity);
 
-    /**
-     * The host's action ended on its own (out of bait, daily limit, inventory full, sold out, ban, kick). Closes the
-     * session with {@code reason} asynchronously, so the game thread may call it. Any other reason, or an unknown
-     * session, is logged and ignored.
-     */
+    /** The host's action ended on its own; closes asynchronously, so the game thread may call it. */
     void onActionEnded(UUID sessionId, LogoutReason reason);
 
     /**
-     * The host's world is loaded and can take characters back. Sessions open before a restart are restored only after
-     * this call and once the {@code app-sessions} module has started, whichever comes last; without the call they are
-     * never restored.
-     *
-     * <p>Call it after the host's own offline characters are back. Any thread; a call before the engine has booted is
-     * remembered, a second call does nothing.</p>
+     * Restore of sessions open before a restart waits for this call; without it they are never restored. Call it after
+     * the host's own offline characters are back. Any thread; early and repeated calls are safe.
      */
     void hostReady();
 
     /**
-     * A client is logging in to {@code characterId}. Closes the character's open session (also one waiting for its
-     * restore) with {@code APP_LOGIN} and returns only when it is closed, so the host calls it under the character's
-     * mutation lock before loading the live character.
-     *
-     * <p>The wait is bounded (15 s, plus up to 30 s while the engine boots after a restart). On timeout the result is
-     * {@link ClientLoginOutcome.Status#PENDING}: refuse the login with "try again"; the close goes on in the
-     * background.</p>
-     *
-     * <p>Must not run on the thread {@link OfflineSessionHost} methods hop to, unless those hops run inline: the close
-     * calls them and waits.</p>
+     * Closes the character's open session with {@code APP_LOGIN} and returns only when it is closed. On timeout (15 s,
+     * plus up to 30 s while booting) the result is {@link ClientLoginOutcome.Status#PENDING}: refuse the login.
+     * Must not run on the thread {@link OfflineSessionHost} methods hop to, unless those hops run inline.
      */
     ClientLoginOutcome onClientLogin(int characterId);
 
     /**
-     * The character's open session, including one waiting for its restore; in-memory, so the game thread may call it.
-     *
-     * <p>An ended session (carrying {@code endedAt} and {@code endReason}) or rolled-back start whose table write
-     * failed is still returned until a retry lands, because the table keeps the character busy until then.</p>
+     * In-memory, so the game thread may call it. An ended or rolled-back session whose table write failed is still
+     * returned until a retry lands, because the table keeps the character busy until then.
      */
     Optional<OfflineSession> findActive(int characterId);
 
     /**
-     * Stores the host's per-type JSON of an open session. Inside an {@code OfflineSessionHost} callback of the same
-     * session it runs inline; from a thread that callback hopped to it runs only after the callback returns, so
-     * waiting there deadlocks.
+     * Inside an {@code OfflineSessionHost} callback of the same session it runs inline; from a thread that callback
+     * hopped to it runs only after the callback returns, so waiting there deadlocks.
      *
      * @return {@code false} when the session is not open
      */
     CompletableFuture<Boolean> updateTypeState(UUID sessionId, @Nullable String typeStateJson);
 
     /**
-     * Every session of {@code activity} of the master account that still holds its character (running, awaiting
-     * restore, start in flight, or end not yet taken by the table), ordered by {@link OfflineSession#getStartedAt()},
-     * then id. In-memory, so the game thread may call it.
-     *
-     * <p>Never matches a session without a master account. The check and a later {@link #start} are two steps: starts
-     * for different characters of one master account both pass unless the host serializes them per account.</p>
+     * Sessions that still hold their character, ordered by {@link OfflineSession#getStartedAt()}, then id; in-memory.
+     * The check and a later {@link #start} are two steps: the host must serialize them per master account.
      */
     List<OfflineSession> findOpenByMasterAccount(UUID masterAccountId, ActivityType activity);
 
     /**
-     * The session of {@code activity} of the master account with the latest real start
-     * ({@link OfflineSession#getStartedAt()}), open or closed, among those the table still keeps; ties go to the greater
-     * id. Starts in flight or rolled back and sessions without a master account never count.
-     *
-     * <p>Reads the table on the adapter IO pool. A database failure completes the future exceptionally: the host refuses
-     * the start as temporarily unavailable, never as "no previous session".</p>
+     * Latest real start ({@link OfflineSession#getStartedAt()}) among the rows the table keeps; ties go to the greater
+     * id. A failed read, or one while the engine does not run, completes exceptionally: refuse the start as
+     * temporarily unavailable, never as "no previous session".
      */
-    CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId, ActivityType activity);
+    CompletableFuture<Optional<OfflineSession>> findLastStartedByMasterAccount(
+            UUID masterAccountId, ActivityType activity);
+
+    /** Per character; same rules as {@link #findLastStartedByMasterAccount(UUID, ActivityType)}. */
+    CompletableFuture<Optional<OfflineSession>> findLastStartedByCharacter(int characterId, ActivityType activity);
 }

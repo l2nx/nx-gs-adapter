@@ -19,6 +19,7 @@ public final class AppRules {
     public static final Range RECENT_LOGOUT_MINUTES = Range.between(0, 60);
     public static final Range RESTART_WINDOW_MINUTES = Range.between(0, 120);
     public static final Range RETURN_THRESHOLD_MINUTES = Range.atLeast(0);
+    public static final Range PRIVATE_STORE_START_COOLDOWN_MINUTES = Range.between(0, 1440);
     public static final Range FISHING_START_COOLDOWN_MINUTES = Range.between(0, 1440);
     /** Both the minimum and the maximum duration; the maximum is also at least the minimum. */
     public static final Range FISHING_DURATION_MINUTES = Range.atLeast(1);
@@ -43,6 +44,7 @@ public final class AppRules {
     private final int restartWindowMinutes;
     private final int returnThresholdMinutes;
     private final Set<ActivityType> enabledSessionTypes;
+    private final int privateStoreStartCooldownMinutes;
     private final int fishingStartCooldownMinutes;
     private final int fishingMinDurationMinutes;
     private final int fishingMaxDurationMinutes;
@@ -63,6 +65,7 @@ public final class AppRules {
         this.enabledSessionTypes = b.enabledSessionTypes.isEmpty()
                 ? Collections.<ActivityType>emptySet()
                 : Collections.unmodifiableSet(EnumSet.copyOf(b.enabledSessionTypes));
+        this.privateStoreStartCooldownMinutes = b.privateStoreStartCooldownMinutes;
         this.fishingStartCooldownMinutes = b.fishingStartCooldownMinutes;
         this.fishingMinDurationMinutes = b.fishingMinDurationMinutes;
         this.fishingMaxDurationMinutes = b.fishingMaxDurationMinutes;
@@ -86,6 +89,8 @@ public final class AppRules {
         RECENT_LOGOUT_MINUTES.check("recentLogoutMinutes", b.recentLogoutMinutes);
         RESTART_WINDOW_MINUTES.check("restartWindowMinutes", b.restartWindowMinutes);
         RETURN_THRESHOLD_MINUTES.check("returnThresholdMinutes", b.returnThresholdMinutes);
+        PRIVATE_STORE_START_COOLDOWN_MINUTES.check(
+                "privateStoreStartCooldownMinutes", b.privateStoreStartCooldownMinutes);
         FISHING_START_COOLDOWN_MINUTES.check("fishingStartCooldownMinutes", b.fishingStartCooldownMinutes);
         FISHING_DURATION_MINUTES.check("fishingMinDurationMinutes", b.fishingMinDurationMinutes);
         FISHING_DURATION_MINUTES.check("fishingMaxDurationMinutes", b.fishingMaxDurationMinutes);
@@ -165,6 +170,14 @@ public final class AppRules {
     }
 
     /**
+     * No private-store start (sell or buy) of a character within this many minutes after the real start of that
+     * character's previous app private-store session; {@code 0}: no rule. Stopping a store is never limited.
+     */
+    public int privateStoreStartCooldownMinutes() {
+        return privateStoreStartCooldownMinutes;
+    }
+
+    /**
      * No fishing start for any character of a master account within this many minutes after the real start of that
      * master account's previous app fishing session.
      */
@@ -219,6 +232,7 @@ public final class AppRules {
                 .recentLogoutMinutes(recentLogoutMinutes)
                 .restartWindowMinutes(restartWindowMinutes)
                 .returnThresholdMinutes(returnThresholdMinutes)
+                .privateStoreStartCooldownMinutes(privateStoreStartCooldownMinutes)
                 .fishingStartCooldownMinutes(fishingStartCooldownMinutes)
                 .fishingMinDurationMinutes(fishingMinDurationMinutes)
                 .fishingMaxDurationMinutes(fishingMaxDurationMinutes)
@@ -245,6 +259,7 @@ public final class AppRules {
                 && recentLogoutMinutes == that.recentLogoutMinutes
                 && restartWindowMinutes == that.restartWindowMinutes
                 && returnThresholdMinutes == that.returnThresholdMinutes
+                && privateStoreStartCooldownMinutes == that.privateStoreStartCooldownMinutes
                 && fishingStartCooldownMinutes == that.fishingStartCooldownMinutes
                 && fishingMinDurationMinutes == that.fishingMinDurationMinutes
                 && fishingMaxDurationMinutes == that.fishingMaxDurationMinutes
@@ -267,6 +282,7 @@ public final class AppRules {
                 restartWindowMinutes,
                 returnThresholdMinutes,
                 enabledSessionTypes,
+                privateStoreStartCooldownMinutes,
                 fishingStartCooldownMinutes,
                 fishingMinDurationMinutes,
                 fishingMaxDurationMinutes,
@@ -286,6 +302,7 @@ public final class AppRules {
                 + ", restartWindowMinutes=" + restartWindowMinutes
                 + ", returnThresholdMinutes=" + returnThresholdMinutes
                 + ", enabledSessionTypes=" + enabledSessionTypes
+                + ", privateStoreStartCooldownMinutes=" + privateStoreStartCooldownMinutes
                 + ", fishingStartCooldownMinutes=" + fishingStartCooldownMinutes
                 + ", fishingMinDurationMinutes=" + fishingMinDurationMinutes
                 + ", fishingMaxDurationMinutes=" + fishingMaxDurationMinutes
@@ -305,6 +322,7 @@ public final class AppRules {
         private int restartWindowMinutes = 15;
         private int returnThresholdMinutes = 30;
         private final Set<ActivityType> enabledSessionTypes = EnumSet.noneOf(ActivityType.class);
+        private int privateStoreStartCooldownMinutes = 5;
         private int fishingStartCooldownMinutes = 15;
         private int fishingMinDurationMinutes = 30;
         private int fishingMaxDurationMinutes = 1440;
@@ -357,6 +375,11 @@ public final class AppRules {
             } else {
                 enabledSessionTypes.remove(activity);
             }
+            return this;
+        }
+
+        public Builder privateStoreStartCooldownMinutes(int privateStoreStartCooldownMinutes) {
+            this.privateStoreStartCooldownMinutes = privateStoreStartCooldownMinutes;
             return this;
         }
 
