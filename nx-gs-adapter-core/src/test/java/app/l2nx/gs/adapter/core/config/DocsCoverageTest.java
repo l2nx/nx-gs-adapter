@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.core.config;
 
+import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -69,6 +70,8 @@ class DocsCoverageTest {
             }
         }
         keys.remove(PROPERTIES_FILE_NAME);
+        // A setting value, not a key: the default title over a placed character.
+        keys.remove(AppRules.DEFAULT_PHANTOM_TITLE_TEXT);
         return keys;
     }
 
