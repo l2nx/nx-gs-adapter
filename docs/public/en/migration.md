@@ -14,6 +14,12 @@ here are drop-in: bump the version and restart.
   what changed, and what to do.
 - The documentation always describes the current version.
 
+## nx-gs-adapter-api 0.114.0, nx-gs-adapter-core 0.47.0: default title of a placed character
+
+`app.phantom.title.text` now defaults to `l2nx.app` instead of no title. A server file without the key shows
+`l2nx.app` over characters the app placed in the world. To keep the character's own title, set the key to an empty
+value (`app.phantom.title.text=`). No code change for hosts.
+
 ## nx-gs-adapter-api 0.112.0, nx-gs-adapter-core 0.46.0, nx-gs-db-migrations 0.4.0: private-store start cooldown
 
 **What changed.** A private store started from the app can no longer be restarted right away to dump prices: a new

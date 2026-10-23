@@ -102,8 +102,7 @@ class AppSettingsFileTest {
         void parse_shouldTreatBlankAsUnset_whenTheKeyIsOptional(String key, String value) throws IOException {
             AppRules actual = valid(key + "=" + value + "\n");
 
-            assertNull(actual.phantomTitleText());
-            assertNull(actual.fishingSpotPool());
+            assertNull(key.equals("app.phantom.title.text") ? actual.phantomTitleText() : actual.fishingSpotPool());
         }
 
         @Test

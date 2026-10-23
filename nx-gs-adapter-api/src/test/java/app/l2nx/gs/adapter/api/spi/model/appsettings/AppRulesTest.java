@@ -67,7 +67,7 @@ class AppRulesTest {
         void defaults_shouldMatchTheKeyCatalog() {
             AppRules actual = AppRules.defaults();
 
-            assertNull(actual.phantomTitleText());
+            assertEquals("l2nx.app", actual.phantomTitleText());
             assertEquals(0xFFFF00, actual.phantomTitleColorRgb());
             assertEquals(2, actual.recentLogoutMinutes());
             assertEquals(15, actual.restartWindowMinutes());

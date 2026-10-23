@@ -15,6 +15,8 @@ import org.jspecify.annotations.Nullable;
 public final class AppRules {
 
     public static final int PHANTOM_TITLE_MAX_CODE_POINTS = 16;
+    /** The platform's name over a placed character; a server file sets its own or an empty value for none. */
+    public static final String DEFAULT_PHANTOM_TITLE_TEXT = "l2nx.app";
     public static final Range PHANTOM_TITLE_COLOR_RGB = Range.between(0, 0xFFFFFF);
     public static final Range RECENT_LOGOUT_MINUTES = Range.between(0, 60);
     public static final Range RESTART_WINDOW_MINUTES = Range.between(0, 120);
@@ -316,7 +318,7 @@ public final class AppRules {
 
     /** The field initializers are the default of every key. */
     public static final class Builder {
-        private @Nullable String phantomTitleText;
+        private @Nullable String phantomTitleText = DEFAULT_PHANTOM_TITLE_TEXT;
         private int phantomTitleColorRgb = 0xFFFF00;
         private int recentLogoutMinutes = 2;
         private int restartWindowMinutes = 15;
