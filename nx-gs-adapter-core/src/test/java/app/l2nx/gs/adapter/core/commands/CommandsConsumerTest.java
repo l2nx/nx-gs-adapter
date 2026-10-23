@@ -8,8 +8,10 @@ import app.l2nx.gs.adapter.api.kafka.commands.CommandStatus;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.spi.HostExecutorTimeoutException;
 import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.core.appsessions.AppSessionsRuntime;
+import app.l2nx.gs.adapter.core.appsettings.AppSettingsRuntime;
 import app.l2nx.gs.adapter.core.kafka.gson.AdapterGson;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -17,6 +19,7 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.MockConsumer;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
@@ -311,6 +314,21 @@ class CommandsConsumerTest {
                 "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
 
         assertTrue(ioObserved.get(), "ctx.io().execute() must run on the supplied executor (direct-run double)");
+    }
+
+    @Test
+    void processRecord_shouldExposeTheLiveAppRules_viaCtxAppRules() {
+        AtomicReference<NxAppRules> seen = new AtomicReference<>();
+        registry.register(FakeCommand.class, (cmd, ctx) -> {
+            seen.set(ctx.appRules());
+            return CommandResult.ok();
+        });
+        CommandsConsumer consumer = build("out");
+
+        consumer.processRecord(recordWithHeaders(
+                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
+
+        assertSame(AppSettingsRuntime.rules(), seen.get());
     }
 
     @Test

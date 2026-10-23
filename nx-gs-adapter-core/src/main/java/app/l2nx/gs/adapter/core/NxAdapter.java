@@ -7,6 +7,7 @@ import app.l2nx.gs.adapter.api.rest.KafkaCredentials;
 import app.l2nx.gs.adapter.api.rest.MessagingTopics;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.*;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.capability.NxCommandReceipts;
 import app.l2nx.gs.adapter.api.spi.capability.NxCommands;
@@ -15,6 +16,7 @@ import app.l2nx.gs.adapter.api.spi.capability.NxGameData;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
 import app.l2nx.gs.adapter.api.spi.provider.SchemaMigrationException;
 import app.l2nx.gs.adapter.core.appsessions.AppSessionsRuntime;
+import app.l2nx.gs.adapter.core.appsettings.AppSettingsRuntime;
 import app.l2nx.gs.adapter.core.commands.CommandsBootstrap;
 import app.l2nx.gs.adapter.core.commands.CommandsConfig;
 import app.l2nx.gs.adapter.core.commands.CommandsConsumer;
@@ -48,6 +50,7 @@ import app.l2nx.gs.kafka.KafkaState;
 import app.l2nx.gs.kafka.NxKafka;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.util.*;
 import java.util.concurrent.*;
@@ -64,6 +67,8 @@ public final class NxAdapter {
     private static final AtomicBoolean closed = new AtomicBoolean(false);
     /** Latches on first ACTIVE: before it a connect failure stays REGISTERING, after it drives DEGRADED. */
     private static final AtomicBoolean wasActive = new AtomicBoolean(false);
+    /** {@link #appRules()} could not tell the host type; it stays undecided until {@link #start()}. */
+    private static volatile boolean appRulesUnresolved;
 
     private static final Object transitionLock = new Object();
     private static final Object shutdownLock = new Object();
@@ -101,8 +106,8 @@ public final class NxAdapter {
     }
 
     /**
-     * Host game-side executor for {@code ctx.host().sync/async}; must be set before start() when commandsTopic is configured,
-     * else the first sync() throws IllegalStateException. Last write wins.
+     * Game-side executor for {@code ctx.host().sync/async}; required before start() when commandsTopic is configured,
+     * else the first sync() throws IllegalStateException.
      */
     public static void hostExecutor(Executor executor) {
         hostExecutorRef.set(executor);
@@ -113,11 +118,34 @@ public final class NxAdapter {
     }
 
     /**
-     * App-session engine for host code outside modules and command handlers. Never null; before {@link #start()} and
-     * without an {@code OfflineSessionHost} it starts nothing and finds nothing, and a login waits for the engine boot.
+     * Never null; before {@link #start()} and without an {@code OfflineSessionHost} it starts nothing and finds nothing,
+     * and a login waits for the engine boot.
      */
     public static NxAppSessions appSessions() {
         return AppSessionsRuntime.facade();
+    }
+
+    /**
+     * Never null. The first call (or {@link #start()}) loads {@code l2nx-app.properties} synchronously and watches it, so
+     * no boot code sees defaults instead of the file; a login server keeps the defaults. While the host type is
+     * undecided every call returns the defaults, so the game thread does not re-read a broken config.
+     */
+    public static NxAppRules appRules() {
+        if (!AppSettingsRuntime.initialized() && !appRulesUnresolved) {
+            boolean loginServer;
+            Path configFile;
+            try {
+                loginServer = "ls".equals(new ConfigResolver().resolveHostType());
+                configFile = ConfigResolver.configFilePath();
+            } catch (Throwable t) {
+                // a broken config fails start() on its own; guessing a game server here would load the file and start
+                // the watcher on a login server
+                appRulesUnresolved = true;
+                return AppSettingsRuntime.rules();
+            }
+            initAppRules(loginServer, configFile);
+        }
+        return AppSettingsRuntime.rules();
     }
 
     /**
@@ -129,8 +157,8 @@ public final class NxAdapter {
     }
 
     /**
-     * Migrates the adapter-owned {@code l2nx_*} tables; a host reading them before {@link #start()} calls this first.
-     * Runs once per JVM: later calls return at once after a success and rethrow the first failure after one.
+     * A host reading the {@code l2nx_*} tables before {@link #start()} calls this first. Runs once per JVM: later calls
+     * return at once after a success and rethrow the first failure after one.
      *
      * @throws SchemaMigrationException no or several migrators or connection sources, or the migration failed
      */
@@ -149,8 +177,10 @@ public final class NxAdapter {
         StartupBanner.emit(log, AdapterVersion.resolve());
 
         AdapterConfig config;
+        Path configFile;
         try {
             config = new ConfigResolver().resolve();
+            configFile = ConfigResolver.configFilePath();
         } catch (Throwable t) {
             log.error("Adapter failed to start due to config error: {}", t.getMessage(), t);
             AppSessionsRuntime.disable("adapter config error");
@@ -164,6 +194,7 @@ public final class NxAdapter {
             transition(AdapterState.DISABLED);
             return INSTANCE;
         }
+        initAppRules("ls".equals(config.getHostType()), configFile);
 
         ScheduledExecutorService scheduler = createConnectScheduler();
         connectScheduler = scheduler;
@@ -213,7 +244,7 @@ public final class NxAdapter {
         return INSTANCE;
     }
 
-    /** Idempotent; a concurrent second caller blocks until the in-flight shutdown completes, so a host can shut down before Runtime.halt() with the queue drained and producer flushed. */
+    /** Idempotent; a concurrent second caller blocks until the in-flight shutdown completes. */
     public void shutdown() {
         synchronized (shutdownLock) {
             shutdownLocked();
@@ -264,6 +295,7 @@ public final class NxAdapter {
             moduleRegistry = null;
         }
         AppSessionsRuntime.shutdown();
+        AppSettingsRuntime.shutdown();
 
         // Consumer first so in-flight handlers can emit replies before the producer is torn down
         CommandsConsumer cmds = commandsConsumer;
@@ -312,6 +344,14 @@ public final class NxAdapter {
         }
 
         transition(AdapterState.CLOSED);
+    }
+
+    private static void initAppRules(boolean loginServer, Path configFile) {
+        if (loginServer) {
+            AppSettingsRuntime.defaultsForLoginServer();
+        } else {
+            AppSettingsRuntime.loadForGameServer(configFile);
+        }
     }
 
     private static boolean migrateBeforeConnect() {
@@ -465,6 +505,7 @@ public final class NxAdapter {
                         .sync(sync)
                         .gameData(gameData)
                         .appSessions(AppSessionsRuntime.facade())
+                        .appRules(AppSettingsRuntime.rules())
                         .build();
                 registry.connect(ctx);
             } catch (Throwable t) {
@@ -796,6 +837,8 @@ public final class NxAdapter {
         failEventsBootstrapForTesting = false;
         schemaMigration = new SchemaMigration();
         AppSessionsRuntime.resetForTesting();
+        AppSettingsRuntime.resetForTesting();
+        appRulesUnresolved = false;
     }
 
     static void failEventsBootstrapForTesting(boolean fail) {

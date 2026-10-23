@@ -5,6 +5,7 @@ import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.adapter.core.jdbc.JdbcValues;
+import app.l2nx.gs.commons.identifiers.ClientIdentifiers;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.sql.Connection;
@@ -38,7 +39,7 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
     private static final String COLUMNS =
             "id, idempotency_key, character_id, master_account_id, activity, account_name, hwid, initiator_ip,"
                     + " spot_pool, spot_id, origin_x, origin_y, origin_z, origin_heading, started_at, planned_ms,"
-                    + " active_ms, type_state, ended_at, end_reason";
+                    + " active_ms, return_threshold_ms, type_state, ended_at, end_reason";
 
     private final JdbcConnectionSource source;
     private volatile @Nullable Boolean nativeUuid;
@@ -86,14 +87,27 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
+    public List<OfflineSession> findLatestStarted(UUID masterAccountId, ActivityType activity, int limit) {
+        return call("find the latest started sessions of a master account", c -> {
+            try (PreparedStatement ps = c.prepareStatement("SELECT " + COLUMNS + " FROM " + TABLE
+                    + " WHERE master_account_id = ? AND activity = ? ORDER BY started_at DESC, id DESC LIMIT "
+                    + Math.max(1, limit))) {
+                setUuid(ps, 1, masterAccountId);
+                ps.setString(2, activity.name());
+                return readAll(ps);
+            }
+        });
+    }
+
+    @Override
     public InsertResult insert(OfflineSession s) {
         try {
             return call("insert session", c -> {
                 try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + TABLE
                         + " (id, idempotency_key, character_id, active_character_id, master_account_id, activity,"
                         + " account_name, hwid, initiator_ip, spot_pool, spot_id, active_spot_key, origin_x, origin_y,"
-                        + " origin_z, origin_heading, started_at, planned_ms, active_ms, type_state) VALUES (?, ?, ?,"
-                        + " ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                        + " origin_z, origin_heading, started_at, planned_ms, active_ms, return_threshold_ms, type_state)"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
                     setUuid(ps, 1, s.getId());
                     setUuid(ps, 2, s.getIdempotencyKey());
                     ps.setInt(3, s.getCharacterId());
@@ -113,7 +127,8 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                     JdbcValues.setInstant(ps, 17, s.getStartedAt());
                     JdbcValues.setNullableLong(ps, 18, s.getPlannedMs());
                     ps.setLong(19, s.getActiveMs());
-                    JdbcValues.setNullableString(ps, 20, s.getTypeState());
+                    JdbcValues.setNullableLong(ps, 20, s.getReturnThresholdMs());
+                    JdbcValues.setNullableString(ps, 21, s.getTypeState());
                     ps.executeUpdate();
                     return InsertResult.INSERTED;
                 }
@@ -273,8 +288,9 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                 .masterAccountId(master == null ? null : UUID.fromString(master))
                 .activity(activity)
                 .accountName(rs.getString("account_name"))
-                .hwid(rs.getString("hwid"))
-                .initiatorIp(rs.getString("initiator_ip"))
+                // a row written before identifiers were normalized may still hold a placeholder
+                .hwid(ClientIdentifiers.hwid(rs.getString("hwid")))
+                .initiatorIp(ClientIdentifiers.ip(rs.getString("initiator_ip")))
                 .spotPool(rs.getString("spot_pool"))
                 .spotId(rs.getInt("spot_id"))
                 .originX(rs.getInt("origin_x"))
@@ -284,6 +300,7 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                 .startedAt(JdbcValues.getInstant(rs, "started_at"))
                 .plannedMs(JdbcValues.getNullableLong(rs, "planned_ms"))
                 .activeMs(rs.getLong("active_ms"))
+                .returnThresholdMs(JdbcValues.getNullableLong(rs, "return_threshold_ms"))
                 .typeState(rs.getString("type_state"))
                 .endedAt(endedAt)
                 .endReason(endedAt == null ? null : endReason)

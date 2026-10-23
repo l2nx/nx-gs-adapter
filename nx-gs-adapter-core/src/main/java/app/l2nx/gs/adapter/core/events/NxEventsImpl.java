@@ -6,7 +6,7 @@ import app.l2nx.gs.log.NxLogFactory;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jspecify.annotations.Nullable;
 
-/** Stateless façade retargeted via {@link #swap} on reconnect; null payloads are swallowed with WARN (never throws into the game loop). */
+/** Façade retargeted via {@link #swap} on reconnect; bad input is logged and dropped, never thrown into the game loop. */
 final class NxEventsImpl implements NxEvents {
 
     private static final NxLog log = NxLogFactory.getLogger(NxEventsImpl.class);
@@ -48,7 +48,7 @@ final class NxEventsImpl implements NxEvents {
             log.debug("events.{} disabled — no topic configured; skipping publish", binding.familyKey());
             return;
         }
-        publisher.enqueue(new EventEnvelope(event, binding));
+        publisher.enqueue(new EventEnvelope(binding.wireNormalizer().apply(event), binding));
     }
 
     @Override

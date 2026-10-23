@@ -8,11 +8,8 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Immutable view of one app session as the engine keeps it in the {@code l2nx_offline_sessions} table; a changed
- * session is a new instance.
- *
- * <p>Times are UTC with second precision (the coarsest precision of the supported databases). {@code activeMs} is the
- * time the character spent in the world as of the moment the view was taken, restart downtime excluded.</p>
+ * Immutable view of one app session as stored in {@code l2nx_offline_sessions}. Times are UTC with second precision;
+ * {@code activeMs} is the time in the world as of the moment the view was taken, restart downtime excluded.
  */
 public final class OfflineSession {
 
@@ -33,6 +30,7 @@ public final class OfflineSession {
     private final Instant startedAt;
     private final @Nullable Long plannedMs;
     private final long activeMs;
+    private final @Nullable Long returnThresholdMs;
     private final @Nullable String typeState;
     private final @Nullable Instant endedAt;
     private final @Nullable LogoutReason endReason;
@@ -55,6 +53,7 @@ public final class OfflineSession {
             Instant startedAt,
             @Nullable Long plannedMs,
             long activeMs,
+            @Nullable Long returnThresholdMs,
             @Nullable String typeState,
             @Nullable Instant endedAt,
             @Nullable LogoutReason endReason) {
@@ -75,6 +74,7 @@ public final class OfflineSession {
         this.startedAt = Objects.requireNonNull(startedAt, "OfflineSession.startedAt is required");
         this.plannedMs = plannedMs;
         this.activeMs = activeMs;
+        this.returnThresholdMs = returnThresholdMs;
         this.typeState = typeState;
         if ((endedAt == null) != (endReason == null)) {
             throw new IllegalArgumentException("OfflineSession.endedAt and endReason are set together");
@@ -158,12 +158,19 @@ public final class OfflineSession {
         return activeMs;
     }
 
+    /**
+     * Fixed at start: ending with {@link #getActiveMs()} below it returns the character to its origin. {@code null}
+     * only for a session stored before the adapter kept it; the end then uses the current app settings value.
+     */
+    public @Nullable Long getReturnThresholdMs() {
+        return returnThresholdMs;
+    }
+
     /** Per-type JSON owned by the host. */
     public @Nullable String getTypeState() {
         return typeState;
     }
 
-    /** {@code null} while the session is open. */
     public @Nullable Instant getEndedAt() {
         return endedAt;
     }
@@ -177,7 +184,7 @@ public final class OfflineSession {
         return endedAt == null;
     }
 
-    /** {@code <spotPool>:<spotId>}, the key that holds one character per spot while the session is open. */
+    /** The key that holds one character per spot while the session is open. */
     public String spotKey() {
         return spotPool + ":" + spotId;
     }
@@ -201,6 +208,7 @@ public final class OfflineSession {
                 .startedAt(startedAt)
                 .plannedMs(plannedMs)
                 .activeMs(activeMs)
+                .returnThresholdMs(returnThresholdMs)
                 .typeState(typeState)
                 .endedAt(endedAt)
                 .endReason(endReason);
@@ -232,6 +240,7 @@ public final class OfflineSession {
                 && spotPool.equals(that.spotPool)
                 && startedAt.equals(that.startedAt)
                 && Objects.equals(plannedMs, that.plannedMs)
+                && Objects.equals(returnThresholdMs, that.returnThresholdMs)
                 && Objects.equals(typeState, that.typeState)
                 && Objects.equals(endedAt, that.endedAt)
                 && endReason == that.endReason;
@@ -257,6 +266,7 @@ public final class OfflineSession {
                 startedAt,
                 plannedMs,
                 activeMs,
+                returnThresholdMs,
                 typeState,
                 endedAt,
                 endReason);
@@ -293,6 +303,7 @@ public final class OfflineSession {
         private @Nullable Instant startedAt;
         private @Nullable Long plannedMs;
         private long activeMs;
+        private @Nullable Long returnThresholdMs;
         private @Nullable String typeState;
         private @Nullable Instant endedAt;
         private @Nullable LogoutReason endReason;
@@ -382,6 +393,11 @@ public final class OfflineSession {
             return this;
         }
 
+        public Builder returnThresholdMs(@Nullable Long returnThresholdMs) {
+            this.returnThresholdMs = returnThresholdMs;
+            return this;
+        }
+
         public Builder typeState(@Nullable String typeState) {
             this.typeState = typeState;
             return this;
@@ -416,6 +432,7 @@ public final class OfflineSession {
                     startedAt,
                     plannedMs,
                     activeMs,
+                    returnThresholdMs,
                     typeState,
                     endedAt,
                     endReason);

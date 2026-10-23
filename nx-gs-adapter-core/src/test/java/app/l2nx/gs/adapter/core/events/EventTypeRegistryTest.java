@@ -30,7 +30,11 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.EnumMap;
 import java.util.Map;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EventTypeRegistryTest {
 
@@ -472,5 +476,98 @@ class EventTypeRegistryTest {
     @Test
     void knownFamilies_shouldContainSync() {
         assertTrue(new EventTypeRegistry().knownFamilies().contains("sync"));
+    }
+
+    @Nested
+    class WireNormalizer {
+
+        @ParameterizedTest(name = "[{index}] ip={0} hwid={1}")
+        @CsvSource(
+                nullValues = "NULL",
+                value = {"N/A,0", "0.0.0.0,-", "' :: ',unknown", "'',' '"})
+        void wireNormalizer_shouldNullPlaceholders_forCharacterPresenceEvent(String ip, String hwid) {
+            EventTypeBinding binding = new EventTypeRegistry().lookup(CharacterPresenceEvent.class);
+            CharacterPresenceEvent event =
+                    presence().ip(ip).hwid(hwid).accountName("acc").build();
+
+            CharacterPresenceEvent actual =
+                    (CharacterPresenceEvent) binding.wireNormalizer().apply(event);
+
+            assertNull(actual.getIp());
+            assertNull(actual.getHwid());
+            assertEquals(event.toBuilder().ip(null).hwid(null).build(), actual);
+        }
+
+        @Test
+        void wireNormalizer_shouldTrimRealValues_forCharacterPresenceEvent() {
+            EventTypeBinding binding = new EventTypeRegistry().lookup(CharacterPresenceEvent.class);
+            CharacterPresenceEvent event =
+                    presence().ip(" 10.0.0.1 ").hwid(" AbC123 ").build();
+
+            CharacterPresenceEvent actual =
+                    (CharacterPresenceEvent) binding.wireNormalizer().apply(event);
+
+            assertEquals("10.0.0.1", actual.getIp());
+            assertEquals("AbC123", actual.getHwid());
+        }
+
+        @Test
+        void wireNormalizer_shouldReturnSameInstance_whenPresenceIdentifiersAreClean() {
+            EventTypeBinding binding = new EventTypeRegistry().lookup(CharacterPresenceEvent.class);
+            CharacterPresenceEvent event = presence().ip("10.0.0.1").build();
+
+            assertSame(event, binding.wireNormalizer().apply(event));
+        }
+
+        @ParameterizedTest(name = "[{index}] hwid={0}")
+        @ValueSource(strings = {"0", "n\\a", "disconnected"})
+        void wireNormalizer_shouldNullHwidPlaceholderAndKeepClientIp_forAccountAuthAttemptEvent(String hwid) {
+            EventTypeBinding binding = new EventTypeRegistry().lookup(AccountAuthAttemptEvent.class);
+            AccountAuthAttemptEvent event =
+                    authAttempt().clientIp("0.0.0.0").hwid(hwid).build();
+
+            AccountAuthAttemptEvent actual =
+                    (AccountAuthAttemptEvent) binding.wireNormalizer().apply(event);
+
+            assertEquals("0.0.0.0", actual.getClientIp());
+            assertNull(actual.getHwid());
+        }
+
+        @Test
+        void wireNormalizer_shouldReturnSameInstance_whenAuthAttemptIdentifiersAreClean() {
+            EventTypeBinding binding = new EventTypeRegistry().lookup(AccountAuthAttemptEvent.class);
+            AccountAuthAttemptEvent event =
+                    authAttempt().clientIp("10.0.0.1").hwid("hw-1").build();
+
+            assertSame(event, binding.wireNormalizer().apply(event));
+        }
+
+        @Test
+        void wireNormalizer_shouldBeIdentity_forEventsWithoutClientIdentifiers() {
+            EventTypeBinding binding = new EventTypeRegistry().lookup(PremiumPurchaseEvent.class);
+            PremiumPurchaseEvent event = PremiumPurchaseEvent.builder()
+                    .eventId(UUIDv7.generate())
+                    .characterId(1L)
+                    .build();
+
+            assertSame(event, binding.wireNormalizer().apply(event));
+        }
+
+        private CharacterPresenceEvent.Builder presence() {
+            return CharacterPresenceEvent.builder()
+                    .eventId(UUIDv7.generate())
+                    .charId(7L)
+                    .online(true)
+                    .source(SessionSource.CLIENT);
+        }
+
+        private AccountAuthAttemptEvent.Builder authAttempt() {
+            return AccountAuthAttemptEvent.builder()
+                    .eventId(UUIDv7.generate().toString())
+                    .serverId(UUIDv7.generate().toString())
+                    .accountName("acc")
+                    .outcome(AuthOutcomes.SUCCESS)
+                    .attemptedAt(Instant.parse("2026-06-01T12:00:00Z"));
+        }
     }
 }

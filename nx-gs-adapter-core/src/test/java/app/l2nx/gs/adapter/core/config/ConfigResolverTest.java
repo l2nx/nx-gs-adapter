@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -238,6 +239,18 @@ class ConfigResolverTest {
     }
 
     @Test
+    void loadFileProperties_shouldReadTheFileConfigFilePathNames(@TempDir Path tempDir) throws IOException {
+        Path configFile = tempDir.resolve("adapter.properties");
+        Files.write(configFile, "l2nx.enabled=true\n".getBytes(StandardCharsets.UTF_8));
+        Map<String, String> sys = singletonMap("l2nx.config-file", "  " + configFile.toAbsolutePath() + "  ");
+
+        Properties loaded = ConfigResolver.loadFileProperties(sys::get);
+
+        assertEquals(configFile.toAbsolutePath(), ConfigResolver.configFilePath(sys::get));
+        assertEquals("true", loaded.getProperty("l2nx.enabled"));
+    }
+
+    @Test
     void loadFileProperties_shouldReadAsUtf8_whenFileContainsNonAscii(@TempDir Path tempDir) throws IOException {
         Path configFile = tempDir.resolve("adapter.properties");
         Files.write(configFile, "label=кофе ☕\n".getBytes(StandardCharsets.UTF_8));
@@ -308,6 +321,20 @@ class ConfigResolverTest {
         Properties loaded = ConfigResolver.loadFileProperties(sys::get, defaultFile);
 
         assertEquals("from-default", loaded.getProperty("k"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    void configFilePath_shouldBeTheDefaultFile_whenConfigFileSyspropIsBlank(String blank) {
+        assertEquals(Paths.get("l2nx.properties"), ConfigResolver.configFilePath(k -> blank));
+        assertEquals(Paths.get("l2nx.properties"), ConfigResolver.configFilePath(k -> null));
+    }
+
+    @Test
+    void configFilePath_shouldBeTheTrimmedSysprop_whenConfigFileIsGiven() {
+        Path expected = Paths.get("conf", "custom.properties");
+
+        assertEquals(expected, ConfigResolver.configFilePath(k -> " " + expected + " "));
     }
 
     @Test

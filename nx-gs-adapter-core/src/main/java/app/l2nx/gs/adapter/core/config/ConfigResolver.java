@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 public final class ConfigResolver {
 
     private static final String DEFAULT_FILE_NAME = "l2nx.properties";
-    private static final String CONFIG_FILE_KEY = "l2nx.config-file";
+    public static final String CONFIG_FILE_KEY = "l2nx.config-file";
 
     static final String KEY_SERVER_KEY = "l2nx.gs-key";
     static final String KEY_LS_KEY = "l2nx.ls-key";
@@ -340,6 +340,20 @@ public final class ConfigResolver {
         return value != null && !value.trim().isEmpty();
     }
 
+    /** @throws InvalidPathException when the {@code l2nx.config-file} property is not a path */
+    public static Path configFilePath() {
+        return configFilePath(System::getProperty);
+    }
+
+    static Path configFilePath(Function<String, String> sysprops) {
+        return configFilePath(sysprops, Paths.get(DEFAULT_FILE_NAME));
+    }
+
+    private static Path configFilePath(Function<String, String> sysprops, Path defaultPath) {
+        String explicitPath = sysprops.apply(CONFIG_FILE_KEY);
+        return isPresent(explicitPath) ? Paths.get(explicitPath.trim()) : defaultPath;
+    }
+
     static Properties loadFileProperties(Function<String, String> sysprops) {
         return loadFileProperties(sysprops, Paths.get(DEFAULT_FILE_NAME));
     }
@@ -347,17 +361,15 @@ public final class ConfigResolver {
     /** Test seam: aims the cwd-default branch at a temp dir without mutating user.dir. */
     static Properties loadFileProperties(Function<String, String> sysprops, Path defaultPath) {
         String explicitPath = sysprops.apply(CONFIG_FILE_KEY);
-        if (isPresent(explicitPath)) {
-            String trimmed = explicitPath.trim();
-            Path resolved;
-            try {
-                resolved = Paths.get(trimmed);
-            } catch (InvalidPathException e) {
-                throw new IllegalStateException(explicitErrorPrefix(trimmed) + ": invalid path: " + e.getMessage(), e);
-            }
-            return loadFromPath(resolved, /* required = */ true);
+        Path resolved;
+        try {
+            resolved = configFilePath(sysprops, defaultPath);
+        } catch (InvalidPathException e) {
+            // only an explicit path can be malformed: the default is a Path already
+            throw new IllegalStateException(
+                    explicitErrorPrefix(explicitPath.trim()) + ": invalid path: " + e.getMessage(), e);
         }
-        return loadFromPath(defaultPath, /* required = */ false);
+        return loadFromPath(resolved, /* required = */ isPresent(explicitPath));
     }
 
     private static Properties loadFromPath(Path filePath, boolean required) {

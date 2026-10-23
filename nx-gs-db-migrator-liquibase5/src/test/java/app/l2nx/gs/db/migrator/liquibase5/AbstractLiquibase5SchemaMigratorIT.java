@@ -50,7 +50,7 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
     }
 
     private int changesetCount() {
-        return mysqlFamily() ? 5 : 4;
+        return mysqlFamily() ? 7 : 6;
     }
 
     protected TestConnectionSource source() {
@@ -84,6 +84,8 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
             if (mysqlFamily()) {
                 expected.put("0007-command-receipts-utc-datetime", "EXECUTED");
             }
+            expected.put("0008-offline-sessions-return-threshold", "EXECUTED");
+            expected.put("0009-offline-sessions-master-account-activity-started-index", "EXECUTED");
             assertEquals(expected, actual);
             assertTrue(columnExists(RECEIPTS, "steps_done_at"));
         }
@@ -159,9 +161,15 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
         private void insertSession(int characterId, Integer activeCharacterId, String activeSpotKey)
                 throws SQLException {
             String sql = "INSERT INTO " + SESSIONS
-                    + " (id, idempotency_key, character_id, active_character_id, activity, account_name, spot_pool, spot_id,"
-                    + " active_spot_key, origin_x, origin_y, origin_z, origin_heading, started_at)"
-                    + " VALUES (" + uuid() + ", " + uuid() + ", " + characterId + ", " + activeCharacterId
+                    + " (id, idempotency_key, character_id, active_character_id, activity, account_name, spot_pool,"
+                    + " spot_id,"
+                    + " active_spot_key,"
+                    + " origin_x, origin_y,"
+                    + " origin_z,"
+                    + " origin_heading,"
+                    + " started_at)"
+                    + " VALUES"
+                    + " (" + uuid() + ", " + uuid() + ", " + characterId + ", " + activeCharacterId
                     + ", 'OFFLINE_FISHING', 'acc', 'giran_harbor', 1, "
                     + (activeSpotKey == null ? "NULL" : "'" + activeSpotKey + "'")
                     + ", 1, 2, 3, 0, CURRENT_TIMESTAMP)";
@@ -242,8 +250,10 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
                         .toEpochSecond(ZoneOffset.UTC);
                 assertTrue(Math.abs(storedAsUtc - insertedAtEpochSec) <= 1, column + " holds UTC wall time");
             }
-            assertEquals(1, count("SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics"
-                    + " WHERE table_schema = DATABASE() AND index_name = 'idx_l2nx_receipts_command_status_steps'"));
+            assertEquals(
+                    1,
+                    count("SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema ="
+                            + " DATABASE() AND index_name = 'idx_l2nx_receipts_command_status_steps'"));
         }
 
         @Test

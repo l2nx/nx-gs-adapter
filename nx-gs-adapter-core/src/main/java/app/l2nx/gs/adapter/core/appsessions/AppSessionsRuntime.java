@@ -4,6 +4,7 @@ import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStates;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
+import app.l2nx.gs.adapter.core.appsettings.AppSettingsRuntime;
 import app.l2nx.gs.commons.concurrent.DaemonThreadFactory;
 import app.l2nx.gs.commons.spi.ServiceProviders;
 import app.l2nx.gs.log.NxLog;
@@ -27,8 +28,7 @@ public final class AppSessionsRuntime {
 
     static final long BOOT_WAIT_MS = 30_000L;
 
-    private static final AppSessionsFacade FACADE =
-            new AppSessionsFacade(AppSettingsPublisher.viaNxKafka(), BOOT_WAIT_MS);
+    private static final AppSessionsFacade FACADE = new AppSessionsFacade(BOOT_WAIT_MS);
     private static volatile String moduleState = ModuleStates.INIT;
 
     private AppSessionsRuntime() {}
@@ -83,6 +83,8 @@ public final class AppSessionsRuntime {
             AppSessionEngine engine = new AppSessionEngine(
                     new JdbcOfflineSessionStore(foundSources.get(0)),
                     foundHosts.get(0),
+                    AppSettingsRuntime.rules(),
+                    AppSettingsRuntime::rulesFromFile,
                     io,
                     BoundedExecutor.limitFor(ioWorkers),
                     scheduler,
@@ -121,10 +123,6 @@ public final class AppSessionsRuntime {
         return FACADE.engine();
     }
 
-    static AppSettingsPublisher settingsPublisher() {
-        return FACADE.settingsPublisher();
-    }
-
     static String moduleState() {
         return moduleState;
     }
@@ -132,7 +130,6 @@ public final class AppSessionsRuntime {
     public static void resetForTesting() {
         shutdown();
         FACADE.reset();
-        FACADE.settingsPublisher().disconnect();
         moduleState = ModuleStates.INIT;
     }
 

@@ -12,6 +12,7 @@ import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
 import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
 import app.l2nx.gs.adapter.core.schema.UnusableJdbcConnectionSource;
@@ -92,7 +93,7 @@ class AppSessionsRuntimeTest {
             InMemoryOfflineSessionStore store = new InMemoryOfflineSessionStore();
             OfflineSession open = openSession(7);
             store.seed(open);
-            AppSessionsFacade facade = new AppSessionsFacade(AppSettingsPublisher.viaNxKafka(), 10L);
+            AppSessionsFacade facade = new AppSessionsFacade(10L);
             facade.booting();
 
             ClientLoginOutcome actual = facade.onClientLogin(7);
@@ -107,7 +108,7 @@ class AppSessionsRuntimeTest {
             InMemoryOfflineSessionStore store = new InMemoryOfflineSessionStore();
             OfflineSession open = openSession(7);
             store.seed(open);
-            AppSessionsFacade facade = new AppSessionsFacade(AppSettingsPublisher.viaNxKafka(), 5_000L);
+            AppSessionsFacade facade = new AppSessionsFacade(5_000L);
             facade.booting();
 
             Thread.currentThread().interrupt();
@@ -125,7 +126,7 @@ class AppSessionsRuntimeTest {
             InMemoryOfflineSessionStore store = new InMemoryOfflineSessionStore();
             OfflineSession open = openSession(7);
             store.seed(open);
-            AppSessionsFacade facade = new AppSessionsFacade(AppSettingsPublisher.viaNxKafka(), 5_000L);
+            AppSessionsFacade facade = new AppSessionsFacade(5_000L);
             facade.booting();
             ExecutorService login = Executors.newSingleThreadExecutor();
             try {
@@ -157,8 +158,8 @@ class AppSessionsRuntimeTest {
             store.seed(open);
             FakeOfflineSessionHost host = new FakeOfflineSessionHost();
             ManualScheduler time = new ManualScheduler();
-            AppSessionEngine engine = new AppSessionEngine(store, host, Runnable::run, 4, time, time, 1_000L);
-            AppSessionsFacade facade = new AppSessionsFacade(AppSettingsPublisher.viaNxKafka(), 5_000L);
+            AppSessionEngine engine = new AppSessionEngine(store, host, AppRules::defaults, () -> true, Runnable::run, 4, time, time, 1_000L);
+            AppSessionsFacade facade = new AppSessionsFacade(5_000L);
             facade.booting();
 
             facade.hostReady();
@@ -187,7 +188,7 @@ class AppSessionsRuntimeTest {
     private static AppSessionEngine bootedEngine(InMemoryOfflineSessionStore store) {
         ManualScheduler time = new ManualScheduler();
         AppSessionEngine engine =
-                new AppSessionEngine(store, new FakeOfflineSessionHost(), Runnable::run, 4, time, time, 1_000L);
+                new AppSessionEngine(store, new FakeOfflineSessionHost(), AppRules::defaults, () -> true, Runnable::run, 4, time, time, 1_000L);
         engine.boot();
         return engine;
     }

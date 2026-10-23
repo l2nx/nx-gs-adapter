@@ -26,16 +26,25 @@ own, fill this".
   needs only its host provider, not adapter changes. Check against public open-source builds of both lines, not
   only the host at hand. A vocabulary value is a general L2 concept from either line; build customs stay raw.
 - **Proactively look for parts that would not fit another build.** When working in any area, check its existing
-  contracts for single-build assumptions and propose a refactor; record each finding in `docs/TODO.md`.
+  contracts for single-build assumptions and propose a refactor; record each finding as an issue with a
+  `docs/TODO.md` line.
 - **The skill contract is a living doc.** Any change to the `gd.skill` DTOs or the skill/stat vocabulary enums updates
   `docs/specs/030-gamedata-sync/skill-contract.md` in the same commit.
 - Platform storage follows meaning, not the writer: see `nx-gamedata/CLAUDE.md` → first principle.
-- **The adapter is transport: no business rules live in it.** Limits, caps, quotas, rates, defaults and policy
-  (a maximum fee percent, a line limit, an allowed price range) belong to the platform, which decides them and can
-  change them per tenant without an api release. A DTO validates only what makes the value meaningful on the wire
-  (non-null where required, a percent is not negative, an id is positive, a product does not overflow); the host
-  guards only its engine's invariants (adena limit, inventory, arithmetic). A business rule found in the api is a
-  bug: move it to the platform.
+- **The adapter is transport plus a generic session engine: no game rules live in it.** The engine (spec 038) owns
+  the session table, idempotency, `active_ms`, end by time, the restore and one session per character / one character
+  per spot; it never decides who may start. Game rules (cooldowns, per-account or per-device limits, duration bounds)
+  are host rules; a policy the platform decides per tenant (a maximum fee percent, a price range) stays on the
+  platform. A DTO validates only what makes the value meaningful on the wire (non-null where required, a percent is not
+  negative, an id is positive, a product does not overflow); the host guards its engine's invariants (adena limit,
+  inventory, arithmetic). A business rule found in the api is a bug.
+- **The adapter owns the app settings file `l2nx-app.properties`** (spec 038 R20, package `core.appsettings`; the
+  reference file with every key is in the repo root): key catalog, defaults, whole-file validation, hot reload, the
+  settings snapshot; the host reads the values typed through `NxAppRules`. A key enters it only when it is
+  tenant-agnostic; host-only rules stay in the host's own config. A catalog change updates the reference file in the
+  same commit (`AppSettingsFileTest` fails otherwise).
+- **Every hwid / IP crossing the wire passes `ClientIdentifiers`** (`nx-gs-commons`, spec 038 R22):
+  placeholders (`N/A`, `0`, `-`, ...) become `null` at the boundary. A new hwid or IP field joins the list in 038.
 
 ## Workflow
 
@@ -155,6 +164,7 @@ Adapter-owned threads (all daemon — never block JVM exit):
 | `nx-runtime-sync-pool-N`    | configurable | Shared runtime-sync engine pool (all entities)                                                   |
 | `nx-gd-sync-scheduler`      | 0-1          | gd-sync host-readiness polling + periodic resync                                                 |
 | `nx-app-sessions-scheduler` | 0-1          | App-session restore batches, end-by-time timers, `active_ms` flush tick (work hops to `nx-io-N`) |
+| `nx-app-settings-watcher`   | 0-1          | Polls `l2nx-app.properties` (~5 s, by content) and swaps in a valid file (game server only)      |
 | Kafka producer I/O          | 1            | Internal to `KafkaProducer` (kafka-clients-managed)                                              |
 
 Pool sizing keys: `l2nx.io.workers`, `l2nx.cdc-engine.workers`, `l2nx.runtime-sync.workers` (all

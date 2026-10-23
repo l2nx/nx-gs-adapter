@@ -90,6 +90,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
                     .hwid("HW-0001")
                     .initiatorIp("2001:db8::1")
                     .plannedMs(3_600_000L)
+                    .returnThresholdMs(1_800_000L)
                     .typeState("{\"rod\":101,\"bait\":202}")
                     .build();
 
@@ -110,7 +111,18 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             assertEquals(expected, actual);
             assertNull(actual.getMasterAccountId());
             assertNull(actual.getPlannedMs());
+            assertNull(actual.getReturnThresholdMs());
             assertNull(actual.getTypeState());
+        }
+
+        @Test
+        void read_shouldTurnStoredIdentifierPlaceholdersIntoNull() {
+            store.insert(session(7, 1).hwid("N/A").initiatorIp("0.0.0.0").build());
+
+            OfflineSession actual = store.findOpenByCharacterId(7).get();
+
+            assertNull(actual.getHwid());
+            assertNull(actual.getInitiatorIp());
         }
 
         @Test
@@ -307,6 +319,62 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.delete(row.getId());
 
             assertFalse(store.findByIdempotencyKey(row.getIdempotencyKey()).isPresent());
+        }
+    }
+
+    @Nested
+    class FindLatestStarted {
+
+        private final UUID master = UUID.fromString("0192f000-0000-7000-8000-000000000001");
+
+        private OfflineSession started(int characterId, UUID id, Instant startedAt) {
+            return session(characterId, characterId)
+                    .id(id)
+                    .masterAccountId(master)
+                    .startedAt(startedAt)
+                    .build();
+        }
+
+        @Test
+        void findLatestStarted_shouldOrderByStartThenGreaterId_openOrClosed() {
+            OfflineSession older = started(1, UUID.fromString("0192f000-0000-7000-8000-0000000000ff"), STARTED);
+            OfflineSession tieLow =
+                    started(2, UUID.fromString("0192f000-0000-7000-8000-000000000001"), STARTED.plusSeconds(60));
+            OfflineSession tieHigh =
+                    started(3, UUID.fromString("0192f000-0000-7000-8000-000000000002"), STARTED.plusSeconds(60));
+            store.insert(older);
+            store.insert(tieLow);
+            store.insert(tieHigh);
+            store.close(tieHigh.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED);
+
+            List<OfflineSession> actual = store.findLatestStarted(master, ActivityType.OFFLINE_FISHING, 3);
+
+            assertEquals(tieHigh.getId(), actual.get(0).getId());
+            assertEquals(tieLow.getId(), actual.get(1).getId());
+            assertEquals(older.getId(), actual.get(2).getId());
+        }
+
+        @Test
+        void findLatestStarted_shouldReturnAtMostTheLimit() {
+            store.insert(started(1, UUID.randomUUID(), STARTED));
+            store.insert(started(2, UUID.randomUUID(), STARTED.plusSeconds(60)));
+
+            List<OfflineSession> actual = store.findLatestStarted(master, ActivityType.OFFLINE_FISHING, 1);
+
+            assertEquals(1, actual.size());
+            assertEquals(STARTED.plusSeconds(60), actual.get(0).getStartedAt());
+        }
+
+        @Test
+        void findLatestStarted_shouldSkipOtherMasterAccountsAndActivities() {
+            store.insert(session(1, 1).masterAccountId(UUID.randomUUID()).build());
+            store.insert(session(2, 2).build());
+            store.insert(session(3, 3)
+                    .masterAccountId(master)
+                    .activity(ActivityType.OFFLINE_PRIVATE_STORE)
+                    .build());
+
+            assertTrue(store.findLatestStarted(master, ActivityType.OFFLINE_FISHING, 5).isEmpty());
         }
     }
 

@@ -28,7 +28,7 @@ import java.util.concurrent.*;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.jspecify.annotations.Nullable;
 
-/** One CDC cycle for one entity: plan windows, Phase-1 CRC, diff, Phase-2 fetch, publish, then advance the snapshot only for ack'd PKs. */
+/** One CDC cycle for one entity; the snapshot advances only for PKs whose publish was ack'd. */
 public final class EntitySyncTask {
 
     private static final NxLog log = NxLogFactory.getLogger(EntitySyncTask.class);
@@ -170,8 +170,7 @@ public final class EntitySyncTask {
                     assembled = Long2ObjectMaps.emptyMap();
                 } else {
                     try {
-                        // Rows can move between phases; a row missing in Phase-2 is a silent no-op, re-detected by the
-                        // next Phase-1 diff.
+                        // A row missing in Phase-2 moved between phases; the next Phase-1 diff re-detects it.
                         assembled = assembleEntities(createUpdate, conn);
                     } catch (SQLTimeoutException timeout) {
                         log.warn("Entity {} window {} Phase-2 timed out — DEGRADED, skipping window", entity, window);
@@ -314,7 +313,7 @@ public final class EntitySyncTask {
                 continue;
             }
             Map<String, List<Object>> children = collectChildren(pk, childRowsByTable);
-            Object dto = erased.mapEntity(primaryRow, children);
+            Object dto = DbDtoIdentifiers.normalize(erased.mapEntity(primaryRow, children));
             assembled.put(pk, dto);
         }
         return assembled;
@@ -380,8 +379,8 @@ public final class EntitySyncTask {
     }
 
     /**
-     * Already-completed futures are drained first so a slow head publish can't starve acked ones; the rest share one deadline and replay next cycle.
-     * Returns {@code [created, updated, deleted, failed, pending]}; failed and pending feed the fully-successful gate. Package-private for tests.
+     * Completed futures are drained first so a slow head publish can't starve acked ones; the rest share one deadline
+     * and replay next cycle. Returns {@code [created, updated, deleted, failed, pending]}.
      */
     long[] walkInFlightAndAdvance(
             String entity,

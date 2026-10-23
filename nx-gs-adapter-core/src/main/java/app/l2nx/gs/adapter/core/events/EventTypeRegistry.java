@@ -22,9 +22,11 @@ import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerStartedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerStoppingEvent;
 import app.l2nx.gs.adapter.api.kafka.events.sync.ResyncCompletedEvent;
 import app.l2nx.gs.commons.bytes.LongBytes;
+import app.l2nx.gs.commons.identifiers.ClientIdentifiers;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.jspecify.annotations.Nullable;
 
 /** Not pluggable. TODO: graduate to an SPI once 3+ event families exist. */
@@ -59,7 +61,8 @@ final class EventTypeRegistry {
                 families,
                 CharacterPresenceEvent.class,
                 "character",
-                evt -> LongBytes.bigEndian(((CharacterPresenceEvent) evt).getCharId()));
+                evt -> LongBytes.bigEndian(((CharacterPresenceEvent) evt).getCharId()),
+                EventTypeRegistry::normalizePresence);
         register(
                 map,
                 families,
@@ -150,7 +153,8 @@ final class EventTypeRegistry {
                 evt -> ((AccountAuthAttemptEvent) evt)
                         .getAccountName()
                         .toLowerCase(Locale.ROOT)
-                        .getBytes(StandardCharsets.UTF_8));
+                        .getBytes(StandardCharsets.UTF_8),
+                EventTypeRegistry::normalizeAuthAttempt);
 
         this.bindings = Collections.unmodifiableMap(map);
         this.familyKeys = Collections.unmodifiableSet(families);
@@ -172,7 +176,36 @@ final class EventTypeRegistry {
             Class<?> type,
             String familyKey,
             Function<Object, byte[]> partitionKeyExtractor) {
-        map.put(type, new EventTypeBinding(familyKey, type.getSimpleName(), partitionKeyExtractor));
+        register(map, families, type, familyKey, partitionKeyExtractor, UnaryOperator.identity());
+    }
+
+    private static void register(
+            Map<Class<?>, EventTypeBinding> map,
+            Set<String> families,
+            Class<?> type,
+            String familyKey,
+            Function<Object, byte[]> partitionKeyExtractor,
+            UnaryOperator<Object> wireNormalizer) {
+        map.put(type, new EventTypeBinding(familyKey, type.getSimpleName(), partitionKeyExtractor, wireNormalizer));
         families.add(familyKey);
+    }
+
+    private static Object normalizePresence(Object evt) {
+        CharacterPresenceEvent event = (CharacterPresenceEvent) evt;
+        String ip = ClientIdentifiers.ip(event.getIp());
+        String hwid = ClientIdentifiers.hwid(event.getHwid());
+        if (Objects.equals(ip, event.getIp()) && Objects.equals(hwid, event.getHwid())) {
+            return event;
+        }
+        return event.toBuilder().ip(ip).hwid(hwid).build();
+    }
+
+    private static Object normalizeAuthAttempt(Object evt) {
+        AccountAuthAttemptEvent event = (AccountAuthAttemptEvent) evt;
+        String hwid = ClientIdentifiers.hwid(event.getHwid());
+        if (Objects.equals(hwid, event.getHwid())) {
+            return event;
+        }
+        return event.toBuilder().hwid(hwid).build();
     }
 }

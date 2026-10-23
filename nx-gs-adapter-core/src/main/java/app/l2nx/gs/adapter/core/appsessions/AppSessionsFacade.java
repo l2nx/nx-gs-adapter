@@ -2,7 +2,6 @@ package app.l2nx.gs.adapter.core.appsessions;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
-import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
@@ -10,6 +9,8 @@ import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -35,7 +36,6 @@ final class AppSessionsFacade implements NxAppSessions {
         DISABLED
     }
 
-    private final AppSettingsPublisher settingsPublisher;
     private final long bootWaitMs;
     private volatile State state = State.IDLE;
     private volatile @Nullable AppSessionEngine engine;
@@ -43,13 +43,8 @@ final class AppSessionsFacade implements NxAppSessions {
     private final Set<Integer> lateLogins = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean hostReady = new AtomicBoolean();
 
-    AppSessionsFacade(AppSettingsPublisher settingsPublisher, long bootWaitMs) {
-        this.settingsPublisher = settingsPublisher;
+    AppSessionsFacade(long bootWaitMs) {
         this.bootWaitMs = bootWaitMs;
-    }
-
-    AppSettingsPublisher settingsPublisher() {
-        return settingsPublisher;
     }
 
     State state() {
@@ -196,15 +191,32 @@ final class AppSessionsFacade implements NxAppSessions {
     }
 
     @Override
-    public void publishSettings(AppSettings settings) {
-        if (settings == null) {
-            log.warn("App sessions: publishSettings(null) ignored");
-            return;
+    public List<OfflineSession> findOpenByMasterAccount(UUID masterAccountId, ActivityType activity) {
+        AppSessionEngine e = engine;
+        if (e == null || masterAccountId == null || activity == null) {
+            return Collections.emptyList();
         }
         try {
-            settingsPublisher.publish(settings);
+            return e.findOpenByMasterAccount(masterAccountId, activity);
         } catch (Throwable t) {
-            log.error("App sessions: publishSettings threw {}", t.getClass().getName(), t);
+            log.error("App sessions: findOpenByMasterAccount threw {}", t.getClass().getName(), t);
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId, ActivityType activity) {
+        AppSessionEngine e = engine;
+        if (e == null || masterAccountId == null || activity == null) {
+            return CompletableFuture.completedFuture(Optional.<OfflineSession>empty());
+        }
+        try {
+            return e.findLastStarted(masterAccountId, activity);
+        } catch (Throwable t) {
+            log.error("App sessions: findLastStarted threw {}", t.getClass().getName(), t);
+            CompletableFuture<Optional<OfflineSession>> failed = new CompletableFuture<Optional<OfflineSession>>();
+            failed.completeExceptionally(t);
+            return failed;
         }
     }
 

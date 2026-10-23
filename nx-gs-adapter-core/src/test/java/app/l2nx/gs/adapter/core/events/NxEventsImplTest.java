@@ -2,6 +2,8 @@ package app.l2nx.gs.adapter.core.events;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
+import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
 import app.l2nx.gs.adapter.api.kafka.events.premiumpurchase.PremiumPurchaseEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStorePurchaseEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreStateEvent;
@@ -67,6 +69,36 @@ class NxEventsImplTest {
         assertTrue(latch.await(2, TimeUnit.SECONDS), "publish(PremiumPurchaseEvent) did not reach sender");
         assertEquals(1, sent.size());
         assertEquals(event, sent.peek());
+    }
+
+    @Test
+    void publish_shouldSendPresenceWithPlaceholderIdentifiersAsNull() throws InterruptedException {
+        ConcurrentLinkedQueue<Object> sent = new ConcurrentLinkedQueue<Object>();
+        CountDownLatch latch = new CountDownLatch(1);
+        EventsPublisher.Sender sender = (record, callback) -> {
+            sent.add(record.value());
+            callback.onCompletion(null, null);
+            latch.countDown();
+        };
+        EventTypeRegistry registry = new EventTypeRegistry();
+        publisher = new EventsPublisher(
+                Collections.singletonMap("character", "acme.gs.events.character"), sender, cfg(50, 500L), registry);
+        publisher.start();
+
+        NxEventsImpl events = new NxEventsImpl(publisher, registry);
+        CharacterPresenceEvent event = CharacterPresenceEvent.builder()
+                .eventId(UUIDv7.generate())
+                .charId(42L)
+                .online(true)
+                .source(SessionSource.CLIENT)
+                .ip("N/A")
+                .hwid("0")
+                .build();
+
+        events.publish(event);
+
+        assertTrue(latch.await(2, TimeUnit.SECONDS), "publish(CharacterPresenceEvent) did not reach sender");
+        assertEquals(event.toBuilder().ip(null).hwid(null).build(), sent.peek());
     }
 
     @Test

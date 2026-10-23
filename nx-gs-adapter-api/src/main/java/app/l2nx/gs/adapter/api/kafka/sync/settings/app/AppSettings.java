@@ -9,9 +9,8 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Settings of the app sessions of one server: which session types are enabled and the parameters of the rules the
- * host applies. One row per server, payload of {@link SettingsSyncEvent} with entity name {@value #ENTITY_NAME}. The
- * host decides every rule; this snapshot only lets the platform show them.
+ * App-session settings of one server, payload of {@link SettingsSyncEvent} with entity name {@value #ENTITY_NAME}.
+ * The host decides every rule; this snapshot only lets the platform show them.
  */
 public final class AppSettings {
 
@@ -67,7 +66,7 @@ public final class AppSettings {
         return recentlyLeftGameMinutes;
     }
 
-    /** Minimum time between the real starts of two sessions of one character. */
+    /** Minimum time between the real starts of two sessions of one master account. */
     public int getStartCooldownMinutes() {
         return startCooldownMinutes;
     }

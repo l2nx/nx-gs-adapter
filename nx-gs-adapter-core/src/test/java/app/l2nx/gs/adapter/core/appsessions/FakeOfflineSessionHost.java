@@ -2,7 +2,6 @@ package app.l2nx.gs.adapter.core.appsessions;
 
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSessionPlacement;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSessionSettings;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,13 +22,6 @@ final class FakeOfflineSessionHost implements OfflineSessionHost {
     Consumer<OfflineSession> onStartAction = s -> {};
     /** When set, {@code removeFromWorld} blocks until it opens (at most 10 s), like a busy game thread. */
     volatile CountDownLatch removeGate;
-
-    OfflineSessionSettings settings = OfflineSessionSettings.builder()
-            .returnThresholdMs(30L * 60_000L)
-            .retentionDays(30)
-            .restoreBatchSize(10)
-            .restoreBatchIntervalMs(1_000L)
-            .build();
 
     @Override
     public synchronized OfflineSessionPlacement placeInWorld(OfflineSession session) {
@@ -69,11 +61,6 @@ final class FakeOfflineSessionHost implements OfflineSessionHost {
         calls.add("remove:" + session.getId() + ":" + returnToOrigin);
         removed.add(session);
         returnFlags.add(returnToOrigin);
-    }
-
-    @Override
-    public OfflineSessionSettings settings() {
-        return settings;
     }
 
     synchronized boolean called(String prefix) {

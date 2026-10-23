@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.core.appsessions;
+package app.l2nx.gs.adapter.core.appsettings;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -11,9 +11,11 @@ import app.l2nx.gs.adapter.api.kafka.sync.settings.SettingsSyncEvent;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSessionTypeSettings;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
+import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -123,6 +125,51 @@ class AppSettingsPublisherTest {
             publisher.publish(settings(45, "2026-10-15T10:00:00Z"));
 
             assertTrue(sent.isEmpty());
+        }
+    }
+
+    @Nested
+    class PublishRules {
+
+        @Test
+        void toSettings_shouldCarryEverySessionTypeAndTheSnapshotKeys() {
+            AppRules rules = AppRules.builder()
+                    .sessionTypeEnabled(ActivityType.OFFLINE_FISHING, true)
+                    .fishingSpotPool("harbor")
+                    .recentLogoutMinutes(3)
+                    .fishingStartCooldownMinutes(20)
+                    .returnThresholdMinutes(40)
+                    .restartWindowMinutes(25)
+                    .fishingMinDurationMinutes(10)
+                    .fishingMaxDurationMinutes(240)
+                    .build();
+
+            AppSettings actual = AppSettingsPublisher.toSettings(rules, Instant.parse("2026-10-23T10:00:00Z"));
+
+            AppSettings expected = AppSettings.builder()
+                    .sessionTypes(Arrays.asList(
+                            new AppSessionTypeSettings(ActivityType.OFFLINE_PRIVATE_STORE, false),
+                            new AppSessionTypeSettings(ActivityType.OFFLINE_FISHING, true)))
+                    .recentlyLeftGameMinutes(3)
+                    .startCooldownMinutes(20)
+                    .returnThresholdMinutes(40)
+                    .restartWindowMinutes(25)
+                    .fishingMinDurationMs(600_000L)
+                    .fishingMaxDurationMs(14_400_000L)
+                    .updatedAt(Instant.parse("2026-10-23T10:00:00Z"))
+                    .build();
+            assertEquals(expected, actual);
+        }
+
+        @Test
+        void publish_shouldNotResend_whenOnlyValuesOutsideTheSnapshotChanged() {
+            publisher.connect(TOPICS, SERVER_ID);
+            publisher.publish(AppRules.defaults());
+
+            publisher.publish(
+                    AppRules.builder().fishingFloatDistance(200).restoreBatchSize(2).build());
+
+            assertEquals(1, sent.size());
         }
     }
 

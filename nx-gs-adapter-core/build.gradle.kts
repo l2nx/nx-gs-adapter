@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.shadow)
 }
 
-version = findProperty("${project.name}.version") as String? ?: "0.44.0"
+version = findProperty("${project.name}.version") as String? ?: "0.45.0"
 
 java {
     withSourcesJar()

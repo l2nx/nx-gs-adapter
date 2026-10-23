@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.spi;
 import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
 import app.l2nx.gs.adapter.api.spi.capability.DeferredReply;
 import app.l2nx.gs.adapter.api.spi.capability.HostExecutor;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.capability.NxCommandReceipts;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
@@ -21,32 +22,30 @@ public interface CommandContext {
 
     HostExecutor host();
 
-    /** Same instance as {@code ConnectContext.events()}. */
     NxEvents events();
 
-    /** Adapter-owned bounded pool ({@code l2nx.io.workers}) for blocking IO; not the game thread, use {@link #host()} for that. */
+    /** Adapter-owned bounded pool for blocking IO; not the game thread, use {@link #host()} for that. */
     Executor io();
 
-    /** Same instance as {@link ConnectContext#sync()}; never null, no-op when no module registered the entity. */
+    /** No-op when no module registered the entity. */
     NxSync sync();
 
-    /** Same instance as {@link ConnectContext#appSessions()}; a no-op for contexts built without it. */
     default NxAppSessions appSessions() {
         return NoOpAppSessions.INSTANCE;
     }
 
-    /**
-     * The adapter's command-receipt store, the same one as {@code NxAdapter.commandReceipts()}. For contexts built
-     * without it every call throws {@link IllegalStateException}: receipts guard money and are never silently dropped.
-     */
+    default NxAppRules appRules() {
+        return NoOpAppRules.INSTANCE;
+    }
+
+    /** Contexts built without it throw {@link IllegalStateException} on every call: receipts guard money. */
     default NxCommandReceipts commandReceipts() {
         return NoOpCommandReceipts.INSTANCE;
     }
 
     /**
-     * Takes the deferred reply: the handler returns {@link DeferredReply#pending()} and completes the handle
-     * later from any thread. Repeated calls return the same handle. Take it only once the work has really
-     * started; an early rejection is an ordinary immediate result.
+     * The handler returns {@link DeferredReply#pending()} and completes the handle later from any thread; repeated
+     * calls return the same handle. Take it only once the work has started; an early rejection is an immediate result.
      */
     <R> DeferredReply<R> deferReply();
 }

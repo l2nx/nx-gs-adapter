@@ -2,18 +2,18 @@ package app.l2nx.gs.adapter.api.spi;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
-import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
 import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.jspecify.annotations.Nullable;
 
-/** Fallback when no app-session engine is wired: starts answer {@code UNAVAILABLE}, nothing is found. */
 final class NoOpAppSessions implements NxAppSessions {
 
     static final NoOpAppSessions INSTANCE = new NoOpAppSessions();
@@ -52,5 +52,12 @@ final class NoOpAppSessions implements NxAppSessions {
     }
 
     @Override
-    public void publishSettings(AppSettings settings) {}
+    public List<OfflineSession> findOpenByMasterAccount(UUID masterAccountId, ActivityType activity) {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId, ActivityType activity) {
+        return CompletableFuture.completedFuture(Optional.<OfflineSession>empty());
+    }
 }

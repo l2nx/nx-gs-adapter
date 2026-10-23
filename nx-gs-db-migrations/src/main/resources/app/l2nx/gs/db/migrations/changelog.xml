@@ -156,4 +156,19 @@
             SET time_zone = @l2nx_saved_time_zone;
         </sql>
     </changeSet>
+
+    <!-- Nullable: rows of sessions started before the column use the current threshold of the app settings file. -->
+    <changeSet id="0008-offline-sessions-return-threshold" author="nx-gs-adapter">
+        <addColumn tableName="l2nx_offline_sessions">
+            <column name="return_threshold_ms" type="bigint"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="0009-offline-sessions-master-account-activity-started-index" author="nx-gs-adapter">
+        <createIndex tableName="l2nx_offline_sessions" indexName="idx_l2nx_offline_sessions_master_activity_started">
+            <column name="master_account_id"/>
+            <column name="activity"/>
+            <column name="started_at"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>

@@ -8,11 +8,10 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One event per credential-entry outcome on the login server, success or any failure, independent of whether the
- * account proceeds to world entry. Partition key is {@code accountName.toLowerCase(Locale.ROOT)} (per-account order).
- * {@code eventId} is a UUIDv7 idempotency key (at-least-once). {@code accountName} is lowercased and trimmed by the
- * producer. {@code hwid} is always {@code null} for hosts whose protocol lacks it; {@code failureDetail} never carries secrets.
- * {@code metadata} is an open map; hosts MAY add keys without an API release, consumers ignore unknown ones.
+ * One event per credential-entry outcome on the login server, success or failure. Partition key is
+ * {@code accountName.toLowerCase(Locale.ROOT)}; {@code eventId} is a UUIDv7 idempotency key (at-least-once).
+ * {@code clientIp} is the raw socket address; {@code hwid} is {@code null} for hosts whose protocol lacks it;
+ * {@code failureDetail} never carries secrets; consumers ignore unknown {@code metadata} keys.
  */
 public final class AccountAuthAttemptEvent {
 
@@ -68,7 +67,7 @@ public final class AccountAuthAttemptEvent {
         return hwid;
     }
 
-    /** Free-form; see {@link AuthOutcomes}. Consumers MUST tolerate unknown values (they match no rule, not an error). */
+    /** Free-form; see {@link AuthOutcomes}. Consumers MUST tolerate unknown values. */
     public String getOutcome() {
         return outcome;
     }

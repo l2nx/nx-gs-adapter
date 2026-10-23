@@ -19,6 +19,8 @@ import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
 import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSessionPlacement;
+import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
+import app.l2nx.gs.commons.UUIDv7;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -26,9 +28,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -46,6 +50,9 @@ class AppSessionEngineTest {
     private ManualScheduler time;
     private RecordingEvents events;
     private AppSessionEngine engine;
+    private volatile AppRules rules =
+            AppRules.builder().historyRetentionDays(30).build();
+    private volatile boolean rulesFromFile = true;
 
     @BeforeEach
     void setUp() {
@@ -57,7 +64,8 @@ class AppSessionEngineTest {
     }
 
     private AppSessionEngine newEngine() {
-        AppSessionEngine created = new AppSessionEngine(store, host, Runnable::run, 4, time, time, 1_000L);
+        AppSessionEngine created = new AppSessionEngine(
+                store, host, () -> rules, () -> rulesFromFile, Runnable::run, 4, time, time, 1_000L);
         created.bindEvents(events);
         return created;
     }
@@ -366,6 +374,381 @@ class AppSessionEngineTest {
 
             assertEquals(Arrays.asList(expected), host.returnFlags);
         }
+
+        @Test
+        void start_shouldStoreTheThresholdOfTheFileAtTheStart() {
+            OfflineSession actual = started(request().build());
+
+            assertEquals(Long.valueOf(30 * MINUTE), actual.getReturnThresholdMs());
+            assertEquals(Long.valueOf(30 * MINUTE), store.row(actual.getId()).getReturnThresholdMs());
+        }
+
+        @ParameterizedTest(name = "fixed {0} min, file changed to {1} min, active {2} min -> return {3}")
+        @CsvSource({"30, 60, 45, false", "30, 10, 20, true"})
+        void close_shouldCompareWithTheThresholdFixedAtTheStart_whenTheFileChangedMeanwhile(
+                int fixedMinutes, int changedMinutes, long activeMinutes, boolean expected) {
+            rules = rules.toBuilder().returnThresholdMinutes(fixedMinutes).build();
+            started(request().plannedMs(null).build());
+            rules = rules.toBuilder().returnThresholdMinutes(changedMinutes).build();
+            time.advance(activeMinutes * MINUTE);
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(Arrays.asList(expected), host.returnFlags);
+        }
+
+        @Test
+        void close_shouldUseTheCurrentThreshold_whenTheRowWasStoredWithoutOne() {
+            rules = rules.toBuilder().returnThresholdMinutes(60).build();
+            bootWith(openRow(CHAR_ID, 5, 40 * MINUTE));
+            hostReady();
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(Arrays.asList(Boolean.TRUE), host.returnFlags);
+        }
+    }
+
+    @Nested
+    class ClientIdentifierPlaceholders {
+
+        @Test
+        void start_shouldStoreAndPublishNull_whenHwidAndIpArePlaceholders() {
+            OfflineSession actual =
+                    started(request().hwid("N/A").initiatorIp("0.0.0.0").build());
+
+            assertNull(actual.getHwid());
+            assertNull(actual.getInitiatorIp());
+            assertNull(store.row(actual.getId()).getHwid());
+            assertNull(store.row(actual.getId()).getInitiatorIp());
+            CharacterPresenceEvent online = events.single();
+            assertNull(online.getHwid());
+            assertNull(online.getIp());
+        }
+    }
+
+    @Nested
+    class FindOpenByMasterAccount {
+
+        private final UUID master = UUID.fromString("0192f000-0000-7000-8000-000000000001");
+
+        @Test
+        void findOpenByMasterAccount_shouldReturnRunningAndPendingSessionsByStart() {
+            OfflineSession pending =
+                    openRow(2, 2, 0L).toBuilder().masterAccountId(master).build();
+            OfflineSession otherMaster = openRow(3, 3, 0L).toBuilder()
+                    .masterAccountId(UUID.randomUUID())
+                    .build();
+            OfflineSession noMaster = openRow(4, 4, 0L);
+            OfflineSession otherActivity = openRow(5, 6, 0L).toBuilder()
+                    .masterAccountId(master)
+                    .activity(ActivityType.OFFLINE_PRIVATE_STORE)
+                    .build();
+            bootWith(pending, otherMaster, noMaster, otherActivity);
+            OfflineSession running = started(request().build());
+
+            List<OfflineSession> actual = engine.findOpenByMasterAccount(master, ActivityType.OFFLINE_FISHING);
+
+            assertEquals(
+                    Arrays.asList(pending.getId(), running.getId()),
+                    Arrays.asList(actual.get(0).getId(), actual.get(1).getId()));
+            assertEquals(2, actual.size());
+        }
+
+        @Test
+        void findOpenByMasterAccount_shouldOrderByIdAfterTheStart_whenStartsAreEqual() {
+            Instant start = time.now().minus(1, ChronoUnit.HOURS);
+            OfflineSession high = openRow(1, 1, 0L).toBuilder()
+                    .id(UUID.fromString("0192f000-0000-7000-8000-0000000000ff"))
+                    .masterAccountId(master)
+                    .startedAt(start)
+                    .build();
+            OfflineSession low = openRow(2, 2, 0L).toBuilder()
+                    .id(UUID.fromString("0192f000-0000-7000-8000-000000000001"))
+                    .masterAccountId(master)
+                    .startedAt(start)
+                    .build();
+            bootWith(high, low);
+
+            List<OfflineSession> actual = engine.findOpenByMasterAccount(master, ActivityType.OFFLINE_FISHING);
+
+            assertEquals(low.getId(), actual.get(0).getId());
+            assertEquals(high.getId(), actual.get(1).getId());
+        }
+
+        @Test
+        void findOpenByMasterAccount_shouldIncludeAStartInFlight() {
+            List<List<OfflineSession>> seenDuringPlacement = new ArrayList<List<OfflineSession>>();
+            host.placement = s -> {
+                seenDuringPlacement.add(engine.findOpenByMasterAccount(master, ActivityType.OFFLINE_FISHING));
+                return OfflineSessionPlacement.placed(s.getSpotId());
+            };
+
+            OfflineSession actual = started(request().build());
+
+            assertEquals(1, seenDuringPlacement.get(0).size());
+            assertEquals(actual.getId(), seenDuringPlacement.get(0).get(0).getId());
+        }
+
+        @Test
+        void findOpenByMasterAccount_shouldIncludeAnEndQueuedForRetry() {
+            OfflineSession session = started(request().build());
+            store.failCloses = 1;
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            List<OfflineSession> actual = engine.findOpenByMasterAccount(master, ActivityType.OFFLINE_FISHING);
+
+            assertEquals(1, actual.size());
+            assertEquals(session.getId(), actual.get(0).getId());
+            assertEquals(LogoutReason.APP_STOPPED, actual.get(0).getEndReason());
+        }
+
+        @Test
+        void findOpenByMasterAccount_shouldBeEmpty_whenTheSessionClosed() {
+            started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertTrue(engine.findOpenByMasterAccount(master, ActivityType.OFFLINE_FISHING)
+                    .isEmpty());
+        }
+    }
+
+    @Nested
+    class FindLastStarted {
+
+        private final UUID master = UUID.fromString("0192f000-0000-7000-8000-000000000001");
+
+        private OfflineSession row(int characterId, Instant startedAt, @Nullable Instant endedAt) {
+            OfflineSession.Builder b = openRow(characterId, characterId, 0L).toBuilder()
+                    .id(UUIDv7.generate(startedAt))
+                    .masterAccountId(master)
+                    .startedAt(startedAt);
+            if (endedAt != null) {
+                b.endedAt(endedAt).endReason(LogoutReason.APP_STOPPED);
+            }
+            return b.build();
+        }
+
+        @Test
+        void findLastStarted_shouldReturnTheLatestRealStart_openOrClosed() {
+            Instant now = time.now();
+            OfflineSession older = row(1, now.minus(3, ChronoUnit.HOURS), now.minus(2, ChronoUnit.HOURS));
+            OfflineSession latestClosed = row(2, now.minus(1, ChronoUnit.HOURS), now.minus(30, ChronoUnit.MINUTES));
+            store.seed(older);
+            store.seed(latestClosed);
+            store.seed(row(3, now, null).toBuilder()
+                    .activity(ActivityType.OFFLINE_PRIVATE_STORE)
+                    .build());
+
+            Optional<OfflineSession> actual =
+                    engine.findLastStarted(master, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(latestClosed.getId(), actual.get().getId());
+        }
+
+        @Test
+        void findLastStarted_shouldPreferTheGreaterId_whenStartsAreEqual() {
+            Instant start = time.now().minus(1, ChronoUnit.HOURS);
+            OfflineSession low = row(1, start, null).toBuilder()
+                    .id(UUID.fromString("0192f000-0000-7000-8000-000000000001"))
+                    .build();
+            OfflineSession high = row(2, start, null).toBuilder()
+                    .id(UUID.fromString("0192f000-0000-7000-8000-0000000000ff"))
+                    .build();
+            store.seed(high);
+            store.seed(low);
+
+            assertEquals(
+                    high.getId(),
+                    engine.findLastStarted(master, ActivityType.OFFLINE_FISHING)
+                            .join()
+                            .get()
+                            .getId());
+        }
+
+        @Test
+        void findLastStarted_shouldSkipAStartInFlight() {
+            OfflineSession earlier = row(1, time.now().minus(1, ChronoUnit.HOURS), time.now());
+            store.seed(earlier);
+            List<Optional<OfflineSession>> seenDuringPlacement = new ArrayList<Optional<OfflineSession>>();
+            host.placement = s -> {
+                seenDuringPlacement.add(engine.findLastStarted(master, ActivityType.OFFLINE_FISHING)
+                        .join());
+                return OfflineSessionPlacement.placed(s.getSpotId());
+            };
+
+            OfflineSession started = started(request().build());
+
+            assertEquals(earlier.getId(), seenDuringPlacement.get(0).get().getId());
+            assertEquals(
+                    started.getId(),
+                    engine.findLastStarted(master, ActivityType.OFFLINE_FISHING)
+                            .join()
+                            .get()
+                            .getId());
+        }
+
+        @Test
+        void findLastStarted_shouldSkipARolledBackStartWhoseDeleteIsStillPending() {
+            host.failStartAction = true;
+            store.failDeletes = 1;
+            assertEquals(
+                    Status.UNAVAILABLE, engine.start(request().build()).join().getStatus());
+
+            assertFalse(engine.findLastStarted(master, ActivityType.OFFLINE_FISHING)
+                    .join()
+                    .isPresent());
+        }
+
+        @Test
+        void findLastStarted_shouldSkipAStartThatBeganDuringTheQuery() {
+            OfflineSession earlier = row(1, time.now().minus(1, ChronoUnit.HOURS), time.now());
+            store.seed(earlier);
+            InFlightStart[] began = new InFlightStart[1];
+            store.beforeFindLatestStarted = () -> {
+                store.beforeFindLatestStarted = null;
+                began[0] = new InFlightStart();
+            };
+
+            Optional<OfflineSession> actual =
+                    engine.findLastStarted(master, ActivityType.OFFLINE_FISHING).join();
+            began[0].finish();
+
+            assertEquals(earlier.getId(), actual.get().getId());
+        }
+
+        @Test
+        void findLastStarted_shouldReturnTheRealStart_whenAStartInFlightIsPlacedDuringTheQuery() {
+            store.seed(row(1, time.now().minus(1, ChronoUnit.HOURS), time.now()));
+            InFlightStart inFlight = new InFlightStart();
+            store.afterFindLatestStarted = () -> {
+                store.afterFindLatestStarted = null;
+                time.advance(5_000L);
+                inFlight.finish();
+            };
+
+            OfflineSession actual = engine.findLastStarted(master, ActivityType.OFFLINE_FISHING)
+                    .join()
+                    .get();
+
+            OfflineSession expected = inFlight.outcome.join().getSession();
+            assertEquals(expected.getId(), actual.getId());
+            assertEquals(expected.getStartedAt(), actual.getStartedAt());
+        }
+
+        @Test
+        void findLastStarted_shouldSkipAStartRolledBackDuringTheQuery() {
+            OfflineSession earlier = row(1, time.now().minus(1, ChronoUnit.HOURS), time.now());
+            store.seed(earlier);
+            InFlightStart inFlight = new InFlightStart();
+            host.failStartAction = true;
+            store.afterFindLatestStarted = () -> {
+                store.afterFindLatestStarted = null;
+                inFlight.finish();
+            };
+
+            Optional<OfflineSession> actual =
+                    engine.findLastStarted(master, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(Status.UNAVAILABLE, inFlight.outcome.join().getStatus());
+            assertEquals(earlier.getId(), actual.get().getId());
+        }
+
+        @Test
+        void findLastStarted_shouldReadPastAFullPageOfStartsThatNeverHappened() {
+            OfflineSession earlier = row(1, time.now().minus(1, ChronoUnit.HOURS), time.now());
+            store.seed(earlier);
+            host.failStartAction = true;
+            int neverStarted = AppSessionEngine.LAST_STARTED_CANDIDATES + 1;
+            store.failDeletes = neverStarted;
+            for (int i = 0; i < neverStarted; i++) {
+                AppSessionStartRequest request =
+                        request().characterId(CHAR_ID + i).spotId(10 + i).build();
+                assertEquals(Status.UNAVAILABLE, engine.start(request).join().getStatus());
+            }
+
+            Optional<OfflineSession> actual =
+                    engine.findLastStarted(master, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(earlier.getId(), actual.get().getId());
+        }
+
+        @Test
+        void findLastStarted_shouldAnswerAfterTheLastRound_whenStartsKeepSettlingDuringEveryQuery() {
+            OfflineSession earlier = row(1, time.now().minus(1, ChronoUnit.HOURS), time.now());
+            store.seed(earlier);
+            UUID otherMaster = UUID.fromString("0192f000-0000-7000-8000-000000000002");
+            int[] queries = {0};
+            store.afterFindLatestStarted = () -> {
+                int n = ++queries[0];
+                if (n <= 10) {
+                    started(request()
+                            .masterAccountId(otherMaster)
+                            .characterId(CHAR_ID + n)
+                            .spotId(10 + n)
+                            .build());
+                }
+            };
+
+            Optional<OfflineSession> actual =
+                    engine.findLastStarted(master, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(earlier.getId(), actual.get().getId());
+            assertEquals(AppSessionEngine.LAST_STARTED_ROUNDS, queries[0]);
+        }
+
+        @Test
+        void findLastStarted_shouldBeEmpty_whenTheMasterAccountHasNoSession() {
+            store.seed(
+                    row(1, time.now(), null).toBuilder().masterAccountId(null).build());
+
+            assertFalse(engine.findLastStarted(master, ActivityType.OFFLINE_FISHING)
+                    .join()
+                    .isPresent());
+        }
+
+        @Test
+        void findLastStarted_shouldCompleteExceptionally_whenTheTableCannotBeRead() {
+            store.failReads = true;
+
+            CompletableFuture<Optional<OfflineSession>> actual =
+                    engine.findLastStarted(master, ActivityType.OFFLINE_FISHING);
+
+            assertTrue(actual.isCompletedExceptionally());
+        }
+
+        private final class InFlightStart {
+            private final CountDownLatch placing = new CountDownLatch(1);
+            private final CountDownLatch release = new CountDownLatch(1);
+            final CompletableFuture<AppSessionStartOutcome> outcome;
+
+            InFlightStart() {
+                host.placement = s -> {
+                    placing.countDown();
+                    await(release);
+                    return OfflineSessionPlacement.placed(s.getSpotId());
+                };
+                outcome = CompletableFuture.supplyAsync(
+                        () -> engine.start(request().build()).join());
+                await(placing);
+            }
+
+            void finish() {
+                release.countDown();
+                outcome.join();
+            }
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("latch not released");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
     @Nested
@@ -485,7 +868,8 @@ class AppSessionEngineTest {
         void onClientLogin_shouldBePendingAndFinishTheCloseLater_whenTheCloseOutlastsTheWait() throws Exception {
             ExecutorService io = Executors.newSingleThreadExecutor();
             try {
-                AppSessionEngine slow = new AppSessionEngine(store, host, io, 4, time, time, 50L);
+                AppSessionEngine slow =
+                        new AppSessionEngine(store, host, () -> rules, () -> rulesFromFile, io, 4, time, time, 50L);
                 slow.bindEvents(events);
                 OfflineSession session = slow.start(request().build()).join().getSession();
                 CountDownLatch gate = new CountDownLatch(1);
@@ -688,7 +1072,7 @@ class AppSessionEngineTest {
             assertTrue(store.row(row.getId()).isOpen());
             assertTrue(events.events.isEmpty());
 
-            time.advance(host.settings.getRestoreBatchIntervalMs());
+            time.advance(rules.restoreBatchPauseMillis());
 
             assertTrue(host.called("startAction:" + row.getId()));
             assertTrue(events.single().isResumed());
@@ -696,7 +1080,7 @@ class AppSessionEngineTest {
 
         @Test
         void restore_shouldPutARefusedForNowSessionBehindTheOthers() {
-            host.settings = host.settings.toBuilder().restoreBatchSize(1).build();
+            rules = rules.toBuilder().restoreBatchSize(1).build();
             OfflineSession first = openRow(1, 1, 0L);
             OfflineSession second = openRow(2, 2, 0L).toBuilder()
                     .startedAt(first.getStartedAt().plusSeconds(1))
@@ -713,11 +1097,11 @@ class AppSessionEngineTest {
 
             hostReady();
             assertTrue(events.events.isEmpty());
-            time.advance(host.settings.getRestoreBatchIntervalMs());
+            time.advance(rules.restoreBatchPauseMillis());
             assertEquals(
                     Arrays.asList("place:" + first.getId(), "place:" + second.getId(), "startAction:" + second.getId()),
                     host.calls);
-            time.advance(host.settings.getRestoreBatchIntervalMs());
+            time.advance(rules.restoreBatchPauseMillis());
 
             assertTrue(host.called("startAction:" + first.getId()));
             assertEquals(2, events.events.size());
@@ -730,7 +1114,7 @@ class AppSessionEngineTest {
             bootWith(row);
 
             hostReady();
-            time.advance(AppSessionEngine.RESTORE_ATTEMPTS * host.settings.getRestoreBatchIntervalMs());
+            time.advance(AppSessionEngine.RESTORE_ATTEMPTS * rules.restoreBatchPauseMillis());
 
             assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
             int places = 0;
@@ -771,7 +1155,8 @@ class AppSessionEngineTest {
 
         @Test
         void restore_shouldCapTheBatchAtTheEnginesShareOfTheIoPool_whenTheHostAsksForMore() {
-            AppSessionEngine capped = new AppSessionEngine(store, host, Runnable::run, 2, time, time, 1_000L);
+            AppSessionEngine capped = new AppSessionEngine(
+                    store, host, () -> rules, () -> rulesFromFile, Runnable::run, 2, time, time, 1_000L);
             capped.bindEvents(events);
             store.seed(openRow(1, 1, 0L));
             store.seed(openRow(2, 2, 0L));
@@ -782,15 +1167,15 @@ class AppSessionEngineTest {
             capped.hostReady();
             time.advance(0L);
             assertEquals(2, events.events.size());
-            time.advance(host.settings.getRestoreBatchIntervalMs());
+            time.advance(rules.restoreBatchPauseMillis());
             assertEquals(3, events.events.size());
         }
 
         @Test
         void restore_shouldGoInBatchesAtTheHostsPace() {
-            host.settings = host.settings.toBuilder()
+            rules = rules.toBuilder()
                     .restoreBatchSize(2)
-                    .restoreBatchIntervalMs(5_000L)
+                    .restoreBatchPauseMillis(5_000)
                     .build();
             bootWith(openRow(1, 1, 0L), openRow(2, 2, 0L), openRow(3, 3, 0L));
 
@@ -820,8 +1205,8 @@ class AppSessionEngineTest {
         }
 
         @Test
-        void boot_shouldKeepEverything_whenRetentionIsZero() {
-            host.settings = host.settings.toBuilder().retentionDays(0).build();
+        void boot_shouldDeleteNothing_whenTheRulesAreNotTheFiles() {
+            rulesFromFile = false;
             OfflineSession old = closed(openRow(1, 1, 0L), time.now().minus(400, ChronoUnit.DAYS));
 
             bootWith(old);
@@ -842,7 +1227,8 @@ class AppSessionEngineTest {
 
         @Test
         void presence_shouldWaitForBind_whenSessionClosesBeforeThePlatformConnects() {
-            AppSessionEngine unbound = new AppSessionEngine(store, host, Runnable::run, 4, time, time, 1_000L);
+            AppSessionEngine unbound = new AppSessionEngine(
+                    store, host, () -> rules, () -> rulesFromFile, Runnable::run, 4, time, time, 1_000L);
             OfflineSession row = openRow(CHAR_ID, 5, 0L);
             store.seed(row);
             unbound.boot();

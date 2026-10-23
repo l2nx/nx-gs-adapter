@@ -1,23 +1,29 @@
-package app.l2nx.gs.adapter.core.appsessions;
+package app.l2nx.gs.adapter.core.appsettings;
 
+import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.NxHeaders;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.SettingsSyncEvent;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSessionTypeSettings;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
+import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.kafka.KafkaException;
 import app.l2nx.gs.kafka.NxKafka;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Keyed by the raw 16-byte {@code serverId} like the gd stream so one server's snapshots stay ordered. The latest
+ * Keyed by the raw 16-byte {@code serverId} like the gd stream, so one server's snapshots stay ordered. The latest
  * snapshot is resent after every reconnect; one equal to the last sent apart from {@code updatedAt} is skipped.
  */
 final class AppSettingsPublisher {
@@ -63,6 +69,15 @@ final class AppSettingsPublisher {
 
     synchronized void disconnect() {
         connected = false;
+    }
+
+    synchronized void clear() {
+        latest = null;
+        sent = null;
+    }
+
+    void publish(AppRules rules) {
+        publish(toSettings(rules, Instant.ofEpochMilli(clockMs.getAsLong())));
     }
 
     synchronized void publish(AppSettings settings) {
@@ -113,6 +128,23 @@ final class AppSettingsPublisher {
                 sent = null;
             }
         }
+    }
+
+    static AppSettings toSettings(AppRules rules, Instant updatedAt) {
+        List<AppSessionTypeSettings> types = new ArrayList<AppSessionTypeSettings>();
+        for (ActivityType activity : AppSettingsCatalog.SESSION_TYPE_KEYS.values()) {
+            types.add(new AppSessionTypeSettings(activity, rules.sessionTypeEnabled(activity)));
+        }
+        return AppSettings.builder()
+                .sessionTypes(types)
+                .recentlyLeftGameMinutes(rules.recentLogoutMinutes())
+                .startCooldownMinutes(rules.fishingStartCooldownMinutes())
+                .returnThresholdMinutes(rules.returnThresholdMinutes())
+                .restartWindowMinutes(rules.restartWindowMinutes())
+                .fishingMinDurationMs(TimeUnit.MINUTES.toMillis(rules.fishingMinDurationMinutes()))
+                .fishingMaxDurationMs(TimeUnit.MINUTES.toMillis(rules.fishingMaxDurationMinutes()))
+                .updatedAt(updatedAt)
+                .build();
     }
 
     private static boolean sameIgnoringUpdatedAt(AppSettings a, AppSettings b) {

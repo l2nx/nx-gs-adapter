@@ -2,16 +2,18 @@ package app.l2nx.gs.adapter.core.appsessions;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
+import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
 import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
 import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSessionPlacement;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSessionSettings;
+import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
 import app.l2nx.gs.commons.UUIDv7;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
+import app.l2nx.gs.commons.identifiers.ClientIdentifiers;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.time.Instant;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,12 +41,14 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import org.jspecify.annotations.Nullable;
 
 /**
  * A close or rolled-back start whose table write fails stays in {@link #pendingWrites} and is retried until it lands;
- * the character counts as busy meanwhile. If the JVM stops first the row is still open and gets restored, so the
- * platform sees the session resumed: the lesser harm next to a character silently lost from the world.
+ * the character counts as busy meanwhile. If the JVM stops first the row stays open and is restored: the lesser harm
+ * next to a character silently lost from the world.
  */
 final class AppSessionEngine {
 
@@ -53,6 +58,8 @@ final class AppSessionEngine {
     static final long LOGIN_CLOSE_TIMEOUT_MS = 15_000L;
     static final long SHUTDOWN_FLUSH_TIMEOUT_MS = 5_000L;
     static final int RESTORE_ATTEMPTS = 5;
+    static final int LAST_STARTED_CANDIDATES = 4;
+    static final int LAST_STARTED_ROUNDS = 3;
 
     static final Set<LogoutReason> HOST_END_REASONS = Collections.unmodifiableSet(EnumSet.of(
             LogoutReason.APP_OUT_OF_BAIT,
@@ -71,6 +78,8 @@ final class AppSessionEngine {
 
     private final OfflineSessionStore store;
     private final OfflineSessionHost host;
+    private final NxAppRules rules;
+    private final BooleanSupplier rulesFromFile;
     private final BoundedExecutor work;
     private final ScheduledExecutorService scheduler;
     private final AppSessionClock clock;
@@ -87,11 +96,14 @@ final class AppSessionEngine {
     private final AtomicBoolean hostReady = new AtomicBoolean();
     private final AtomicBoolean restoreBegun = new AtomicBoolean();
     private final AtomicBoolean stopped = new AtomicBoolean();
-    private volatile @Nullable OfflineSessionSettings lastSettings;
+    /** Moves before a start leaves STARTING or its rolled-back row leaves the table, see {@link #lastReallyStarted}. */
+    private final AtomicLong settledStarts = new AtomicLong();
 
     AppSessionEngine(
             OfflineSessionStore store,
             OfflineSessionHost host,
+            NxAppRules rules,
+            BooleanSupplier rulesFromFile,
             Executor io,
             int ioLimit,
             ScheduledExecutorService scheduler,
@@ -99,23 +111,26 @@ final class AppSessionEngine {
             long loginCloseTimeoutMs) {
         this.store = store;
         this.host = host;
+        this.rules = rules;
+        this.rulesFromFile = rulesFromFile;
         this.work = new BoundedExecutor(io, ioLimit);
         this.scheduler = scheduler;
         this.clock = clock;
         this.loginCloseTimeoutMs = loginCloseTimeoutMs;
     }
 
-    /** Throws when the host's settings or the table cannot be read, which leaves the engine unusable. */
+    /**
+     * Throws when the table cannot be read, leaving the engine unusable. History cleanup runs only with the file's
+     * retention: defaults standing in for a rejected file may be far shorter than intended.
+     */
     void boot() {
-        OfflineSessionSettings settings = host.settings();
-        lastSettings = settings;
-        if (settings.getRetentionDays() > 0) {
-            Instant cutoff = clock.now().minus(settings.getRetentionDays(), ChronoUnit.DAYS);
-            int deleted = store.deleteClosedBefore(cutoff);
-            log.info(
-                    "App sessions: deleted {} closed session(s) older than {} day(s)",
-                    deleted,
-                    settings.getRetentionDays());
+        if (rulesFromFile.getAsBoolean()) {
+            int retentionDays = rules.current().historyRetentionDays();
+            int deleted = store.deleteClosedBefore(clock.now().minus(retentionDays, ChronoUnit.DAYS));
+            log.info("App sessions: deleted {} closed session(s) older than {} day(s)", deleted, retentionDays);
+        } else {
+            log.warn("App sessions: no closed session deleted at this start, the app settings file was not applied and"
+                    + " its app.history.retention-days is unknown");
         }
         List<OfflineSession> open = store.loadOpen();
         for (OfflineSession row : open) {
@@ -169,12 +184,12 @@ final class AppSessionEngine {
         }
         pending.sort(Comparator.comparing((Slot s) -> s.row.getStartedAt()).thenComparing(s -> s.id));
         restoreQueue.addAll(pending);
-        OfflineSessionSettings settings = settings();
+        AppRules current = rules.current();
         log.info(
                 "App sessions: restoring {} session(s), {} every {} ms",
                 pending.size(),
-                Math.min(settings.getRestoreBatchSize(), work.limit()),
-                settings.getRestoreBatchIntervalMs());
+                Math.min(current.restoreBatchSize(), work.limit()),
+                current.restoreBatchPauseMillis());
         scheduleRestoreBatch(0L);
     }
 
@@ -232,6 +247,8 @@ final class AppSessionEngine {
             return CompletableFuture.completedFuture(answerPending(pending, request));
         }
         Instant now = nowSeconds();
+        // fixed at the start, so a later change of the file never moves the return rule of a running session
+        long returnThresholdMs = TimeUnit.MINUTES.toMillis(rules.current().returnThresholdMinutes());
         OfflineSession row = OfflineSession.builder()
                 .id(UUIDv7.generate(now))
                 .idempotencyKey(request.getIdempotencyKey())
@@ -239,8 +256,8 @@ final class AppSessionEngine {
                 .activity(request.getActivity())
                 .accountName(request.getAccountName())
                 .masterAccountId(request.getMasterAccountId())
-                .hwid(request.getHwid())
-                .initiatorIp(request.getInitiatorIp())
+                .hwid(ClientIdentifiers.hwid(request.getHwid()))
+                .initiatorIp(ClientIdentifiers.ip(request.getInitiatorIp()))
                 .spotPool(request.getSpotPool())
                 .spotId(request.getSpotId())
                 .originX(request.getOriginX())
@@ -250,6 +267,7 @@ final class AppSessionEngine {
                 .startedAt(now)
                 .plannedMs(request.getPlannedMs())
                 .activeMs(0L)
+                .returnThresholdMs(returnThresholdMs)
                 .typeState(request.getTypeState())
                 .build();
         Slot slot = new Slot(row, Phase.STARTING, new SerialExecutor(work));
@@ -362,6 +380,90 @@ final class AppSessionEngine {
         }
         PendingWrite pending = pendingWrites.get(characterId);
         return pending == null ? Optional.<OfflineSession>empty() : Optional.of(pending.session);
+    }
+
+    List<OfflineSession> findOpenByMasterAccount(UUID masterAccountId, ActivityType activity) {
+        long now = clock.monotonicMs();
+        Map<UUID, OfflineSession> found = new LinkedHashMap<UUID, OfflineSession>();
+        for (Slot slot : byId.values()) {
+            if (slot.phase != Phase.CLOSED && matches(slot.row, masterAccountId, activity)) {
+                found.put(slot.id, slot.view(now));
+            }
+        }
+        // an end or a rolled-back start the table has not taken yet keeps the character busy until its retry lands
+        for (PendingWrite pending : pendingWrites.values()) {
+            if (matches(pending.session, masterAccountId, activity)) {
+                found.putIfAbsent(pending.session.getId(), pending.session);
+            }
+        }
+        List<OfflineSession> result = new ArrayList<OfflineSession>(found.values());
+        result.sort(Comparator.comparing(OfflineSession::getStartedAt).thenComparing(OfflineSession::getId));
+        return result;
+    }
+
+    CompletableFuture<Optional<OfflineSession>> findLastStarted(UUID masterAccountId, ActivityType activity) {
+        CompletableFuture<Optional<OfflineSession>> result = new CompletableFuture<Optional<OfflineSession>>();
+        work.execute(() -> {
+            try {
+                result.complete(lastReallyStarted(masterAccountId, activity));
+            } catch (Throwable t) {
+                result.completeExceptionally(t);
+            }
+        });
+        return result;
+    }
+
+    /**
+     * In-flight starts and rolled-back ones whose delete the table refused already have rows but never really started;
+     * they are identified after the query, which is safe because a start registers its slot before writing its row. A
+     * start that settled during the query may leave stale state in the result, then the read repeats, at most
+     * {@value #LAST_STARTED_ROUNDS} times so a busy master account cannot hold an IO worker forever; the last read answers.
+     */
+    private Optional<OfflineSession> lastReallyStarted(UUID masterAccountId, ActivityType activity) {
+        int limit = LAST_STARTED_CANDIDATES;
+        for (int round = 1; ; round++) {
+            long settledBefore = settledStarts.get();
+            List<OfflineSession> candidates = store.findLatestStarted(masterAccountId, activity, limit);
+            Set<UUID> notStarted = notReallyStarted(masterAccountId, activity);
+            boolean settled = settledStarts.get() != settledBefore;
+            Optional<OfflineSession> first = firstReallyStarted(candidates, notStarted);
+            boolean complete = first.isPresent() || candidates.size() < limit;
+            if ((complete && !settled) || round == LAST_STARTED_ROUNDS) {
+                return first;
+            }
+            if (!complete) {
+                // a page one row longer than every start not really started holds a real one, if the table has any
+                limit = Math.max(limit, notStarted.size() + 1);
+            }
+        }
+    }
+
+    private static Optional<OfflineSession> firstReallyStarted(List<OfflineSession> candidates, Set<UUID> notStarted) {
+        for (OfflineSession row : candidates) {
+            if (!notStarted.contains(row.getId())) {
+                return Optional.of(row);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Set<UUID> notReallyStarted(UUID masterAccountId, ActivityType activity) {
+        Set<UUID> notStarted = new HashSet<UUID>();
+        for (Slot slot : byId.values()) {
+            if (slot.phase == Phase.STARTING && matches(slot.row, masterAccountId, activity)) {
+                notStarted.add(slot.id);
+            }
+        }
+        for (PendingWrite pending : pendingWrites.values()) {
+            if (pending.delete && matches(pending.session, masterAccountId, activity)) {
+                notStarted.add(pending.session.getId());
+            }
+        }
+        return notStarted;
+    }
+
+    private static boolean matches(OfflineSession row, UUID masterAccountId, ActivityType activity) {
+        return row.getActivity() == activity && masterAccountId.equals(row.getMasterAccountId());
     }
 
     CompletableFuture<Boolean> updateTypeState(UUID sessionId, @Nullable String typeState) {
@@ -535,8 +637,8 @@ final class AppSessionEngine {
         if (!pendingWrites.isEmpty()) {
             work.execute(this::retryPendingWrites);
         }
-        OfflineSessionSettings settings = settings();
-        int batchSize = Math.min(settings.getRestoreBatchSize(), work.limit());
+        AppRules current = rules.current();
+        int batchSize = Math.min(current.restoreBatchSize(), work.limit());
         int submitted = 0;
         // a restore refused for now queues itself again and must wait for the next batch, not run in this one
         int queued = restoreQueue.size();
@@ -550,7 +652,7 @@ final class AppSessionEngine {
             submitted++;
         }
         if (!restoreQueue.isEmpty()) {
-            scheduleRestoreBatch(settings.getRestoreBatchIntervalMs());
+            scheduleRestoreBatch(current.restoreBatchPauseMillis());
         }
     }
 
@@ -583,7 +685,7 @@ final class AppSessionEngine {
                     slot.restoreAttempts,
                     RESTORE_ATTEMPTS);
             restoreQueue.add(slot);
-            scheduleRestoreBatch(settings().getRestoreBatchIntervalMs());
+            scheduleRestoreBatch(rules.current().restoreBatchPauseMillis());
             return;
         }
         if (placement == null || !placement.isPlaced()) {
@@ -662,7 +764,7 @@ final class AppSessionEngine {
                         t);
             }
         }
-        removeQuietly(row, activeMs < settings().getReturnThresholdMs());
+        removeQuietly(row, activeMs < returnThresholdMs(row));
         Instant endedAt = nowSeconds();
         OfflineSession closed =
                 row.toBuilder().endedAt(endedAt).endReason(reason).build();
@@ -688,6 +790,9 @@ final class AppSessionEngine {
 
     private void run(Slot slot) {
         long now = clock.monotonicMs();
+        if (slot.phase == Phase.STARTING) {
+            settledStarts.incrementAndGet();
+        }
         slot.phase = Phase.RUNNING;
         slot.startCounting(now);
         armEndTimer(slot, now);
@@ -744,6 +849,7 @@ final class AppSessionEngine {
                 try {
                     if (pending.delete) {
                         store.delete(session.getId());
+                        settledStarts.incrementAndGet();
                     } else {
                         store.close(
                                 session.getId(), session.getActiveMs(), session.getEndedAt(), session.getEndReason());
@@ -813,25 +919,16 @@ final class AppSessionEngine {
         }
     }
 
-    /** Falls back to the last good settings when reading throws, so an end never stalls on it. */
-    private OfflineSessionSettings settings() {
-        try {
-            OfflineSessionSettings current = host.settings();
-            if (current != null) {
-                lastSettings = current;
-                return current;
-            }
-        } catch (Throwable t) {
-            log.error(
-                    "App sessions: OfflineSessionHost.settings() threw {}",
-                    t.getClass().getName(),
-                    t);
-        }
-        OfflineSessionSettings last = lastSettings;
-        return last != null ? last : OfflineSessionSettings.builder().build();
+    /** A row stored before the adapter kept the threshold uses the current one. */
+    private long returnThresholdMs(OfflineSession row) {
+        Long fixed = row.getReturnThresholdMs();
+        return fixed != null ? fixed : TimeUnit.MINUTES.toMillis(rules.current().returnThresholdMinutes());
     }
 
     private void forget(Slot slot) {
+        if (slot.phase == Phase.STARTING) {
+            settledStarts.incrementAndGet();
+        }
         slot.phase = Phase.CLOSED;
         byId.remove(slot.id, slot);
         byCharacter.remove(slot.row.getCharacterId(), slot);

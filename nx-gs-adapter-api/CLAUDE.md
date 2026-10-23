@@ -66,8 +66,8 @@ in its root and splits effect / condition / learn / produced types into sub-pack
   `PrimarySource`, `ChildSource`, `ParentRef`), `RuntimeStateProvider` (+ `RuntimeEntityMapping`,
   `RuntimeRow`), and the gd catalog providers (`ItemTemplateProvider`, `SkillProvider`, …, plus the
   singleton `GearScoreRulesetProvider` and the optional `GameDataReadinessProvider` — absent means
-  "always ready", see spec 030), and `OfflineSessionHost` (+ `OfflineSession`, `OfflineSessionPlacement`,
-  `OfflineSessionSettings`) — the game side of app sessions; none disables the engine, two fail it (spec 038).
+  "always ready", see spec 030), and `OfflineSessionHost` (+ `OfflineSession`, `OfflineSessionPlacement`)
+  — the game side of app sessions; none disables the engine, two fail it (spec 038).
 - **Tier-3** `JdbcConnectionSource` (`spi.provider`) — how a host hands the adapter a pooled
   connection. Read-only is the consumer's call after every borrow (db-sync reads, the migrator and the
   adapter's own stores write), so a provider must not force it.
@@ -77,6 +77,8 @@ in its root and splits effect / condition / learn / produced types into sub-pack
   `NxEvents`, `NxCommands` (+ `CommandHandler`, `HostExecutor`, `DeferredReply`), `NxSync`,
   `NxGameData`, `NxAppSessions` (+ `AppSessionStartRequest`, `AppSessionStartOutcome`, `ClientLoginOutcome` in
   `spi.model`; also reachable as the static `NxAdapter.appSessions()` for host code outside a module),
+  `NxAppRules` (+ `AppRules`, `SpotOrder` in `spi.model.appsettings`; the live `l2nx-app.properties` values, also
+  the static `NxAdapter.appRules()`, spec 038 R20),
   `NxCommandReceipts` (+ `spi.model.receipt`; via `CommandContext` and the static `NxAdapter.commandReceipts()`, spec
   040). Each ships a `NoOp*` fallback so a context wired without that runtime never returns null; the receipts
   fallback throws instead of doing nothing, since a dropped receipt write loses money.

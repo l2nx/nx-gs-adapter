@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.core.appsessions;
 
+import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
 import java.time.Instant;
@@ -19,6 +20,7 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
     int flushes;
     int failCloses;
     int failDeletes;
+    boolean failReads;
 
     synchronized void seed(OfflineSession row) {
         rows.put(row.getId(), row);
@@ -71,6 +73,41 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
             }
         }
         return Optional.empty();
+    }
+
+    /** Run outside the store's lock, so they may drive a start on another thread. */
+    volatile @Nullable Runnable beforeFindLatestStarted;
+
+    volatile @Nullable Runnable afterFindLatestStarted;
+
+    @Override
+    public List<OfflineSession> findLatestStarted(UUID masterAccountId, ActivityType activity, int limit) {
+        runHook(beforeFindLatestStarted);
+        List<OfflineSession> found = latestStarted(masterAccountId, activity, limit);
+        runHook(afterFindLatestStarted);
+        return found;
+    }
+
+    private static void runHook(@Nullable Runnable hook) {
+        if (hook != null) {
+            hook.run();
+        }
+    }
+
+    private synchronized List<OfflineSession> latestStarted(UUID masterAccountId, ActivityType activity, int limit) {
+        if (failReads) {
+            throw new OfflineSessionStoreException("simulated read failure", new RuntimeException());
+        }
+        List<OfflineSession> found = new ArrayList<OfflineSession>();
+        for (OfflineSession row : rows.values()) {
+            if (row.getActivity() == activity && masterAccountId.equals(row.getMasterAccountId())) {
+                found.add(row);
+            }
+        }
+        found.sort(Comparator.comparing(OfflineSession::getStartedAt)
+                .thenComparing(OfflineSession::getId)
+                .reversed());
+        return found.size() > limit ? new ArrayList<OfflineSession>(found.subList(0, limit)) : found;
     }
 
     @Override
