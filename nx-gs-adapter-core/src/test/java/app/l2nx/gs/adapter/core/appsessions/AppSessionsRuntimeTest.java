@@ -161,6 +161,32 @@ class AppSessionsRuntimeTest {
     }
 
     @Nested
+    class FindOpen {
+
+        @Test
+        void findOpen_shouldListSessionsAwaitingTheRestore_whenHostReadyWasNotCalled() {
+            InMemoryOfflineSessionStore store = new InMemoryOfflineSessionStore();
+            OfflineSession open = openSession(7);
+            store.seed(open);
+            AppSessionsFacade facade = new AppSessionsFacade(10L);
+            facade.ready(bootedEngine(store));
+
+            List<OfflineSession> actual = facade.findOpen(open.getActivity());
+
+            assertEquals(1, actual.size());
+            assertEquals(open.getId(), actual.get(0).getId());
+        }
+
+        @Test
+        void findOpen_shouldBeEmpty_whenTheEngineDoesNotRun() {
+            AppSessionsFacade facade = new AppSessionsFacade(10L);
+            facade.booting();
+
+            assertTrue(facade.findOpen(ActivityType.OFFLINE_FISHING).isEmpty());
+        }
+    }
+
+    @Nested
     class FindLastStarted {
 
         @ParameterizedTest(name = "{0} {1}")

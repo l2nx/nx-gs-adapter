@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.spi;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
@@ -11,11 +12,17 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class NoOpAppSessionsTest {
+
+    @Test
+    void findOpen_shouldBeEmpty() {
+        assertTrue(NoOpAppSessions.INSTANCE.findOpen(ActivityType.OFFLINE_FISHING).isEmpty());
+    }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("lastStartedReads")

@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class AppSessionEngineTest {
 
@@ -514,6 +515,74 @@ class AppSessionEngineTest {
     }
 
     @Nested
+    class FindOpen {
+
+        @Test
+        void findOpen_shouldListEverySessionOfTheActivityByStartWithItsSpot_whenRestoreAwaitsHostReady() {
+            OfflineSession later = openRow(2, 7, 0L).toBuilder()
+                    .startedAt(time.now().minus(1, ChronoUnit.HOURS))
+                    .build();
+            OfflineSession earlier = openRow(3, 8, 0L).toBuilder()
+                    .spotPool("river")
+                    .startedAt(time.now().minus(3, ChronoUnit.HOURS))
+                    .build();
+            OfflineSession otherActivity = openRow(4, 9, 0L).toBuilder()
+                    .activity(ActivityType.OFFLINE_PRIVATE_STORE)
+                    .build();
+            bootWith(later, earlier, otherActivity);
+            OfflineSession running = started(request().build());
+
+            List<OfflineSession> actual = engine.findOpen(ActivityType.OFFLINE_FISHING);
+
+            assertEquals(
+                    Arrays.asList(earlier.getId(), later.getId(), running.getId()),
+                    Arrays.asList(
+                            actual.get(0).getId(),
+                            actual.get(1).getId(),
+                            actual.get(2).getId()));
+            assertEquals(3, actual.size());
+            assertEquals("river", actual.get(0).getSpotPool());
+            assertEquals(8, actual.get(0).getSpotId());
+            assertFalse(host.called("place:" + earlier.getId()));
+        }
+
+        @Test
+        void findOpen_shouldIncludeAStartInFlight() {
+            List<List<OfflineSession>> seenDuringPlacement = new ArrayList<List<OfflineSession>>();
+            host.placement = s -> {
+                seenDuringPlacement.add(engine.findOpen(ActivityType.OFFLINE_FISHING));
+                return OfflineSessionPlacement.placed(s.getSpotId());
+            };
+
+            OfflineSession actual = started(request().build());
+
+            assertEquals(1, seenDuringPlacement.get(0).size());
+            assertEquals(actual.getId(), seenDuringPlacement.get(0).get(0).getId());
+        }
+
+        @Test
+        void findOpen_shouldIncludeAnEndQueuedForRetry() {
+            OfflineSession session = started(request().build());
+            store.failCloses = 1;
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            List<OfflineSession> actual = engine.findOpen(ActivityType.OFFLINE_FISHING);
+
+            assertEquals(1, actual.size());
+            assertEquals(session.getId(), actual.get(0).getId());
+            assertEquals(LogoutReason.APP_STOPPED, actual.get(0).getEndReason());
+        }
+
+        @Test
+        void findOpen_shouldBeEmpty_whenTheSessionClosed() {
+            started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertTrue(engine.findOpen(ActivityType.OFFLINE_FISHING).isEmpty());
+        }
+    }
+
+    @Nested
     class FindLastStartedByCharacter {
 
         private final ActivityType privateStore = ActivityType.OFFLINE_PRIVATE_STORE;
@@ -557,7 +626,10 @@ class AppSessionEngineTest {
 
             assertEquals(
                     expected.getId(),
-                    engine.findLastStartedByCharacter(CHAR_ID, privateStore).join().get().getId());
+                    engine.findLastStartedByCharacter(CHAR_ID, privateStore)
+                            .join()
+                            .get()
+                            .getId());
         }
 
         @Test
@@ -576,7 +648,10 @@ class AppSessionEngineTest {
             assertEquals(earlier.getId(), seenDuringPlacement.get(0).get().getId());
             assertEquals(
                     started.getId(),
-                    engine.findLastStartedByCharacter(CHAR_ID, privateStore).join().get().getId());
+                    engine.findLastStartedByCharacter(CHAR_ID, privateStore)
+                            .join()
+                            .get()
+                            .getId());
         }
 
         @Test
@@ -587,14 +662,17 @@ class AppSessionEngineTest {
                     Status.UNAVAILABLE,
                     engine.start(storeRequest().build()).join().getStatus());
 
-            assertFalse(engine.findLastStartedByCharacter(CHAR_ID, privateStore).join().isPresent());
+            assertFalse(engine.findLastStartedByCharacter(CHAR_ID, privateStore)
+                    .join()
+                    .isPresent());
         }
 
         @Test
         void findLastStarted_shouldCompleteExceptionally_whenTheTableCannotBeRead() {
             store.failReads = true;
 
-            CompletableFuture<Optional<OfflineSession>> actual = engine.findLastStartedByCharacter(CHAR_ID, privateStore);
+            CompletableFuture<Optional<OfflineSession>> actual =
+                    engine.findLastStartedByCharacter(CHAR_ID, privateStore);
 
             assertTrue(actual.isCompletedExceptionally());
         }
@@ -627,8 +705,9 @@ class AppSessionEngineTest {
                     .activity(ActivityType.OFFLINE_PRIVATE_STORE)
                     .build());
 
-            Optional<OfflineSession> actual =
-                    engine.findLastStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING).join();
+            Optional<OfflineSession> actual = engine.findLastStartedByMasterAccount(
+                            master, ActivityType.OFFLINE_FISHING)
+                    .join();
 
             assertEquals(latestClosed.getId(), actual.get().getId());
         }
@@ -697,8 +776,9 @@ class AppSessionEngineTest {
                 began[0] = new InFlightStart();
             };
 
-            Optional<OfflineSession> actual =
-                    engine.findLastStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING).join();
+            Optional<OfflineSession> actual = engine.findLastStartedByMasterAccount(
+                            master, ActivityType.OFFLINE_FISHING)
+                    .join();
             began[0].finish();
 
             assertEquals(earlier.getId(), actual.get().getId());
@@ -734,8 +814,9 @@ class AppSessionEngineTest {
                 inFlight.finish();
             };
 
-            Optional<OfflineSession> actual =
-                    engine.findLastStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING).join();
+            Optional<OfflineSession> actual = engine.findLastStartedByMasterAccount(
+                            master, ActivityType.OFFLINE_FISHING)
+                    .join();
 
             assertEquals(Status.UNAVAILABLE, inFlight.outcome.join().getStatus());
             assertEquals(earlier.getId(), actual.get().getId());
@@ -754,8 +835,9 @@ class AppSessionEngineTest {
                 assertEquals(Status.UNAVAILABLE, engine.start(request).join().getStatus());
             }
 
-            Optional<OfflineSession> actual =
-                    engine.findLastStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING).join();
+            Optional<OfflineSession> actual = engine.findLastStartedByMasterAccount(
+                            master, ActivityType.OFFLINE_FISHING)
+                    .join();
 
             assertEquals(earlier.getId(), actual.get().getId());
         }
@@ -777,8 +859,9 @@ class AppSessionEngineTest {
                 }
             };
 
-            Optional<OfflineSession> actual =
-                    engine.findLastStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING).join();
+            Optional<OfflineSession> actual = engine.findLastStartedByMasterAccount(
+                            master, ActivityType.OFFLINE_FISHING)
+                    .join();
 
             assertEquals(earlier.getId(), actual.get().getId());
             assertEquals(AppSessionEngine.LAST_STARTED_ROUNDS, queries[0]);
@@ -988,16 +1071,26 @@ class AppSessionEngineTest {
     @Nested
     class HostCallbacks {
 
-        @Test
-        void onActionEnded_shouldCloseWithTheHostsReason_whenSessionRuns() {
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(
+                value = LogoutReason.class,
+                names = {
+                    "APP_OUT_OF_BAIT",
+                    "APP_DAILY_LIMIT",
+                    "APP_INVENTORY_FULL",
+                    "APP_SOLD_OUT",
+                    "APP_INTERRUPTED",
+                    "BANNED",
+                    "KICKED"
+                })
+        void onActionEnded_shouldCloseWithTheHostsReason_whenSessionRuns(LogoutReason reason) {
             OfflineSession session = started(request().build());
 
-            engine.onActionEnded(session.getId(), LogoutReason.APP_OUT_OF_BAIT);
+            engine.onActionEnded(session.getId(), reason);
 
-            assertEquals(
-                    LogoutReason.APP_OUT_OF_BAIT, store.row(session.getId()).getEndReason());
+            assertEquals(reason, store.row(session.getId()).getEndReason());
             assertTrue(host.called("stopAction:" + session.getId()));
-            assertEquals(LogoutReason.APP_OUT_OF_BAIT, events.last().getLogoutReason());
+            assertEquals(reason, events.last().getLogoutReason());
         }
 
         @Test

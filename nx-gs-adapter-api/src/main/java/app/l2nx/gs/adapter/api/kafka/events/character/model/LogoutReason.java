@@ -39,6 +39,13 @@ public enum LogoutReason {
 
     APP_SOLD_OUT,
 
+    /**
+     * App session: the game stopped the placed character's action (it was moved off its spot, lost what the action
+     * needs, or the action could not resume). Not a staff kick ({@link #KICKED}) and not the player's stop
+     * ({@link #APP_STOPPED}).
+     */
+    APP_INTERRUPTED,
+
     /** App session: restoring after a host restart failed, e.g. no free spot. */
     APP_RESTORE_FAILED
 }

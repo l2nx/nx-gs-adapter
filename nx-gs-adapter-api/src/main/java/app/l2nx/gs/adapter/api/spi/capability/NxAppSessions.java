@@ -68,6 +68,15 @@ public interface NxAppSessions {
     List<OfflineSession> findOpenByMasterAccount(UUID masterAccountId, ActivityType activity);
 
     /**
+     * Every session of {@code activity} that still holds its character (running, awaiting the restore, a start in
+     * flight, an end queued for retry), ordered by {@link OfflineSession#getStartedAt()}, then id; in-memory. Before
+     * {@link #hostReady()} it already lists the sessions awaiting the restore, so the host can count them against its
+     * own limits and keep their spots ({@link OfflineSession#getSpotPool()}, {@link OfflineSession#getSpotId()}) out of
+     * a free-spot pick.
+     */
+    List<OfflineSession> findOpen(ActivityType activity);
+
+    /**
      * Latest real start ({@link OfflineSession#getStartedAt()}) among the rows the table keeps; ties go to the greater
      * id. A failed read, or one while the engine does not run, completes exceptionally: refuse the start as
      * temporarily unavailable, never as "no previous session".

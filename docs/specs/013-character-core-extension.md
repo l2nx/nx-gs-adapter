@@ -102,7 +102,10 @@ online=false}`) для каждого id, который был в `previousOnli
   - `logoutReason` (`LogoutReason`, closed enum, constant name on the wire), REQUIRED on every `online = false` event,
     a plain logout included. Client values: `LOGOUT`, `DISCONNECT` (involuntary connection loss: network drop, client crash, DDoS), `OFFLINE_PRIVATE_STORE`, `SERVER_STOP`. Common to client and app sessions: `BANNED`, `KICKED` (a client session reports a kick or a ban with them, not as `DISCONNECT`). App-only values:
     `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL`,
-    `APP_SOLD_OUT`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`.
+    `APP_SOLD_OUT`, `APP_INTERRUPTED` (the game stopped the placed character's action: a teleport, the tool or consumable
+    vanished, the action failed to restart; not `KICKED`, not `APP_STOPPED`), `BANNED`, `KICKED`, `APP_RESTORE_FAILED`.
+    A new value lands in order: adapter enum (api release), then the platform enum and its CHECK, then the host;
+    `APP_INTERRUPTED` came in api 0.115.0.
 
   There is no `report` field: the session report is an initial design only, not approved and not in this contract
   ([`038`](038-app-offline-sessions.md) › Session report).

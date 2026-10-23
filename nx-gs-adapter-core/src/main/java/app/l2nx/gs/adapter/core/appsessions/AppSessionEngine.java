@@ -67,6 +67,7 @@ final class AppSessionEngine {
             LogoutReason.APP_DAILY_LIMIT,
             LogoutReason.APP_INVENTORY_FULL,
             LogoutReason.APP_SOLD_OUT,
+            LogoutReason.APP_INTERRUPTED,
             LogoutReason.BANNED,
             LogoutReason.KICKED));
 
@@ -384,16 +385,24 @@ final class AppSessionEngine {
     }
 
     List<OfflineSession> findOpenByMasterAccount(UUID masterAccountId, ActivityType activity) {
+        return findOpen(row -> matches(row, masterAccountId, activity));
+    }
+
+    List<OfflineSession> findOpen(ActivityType activity) {
+        return findOpen(row -> row.getActivity() == activity);
+    }
+
+    private List<OfflineSession> findOpen(Predicate<OfflineSession> subject) {
         long now = clock.monotonicMs();
         Map<UUID, OfflineSession> found = new LinkedHashMap<UUID, OfflineSession>();
         for (Slot slot : byId.values()) {
-            if (slot.phase != Phase.CLOSED && matches(slot.row, masterAccountId, activity)) {
+            if (slot.phase != Phase.CLOSED && subject.test(slot.row)) {
                 found.put(slot.id, slot.view(now));
             }
         }
         // an end or a rolled-back start the table has not taken yet keeps the character busy until its retry lands
         for (PendingWrite pending : pendingWrites.values()) {
-            if (matches(pending.session, masterAccountId, activity)) {
+            if (subject.test(pending.session)) {
                 found.putIfAbsent(pending.session.getId(), pending.session);
             }
         }

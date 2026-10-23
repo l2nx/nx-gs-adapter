@@ -208,6 +208,20 @@ final class AppSessionsFacade implements NxAppSessions {
     }
 
     @Override
+    public List<OfflineSession> findOpen(ActivityType activity) {
+        AppSessionEngine e = engine;
+        if (e == null || activity == null) {
+            return Collections.emptyList();
+        }
+        try {
+            return e.findOpen(activity);
+        } catch (Throwable t) {
+            log.error("App sessions: findOpen threw {}", t.getClass().getName(), t);
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
     public CompletableFuture<Optional<OfflineSession>> findLastStartedByMasterAccount(
             UUID masterAccountId, ActivityType activity) {
         AppSessionEngine e = engine;
@@ -220,7 +234,10 @@ final class AppSessionsFacade implements NxAppSessions {
         try {
             return e.findLastStartedByMasterAccount(masterAccountId, activity);
         } catch (Throwable t) {
-            log.error("App sessions: findLastStartedByMasterAccount threw {}", t.getClass().getName(), t);
+            log.error(
+                    "App sessions: findLastStartedByMasterAccount threw {}",
+                    t.getClass().getName(),
+                    t);
             return failed(t);
         }
     }
@@ -235,7 +252,10 @@ final class AppSessionsFacade implements NxAppSessions {
         try {
             return e.findLastStartedByCharacter(characterId, activity);
         } catch (Throwable t) {
-            log.error("App sessions: findLastStartedByCharacter threw {}", t.getClass().getName(), t);
+            log.error(
+                    "App sessions: findLastStartedByCharacter threw {}",
+                    t.getClass().getName(),
+                    t);
             return failed(t);
         }
     }
