@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.kafka.sync.gd.skill.effect;
+package app.l2nx.gs.adapter.api.kafka.sync.gd;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -6,25 +6,25 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
-class SkillStatModifierTest {
+class StatModifierTest {
 
     @Test
     void build_shouldRejectMissingStatRaw() {
         assertThrows(
                 NullPointerException.class,
-                () -> SkillStatModifier.builder().operationRaw("ADD").build());
+                () -> StatModifier.builder().operationRaw("ADD").build());
     }
 
     @Test
     void build_shouldRejectMissingOperationRaw() {
         assertThrows(
                 NullPointerException.class,
-                () -> SkillStatModifier.builder().statRaw("MAX_HP").build());
+                () -> StatModifier.builder().statRaw("MAX_HP").build());
     }
 
     @Test
     void build_shouldKeepRawOnly_whenNoExactCanonicalMeaning() {
-        SkillStatModifier actual = SkillStatModifier.builder()
+        StatModifier actual = StatModifier.builder()
                 .statRaw("CUSTOM_STAT")
                 .operationRaw("MUL")
                 .value(1.1)

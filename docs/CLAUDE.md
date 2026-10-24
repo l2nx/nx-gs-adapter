@@ -59,6 +59,8 @@ Companion docs of the folder-form specs:
   service descriptors, common authoring mistakes).
 - `003-db-sync/module-discovery.md` — Tier-2 `DbSchemaProvider` discovery for schema authors.
 - `005-cdc-engine/flow.md` — block diagrams of the two-phase cycle.
+- `030-gamedata-sync/skill-contract.md`, `030-gamedata-sync/augmentation-contract.md` — living wire contracts of the
+  `skill` entity and of the augmentation catalog (`itemoption`, `lifestone`, `augmentationtargetgroup`).
 - `009-commands/catalog.md` — per-command wire contract (inputs, results, error statuses).
 - `009-commands/guide.md` — handler author's guide (lifecycle, threading, registration).
 - `009-commands/<command>.md` — one per command family: `send-mail`, `send-player-mail`, `accept-mail`, `read-mail`,

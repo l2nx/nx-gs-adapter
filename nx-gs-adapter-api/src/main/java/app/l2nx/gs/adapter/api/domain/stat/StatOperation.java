@@ -1,7 +1,7 @@
 package app.l2nx.gs.adapter.api.domain.stat;
 
 /**
- * Canonical operation of a stat modifier ({@code SkillStatModifier.operation}); the engine operation token travels
+ * Canonical operation of a stat modifier ({@code StatModifier.operation}); the engine operation token travels
  * in {@code operationRaw}. For a modifier on a {@code _RES} stat the operation is the one after the orientation
  * inversion described in {@link Stat}.
  */

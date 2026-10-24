@@ -28,8 +28,9 @@ own, fill this".
 - **Proactively look for parts that would not fit another build.** When working in any area, check its existing
   contracts for single-build assumptions and propose a refactor; record each finding as an issue with a
   `docs/TODO.md` line.
-- **The skill contract is a living doc.** Any change to the `gd.skill` DTOs or the skill/stat vocabulary enums updates
-  `docs/specs/030-gamedata-sync/skill-contract.md` in the same commit.
+- **The gd contracts are living docs.** Any change to the `gd.skill` DTOs or the skill/stat vocabulary enums updates
+  `docs/specs/030-gamedata-sync/skill-contract.md`, and any change to the `gd.itemoption` / `gd.augmentation` DTOs or
+  their enums updates `docs/specs/030-gamedata-sync/augmentation-contract.md`, in the same commit.
 - Platform storage follows meaning, not the writer: see `nx-gamedata/CLAUDE.md` → first principle.
 - **The adapter is transport plus a generic session engine: no game rules live in it.** The engine (spec 038) owns
   the session table, idempotency, `active_ms`, end by time, the restore and one session per character / one character

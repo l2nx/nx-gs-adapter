@@ -32,18 +32,21 @@ its snapshot accessor and primary-key extractor, so adding an entity is one regi
 
 ### 1.1 Entity registry
 
-| entity                | Tier-2 SPI                    | pk                                 |
-| --------------------- | ----------------------------- | ---------------------------------- |
-| `itemtemplate`        | `ItemTemplateProvider`        | `template.id`                      |
-| `npctemplate`         | `NpcTemplateProvider`         | `template.id`                      |
-| `skill`               | `SkillProvider`               | `skill.id`                         |
-| `recipetemplate`      | `RecipeTemplateProvider`      | `template.id`                      |
-| `armorsettemplate`    | `ArmorSetTemplateProvider`    | `template.id`                      |
-| `soulcrystaltemplate` | `SoulCrystalTemplateProvider` | `template.id`                      |
-| `classtemplate`       | `ClassTemplateProvider`       | `clazz.ordinal()` (`-1` when null) |
-| `instance`            | `InstanceTemplateProvider`    | `template.id`                      |
-| `gearscore`           | `GearScoreRulesetProvider`    | constant `0` (singleton)           |
-| `experiencelevel`     | `ExperienceLevelProvider`     | `level`                            |
+| entity                    | Tier-2 SPI                        | pk                                 |
+| ------------------------- | --------------------------------- | ---------------------------------- |
+| `itemtemplate`            | `ItemTemplateProvider`            | `template.id`                      |
+| `npctemplate`             | `NpcTemplateProvider`             | `template.id`                      |
+| `skill`                   | `SkillProvider`                   | `skill.id`                         |
+| `recipetemplate`          | `RecipeTemplateProvider`          | `template.id`                      |
+| `armorsettemplate`        | `ArmorSetTemplateProvider`        | `template.id`                      |
+| `soulcrystaltemplate`     | `SoulCrystalTemplateProvider`     | `template.id`                      |
+| `classtemplate`           | `ClassTemplateProvider`           | `clazz.ordinal()` (`-1` when null) |
+| `instance`                | `InstanceTemplateProvider`        | `template.id`                      |
+| `itemoption`              | `ItemOptionProvider`              | `option.id`                        |
+| `augmentationtargetgroup` | `AugmentationTargetGroupProvider` | `group.id`                         |
+| `lifestone`               | `LifeStoneProvider`               | `stone.itemTemplateId`             |
+| `gearscore`               | `GearScoreRulesetProvider`        | constant `0` (singleton)           |
+| `experiencelevel`         | `ExperienceLevelProvider`         | `level`                            |
 
 Each present provider becomes an independent `EntitySync` with its own burst, `syncId` and heartbeat
 `EntityStats`. A missing provider is skipped; two impls of one SPI put the module in `FAILED` (the
@@ -393,6 +396,8 @@ gd topic is kept for 48 h.
 ## 8. Links
 
 - Skill record contract (api 0.101.0): [`skill-contract.md`](skill-contract.md)
+- Augmentation catalog contract (api 0.116.0, `itemoption` / `lifestone` / `augmentationtargetgroup`):
+  [`augmentation-contract.md`](augmentation-contract.md)
 - Issue: [l2nx/nx-gs-adapter#8](https://github.com/l2nx/nx-gs-adapter/issues/8)
 - `docs/specs/023-platform-sync-fixes-2026-06.md` — Fix ③, the gear-score deploy gap that first
   shipped the `gearscore` entity (`gd-sync/v0.10.0`); a version-skew incident, not a design record.

@@ -27,9 +27,9 @@ import app.l2nx.gs.adapter.api.domain.skill.target.SkillAffectScope;
 import app.l2nx.gs.adapter.api.domain.skill.target.SkillTargetType;
 import app.l2nx.gs.adapter.api.domain.stat.Stat;
 import app.l2nx.gs.adapter.api.domain.stat.StatOperation;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.StatModifier;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.condition.SkillConditionNode;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.effect.SkillEffect;
-import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.effect.SkillStatModifier;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.learn.SkillLearn;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.learn.SkillLearnItem;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.learn.SkillLearnItemSet;
@@ -85,8 +85,8 @@ class SkillTest {
                 .build();
     }
 
-    private static SkillStatModifier statModifier() {
-        return SkillStatModifier.builder()
+    private static StatModifier statModifier() {
+        return StatModifier.builder()
                 .stat(Stat.MAX_HP)
                 .statRaw("engineStat")
                 .operation(StatOperation.SUBTRACT)

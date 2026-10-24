@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.sync.gd.skill.effect;
 
 import app.l2nx.gs.adapter.api.domain.skill.effect.SkillEffectScope;
 import app.l2nx.gs.adapter.api.domain.skill.effect.SkillEffectType;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.StatModifier;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.SkillLevel;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.condition.SkillConditionNode;
 import java.util.ArrayList;
@@ -45,7 +46,7 @@ public final class SkillEffect {
     private final @Nullable Integer tickIntervalMs;
     private final @Nullable SkillConditionNode conditionTree;
     private final @Nullable Boolean derived;
-    private final @Nullable List<SkillStatModifier> statModifiers;
+    private final @Nullable List<StatModifier> statModifiers;
 
     public SkillEffect(
             @Nullable SkillEffectType type,
@@ -63,7 +64,7 @@ public final class SkillEffect {
             @Nullable Integer tickIntervalMs,
             @Nullable SkillConditionNode conditionTree,
             @Nullable Boolean derived,
-            @Nullable List<SkillStatModifier> statModifiers) {
+            @Nullable List<StatModifier> statModifiers) {
         this.type = type;
         this.typeRaw = Objects.requireNonNull(typeRaw, "typeRaw");
         this.scope = scope;
@@ -80,9 +81,8 @@ public final class SkillEffect {
         this.tickIntervalMs = tickIntervalMs;
         this.conditionTree = conditionTree;
         this.derived = derived;
-        this.statModifiers = statModifiers == null
-                ? null
-                : Collections.unmodifiableList(new ArrayList<SkillStatModifier>(statModifiers));
+        this.statModifiers =
+                statModifiers == null ? null : Collections.unmodifiableList(new ArrayList<StatModifier>(statModifiers));
     }
 
     public @Nullable SkillEffectType getType() {
@@ -161,7 +161,7 @@ public final class SkillEffect {
 
     /**
      * Attach condition of the whole effect; {@code null} = unconditional. Per-modifier conditions live on
-     * {@link SkillStatModifier#getConditionTree()}.
+     * {@link StatModifier#getConditionTree()}.
      */
     public @Nullable SkillConditionNode getConditionTree() {
         return conditionTree;
@@ -179,7 +179,7 @@ public final class SkillEffect {
      * Stat modifiers the effect applies while active: the whole behaviour of a {@code STAT_MODIFIER} effect, or side
      * modifiers of another type (a stun that also slows); {@code null} when none.
      */
-    public @Nullable List<SkillStatModifier> getStatModifiers() {
+    public @Nullable List<StatModifier> getStatModifiers() {
         return statModifiers;
     }
 
@@ -272,7 +272,7 @@ public final class SkillEffect {
         private @Nullable Integer tickIntervalMs;
         private @Nullable SkillConditionNode conditionTree;
         private @Nullable Boolean derived;
-        private @Nullable List<SkillStatModifier> statModifiers;
+        private @Nullable List<StatModifier> statModifiers;
 
         public Builder type(@Nullable SkillEffectType type) {
             this.type = type;
@@ -349,7 +349,7 @@ public final class SkillEffect {
             return this;
         }
 
-        public Builder statModifiers(@Nullable List<SkillStatModifier> statModifiers) {
+        public Builder statModifiers(@Nullable List<StatModifier> statModifiers) {
             this.statModifiers = statModifiers;
             return this;
         }

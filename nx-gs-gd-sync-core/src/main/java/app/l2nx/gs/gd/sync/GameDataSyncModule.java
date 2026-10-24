@@ -8,10 +8,13 @@ import app.l2nx.gs.adapter.api.kafka.ops.model.EntityStats;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStates;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStatus;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.armorsettemplate.ArmorSetTemplate;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.augmentation.lifestone.LifeStone;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.augmentation.targetgroup.AugmentationTargetGroup;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.classtemplate.ClassTemplate;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.experiencelevel.ExperienceLevel;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.gearscore.GearScoreRuleset;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.instancetemplate.InstanceTemplate;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.itemoption.ItemOption;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.itemtemplate.ItemTemplate;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.npctemplate.NpcTemplate;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.recipetemplate.RecipeTemplate;
@@ -20,12 +23,15 @@ import app.l2nx.gs.adapter.api.kafka.sync.gd.soulcrystaltemplate.SoulCrystalTemp
 import app.l2nx.gs.adapter.api.spi.*;
 import app.l2nx.gs.adapter.api.spi.capability.NxGameData;
 import app.l2nx.gs.adapter.api.spi.provider.ArmorSetTemplateProvider;
+import app.l2nx.gs.adapter.api.spi.provider.AugmentationTargetGroupProvider;
 import app.l2nx.gs.adapter.api.spi.provider.ClassTemplateProvider;
 import app.l2nx.gs.adapter.api.spi.provider.ExperienceLevelProvider;
 import app.l2nx.gs.adapter.api.spi.provider.GameDataReadinessProvider;
 import app.l2nx.gs.adapter.api.spi.provider.GearScoreRulesetProvider;
 import app.l2nx.gs.adapter.api.spi.provider.InstanceTemplateProvider;
+import app.l2nx.gs.adapter.api.spi.provider.ItemOptionProvider;
 import app.l2nx.gs.adapter.api.spi.provider.ItemTemplateProvider;
+import app.l2nx.gs.adapter.api.spi.provider.LifeStoneProvider;
 import app.l2nx.gs.adapter.api.spi.provider.NpcTemplateProvider;
 import app.l2nx.gs.adapter.api.spi.provider.RecipeTemplateProvider;
 import app.l2nx.gs.adapter.api.spi.provider.SkillProvider;
@@ -49,9 +55,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 
 /**
  * Publishes static game-data templates onto the {@code gd} sync stream, one independent {@link EntitySync} per
- * present provider SPI. Every pass is gated on the optional {@link GameDataReadinessProvider}: the adapter
- * connects before the datapack is parsed, and an ungated pass would force-load host parsers out of order and
- * publish snapshots from half-initialized host state (e.g. {@code gearscore} before the ruleset loads).
+ * present provider SPI. Every pass is gated on {@link GameDataReadinessProvider}: the adapter connects before the
+ * datapack is parsed, and an ungated pass would publish from half-initialized host state.
  * Hooks catch {@link Throwable} and never propagate to the host JVM.
  */
 public final class GameDataSyncModule implements AdapterModule {
@@ -155,6 +160,17 @@ public final class GameDataSyncModule implements AdapterModule {
                 InstanceTemplateProvider::entityName,
                 InstanceTemplateProvider::snapshot,
                 t -> (long) t.getId()));
+        list.add(new EntityDescriptor<ItemOptionProvider, ItemOption>(
+                ItemOptionProvider.class, ItemOptionProvider::entityName, ItemOptionProvider::snapshot, t ->
+                        (long) t.getId()));
+        list.add(new EntityDescriptor<AugmentationTargetGroupProvider, AugmentationTargetGroup>(
+                AugmentationTargetGroupProvider.class,
+                AugmentationTargetGroupProvider::entityName,
+                AugmentationTargetGroupProvider::snapshot,
+                t -> (long) t.getId()));
+        list.add(new EntityDescriptor<LifeStoneProvider, LifeStone>(
+                LifeStoneProvider.class, LifeStoneProvider::entityName, LifeStoneProvider::snapshot, t ->
+                        (long) t.getItemTemplateId()));
         // Singleton: Optional adapted to a 0-or-1 list; empty publishes a count=0 marker the platform ignores.
         list.add(new EntityDescriptor<GearScoreRulesetProvider, GearScoreRuleset>(
                 GearScoreRulesetProvider.class,
@@ -201,7 +217,8 @@ public final class GameDataSyncModule implements AdapterModule {
         if (resolved.isEmpty()) {
             log.warn("No gd template provider SPI registered — gd-sync DISABLED. Register an "
                     + "ItemTemplateProvider, NpcTemplateProvider, SkillProvider and/or one of the "
-                    + "recipe/armor-set/soul-crystal/class/instance providers via META-INF/services to "
+                    + "recipe/armor-set/soul-crystal/class/instance/item-option/augmentation-target-group/"
+                    + "life-stone providers via META-INF/services to "
                     + "enable game-data sync.");
             state = STATE_DISABLED;
             return;
@@ -274,8 +291,7 @@ public final class GameDataSyncModule implements AdapterModule {
             return CommandResult.unavailable("gd-sync module is not active");
         }
         if (!hostReady()) {
-            // Acking with acceptedEntities and then publishing nothing would leave the platform
-            // waiting for a snapshot that was never scheduled.
+            // acking and then publishing nothing would leave the platform waiting for a snapshot
             return CommandResult.unavailable("gd-sync host game data is not ready yet");
         }
         List<String> entityNames = registeredEntityNames(syncs);

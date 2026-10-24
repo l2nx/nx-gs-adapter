@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.kafka.sync.gd.skill.effect;
+package app.l2nx.gs.adapter.api.kafka.sync.gd;
 
 import app.l2nx.gs.adapter.api.domain.stat.Stat;
 import app.l2nx.gs.adapter.api.domain.stat.StatOperation;
@@ -7,13 +7,13 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One stat modification of a skill level or an effect. {@code statRaw} and {@code operationRaw} are the
- * engine's own tokens, always present and never inverted.
+ * One stat modification of a skill level, a skill effect or an item option. {@code statRaw} and {@code operationRaw}
+ * are the engine's own tokens, always present and never inverted.
  *
  * <p>{@code stat} / {@code operation} are canonical after the exact {@code _RES} inversion described in {@link Stat};
  * when none exists {@code stat} is {@code null}.</p>
  */
-public final class SkillStatModifier {
+public final class StatModifier {
 
     private final @Nullable Stat stat;
     private final String statRaw;
@@ -24,7 +24,7 @@ public final class SkillStatModifier {
     private final @Nullable Integer order;
     private final @Nullable SkillConditionNode conditionTree;
 
-    public SkillStatModifier(
+    public StatModifier(
             @Nullable Stat stat,
             String statRaw,
             @Nullable StatOperation operation,
@@ -64,7 +64,6 @@ public final class SkillStatModifier {
         return value;
     }
 
-    /** Engine expression when the operand is not a constant. */
     public @Nullable String getValueRaw() {
         return valueRaw;
     }
@@ -98,8 +97,8 @@ public final class SkillStatModifier {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof SkillStatModifier)) return false;
-        SkillStatModifier that = (SkillStatModifier) o;
+        if (!(o instanceof StatModifier)) return false;
+        StatModifier that = (StatModifier) o;
         return Objects.equals(stat, that.stat)
                 && Objects.equals(statRaw, that.statRaw)
                 && Objects.equals(operation, that.operation)
@@ -117,8 +116,7 @@ public final class SkillStatModifier {
 
     @Override
     public String toString() {
-        return "SkillStatModifier[" + "statRaw=" + statRaw + ", operationRaw=" + operationRaw + ", value=" + value
-                + "]";
+        return "StatModifier[" + "statRaw=" + statRaw + ", operationRaw=" + operationRaw + ", value=" + value + "]";
     }
 
     public static final class Builder {
@@ -171,8 +169,8 @@ public final class SkillStatModifier {
             return this;
         }
 
-        public SkillStatModifier build() {
-            return new SkillStatModifier(stat, statRaw, operation, operationRaw, value, valueRaw, order, conditionTree);
+        public StatModifier build() {
+            return new StatModifier(stat, statRaw, operation, operationRaw, value, valueRaw, order, conditionTree);
         }
     }
 }

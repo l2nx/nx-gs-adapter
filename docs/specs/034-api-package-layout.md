@@ -32,7 +32,8 @@ the slice's contract from its supporting types. The same smell exists inside cor
 - [done] R1. `api.spi` splits as follows; the root keeps `AdapterModule`, `CommandContext`,
   `ConnectContext`, `DirectExecutor`, `HostExecutorTimeoutException`:
   - `spi.provider` — `ArmorSetTemplateProvider`, `ClassTemplateProvider`, `InstanceTemplateProvider`,
-    `ItemTemplateProvider`, `NpcTemplateProvider`, `RecipeTemplateProvider`, `SkillProvider`,
+    `ItemTemplateProvider`, `NpcTemplateProvider`, `RecipeTemplateProvider`, `SkillProvider`, `ItemOptionProvider`,
+    `LifeStoneProvider`, `AugmentationTargetGroupProvider`,
     `SoulCrystalTemplateProvider`, `ExperienceLevelProvider`, `GearScoreRulesetProvider`, `GameDataReadinessProvider`,
     `DbSchemaProvider`, `RuntimeStateProvider`, `JdbcConnectionSource`.
   - `spi.model` — `EntityMapping`, `PrimarySource`, `ChildSource`, `ParentRef`,
@@ -45,21 +46,21 @@ the slice's contract from its supporting types. The same smell exists inside cor
 
 - [done] R2. Supporting types of wire families move into `model/`:
 
-  | Slice                          | Into `model/`                                                                                                               |
-  | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-  | `kafka.commands.privatestore`  | `BoughtLine`, `BuyLine`, `DroppedLine`, `DroppedLineReason`, `PrivateStoreReason`, `SellLine`, `WantedLine`               |
-  | `kafka.commands.ban`           | `WellKnownBanTargetTypes`, `WellKnownBanTypes`                                                                              |
-  | `kafka.commands.mail`          | `ItemDeliveryError`, `MailItem`                                                                                             |
-  | `kafka.commands.captcha` (new) | `CaptchaRoundResult`, `WellKnownCaptchaOutcomes`                                                                            |
+  | Slice                          | Into `model/`                                                                                                                    |
+  | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+  | `kafka.commands.privatestore`  | `BoughtLine`, `BuyLine`, `DroppedLine`, `DroppedLineReason`, `PrivateStoreReason`, `SellLine`, `WantedLine`                      |
+  | `kafka.commands.ban`           | `WellKnownBanTargetTypes`, `WellKnownBanTypes`                                                                                   |
+  | `kafka.commands.mail`          | `ItemDeliveryError`, `MailItem`                                                                                                  |
+  | `kafka.commands.captcha` (new) | `CaptchaRoundResult`, `WellKnownCaptchaOutcomes`                                                                                 |
   | `kafka.events.privatestore`    | `StoreLine`, `StoreState`, `TradeLine`, `PrivateStoreSide`, `PrivateStoreMetadataKey`, `PrivateStoreMetadata`, `PrivateStoreFee` |
-  | `kafka.events.premiumpurchase` | `Payment`, `PurchaseItem`, `PurchaseService`, `WellKnownServices`                                                           |
-  | `kafka.events.olympiad`        | `OlympiadGameType`, `OlympiadMatchReason`, `OlympiadMatchResult`                                                            |
-  | `kafka.events.character`       | `LogoutReason`, `SessionSource` (lenient `fromToken`), `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`                     |
-  | `kafka.events.server.online`    | `ServerOnlineBucket`, `WellKnownServerStartMetadata`                                                                        |
-  | `kafka.ops`                    | `ChangesSummary`, `CommandsStats`, `EntityState`, `EntityStats`, `EventsStats`, `ModuleStates`, `ModuleStatus`, `PoolStats` |
-  | `kafka.sync.runtime.character` | `CharacterEffect`, `CharacterEffectOffline`, `WellKnownAiStatuses`                                                          |
-  | `kafka.sync.gd.npctemplate`    | `WellKnownNpcTypes`                                                                                                         |
-  | `kafka.sync.gd.gearscore`      | `GearScoreRule`, `GearScoreRuleGroup`, `GearScoreScalingStep`, `WellKnownGearScoreEnchantProfiles`                          |
+  | `kafka.events.premiumpurchase` | `Payment`, `PurchaseItem`, `PurchaseService`, `WellKnownServices`                                                                |
+  | `kafka.events.olympiad`        | `OlympiadGameType`, `OlympiadMatchReason`, `OlympiadMatchResult`                                                                 |
+  | `kafka.events.character`       | `LogoutReason`, `SessionSource` (lenient `fromToken`), `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`    |
+  | `kafka.events.server.online`   | `ServerOnlineBucket`, `WellKnownServerStartMetadata`                                                                             |
+  | `kafka.ops`                    | `ChangesSummary`, `CommandsStats`, `EntityState`, `EntityStats`, `EventsStats`, `ModuleStates`, `ModuleStatus`, `PoolStats`      |
+  | `kafka.sync.runtime.character` | `CharacterEffect`, `CharacterEffectOffline`, `WellKnownAiStatuses`                                                               |
+  | `kafka.sync.gd.npctemplate`    | `WellKnownNpcTypes`                                                                                                              |
+  | `kafka.sync.gd.gearscore`      | `GearScoreRule`, `GearScoreRuleGroup`, `GearScoreScalingStep`, `WellKnownGearScoreEnchantProfiles`                               |
 
   Package-private helpers (`MailLists`, `PrivateStoreLists`) stay with the commands that use them;
   `BuyLine` carries its own attribute-map copy instead of reaching back into the root helper.
@@ -103,8 +104,8 @@ the slice's contract from its supporting types. The same smell exists inside cor
   | `domain.clan` (new)               | `SocialClass`, `ResidenceType`, `SiegeSide`                                                                                         |
   | `domain.character.state` (new)    | `MovementState`, `RelativePosition`, `MountType`                                                                                    |
   | `domain.character.resource` (new) | `SoulType`, `CharacterResource`                                                                                                     |
-  | `domain.item`                     | `WeaponType` (moved from `domain`, gains `PISTOLS`), `ItemGrade` (new)                                                              |
-  | `kafka.sync.gd.skill.effect`      | `SkillEffect`, `SkillStatModifier` (moved from `kafka.sync.gd.skill`)                                                               |
+  | `domain.item`                     | `WeaponType` (moved from `domain`, gains `PISTOLS`), `ItemGrade`, `ItemOptionTrigger`, `LifeStoneGrade` (new)                       |
+  | `kafka.sync.gd.skill.effect`      | `SkillEffect` (`StatModifier` moved to `kafka.sync.gd`, shared with item options)                                                   |
   | `kafka.sync.gd.skill.condition`   | `SkillConditionNode` (new)                                                                                                          |
   | `kafka.sync.gd.skill.learn`       | `SkillLearn`, `SkillLearnItemSet`, `SkillLearnSubClass`, `SkillLevelRef` (new); `SkillLearnItem` (moved from `kafka.sync.gd.skill`) |
   | `kafka.sync.gd.skill.produced`    | `SkillProducedItem`, `SkillProducedItemGroup` (moved from `kafka.sync.gd.skill`)                                                    |
@@ -116,13 +117,13 @@ the slice's contract from its supporting types. The same smell exists inside cor
 
 - [done] R7. The app-session slices follow the same rule:
 
-  | Package                                         | Content                                                                                    |
-  | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
-  | `kafka.sync.runtime.character.activity.usage`     | `CharacterActivityUsagesDto` (root); `ActivityUsage`, `UsageStep`, `UsageUnit` in `model/` |
-  | `kafka.sync.settings`                           | `SettingsSyncEvent` envelope (root)                                                        |
-  | `kafka.sync.settings.app`               | `AppSettings`, `AppSessionTypeSettings` (one aggregate, flat)                              |
-  | `kafka.commands.offline.fishing`                 | `Start/StopOfflineFishingCommand` and `Start/StopOfflineFishingResult`                     |
-  | `kafka.commands.session`                     | `AppSessionRefusal` (extension keys); `AppSessionRefusalReason`, `AlreadyActiveScope` in `model/` |
+  | Package                                       | Content                                                                                           |
+  | --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+  | `kafka.sync.runtime.character.activity.usage` | `CharacterActivityUsagesDto` (root); `ActivityUsage`, `UsageStep`, `UsageUnit` in `model/`        |
+  | `kafka.sync.settings`                         | `SettingsSyncEvent` envelope (root)                                                               |
+  | `kafka.sync.settings.app`                     | `AppSettings`, `AppSessionTypeSettings` (one aggregate, flat)                                     |
+  | `kafka.commands.offline.fishing`              | `Start/StopOfflineFishingCommand` and `Start/StopOfflineFishingResult`                            |
+  | `kafka.commands.session`                      | `AppSessionRefusal` (extension keys); `AppSessionRefusalReason`, `AlreadyActiveScope` in `model/` |
 
 ## Compatibility
 

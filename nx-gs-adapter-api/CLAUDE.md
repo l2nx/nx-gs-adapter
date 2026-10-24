@@ -38,8 +38,10 @@ Current entity / family / group names (the directory listing is authoritative �
 assuming):
 
 - **db sync**: `alliance`, `announcement`, `ban`, `character`, `clan`, `item`, `rating`
-- **gd sync**: `armorsettemplate`, `classtemplate`, `experiencelevel`, `gearscore`, `instancetemplate`,
-  `itemtemplate`, `npctemplate`, `recipetemplate`, `skill`, `soulcrystaltemplate`
+- **gd sync**: `armorsettemplate`, `augmentation.lifestone` (entity `lifestone`), `augmentation.targetgroup` (entity
+  `augmentationtargetgroup`), `classtemplate`, `experiencelevel`, `gearscore`, `instancetemplate`, `itemoption`,
+  `itemtemplate`, `npctemplate`, `recipetemplate`, `skill`, `soulcrystaltemplate`; the gd root holds the envelope
+  `GameDataSyncEvent` and `StatModifier`, shared by `skill` and `itemoption`
 - **runtime sync**: `character`, `character.activity.usage` (entity name `characteractivityusage`: a per-character usage pack, also rides the db channel,
   routed by entity name)
 - **settings sync**: `app` (entity name `appsettings`)
@@ -152,6 +154,9 @@ They all live here so a host provider depends on the contracts artifact alone.
   types (`raid`: `RaidKillEvent` keys on `bossNpcId`, `BossRespawnSnapshotEvent` uses `null`). The
   authoritative mapping is one `register(...)` line per type in adapter-core's `EventTypeRegistry` —
   read it there; the same file also holds the `Nx-Message-Type` value used for polymorphic dispatch.
+- **Augmentation chances are the host's own roll, not a model to replay.** `AugmentationOutcome.chancePercent` is the
+  final marginal of one slot; slot marginals are not combinable, and `LifeStone` rejects outcomes of unlisted groups,
+  repeats and slot sums over 100. Contract: `docs/specs/030-gamedata-sync/augmentation-contract.md`.
 - **`SNAPSHOT_COMPLETE count=0` is ignored by the platform** (no-op + alert, nothing is deleted; reconcile is also
   skipped when count != rows received). A gd provider with nothing to give yet should return `null` (burst
   aborted, no marker) rather than an empty collection. See spec 030 §2.

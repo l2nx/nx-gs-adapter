@@ -1,9 +1,9 @@
 package app.l2nx.gs.adapter.api.kafka.sync.gd.skill;
 
 import app.l2nx.gs.adapter.api.domain.Attribute;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.StatModifier;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.condition.SkillConditionNode;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.effect.SkillEffect;
-import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.effect.SkillStatModifier;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.produced.SkillProducedItemGroup;
 import app.l2nx.gs.adapter.api.localization.LocalizedText;
 import java.util.ArrayList;
@@ -68,7 +68,7 @@ public final class SkillLevel {
     private final @Nullable LocalizedText description;
     private final @Nullable SkillConditionNode conditionTree;
     private final @Nullable List<SkillEffect> effects;
-    private final @Nullable List<SkillStatModifier> statModifiers;
+    private final @Nullable List<StatModifier> statModifiers;
     private final @Nullable List<SkillProducedItemGroup> producedItems;
 
     public SkillLevel(
@@ -120,7 +120,7 @@ public final class SkillLevel {
             @Nullable LocalizedText description,
             @Nullable SkillConditionNode conditionTree,
             @Nullable List<SkillEffect> effects,
-            @Nullable List<SkillStatModifier> statModifiers,
+            @Nullable List<StatModifier> statModifiers,
             @Nullable List<SkillProducedItemGroup> producedItems) {
         this.level = level;
         this.icon = icon;
@@ -172,9 +172,8 @@ public final class SkillLevel {
         this.description = description;
         this.conditionTree = conditionTree;
         this.effects = effects == null ? null : Collections.unmodifiableList(new ArrayList<SkillEffect>(effects));
-        this.statModifiers = statModifiers == null
-                ? null
-                : Collections.unmodifiableList(new ArrayList<SkillStatModifier>(statModifiers));
+        this.statModifiers =
+                statModifiers == null ? null : Collections.unmodifiableList(new ArrayList<StatModifier>(statModifiers));
         this.producedItems = producedItems == null
                 ? null
                 : Collections.unmodifiableList(new ArrayList<SkillProducedItemGroup>(producedItems));
@@ -409,7 +408,7 @@ public final class SkillLevel {
      * Applied directly by the level without an effect wrapper (level-wide modifiers, item-like passives).
      * Hosts never repeat them as a {@code STAT_MODIFIER} effect: an engine modifier lives in exactly one place.
      */
-    public @Nullable List<SkillStatModifier> getStatModifiers() {
+    public @Nullable List<StatModifier> getStatModifiers() {
         return statModifiers;
     }
 
@@ -642,7 +641,7 @@ public final class SkillLevel {
         private @Nullable LocalizedText description;
         private @Nullable SkillConditionNode conditionTree;
         private @Nullable List<SkillEffect> effects;
-        private @Nullable List<SkillStatModifier> statModifiers;
+        private @Nullable List<StatModifier> statModifiers;
         private @Nullable List<SkillProducedItemGroup> producedItems;
 
         public Builder level(int level) {
@@ -885,7 +884,7 @@ public final class SkillLevel {
             return this;
         }
 
-        public Builder statModifiers(@Nullable List<SkillStatModifier> statModifiers) {
+        public Builder statModifiers(@Nullable List<StatModifier> statModifiers) {
             this.statModifiers = statModifiers;
             return this;
         }
