@@ -8,6 +8,7 @@ import app.l2nx.gs.adapter.api.spi.ConnectContext;
 import app.l2nx.gs.adapter.api.spi.model.RuntimeEntityMapping;
 import app.l2nx.gs.adapter.api.spi.provider.RuntimeStateProvider;
 import app.l2nx.gs.commons.spi.ServiceProviders;
+import app.l2nx.gs.commons.spi.SingleProvider;
 import app.l2nx.gs.kafka.NxKafka;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
@@ -77,22 +78,21 @@ public final class RuntimeSyncModule implements AdapterModule {
             return;
         }
 
-        List<RuntimeStateProvider> providers = providerDiscoverer.get();
-        if (providers.isEmpty()) {
+        SingleProvider<RuntimeStateProvider> providers =
+                ServiceProviders.single(RuntimeStateProvider.class, providerDiscoverer.get());
+        if (providers.absent()) {
             log.warn("No RuntimeStateProvider SPI registered — runtime-sync DISABLED. "
                     + "Register one via META-INF/services/app.l2nx.gs.adapter.api.spi.provider.RuntimeStateProvider "
                     + "to enable runtime sync.");
             state = STATE_DISABLED;
             return;
         }
-        if (providers.size() > 1) {
-            log.error(
-                    "Multiple RuntimeStateProvider impls on classpath: [{}]. runtime-sync FAILED.",
-                    ServiceProviders.classNames(providers));
+        RuntimeStateProvider resolved = providers.get();
+        if (resolved == null) {
+            log.error("{}. runtime-sync FAILED.", providers.ambiguity());
             state = STATE_FAILED;
             return;
         }
-        RuntimeStateProvider resolved = providers.get(0);
         List<RuntimeEntityMapping<?>> mappings = snapshotMappings(resolved);
         log.info("RuntimeStateProvider resolved: schemaName={}, mappings={}", resolved.schemaName(), mappings.size());
         this.cachedMappings = mappings;

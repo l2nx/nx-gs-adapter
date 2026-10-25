@@ -25,6 +25,10 @@ public final class ServiceProviders {
         }
     }
 
+    public static <T> SingleProvider<T> single(Class<T> spi, List<T> found) {
+        return new SingleProvider<T>(spi, found);
+    }
+
     public static String classNames(List<?> impls) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < impls.size(); i++) {

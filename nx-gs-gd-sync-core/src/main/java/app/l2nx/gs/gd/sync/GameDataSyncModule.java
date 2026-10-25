@@ -39,6 +39,7 @@ import app.l2nx.gs.adapter.api.spi.provider.SoulCrystalTemplateProvider;
 import app.l2nx.gs.commons.concurrent.DaemonThreadFactory;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
 import app.l2nx.gs.commons.spi.ServiceProviders;
+import app.l2nx.gs.commons.spi.SingleProvider;
 import app.l2nx.gs.kafka.KafkaException;
 import app.l2nx.gs.kafka.NxKafka;
 import app.l2nx.gs.log.NxLog;
@@ -205,7 +206,7 @@ public final class GameDataSyncModule implements AdapterModule {
             try {
                 sync = d.resolve();
             } catch (DuplicateProviderException dup) {
-                log.error("Multiple {} impls on classpath: [{}]. gd-sync FAILED.", dup.spiName, dup.implNames);
+                log.error("{}. gd-sync FAILED.", dup.getMessage());
                 state = STATE_FAILED;
                 return;
             }
@@ -224,16 +225,15 @@ public final class GameDataSyncModule implements AdapterModule {
             return;
         }
 
-        List<GameDataReadinessProvider> discovered =
-                readinessProviders != null ? readinessProviders : loadProviders(GameDataReadinessProvider.class);
-        if (discovered.size() > 1) {
-            log.error(
-                    "Multiple GameDataReadinessProvider impls on classpath: [{}]. gd-sync FAILED.",
-                    ServiceProviders.classNames(discovered));
+        SingleProvider<GameDataReadinessProvider> discovered = ServiceProviders.single(
+                GameDataReadinessProvider.class,
+                readinessProviders != null ? readinessProviders : loadProviders(GameDataReadinessProvider.class));
+        if (discovered.ambiguous()) {
+            log.error("{}. gd-sync FAILED.", discovered.ambiguity());
             state = STATE_FAILED;
             return;
         }
-        this.readiness = discovered.isEmpty() ? null : discovered.get(0);
+        this.readiness = discovered.get();
         this.readinessTracker = new EscalationTracker(READINESS_GRACE_MS, System::currentTimeMillis);
         this.readinessProbeFailed.set(false);
         resetSchedulerShutdown();
@@ -583,14 +583,14 @@ public final class GameDataSyncModule implements AdapterModule {
 
         /** Returns {@code null} when no provider is registered; more than one is ambiguous and throws. */
         EntitySync<T> resolve() {
-            List<P> providers = loadProviders(spi);
-            if (providers.size() > 1) {
-                throw new DuplicateProviderException(spi.getSimpleName(), ServiceProviders.classNames(providers));
+            SingleProvider<P> providers = ServiceProviders.single(spi, loadProviders(spi));
+            if (providers.ambiguous()) {
+                throw new DuplicateProviderException(providers.ambiguity());
             }
-            if (providers.isEmpty()) {
+            final P provider = providers.get();
+            if (provider == null) {
                 return null;
             }
-            final P provider = providers.get(0);
             return new EntitySync<T>(entityNameFn.apply(provider), () -> snapshotFn.apply(provider), pkFn);
         }
 
@@ -600,13 +600,10 @@ public final class GameDataSyncModule implements AdapterModule {
     }
 
     private static final class DuplicateProviderException extends RuntimeException {
-        final String spiName;
-        final String implNames;
+        private static final long serialVersionUID = 1L;
 
-        DuplicateProviderException(String spiName, String implNames) {
-            super("Multiple " + spiName + " impls: " + implNames);
-            this.spiName = spiName;
-            this.implNames = implNames;
+        DuplicateProviderException(String ambiguity) {
+            super(ambiguity);
         }
     }
 

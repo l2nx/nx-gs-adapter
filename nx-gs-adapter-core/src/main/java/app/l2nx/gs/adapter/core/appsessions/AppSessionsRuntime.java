@@ -7,6 +7,7 @@ import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
 import app.l2nx.gs.adapter.core.appsettings.AppSettingsRuntime;
 import app.l2nx.gs.commons.concurrent.DaemonThreadFactory;
 import app.l2nx.gs.commons.spi.ServiceProviders;
+import app.l2nx.gs.commons.spi.SingleProvider;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.util.List;
@@ -62,27 +63,32 @@ public final class AppSessionsRuntime {
             Supplier<List<OfflineSessionHost>> hosts,
             Supplier<List<JdbcConnectionSource>> sources) {
         try {
-            List<OfflineSessionHost> foundHosts = hosts.get();
-            if (foundHosts.isEmpty()) {
+            SingleProvider<OfflineSessionHost> foundHosts =
+                    ServiceProviders.single(OfflineSessionHost.class, hosts.get());
+            if (foundHosts.absent()) {
                 disable("no OfflineSessionHost on the classpath");
                 return;
             }
-            if (foundHosts.size() > 1) {
-                fail("several OfflineSessionHost implementations [" + ServiceProviders.classNames(foundHosts)
-                        + "]; keep exactly one");
+            OfflineSessionHost host = foundHosts.get();
+            if (host == null) {
+                fail(foundHosts.ambiguity());
                 return;
             }
-            List<JdbcConnectionSource> foundSources = sources.get();
-            if (foundSources.size() != 1) {
-                fail("app sessions need exactly one JdbcConnectionSource, found "
-                        + (foundSources.isEmpty() ? "none" : "[" + ServiceProviders.classNames(foundSources) + "]"));
+            SingleProvider<JdbcConnectionSource> foundSources =
+                    ServiceProviders.single(JdbcConnectionSource.class, sources.get());
+            JdbcConnectionSource source = foundSources.get();
+            if (source == null) {
+                fail(
+                        foundSources.absent()
+                                ? "app sessions need exactly one JdbcConnectionSource, found none"
+                                : foundSources.ambiguity());
                 return;
             }
             ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
                     DaemonThreadFactory.named("nx-app-sessions-scheduler", log));
             AppSessionEngine engine = new AppSessionEngine(
-                    new JdbcOfflineSessionStore(foundSources.get(0)),
-                    foundHosts.get(0),
+                    new JdbcOfflineSessionStore(source),
+                    host,
                     AppSettingsRuntime.rules(),
                     AppSettingsRuntime::rulesFromFile,
                     io,
@@ -100,9 +106,7 @@ public final class AppSessionsRuntime {
             }
             moduleState = ModuleStates.ACTIVE;
             FACADE.ready(engine);
-            log.info(
-                    "App sessions ready with host {}",
-                    foundHosts.get(0).getClass().getName());
+            log.info("App sessions ready with host {}", host.getClass().getName());
         } catch (Throwable t) {
             fail("boot threw " + t.getClass().getName() + ": " + t.getMessage());
         }

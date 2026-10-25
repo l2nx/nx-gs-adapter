@@ -4,6 +4,7 @@ import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.adapter.api.spi.provider.SchemaMigrationException;
 import app.l2nx.gs.adapter.api.spi.provider.SchemaMigrator;
 import app.l2nx.gs.commons.spi.ServiceProviders;
+import app.l2nx.gs.commons.spi.SingleProvider;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.util.List;
@@ -141,15 +142,16 @@ public final class SchemaMigration {
     }
 
     private static <T> T single(List<T> found, Class<T> spi, String whenMissing) throws SchemaMigrationException {
-        if (found.isEmpty()) {
+        SingleProvider<T> single = ServiceProviders.single(spi, found);
+        if (single.absent()) {
             throw new SchemaMigrationException("No " + spi.getSimpleName()
                     + " on the classpath, so the adapter-owned l2nx_* tables cannot be created or updated: "
                     + whenMissing);
         }
-        if (found.size() > 1) {
-            throw new SchemaMigrationException("Several " + spi.getSimpleName() + " implementations on the classpath: ["
-                    + ServiceProviders.classNames(found) + "]; keep exactly one");
+        T provider = single.get();
+        if (provider == null) {
+            throw new SchemaMigrationException(single.ambiguity());
         }
-        return found.get(0);
+        return provider;
     }
 }

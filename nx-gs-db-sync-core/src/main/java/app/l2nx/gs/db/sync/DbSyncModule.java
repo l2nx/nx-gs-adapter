@@ -20,6 +20,7 @@ import app.l2nx.gs.adapter.api.spi.model.RowFilter;
 import app.l2nx.gs.adapter.api.spi.provider.DbSchemaProvider;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.commons.spi.ServiceProviders;
+import app.l2nx.gs.commons.spi.SingleProvider;
 import app.l2nx.gs.db.sync.engine.*;
 import app.l2nx.gs.db.sync.engine.jdbc.SqlIdent;
 import app.l2nx.gs.db.sync.engine.persist.FileSnapshotPersistence;
@@ -122,42 +123,40 @@ public final class DbSyncModule implements AdapterModule {
             return;
         }
 
-        List<JdbcConnectionSource> jdbcImpls = jdbcDiscoverer.get();
-        if (jdbcImpls.isEmpty()) {
+        SingleProvider<JdbcConnectionSource> jdbcImpls =
+                ServiceProviders.single(JdbcConnectionSource.class, jdbcDiscoverer.get());
+        if (jdbcImpls.absent()) {
             log.error("No JdbcConnectionSource SPI registered — register one via "
                     + "META-INF/services/app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource. "
                     + "db-sync FAILED.");
             state = STATE_FAILED;
             return;
         }
-        if (jdbcImpls.size() > 1) {
-            log.error(
-                    "Multiple JdbcConnectionSource impls on classpath: [{}]. db-sync FAILED.",
-                    ServiceProviders.classNames(jdbcImpls));
+        JdbcConnectionSource jdbc = jdbcImpls.get();
+        if (jdbc == null) {
+            log.error("{}. db-sync FAILED.", jdbcImpls.ambiguity());
             state = STATE_FAILED;
             return;
         }
-        JdbcConnectionSource jdbc = jdbcImpls.get(0);
         log.info("JdbcConnectionSource resolved: {}", jdbc.name());
         boolean smokeOk = smokeChecker.test(jdbc);
         this.source = jdbc;
 
-        List<DbSchemaProvider> schemaImpls = schemaDiscoverer.get();
-        if (schemaImpls.isEmpty()) {
+        SingleProvider<DbSchemaProvider> schemaImpls =
+                ServiceProviders.single(DbSchemaProvider.class, schemaDiscoverer.get());
+        if (schemaImpls.absent()) {
             log.warn("No DbSchemaProvider SPI registered — db-sync DISABLED. "
                     + "Register one via META-INF/services/app.l2nx.gs.adapter.api.spi.provider.DbSchemaProvider "
                     + "to enable CDC sync.");
             state = STATE_DISABLED;
             return;
         }
-        if (schemaImpls.size() > 1) {
-            log.error(
-                    "Multiple DbSchemaProvider impls on classpath: [{}]. db-sync FAILED.",
-                    ServiceProviders.classNames(schemaImpls));
+        DbSchemaProvider resolvedProvider = schemaImpls.get();
+        if (resolvedProvider == null) {
+            log.error("{}. db-sync FAILED.", schemaImpls.ambiguity());
             state = STATE_FAILED;
             return;
         }
-        DbSchemaProvider resolvedProvider = schemaImpls.get(0);
         log.info(
                 "DbSchemaProvider resolved: schemaName={}, mappings={}",
                 resolvedProvider.schemaName(),
