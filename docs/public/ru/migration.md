@@ -14,7 +14,7 @@ description: Шаги обновления адаптера через breaking 
   что изменилось и что делать.
 - Документация всегда описывает текущую версию.
 
-## nx-gs-adapter-api 0.117.0, nx-gs-adapter-core 0.49.0: `LifeStoneGrade.JEWELRY`, `GameSettingsProvider`
+## nx-gs-adapter-api 0.117.1, nx-gs-adapter-core 0.49.1: `LifeStoneGrade.JEWELRY`, `GameSettingsProvider`
 
 **Ломает только Java-код.** Константа `ACCESSORY` в `LifeStoneGrade` теперь `JEWELRY` (слоты шеи, ушей и пальцев);
 deprecated-копии нет. Хосту, который собирает данные life stone, достаточно заменить константу; грейд уходит по имени,

@@ -14,7 +14,7 @@ here are drop-in: bump the version and restart.
   what changed, and what to do.
 - The documentation always describes the current version.
 
-## nx-gs-adapter-api 0.117.0, nx-gs-adapter-core 0.49.0: `LifeStoneGrade.JEWELRY`, `GameSettingsProvider`
+## nx-gs-adapter-api 0.117.1, nx-gs-adapter-core 0.49.1: `LifeStoneGrade.JEWELRY`, `GameSettingsProvider`
 
 **Breaking for Java code only.** The `LifeStoneGrade` constant `ACCESSORY` is now `JEWELRY` (neck, ear and finger
 slots); no deprecated copy is kept. A host that builds life stone data replaces the constant, nothing else; the grade
