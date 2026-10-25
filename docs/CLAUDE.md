@@ -64,4 +64,5 @@ Companion docs of the folder-form specs:
 - `009-commands/catalog.md` — per-command wire contract (inputs, results, error statuses).
 - `009-commands/guide.md` — handler author's guide (lifecycle, threading, registration).
 - `009-commands/<command>.md` — one per command family: `send-mail`, `send-player-mail`, `accept-mail`, `read-mail`,
-  `ban`, `send-chat-message`, `character-admin`, `captcha`, `offline-fishing`.
+  `ban`, `send-chat-message`, `character-admin`, `captcha`, `offline-fishing`, `item-modification` (also the app-phantom
+  session type, the enchant / attribute / augmentation-fee catalog and the `gamesettings` settings entity).

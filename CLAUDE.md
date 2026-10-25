@@ -143,9 +143,11 @@ Things that cost time to learn and are not visible from the code you are editing
   the host refuses that login with "try again". The engine holds at most half of `l2nx.io.workers` at once (restore
   batches are capped to it), and a session end the table refused is retried until it lands, the character staying busy
   meanwhile. See 038.
-- **`SNAPSHOT_COMPLETE` is a reconcile point.** A `count=0` marker deletes every row of that entity
-  on the platform, so a provider with nothing to give returns `null` (burst aborted, nothing
-  reconciled) — never an empty collection. See 030-gamedata-sync §2.
+- **`SNAPSHOT_COMPLETE` is a reconcile point.** A provider that is not ready returns `null` (burst
+  aborted, nothing reconciled; a `null` lasting past the readiness window is an ERROR); a registered
+  provider whose catalog is legitimately empty returns an empty collection — a `count=0` marker, which
+  the platform treats as an anomaly and never reconciles (030-gamedata-sync §7). Neither form deletes
+  rows; a real disappearance of an entity is done by hand on the platform. See 030-gamedata-sync §2, §7.
 
 ## Threading model
 

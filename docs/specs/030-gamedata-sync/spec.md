@@ -107,7 +107,9 @@ the platform can tell "never synced" from "was synced, now degraded".
 The provider contract distinguishes two returns, and the distinction is load-bearing:
 
 - **empty collection** — "this catalog is legitimately empty". Legal. Emits `SNAPSHOT_COMPLETE`
-  with `count=0`, whose reconcile pass **deletes every row of that entity** on the platform.
+  with `count=0`. Its reconcile pass was designed to delete every row of that entity on the platform;
+  since 2026-10-08 the platform treats `count=0` as an anomaly and never reconciles it (§7), so a
+  real disappearance of an entity is done by hand.
 - **`null`** — "no snapshot to give". The publisher aborts the burst: no marker is emitted, nothing
   is reconciled, the previous platform state survives untouched.
 
