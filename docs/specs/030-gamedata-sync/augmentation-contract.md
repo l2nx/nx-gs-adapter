@@ -34,7 +34,7 @@ Prefix `app.l2nx.gs.adapter.api.`:
 | `kafka.sync.gd.itemoption`               | `ItemOption`, `ItemOptionSkill`                 |
 | `kafka.sync.gd.augmentation.lifestone`   | `LifeStone`, `AugmentationOutcome`              |
 | `kafka.sync.gd.augmentation.targetgroup` | `AugmentationTargetGroup`                       |
-| `domain.item`                            | `ItemOptionTrigger`, `LifeStoneGrade`           |
+| `domain.item`                            | `ItemOptionTrigger`, `LifeStoneGrade`, `ItemOptionQuality` |
 | `spi.provider`                           | the three providers of §1                       |
 
 The option catalog sits outside `augmentation` because enchanting references the same option ids.
@@ -156,6 +156,21 @@ On a normal attack `ATTACK` and `CRITICAL` exclude each other: a hit fires one o
 
 `grade = null` is not `NONE`: `NONE` is a real grade (the plain stone), `null` means no canonical grade. Lower stone
 tiers of other lines are added with the first provider that sends them.
+
+### 4.3 `ItemOptionQuality` (`domain.item`)
+
+Quality tier of an option as the game client shows it: the colour of the option lines in the item tooltip, lowest
+tier first.
+
+| constant | tooltip colour |
+| -------- | -------------- |
+| `YELLOW` | yellow         |
+| `BLUE`   | blue           |
+| `PURPLE` | purple         |
+| `RED`    | red            |
+
+No DTO carries it yet: the platform takes the tier from the client patch and keeps the vocabulary here, so a host
+that later sends option quality uses the same tokens.
 
 ## 5. Host guidance
 
