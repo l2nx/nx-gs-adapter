@@ -151,7 +151,7 @@ On a normal attack `ATTACK` and `CRITICAL` exclude each other: a hit fires one o
 | `MID`       | mid-grade stone                 |
 | `HIGH`      | high-grade stone                |
 | `TOP`       | top-grade stone                 |
-| `ACCESSORY` | stone for accessories (jewelry) |
+| `JEWELRY`   | stone for jewelry (neck, ear, finger slots) |
 | `GREAT`     | Great Life Stone                |
 
 `grade = null` is not `NONE`: `NONE` is a real grade (the plain stone), `null` means no canonical grade. Lower stone

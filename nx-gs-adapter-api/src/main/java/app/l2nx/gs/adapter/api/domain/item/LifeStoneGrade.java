@@ -9,6 +9,6 @@ public enum LifeStoneGrade {
     MID,
     HIGH,
     TOP,
-    ACCESSORY,
+    JEWELRY,
     GREAT
 }
