@@ -5,14 +5,20 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSessionTypeSettings;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -113,6 +119,97 @@ class AppSettingsRuntimeTest {
 
             assertSame(AppRules.defaults(), AppSettingsRuntime.rules().current());
             assertFalse(AppSettingsRuntime.watchingForTesting());
+        }
+    }
+
+    @Nested
+    class Publication {
+
+        @Test
+        void loginServer_shouldBeTrue_whenTheJvmSettledOnTheLoginServerDefaults() {
+            AppSettingsRuntime.loadForGameServer(config);
+
+            AppSettingsRuntime.defaultsForLoginServer();
+
+            assertTrue(AppSettingsRuntime.loginServer());
+        }
+
+        @Test
+        void loginServer_shouldBeFalse_whenAGameServerLoadedItsFile() {
+            AppSettingsRuntime.loadForGameServer(config);
+
+            assertFalse(AppSettingsRuntime.loginServer());
+        }
+
+        @Test
+        void changeListener_shouldRun_whenTheWatcherAppliesTheFile() {
+            AtomicInteger runs = new AtomicInteger();
+            AppSettingsRuntime.changeListener(runs::incrementAndGet);
+
+            AppSettingsRuntime.loadForGameServer(config);
+
+            assertEquals(1, runs.get());
+        }
+
+        @Test
+        void snapshot_shouldCarryTheLiveRulesAndTheBuildMoment() {
+            AppSettingsRuntime.loadForGameServer(config);
+            Instant builtAt = Instant.parse("2026-10-25T12:00:00Z");
+
+            AppSettings actual = AppSettingsRuntime.snapshot(builtAt);
+
+            assertEquals(45, actual.getReturnThresholdMinutes());
+            assertEquals(builtAt, actual.getUpdatedAt());
+        }
+    }
+
+    @Nested
+    class ToSettings {
+
+        @Test
+        void toSettings_shouldCarryEverySessionTypeAndTheSnapshotKeys() {
+            AppRules rules = AppRules.builder()
+                    .sessionTypeEnabled(ActivityType.OFFLINE_FISHING, true)
+                    .fishingSpotPool("harbor")
+                    .recentLogoutMinutes(3)
+                    .fishingStartCooldownMinutes(20)
+                    .privateStoreStartCooldownMinutes(8)
+                    .returnThresholdMinutes(40)
+                    .restartWindowMinutes(25)
+                    .fishingMinDurationMinutes(10)
+                    .fishingMaxDurationMinutes(240)
+                    .build();
+
+            AppSettings actual = AppSettingsRuntime.toSettings(rules, Instant.parse("2026-10-23T10:00:00Z"));
+
+            AppSettings expected = AppSettings.builder()
+                    .sessionTypes(Arrays.asList(
+                            new AppSessionTypeSettings(ActivityType.OFFLINE_PRIVATE_STORE, false),
+                            new AppSessionTypeSettings(ActivityType.OFFLINE_FISHING, true)))
+                    .recentlyLeftGameMinutes(3)
+                    .fishingStartCooldownMinutes(20)
+                    .privateStoreStartCooldownMinutes(8)
+                    .returnThresholdMinutes(40)
+                    .restartWindowMinutes(25)
+                    .fishingMinDurationMs(600_000L)
+                    .fishingMaxDurationMs(14_400_000L)
+                    .updatedAt(Instant.parse("2026-10-23T10:00:00Z"))
+                    .build();
+            assertEquals(expected, actual);
+        }
+
+        @Test
+        void toSettings_shouldIgnoreValuesOutsideTheSnapshot() {
+            Instant at = Instant.parse("2026-10-23T10:00:00Z");
+
+            AppSettings actual = AppSettingsRuntime.toSettings(
+                    AppRules.builder()
+                            .fishingFloatDistance(200)
+                            .restoreBatchSize(2)
+                            .build(),
+                    at);
+
+            assertEquals(AppSettingsRuntime.toSettings(AppRules.defaults(), at), actual);
         }
     }
 

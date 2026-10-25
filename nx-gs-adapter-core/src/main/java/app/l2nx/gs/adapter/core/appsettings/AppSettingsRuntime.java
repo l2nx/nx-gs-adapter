@@ -1,12 +1,17 @@
 package app.l2nx.gs.adapter.core.appsettings;
 
-import app.l2nx.gs.adapter.api.rest.SyncTopics;
+import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSessionTypeSettings;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.nio.file.Path;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -18,9 +23,10 @@ public final class AppSettingsRuntime implements NxAppRules {
     private static final NxLog log = NxLogFactory.getLogger(AppSettingsRuntime.class);
 
     private static final AppSettingsRuntime INSTANCE = new AppSettingsRuntime();
-    private static final AppSettingsPublisher PUBLISHER = AppSettingsPublisher.viaNxKafka();
     private static final Object LOCK = new Object();
     private static volatile boolean initialized;
+    private static volatile boolean loginServer;
+    private static volatile @Nullable Runnable changeListener;
     private static @Nullable AppSettingsWatcher watcher;
     private static volatile AppSettingsWatcher.@Nullable ContentSource contentSourceForTesting;
 
@@ -86,8 +92,8 @@ public final class AppSettingsRuntime implements NxAppRules {
     private static void startWatching(Path file) {
         AppSettingsWatcher.ContentSource source = contentSourceForTesting;
         AppSettingsWatcher started = source == null
-                ? new AppSettingsWatcher(file, INSTANCE, PUBLISHER::publish)
-                : new AppSettingsWatcher(file, INSTANCE, PUBLISHER::publish, source);
+                ? new AppSettingsWatcher(file, INSTANCE, AppSettingsRuntime::changed)
+                : new AppSettingsWatcher(file, INSTANCE, AppSettingsRuntime::changed, source);
         try {
             started.loadAtStart();
         } catch (Throwable t) {
@@ -106,17 +112,47 @@ public final class AppSettingsRuntime implements NxAppRules {
         synchronized (LOCK) {
             stopWatcher();
             INSTANCE.reset();
-            PUBLISHER.clear();
+            loginServer = true;
             initialized = true;
         }
     }
 
-    public static void connect(SyncTopics topics, @Nullable UUID serverId) {
-        PUBLISHER.connect(topics, serverId);
+    public static boolean loginServer() {
+        return loginServer;
     }
 
-    public static void disconnect() {
-        PUBLISHER.disconnect();
+    /** Runs on the watcher thread after every applied change; {@code null} removes it. */
+    public static void changeListener(@Nullable Runnable listener) {
+        changeListener = listener;
+    }
+
+    private static void changed(AppRules applied) {
+        Runnable listener = changeListener;
+        if (listener != null) {
+            listener.run();
+        }
+    }
+
+    public static AppSettings snapshot(Instant builtAt) {
+        return toSettings(INSTANCE.current(), builtAt);
+    }
+
+    static AppSettings toSettings(AppRules rules, Instant updatedAt) {
+        List<AppSessionTypeSettings> types = new ArrayList<AppSessionTypeSettings>();
+        for (ActivityType activity : AppSettingsCatalog.SESSION_TYPE_KEYS.values()) {
+            types.add(new AppSessionTypeSettings(activity, rules.sessionTypeEnabled(activity)));
+        }
+        return AppSettings.builder()
+                .sessionTypes(types)
+                .recentlyLeftGameMinutes(rules.recentLogoutMinutes())
+                .fishingStartCooldownMinutes(rules.fishingStartCooldownMinutes())
+                .privateStoreStartCooldownMinutes(rules.privateStoreStartCooldownMinutes())
+                .returnThresholdMinutes(rules.returnThresholdMinutes())
+                .restartWindowMinutes(rules.restartWindowMinutes())
+                .fishingMinDurationMs(TimeUnit.MINUTES.toMillis(rules.fishingMinDurationMinutes()))
+                .fishingMaxDurationMs(TimeUnit.MINUTES.toMillis(rules.fishingMaxDurationMinutes()))
+                .updatedAt(updatedAt)
+                .build();
     }
 
     public static void shutdown() {
@@ -146,10 +182,10 @@ public final class AppSettingsRuntime implements NxAppRules {
     public static void resetForTesting() {
         synchronized (LOCK) {
             stopWatcher();
-            PUBLISHER.disconnect();
-            PUBLISHER.clear();
             INSTANCE.reset();
             contentSourceForTesting = null;
+            changeListener = null;
+            loginServer = false;
             initialized = false;
         }
     }

@@ -28,7 +28,7 @@ Terms follow the L2NX glossary: `item-modification` (concept), `enchant-scroll` 
 `server-phantom` in the same change.
 
 **Scope of this spec.** It fixes what the five operations share: the app-phantom session, the owner-verification
-contract the host applies, the app settings keys, the catalog and the `gamesettings` settings, the runtime-sync rule,
+contract the host applies, the app settings keys, the catalog, which `gamesettings` groups it reads, the runtime-sync rule,
 the common command fields, the receipt protocol and the anti-duplication invariants. The five commands themselves
 (R3-R5, the operation reasons and edge flows) are an outline: each command is designed in full in the scope of its
 own session (its payload and result, the mapping of every engine check to a reason, its edge flows) and its section
@@ -315,17 +315,9 @@ bonusRatePercent + support bonus + character enchant stat`, capped at 100.
 
 ### Server settings (settings-sync)
 
-- [planned] R22. New settings entity `gamesettings` (`GameSettings`) on `<tenant>.gs.settings.sync`, one full snapshot
-  per server, newest wins, next to `appsettings`. A host provider maps its engine configuration; `null` means the build
-  has no such setting. `updatedAt` is the host's start time (the snapshot is built once per start); the snapshot is
-  published on connect and after every reconnect, as `appsettings` is, and the platform deduplicates by content.
-
-  | Group          | Fields                                                                                                                                                                                                                                                                                                                                                                                                                            |
-  | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `enchant`      | `maxWeapon`, `maxArmor`, `maxAccessory`: the server-wide caps **as the engine applies them**, resolved (a build that enchants accessories by the armor cap publishes `maxAccessory` = that cap); `null` = no server-wide cap (scroll and item limits apply). Whether the engine refuses at the cap or clamps the attempt to it while spending the scroll is the engine's; the platform warns the player at the cap from these values |
-  | `attribute`    | `maxWeaponAttributes`, `maxArmorAttributes`; `oppositePairs`: `{attribute, opposite}` (an armor never holds both); `chances`: `{grade?, type, target?, chancePercent}`; `limits`: `{grade, type, target, maxPower}` — the **only** power-limit table: the host expands grade × type × target with its configuration applied (`0` = the type cannot be used on that grade)                                                         |
-  | `mail`         | `feeAdena`, `feeAdenaPerAttachment`                                                                                                                                                                                                                                                                                                                                                                                               |
-  | `offlineStore` | `feeItemTemplateId`, `feeCount`, `feePeriodHours`                                                                                                                                                                                                                                                                                                                                                                                 |
+- [planned] R22. The server-wide caps and attribute rules come from the settings entity `gamesettings` (groups
+  `enchant` and `attribute`); its contract, publication and tick live in
+  [`041-settings-sync`](../041-settings-sync.md). This feature only reads it.
 
 ### Runtime sync
 
@@ -406,8 +398,7 @@ kafka.commands.item.modification
 kafka.sync.gd.enchant.{scroll, supportitem, rategroup, scrollgroup, itemoption, hpbonus, failurereward}
 kafka.sync.gd.attributeitem
 kafka.sync.gd.augmentation.{fee, cancelfee}
-kafka.sync.settings.gamesettings    GameSettings (+ groups)
-spi/provider                        one provider per new gd entity, GameSettingsProvider
+spi/provider                        one provider per new gd entity
 spi/capability/NxAppSessions        + boolean touch(UUID sessionId), + Optional<OfflineSession> supersede(int characterId)
 ```
 
@@ -597,16 +588,9 @@ enforced where → test.
 | Attribute power limit                                      | one table `gamesettings.attribute.limits`; `attributeitem` has no limit         | R20, R22       | filter IT              |
 | Old enchant tables                                         | removed after the golden diff, vocabulary → ingester → migration                | 026            | release order          |
 
-**settings-sync `gamesettings`**
-
-| Vector                                               | Expected behaviour                                                                                                     | Enforced where    | Test                |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------- | ------------------- |
-| Tenant directory settings map without `gamesettings` | never after the rollout; the adapter logs the missing settings entity `ERROR` once (a configuration error, not a WARN) | Rollout 2         | tenant directory IT |
-| Publication                                          | on connect and every reconnect, `updatedAt` = host start, platform deduplicates by content                             | R22               | provider unit       |
-| Older snapshot after a newer one                     | the platform's upsert is gated by `updatedAt`                                                                          | 088               | ingest IT           |
-| Platform older than the host                         | unknown entity → WARN + skip, the partition keeps going                                                                | platform consumer | holds               |
-| Enchant cap                                          | the host publishes the cap it applies, `maxAccessory` resolved, `null` where none                                      | R22               | component + unit    |
-| No snapshot yet                                      | the platform read returns `null`, not `404`                                                                            | 088               | IT                  |
+**settings-sync `gamesettings`**: invariants of publication and storage live in
+[`041-settings-sync`](../041-settings-sync.md) and `nx-gameservers/docs/specs/090-settings.md`; this feature only reads
+`enchant` and `attribute`.
 
 **runtime-sync `stateStamp`**
 
@@ -642,7 +626,7 @@ host rows in the host's mapping doc.
 | 12  | EO, PA     | minor   | Idempotency key without the item and materials; UUIDv7 freshness not required                                                                                                                                             | R12                                                                                                |
 | 13  | PA         | major   | The session opened before the operation checks: a free placement; a refusal extended the session                                                                                                                          | R6, R9                                                                                             |
 | 17  | PA, ED     | major   | `ownerVerified` bypasses the device item lock of an irreversible operation                                                                                                                                                | D1: bypass kept for every operation, buy-now parity; session-stored flag raised by `true`, platform refresh once per series (R15, 089)      |
-| 19  | ED, IN     | major   | At the server cap the scroll is spent and the level stays; `maxAccessory` was not published                                                                                                                               | D6: engine behaviour kept and recorded; R22 publishes the applied cap; the platform warns          |
+| 19  | ED, IN     | major   | At the server cap the scroll is spent and the level stays; `maxJewelry` was not published                                                                                                                               | D6: engine behaviour kept and recorded; 041 R4 publishes the applied cap; the platform warns      |
 | 20  | EO, ED     | major   | The native two-step re-roll loses a paid attempt on any session end                                                                                                                                                          | D5: native flow kept, `SelectAugmentationCommand`, R5 invariants                                   |
 | 21  | EO         | major   | Adena debited before apply without a journal (removal and re-roll)                                                                                                                                                        | Receipt protocol 3                                                                                 |
 | 22  | EO         | major   | One instance as scroll and support: two spends per attempt                                                                                                                                                                   | R2, platform `400`                                                                                 |
@@ -710,18 +694,15 @@ and retention do not concern the phantom.
 ## Rollout
 
 1. API release: commands and results (five), refusal reasons, `AugmentationChoice`, `ActivityType.OFFLINE_PHANTOM`,
-   `ServerOnlineBucket`, `LogoutReason.APP_IDLE` / `APP_SUPERSEDED`, gd entities with numeric `pk`, `gamesettings`
-   with `updatedAt`, `ItemSkillRef.enchantLevel`, `ItemTemplate.upgrade.{maxEnchantLevel, enchantGrade, augmentable}`,
+   `ServerOnlineBucket`, `LogoutReason.APP_IDLE` / `APP_SUPERSEDED`, gd entities with numeric `pk`, `ItemSkillRef.enchantLevel`, `ItemTemplate.upgrade.{maxEnchantLevel, enchantGrade, augmentable}`,
    `AugmentationOutcome.slot = 3` (ordinal), `ItemAugmentationDbDto.{option3Id, lifeStoneItemTemplateId}`, engine
    `touch` / `supersede`, idle end, boot end of non-restorable sessions, list-valued pool keys, the app settings keys of
    R16 (reference file, `configuration.md` en / ru). SPI break: `AppRules.fishingSpotPool` becomes `fishingSpotPools`; a
    host switches in the same release. Contract docs (`enchant-contract.md`, `attribute-contract.md`,
    `augmentation-contract.md`), 038, 006, 017 and the glossary land in the same change.
 2. Platform consumers accept the new values first and are deployed to every replica before any host sends them
-   (nx-gamedata, nx-gameservers, and every other reader of the activity and logout vocabularies): accept-then-emit. The
-   tenant directory's `/connect` settings map gains `gamesettings` next to `appsettings` (without it the host publishes
-   nothing and the platform's game-settings read stays `null` forever); the adapter logs a settings entity missing from
-   the map at `ERROR` once.
+   (nx-gamedata, nx-gameservers, and every other reader of the activity and logout vocabularies): accept-then-emit.
+   `gamesettings` ships before this feature ([`041-settings-sync`](../041-settings-sync.md) rollout).
 3. Host release with providers, handlers, the receipt resolver, the app-phantom placement, spot pools and the
    world-entry stamp; the owner merges and restarts the game servers.
 

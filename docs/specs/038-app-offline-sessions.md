@@ -165,7 +165,8 @@ resume) go to the platform on the existing event rail.
 - `nx-gs-adapter-core` - the engine (package `core.appsessions`): `AppSessionEngine`, `JdbcOfflineSessionStore`,
   the built-in module `AppSessionsModule` and the JVM-wide holder `AppSessionsRuntime`. R20 adds the package
   `core.appsettings` (`AppSettingsFile` parse and validate, `AppSettingsWatcher` reload, `AppSettingsRuntime` the live
-  snapshot, `AppSettingsPublisher` the settings snapshot sender, the key catalog).
+  snapshot, the key catalog); publication is `core.settings` (`SettingsModule`, `SettingsPublisher`)
+  ([`041`](041-settings-sync.md)).
 - `nx-gs-commons` - `ClientIdentifiers` (R22), package `commons.identifiers`.
 - `nx-gs-db-migrations` - the changelog that creates `l2nx_offline_sessions` ([`037`](037-schema-migrations.md)).
 
@@ -295,11 +296,10 @@ loads the open ones. A login is therefore answered while the platform is down; p
 connect are buffered and published on connect. Disabled adapter, login server or failed migration: no engine, the
 capability starts nothing and finds nothing.
 
-**`AppSettingsPublisher`** (fed by the settings-file watcher, R20) sends `SettingsSyncEvent<AppSettings>` to `syncTopics.settings["appsettings"]`
+**The `appsettings` publisher** (`SettingsPublisher<AppSettings>` in `SettingsModule`, notified by the settings-file watcher, R20) sends `SettingsSyncEvent<AppSettings>` to `syncTopics.settings["appsettings"]`
 (`<tenant>.gs.settings.sync`), key = the raw 16-byte `serverId` (as on the gd stream), header `Nx-Message-Type =
-SettingsSyncEvent`. A snapshot published before the connect is sent on connect; the last one is sent again after every
-reconnect; a snapshot equal to the last sent one apart from `updatedAt` is not sent again (a failed send clears that
-memory); a missing topic is a single WARN and the snapshot is skipped.
+SettingsSyncEvent`, through the shared settings publisher of [`041-settings-sync`](041-settings-sync.md) (send on
+connect, reconnect and change, the 5-minute tick, a missing map entry).
 
 **Threads.** `nx-app-sessions-scheduler` (one daemon thread) runs the restore batches, the end-by-time timers and the
 one-minute flush tick; all JDBC and SPI calls hop from it to `nx-io-N`, at most half of those workers at once. The
@@ -589,10 +589,10 @@ The adapter publishes the snapshot (R18) itself from the live `AppRules`. It rid
 | per session type | the `ActivityType` of the session (`OFFLINE_FISHING`, `OFFLINE_PRIVATE_STORE`) and `enabled`, from `app.<type>.enabled`                                                                                                                                                 |
 | rule parameters  | the keys marked "Snapshot" above: recently-left minutes, fishing start cooldown (`fishingStartCooldownMinutes`), private-store start cooldown (`privateStoreStartCooldownMinutes`), return threshold, restart window, fishing minimum and maximum duration (sent in ms) |
 
-Published once the `app-sessions` module connects and after every applied change; an unchanged snapshot is not
-republished. The title, restore pace, retention, float distance, spot order and spot pool do not travel. The platform
-stores the snapshot per server (table `gs_server_settings`, column `type` = `APP`, the snapshot as JSON) so the app can
-grey out a disabled type and show the thresholds; it is not exposed to the frontend yet. A host's own fishing thresholds,
+Published on connect, after every applied change and on the 5-minute settings tick
+([`041-settings-sync`](041-settings-sync.md) R2, R3). The title, restore pace, retention, float distance, spot order and spot pool do not travel. The platform
+stores the snapshot per server (type `APP`) and serves it to the app, which greys out a disabled type and shows the
+thresholds. A host's own fishing thresholds,
 daily ceiling and reset are not here: they travel in the `usage` rows of each character
 ([`017`](017-character-runtime-activity.md)) and change only on a host restart, after which the host republishes every
 usage row.

@@ -1,34 +1,33 @@
-package app.l2nx.gs.adapter.core.appsettings;
+package app.l2nx.gs.adapter.core.settings;
 
-import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.NxHeaders;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.SettingsSyncEvent;
-import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSessionTypeSettings;
-import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
-import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.kafka.KafkaException;
 import app.l2nx.gs.kafka.NxKafka;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.function.LongSupplier;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Keyed by the raw 16-byte {@code serverId} like the gd stream, so one server's snapshots stay ordered. The latest
- * snapshot is resent after every reconnect; one equal to the last sent apart from {@code updatedAt} is skipped.
+ * One settings entity on {@code syncTopics.settings[entityName]}, keyed by the raw {@code serverId} so a server's
+ * snapshots stay ordered. A snapshot built before the latest accepted one is dropped; build order is a sequence, not
+ * the wall clock, which may step back.
  */
-final class AppSettingsPublisher {
+final class SettingsPublisher<T> {
 
-    private static final NxLog log = NxLogFactory.getLogger(AppSettingsPublisher.class);
+    private static final NxLog defaultLog = NxLogFactory.getLogger(SettingsPublisher.class);
 
     static final String MESSAGE_TYPE = SettingsSyncEvent.class.getSimpleName();
 
@@ -36,123 +35,187 @@ final class AppSettingsPublisher {
         void send(ProducerRecord<byte[], Object> record, Callback callback);
     }
 
+    static final class Build {
+        final long sequence;
+        final Instant builtAt;
+
+        Build(long sequence, Instant builtAt) {
+            this.sequence = sequence;
+            this.builtAt = builtAt;
+        }
+    }
+
+    private final String entityName;
+    private final UnaryOperator<T> withoutUpdatedAt;
     private final Sender sender;
-    private final LongSupplier clockMs;
+    private final Clock clock;
+    private final NxLog log;
+    private final AtomicLong builds = new AtomicLong();
+
+    /** Records leave in acceptance order. {@code this} is never held across a send: the producer may block up to
+     * {@code max.block.ms} and the failure callback on the producer I/O thread needs it. */
+    private final Object sendOrder = new Object();
 
     private boolean connected;
     private @Nullable String topic;
     private byte @Nullable [] key;
-    private boolean warnedNoTopic;
-    private @Nullable AppSettings latest;
-    private @Nullable AppSettings sent;
+    private boolean reportedNoTopic;
+    private Executor retries = Runnable::run;
+    private @Nullable T latest;
+    private @Nullable Build latestBuild;
+    private @Nullable T sent;
 
-    AppSettingsPublisher(Sender sender, LongSupplier clockMs) {
+    SettingsPublisher(String entityName, UnaryOperator<T> withoutUpdatedAt, Sender sender, Clock clock, NxLog log) {
+        this.entityName = entityName;
+        this.withoutUpdatedAt = withoutUpdatedAt;
         this.sender = sender;
-        this.clockMs = clockMs;
+        this.clock = clock;
+        this.log = log;
     }
 
-    static AppSettingsPublisher viaNxKafka() {
-        return new AppSettingsPublisher(AppSettingsPublisher::sendViaNxKafka, System::currentTimeMillis);
+    static <T> SettingsPublisher<T> viaNxKafka(String entityName, UnaryOperator<T> withoutUpdatedAt) {
+        return new SettingsPublisher<T>(
+                entityName, withoutUpdatedAt, SettingsPublisher::sendViaNxKafka, Clock.systemUTC(), defaultLog);
     }
 
-    synchronized void connect(SyncTopics topics, @Nullable UUID serverId) {
-        String resolved = topics.getSettings().get(AppSettings.ENTITY_NAME);
+    /**
+     * Sends nothing: the module sends the current snapshot once started.
+     *
+     * @param retries runs a resend after a failed send, off the producer I/O thread
+     */
+    synchronized void connect(SyncTopics topics, @Nullable UUID serverId, Executor retries) {
+        String resolved = topics.getSettings().get(entityName);
         topic = resolved == null || resolved.isEmpty() ? null : resolved;
         key = serverId == null ? null : NxHeaders.encodeUuid(serverId);
+        this.retries = retries;
         connected = true;
+        reportedNoTopic = false;
         sent = null;
-        AppSettings snapshot = latest;
-        if (snapshot != null) {
-            sendLocked(snapshot);
-        }
     }
 
     synchronized void disconnect() {
         connected = false;
     }
 
-    synchronized void clear() {
-        latest = null;
-        sent = null;
+    Build startBuild() {
+        return new Build(builds.incrementAndGet(), clock.instant());
     }
 
-    void publish(AppRules rules) {
-        publish(toSettings(rules, Instant.ofEpochMilli(clockMs.getAsLong())));
+    void resend(Build build, T snapshot) {
+        send(() -> acceptLocked(build, snapshot, false));
     }
 
-    synchronized void publish(AppSettings settings) {
-        latest = settings;
+    void publish(Function<Instant, T> rebuild) {
+        send(() -> buildLocked(rebuild, true));
+    }
+
+    void resend(Function<Instant, T> rebuild) {
+        send(() -> buildLocked(rebuild, false));
+    }
+
+    private @Nullable Pending<T> buildLocked(Function<Instant, T> rebuild, boolean skipUnchanged) {
+        Build build = startBuild();
+        return acceptLocked(build, rebuild.apply(build.builtAt), skipUnchanged);
+    }
+
+    private void send(Supplier<@Nullable Pending<T>> acceptUnderMonitor) {
+        synchronized (sendOrder) {
+            Pending<T> pending;
+            synchronized (this) {
+                pending = acceptUnderMonitor.get();
+            }
+            dispatch(pending);
+        }
+    }
+
+    private @Nullable Pending<T> acceptLocked(Build build, T snapshot, boolean skipUnchanged) {
+        Build newest = latestBuild;
+        if (newest != null && build.sequence < newest.sequence) {
+            log.debug(
+                    "Settings '{}' build {} started before build {}, dropped",
+                    entityName,
+                    build.sequence,
+                    newest.sequence);
+            return null;
+        }
+        latest = snapshot;
+        latestBuild = build;
         if (!connected) {
-            return;
+            return null;
         }
-        AppSettings previous = sent;
-        if (previous != null && sameIgnoringUpdatedAt(previous, settings)) {
-            log.debug("App settings unchanged since the last snapshot, not republished");
-            return;
+        T previous = sent;
+        if (skipUnchanged && previous != null && sameIgnoringUpdatedAt(previous, snapshot)) {
+            log.debug("Settings '{}' unchanged since the last snapshot, not republished", entityName);
+            return null;
         }
-        sendLocked(settings);
-    }
-
-    private void sendLocked(AppSettings settings) {
         String target = topic;
         if (target == null) {
-            if (!warnedNoTopic) {
-                warnedNoTopic = true;
-                log.warn(
-                        "No settings topic for '{}' in syncTopics.settings, app settings are not published",
-                        AppSettings.ENTITY_NAME);
+            if (!reportedNoTopic) {
+                reportedNoTopic = true;
+                log.error(
+                        "No settings topic for '{}' in syncTopics.settings of the tenant directory, these settings are"
+                                + " not published until the next connect",
+                        entityName);
             }
-            return;
+            return null;
         }
-        SettingsSyncEvent<AppSettings> event =
-                new SettingsSyncEvent<AppSettings>(AppSettings.ENTITY_NAME, settings, clockMs.getAsLong());
+        SettingsSyncEvent<T> event = new SettingsSyncEvent<T>(entityName, snapshot, clock.millis());
         ProducerRecord<byte[], Object> record = new ProducerRecord<byte[], Object>(target, key, event);
         record.headers().add(NxHeaders.NX_MESSAGE_TYPE, MESSAGE_TYPE.getBytes(StandardCharsets.UTF_8));
-        sent = settings;
+        sent = snapshot;
+        return new Pending<T>(record, snapshot, build);
+    }
+
+    private boolean sameIgnoringUpdatedAt(T a, T b) {
+        return withoutUpdatedAt.apply(a).equals(withoutUpdatedAt.apply(b));
+    }
+
+    private void dispatch(@Nullable Pending<T> pending) {
+        if (pending == null) {
+            return;
+        }
         try {
-            sender.send(record, (metadata, exception) -> {
+            sender.send(pending.record, (metadata, exception) -> {
                 if (exception != null) {
-                    onFailed(settings, exception);
+                    onFailed(pending, exception);
                 }
             });
         } catch (Throwable t) {
-            onFailed(settings, t);
+            onFailed(pending, t);
         }
     }
 
-    /** A lost send must not make the next identical publish look redundant. */
-    private void onFailed(AppSettings settings, Throwable cause) {
-        log.warn("Publishing app settings failed, sent again with the next publish: {}", cause.getMessage());
+    private void onFailed(Pending<T> failed, Throwable cause) {
+        log.warn(
+                "Publishing settings '{}' failed, sent again with the next tick or handshake: {}",
+                entityName,
+                cause.getMessage());
+        T skipped;
+        Build skippedBuild;
+        Executor executor;
         synchronized (this) {
-            if (sent == settings) {
-                sent = null;
+            if (sent != failed.snapshot) {
+                return;
+            }
+            sent = null;
+            skipped = latest;
+            skippedBuild = latestBuild;
+            executor = retries;
+            if (!connected
+                    || skipped == null
+                    || skipped == failed.snapshot
+                    || skippedBuild == null
+                    || skippedBuild.sequence <= failed.build.sequence) {
+                return;
             }
         }
-    }
-
-    static AppSettings toSettings(AppRules rules, Instant updatedAt) {
-        List<AppSessionTypeSettings> types = new ArrayList<AppSessionTypeSettings>();
-        for (ActivityType activity : AppSettingsCatalog.SESSION_TYPE_KEYS.values()) {
-            types.add(new AppSessionTypeSettings(activity, rules.sessionTypeEnabled(activity)));
+        T retry = skipped;
+        Build retryBuild = skippedBuild;
+        try {
+            executor.execute(() -> resend(retryBuild, retry));
+        } catch (Throwable t) {
+            log.debug("Settings '{}' resend after a failed send not scheduled: {}", entityName, t.getMessage());
         }
-        return AppSettings.builder()
-                .sessionTypes(types)
-                .recentlyLeftGameMinutes(rules.recentLogoutMinutes())
-                .fishingStartCooldownMinutes(rules.fishingStartCooldownMinutes())
-                .privateStoreStartCooldownMinutes(rules.privateStoreStartCooldownMinutes())
-                .returnThresholdMinutes(rules.returnThresholdMinutes())
-                .restartWindowMinutes(rules.restartWindowMinutes())
-                .fishingMinDurationMs(TimeUnit.MINUTES.toMillis(rules.fishingMinDurationMinutes()))
-                .fishingMaxDurationMs(TimeUnit.MINUTES.toMillis(rules.fishingMaxDurationMinutes()))
-                .updatedAt(updatedAt)
-                .build();
-    }
-
-    private static boolean sameIgnoringUpdatedAt(AppSettings a, AppSettings b) {
-        return a.toBuilder()
-                .updatedAt(Instant.EPOCH)
-                .build()
-                .equals(b.toBuilder().updatedAt(Instant.EPOCH).build());
     }
 
     private static void sendViaNxKafka(ProducerRecord<byte[], Object> record, Callback callback) {
@@ -160,6 +223,18 @@ final class AppSettingsPublisher {
             NxKafka.instance().sendBytesKeyRecord(record, callback);
         } catch (KafkaException notConfigured) {
             callback.onCompletion(null, notConfigured);
+        }
+    }
+
+    private static final class Pending<T> {
+        final ProducerRecord<byte[], Object> record;
+        final T snapshot;
+        final Build build;
+
+        Pending(ProducerRecord<byte[], Object> record, T snapshot, Build build) {
+            this.record = record;
+            this.snapshot = snapshot;
+            this.build = build;
         }
     }
 }

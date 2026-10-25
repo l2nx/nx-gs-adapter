@@ -52,6 +52,7 @@ work lives in [`TODO.md`](TODO.md).
 | 038 | app-offline-sessions (+ app settings file, session-history read, `ClientIdentifiers`)              | 2026-10-22 | [spec](specs/038-app-offline-sessions.md)              |
 | 039 | private-store-state-event (per-trader store state; replaces the book snapshot)                     | 2026-10-16 | [spec](specs/039-private-store-state-event.md)         |
 | 040 | command-receipts (adapter-side store of `l2nx_command_receipts`)                                   | 2026-10-16 | [spec](specs/040-command-receipts.md)                  |
+| 041 | settings-sync (`appsettings` + `gamesettings`, 5-minute tick, `GameSettingsProvider`)               | 2026-10-25 | [spec](specs/041-settings-sync.md)                     |
 
 Companion docs of the folder-form specs:
 
@@ -65,4 +66,4 @@ Companion docs of the folder-form specs:
 - `009-commands/guide.md` — handler author's guide (lifecycle, threading, registration).
 - `009-commands/<command>.md` — one per command family: `send-mail`, `send-player-mail`, `accept-mail`, `read-mail`,
   `ban`, `send-chat-message`, `character-admin`, `captcha`, `offline-fishing`, `item-modification` (also the app-phantom
-  session type, the enchant / attribute / augmentation-fee catalog and the `gamesettings` settings entity).
+  session type and the enchant / attribute / augmentation-fee catalog).

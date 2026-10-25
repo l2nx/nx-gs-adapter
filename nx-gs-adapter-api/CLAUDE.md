@@ -44,7 +44,7 @@ assuming):
   `GameDataSyncEvent` and `StatModifier`, shared by `skill` and `itemoption`
 - **runtime sync**: `character`, `character.activity.usage` (entity name `characteractivityusage`: a per-character usage pack, also rides the db channel,
   routed by entity name)
-- **settings sync**: `app` (entity name `appsettings`)
+- **settings sync**: `app` (entity name `appsettings`), `game` (entity name `gamesettings`)
 - **events**: `account`, `castle`, `character`, `characterlog`, `chat`, `gameevents`,
   `mail`, `olympiad`, `premiumpurchase`, `privatestore`, `privatetrade`, `raid`, `schedule`,
   `server.online` (family key `serveronline`), `sync`; `push` — facts published by platform services (not the host) to
@@ -69,7 +69,9 @@ in its root and splits effect / condition / learn / produced types into sub-pack
   `RuntimeRow`), and the gd catalog providers (`ItemTemplateProvider`, `SkillProvider`, …, plus the
   singleton `GearScoreRulesetProvider` and the optional `GameDataReadinessProvider` — absent means
   "always ready", see spec 030), and `OfflineSessionHost` (+ `OfflineSession`, `OfflineSessionPlacement`)
-  — the game side of app sessions; none disables the engine, two fail it (spec 038).
+  — the game side of app sessions; none disables the engine, two fail it (spec 038), and `GameSettingsProvider` — the
+  engine configuration for settings sync, called on connect and every 5 minutes; none publishes no `gamesettings`, two
+  publish none (spec 041).
 - **Tier-3** `JdbcConnectionSource` (`spi.provider`) — how a host hands the adapter a pooled
   connection. Read-only is the consumer's call after every borrow (db-sync reads, the migrator and the
   adapter's own stores write), so a provider must not force it.
