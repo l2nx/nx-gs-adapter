@@ -50,7 +50,7 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
     }
 
     private int changesetCount() {
-        return mysqlFamily() ? 8 : 7;
+        return mysqlFamily() ? 11 : 10;
     }
 
     protected TestConnectionSource source() {
@@ -87,6 +87,9 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
             expected.put("0008-offline-sessions-return-threshold", "EXECUTED");
             expected.put("0009-offline-sessions-master-account-activity-started-index", "EXECUTED");
             expected.put("0010-offline-sessions-character-activity-started-index", "EXECUTED");
+            expected.put("0011-offline-sessions-end-published-at", "EXECUTED");
+            expected.put("0012-offline-sessions-end-published-at-backfill", "EXECUTED");
+            expected.put("0013-offline-sessions-end-published-index", "EXECUTED");
             assertEquals(expected, actual);
             assertTrue(columnExists(RECEIPTS, "steps_done_at"));
         }
@@ -175,6 +178,42 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
                     + (activeSpotKey == null ? "NULL" : "'" + activeSpotKey + "'")
                     + ", 1, 2, 3, 0, CURRENT_TIMESTAMP)";
             execute(sql);
+        }
+    }
+
+    @Nested
+    class EndPublishedBackfill {
+
+        @Test
+        void migrate_shouldCountOnlyClosedSessionsAsPublished_whenRowsPredateTheColumn() throws Exception {
+            new Liquibase5SchemaMigrator().migrate(source());
+            execute("DELETE FROM " + CHANGELOG + " WHERE id = '0012-offline-sessions-end-published-at-backfill'");
+            insertSession("NULL", "NULL");
+            insertSession("'2026-10-20 10:00:00'", "NULL");
+            insertSession("'2026-10-20 11:00:00'", "'2026-10-20 11:05:00'");
+
+            new Liquibase5SchemaMigrator().migrate(source());
+
+            assertEquals(
+                    1,
+                    count("SELECT COUNT(*) FROM " + SESSIONS + " WHERE ended_at IS NULL AND end_published_at IS NULL"));
+            assertEquals(
+                    1,
+                    count("SELECT COUNT(*) FROM " + SESSIONS + " WHERE ended_at = '2026-10-20 10:00:00'"
+                            + " AND end_published_at = ended_at"));
+            assertEquals(
+                    1,
+                    count("SELECT COUNT(*) FROM " + SESSIONS + " WHERE ended_at = '2026-10-20 11:00:00'"
+                            + " AND end_published_at = '2026-10-20 11:05:00'"));
+        }
+
+        private void insertSession(String endedAt, String endPublishedAt) throws SQLException {
+            execute("INSERT INTO " + SESSIONS
+                    + " (id, idempotency_key, character_id, activity, account_name, spot_pool, spot_id, origin_x,"
+                    + " origin_y, origin_z, origin_heading, started_at, ended_at, end_reason, end_published_at)"
+                    + " VALUES (" + uuid() + ", " + uuid() + ", 7, 'OFFLINE_FISHING', 'acc', 'giran_harbor', 1, 1, 2,"
+                    + " 3, 0, '2026-10-20 09:00:00', " + endedAt + ", "
+                    + ("NULL".equals(endedAt) ? "NULL" : "'APP_STOPPED'") + ", " + endPublishedAt + ")");
         }
     }
 

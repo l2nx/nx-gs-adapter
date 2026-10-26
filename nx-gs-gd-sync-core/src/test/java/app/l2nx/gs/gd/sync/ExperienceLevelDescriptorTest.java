@@ -8,6 +8,7 @@ import app.l2nx.gs.adapter.api.kafka.sync.gd.GameDataSyncEvent;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.experiencelevel.ExperienceLevel;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.ConnectContext;
+import app.l2nx.gs.gd.sync.provider.TestExperienceLevelProvider;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;

@@ -55,21 +55,21 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
 - [todo] R11. A new entity **`characteractivityusage`** MUST ship on the runtime channel and on db-sync. One row per
   `(characterId, type, key)`:
 
-  | Field           | Type                        | Notes                                                                                                                    |
-  | --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-  | `characterId`   | `int`                       | Character                                                                                                                |
-  | `type`          | `ActivityType`              | Closed enum, constant name on the wire (`UPPER_SNAKE_CASE`); see below                                                   |
-  | `key`           | `String?`                   | Refinement inside the type, e.g. an instance template id; `null` when the type has no sub-identity                       |
-  | `subtype`       | `String?`                   | Further sub-kind of the activity                                                                                         |
-  | `activeSince`   | `Instant?`                  | `null` = the activity is not running now; otherwise the moment the current run started                                   |
-  | `remaining`     | `long?`                     | What is left in `unit`s until the limit; `null` when `limit` is `null`                                                   |
-  | `metadata`      | `Map<String,String>?`       | Open map                                                                                                                 |
-  | `unit`          | `MS` / `COUNT`              | What `used`, `limit` and `remaining` are measured in                                                                     |
-  | `used`          | `long`                      | Consumed so far in the current period                                                                                    |
-  | `limit`         | `Long?`                     | Ceiling per period; `null` = unlimited                                                                                   |
-  | `resetSchedule` | `String?`                   | RRULE (RFC 5545) in UTC: `DTSTART:<UTC>Z` + `RRULE:...`, no `TZID`; `null` = never resets (see R13)                     |
-  | `steps`         | `List<{after, multiplier}>` | Tiers: after `after` of use the effect (e.g. catch chance) is scaled by `multiplier`; empty = no tiers                   |
-  | `updatedAt`     | `Instant`                   | When the host last updated the row                                                                                       |
+  | Field           | Type                        | Notes                                                                                                  |
+  | --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------ |
+  | `characterId`   | `int`                       | Character                                                                                              |
+  | `type`          | `ActivityType`              | Closed enum, constant name on the wire (`UPPER_SNAKE_CASE`); see below                                 |
+  | `key`           | `String?`                   | Refinement inside the type, e.g. an instance template id; `null` when the type has no sub-identity     |
+  | `subtype`       | `String?`                   | Further sub-kind of the activity                                                                       |
+  | `activeSince`   | `Instant?`                  | `null` = the activity is not running now; otherwise the moment the current run started                 |
+  | `remaining`     | `long?`                     | What is left in `unit`s until the limit; `null` when `limit` is `null`                                 |
+  | `metadata`      | `Map<String,String>?`       | Open map                                                                                               |
+  | `unit`          | `MS` / `COUNT`              | What `used`, `limit` and `remaining` are measured in                                                   |
+  | `used`          | `long`                      | Consumed so far in the current period                                                                  |
+  | `limit`         | `Long?`                     | Ceiling per period; `null` = unlimited                                                                 |
+  | `resetSchedule` | `String?`                   | RRULE (RFC 5545) in UTC: `DTSTART:<UTC>Z` + `RRULE:...`, no `TZID`; `null` = never resets (see R13)    |
+  | `steps`         | `List<{after, multiplier}>` | Tiers: after `after` of use the effect (e.g. catch chance) is scaled by `multiplier`; empty = no tiers |
+  | `updatedAt`     | `Instant`                   | When the host last updated the row                                                                     |
 
   `ActivityType` (api, closed): `FISHING`, `READING`, `AUTOFARMING`, `AUTOMACRO`, `PRIVATE_STORE`, `OFFLINE_PRIVATE_STORE`,
   `OFFLINE_FISHING`. Hosts cannot invent tokens; a new activity is an api release first, then the platform enum and
@@ -77,8 +77,8 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
   An app private store and a `.offline` store both use `OFFLINE_PRIVATE_STORE`; the presence `source` tells them apart.
 
   Fishing rows: the `FISHING` row carries `used` / `limit` / `steps` / `resetSchedule` shared by live and offline
-  fishing, and `activeSince` while any fishing runs. The `OFFLINE_FISHING` row carries only `activeSince` of an app
-  fishing session (no usage numbers).
+  fishing, and `activeSince` while any fishing runs. The `OFFLINE_FISHING` row carries `activeSince` of an app fishing
+  session and no usage numbers; its `metadata` describes the running session (R17).
 
   Consumption and limits are named `usage`, not `quota`. Fishing notifications are a deferred, separate task; the platform
   can later derive "fishing ended" from a fishing row (live or offline) whose `activeSince` clears (for an offline session
@@ -109,6 +109,24 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
   [`038-app-offline-sessions`](038-app-offline-sessions.md)) next to `OFFLINE_PRIVATE_STORE`. `OFFLINE_PRIVATE_STORE` is also the
   activity of an app private store: the presence `source` tells it apart from a `.offline` store, and the platform's
   offline-store place check works unchanged.
+- [done] R17. Metadata keys are a vocabulary in the api: enum `ActivityMetadataKey` (`Vocabularies.Keyed`, lower
+  camelCase wire keys), so the platform and every host agree on them instead of each host inventing strings. The map
+  stays open (R9): a consumer ignores a key it does not know. Implemented in the adapter, not yet released.
+
+  | Key                 | Rows                        | Value                                                                                 |
+  | ------------------- | --------------------------- | ------------------------------------------------------------------------------------- |
+  | `elapsed`           | any running row             | ISO-8601 duration the current run has been active                                     |
+  | `remaining`         | any running row with a plan | ISO-8601 duration left of the planned run (an app session: planned minus active time) |
+  | `rodItemId`         | `OFFLINE_FISHING`           | inventory instance id of the session's rod                                            |
+  | `baitItemId`        | `OFFLINE_FISHING`           | inventory instance id of the session's bait stack                                     |
+  | `fishingShotItemId` | `OFFLINE_FISHING`           | inventory instance id of the session's fishing-shot stack; absent without shots       |
+  | `spotPool`          | `OFFLINE_FISHING`           | pool of the spot the character stands on                                              |
+  | `spotId`            | `OFFLINE_FISHING`           | the spot inside the pool                                                              |
+
+  Ids are decimal strings, as every value of the `Map<String,String>`. A host rounds `elapsed` / `remaining` in its row
+  hash to whole minutes, so the row is republished about once a minute, not every tick. The platform derives the
+  session's remaining time from `remaining`: the start result is not the only place that knows it, so a second device
+  sees it too.
 
 **Should:**
 

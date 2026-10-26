@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.character.revive;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.character.revive.model.RestartPoint;
 import app.l2nx.gs.adapter.api.kafka.commands.character.revive.model.ReviveRefusalReason;
 import com.google.gson.Gson;
@@ -29,7 +30,6 @@ class ReviveCharacterCommandTest {
 
     private static final Instant DEADLINE = Instant.parse("2026-10-25T12:00:00Z");
     private static final UUID KEY = UUID.fromString("5b1f3c2e-0000-4000-8000-000000000011");
-    private static final UUID MASTER = UUID.fromString("5b1f3c2e-0000-4000-8000-000000000012");
     private static final Gson GSON = new GsonBuilder()
             .registerTypeAdapter(
                     Instant.class, (JsonSerializer<Instant>) (src, type, ctx) -> new JsonPrimitive(src.toString()))
@@ -40,17 +40,17 @@ class ReviveCharacterCommandTest {
     private static ReviveCharacterCommand.Builder command() {
         return ReviveCharacterCommand.builder()
                 .characterId(5)
-                .masterAccountId(MASTER)
                 .restartPoint(RestartPoint.TOWN)
                 .disconnectClient(true)
                 .ownerVerified(true)
                 .deadline(DEADLINE)
-                .idempotencyKey(KEY);
+                .idempotencyKey(KEY)
+                .initiator(TestInitiators.USER);
     }
 
     static Stream<Arguments> missingRequired() {
         return Stream.of(
-                missing("masterAccountId", b -> b.masterAccountId(null)),
+                missing("initiator", b -> b.initiator(null)),
                 missing("restartPoint", b -> b.restartPoint((String) null)),
                 missing("deadline", b -> b.deadline(null)),
                 missing("idempotencyKey", b -> b.idempotencyKey(null)));
@@ -68,7 +68,7 @@ class ReviveCharacterCommandTest {
             ReviveCharacterCommand actual = command().build();
 
             assertEquals(5, actual.getCharacterId());
-            assertEquals(MASTER, actual.getMasterAccountId());
+            assertEquals(TestInitiators.USER, actual.getInitiator());
             assertEquals("TOWN", actual.getRestartPoint());
             assertTrue(actual.isDisconnectClient());
             assertTrue(actual.isOwnerVerified());

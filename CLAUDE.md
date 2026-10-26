@@ -30,7 +30,8 @@ own, fill this".
   `docs/TODO.md` line.
 - **The gd contracts are living docs.** Any change to the `gd.skill` DTOs or the skill/stat vocabulary enums updates
   `docs/specs/030-gamedata-sync/skill-contract.md`, and any change to the `gd.itemoption` / `gd.augmentation` DTOs or
-  their enums updates `docs/specs/030-gamedata-sync/augmentation-contract.md`, in the same commit.
+  their enums updates `docs/specs/030-gamedata-sync/augmentation-contract.md`, and any change to the `gd.fishing*` DTOs
+  updates `docs/specs/030-gamedata-sync/fishing-gear-contract.md`, in the same commit.
 - Platform storage follows meaning, not the writer: see `nx-gamedata/CLAUDE.md` → first principle.
 - **The adapter is transport plus a generic session engine: no game rules live in it.** The engine (spec 038) owns
   the session table, idempotency, `active_ms`, end by time, the restore and one session per character / one character
@@ -145,31 +146,32 @@ Things that cost time to learn and are not visible from the code you are editing
   meanwhile. See 038.
 - **`SNAPSHOT_COMPLETE` is a reconcile point.** A provider that is not ready returns `null` (burst
   aborted, nothing reconciled; a `null` lasting past the readiness window is an ERROR); a registered
-  provider whose catalog is legitimately empty returns an empty collection — a `count=0` marker, which
-  the platform treats as an anomaly and never reconciles (030-gamedata-sync §7). Neither form deletes
-  rows; a real disappearance of an entity is done by hand on the platform. See 030-gamedata-sync §2, §7.
+  provider whose catalog is legitimately empty returns an empty collection — a `count=0` marker, on
+  which the platform deletes all rows of the entity for that server (030-gamedata-sync §7). So an empty
+  collection from a host that is still loading wipes the catalog until the next burst: return `null`
+  until ready. See 030-gamedata-sync §2, §7.
 
 ## Threading model
 
 Adapter-owned threads (all daemon — never block JVM exit):
 
-| Thread name                 | Count        | Purpose                                                                                          |
-| --------------------------- | ------------ | ------------------------------------------------------------------------------------------------ |
-| `nx-adapter-connect`        | 1            | `POST /connect` + reconnect retries (±25% jitter)                                                |
-| `nx-adapter-heartbeat`      | 1            | Periodic heartbeat POSTs                                                                         |
-| `nx-gs-kafka-shutdown`      | 1            | JVM shutdown hook                                                                                |
-| `nx-gs-kafka-health`        | 1            | Persistent `AdminClient.describeCluster` health ticks                                            |
-| `nx-events-publisher`       | 1            | Bounded-queue fan-out for `NxEvents`                                                             |
-| `nx-commands-consumer`      | 1            | Kafka poll + dispatch for `NxCommands`                                                           |
-| `nx-commands-deferred`      | 0-1          | Publishes deferred replies + expiry timer (lazy)                                                 |
-| `nx-io-N`                   | configurable | Adapter-owned IO pool (`ctx.io()` for JDBC/HTTP hops)                                            |
-| `nx-cdc-pool-<schema>-N`    | configurable | Shared CDC engine pool (db-sync, all entities)                                                   |
-| `nx-runtime-sync-pool-N`    | configurable | Shared runtime-sync engine pool (all entities)                                                   |
-| `nx-gd-sync-scheduler`      | 0-1          | gd-sync host-readiness polling + periodic resync                                                 |
-| `nx-app-sessions-scheduler` | 0-1          | App-session restore batches, end-by-time timers, `active_ms` flush tick (work hops to `nx-io-N`) |
-| `nx-app-settings-watcher`   | 0-1          | Polls `l2nx-app.properties` (~5 s, by content) and swaps in a valid file (game server only)      |
-| `nx-settings-tick`          | 0-1          | 5-minute unconditional resend of every settings snapshot (work hops to `nx-io-N`)                |
-| Kafka producer I/O          | 1            | Internal to `KafkaProducer` (kafka-clients-managed)                                              |
+| Thread name                 | Count        | Purpose                                                                                                                                                                 |
+| --------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nx-adapter-connect`        | 1            | `POST /connect` + reconnect retries (±25% jitter)                                                                                                                       |
+| `nx-adapter-heartbeat`      | 1            | Periodic heartbeat POSTs                                                                                                                                                |
+| `nx-gs-kafka-shutdown`      | 1            | JVM shutdown hook                                                                                                                                                       |
+| `nx-gs-kafka-health`        | 1            | Persistent `AdminClient.describeCluster` health ticks                                                                                                                   |
+| `nx-events-publisher`       | 1            | Bounded-queue fan-out for `NxEvents`                                                                                                                                    |
+| `nx-commands-consumer`      | 1            | Kafka poll + dispatch for `NxCommands`                                                                                                                                  |
+| `nx-commands-deferred`      | 0-1          | Publishes deferred replies + expiry timer (lazy)                                                                                                                        |
+| `nx-io-N`                   | configurable | Adapter-owned IO pool (`ctx.io()` for JDBC/HTTP hops)                                                                                                                   |
+| `nx-cdc-pool-<schema>-N`    | configurable | Shared CDC engine pool (db-sync, all entities)                                                                                                                          |
+| `nx-runtime-sync-pool-N`    | configurable | Shared runtime-sync engine pool (all entities)                                                                                                                          |
+| `nx-gd-sync-scheduler`      | 0-1          | gd-sync host-readiness polling + periodic resync                                                                                                                        |
+| `nx-app-sessions-scheduler` | 0-1          | App-session restore batches, end-by-time timers, `active_ms` flush tick with the republish of unacknowledged ends, 60 s open-sessions snapshot (work hops to `nx-io-N`) |
+| `nx-app-settings-watcher`   | 0-1          | Polls `l2nx-app.properties` (~5 s, by content) and swaps in a valid file (game server only)                                                                             |
+| `nx-settings-tick`          | 0-1          | 5-minute unconditional resend of every settings snapshot (work hops to `nx-io-N`)                                                                                       |
+| Kafka producer I/O          | 1            | Internal to `KafkaProducer` (kafka-clients-managed)                                                                                                                     |
 
 Pool sizing keys: `l2nx.io.workers`, `l2nx.cdc-engine.workers`, `l2nx.runtime-sync.workers` (all
 default `max(2, cores/2)`, or `max(2, min(entities, cores/2))` for the engines). Per-engine config
@@ -294,7 +296,9 @@ shipped before this rule: `docs/specs/029-character-class-state-sync.md` (`subcl
   An open vocabulary (the host may send a token the platform does not know yet) gets a lenient
   `static @Nullable X fromToken(String)` that returns `null` for an unknown token, delegating to the shared
   `Vocabularies.fromToken(Class, String)`; consumers tolerate it. Legacy
-  `WellKnown*` classes are converted when their family is touched.
+  `WellKnown*` classes are converted when their family is touched. A mechanical touch of every command (one field
+  added to all of them, such as `initiator`) is not touching a family and does not trigger the conversion
+  ([#33](https://github.com/l2nx/nx-gs-adapter/issues/33)).
 - **Any field/column referencing an item template is `itemTemplateId` / `item_template_id`** — never
   `itemId`, `itemConsumeId`, `consumeItemId`. It is an FK to the item-template entity; the
   accompanying quantity is `itemTemplateCount`. A reference to a concrete item instance is `itemId`.

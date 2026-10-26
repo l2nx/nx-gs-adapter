@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -30,7 +31,8 @@ class AcceptMailCommandTest {
                 .expectedSenderCharId(2L)
                 .expectedCodAdena(0L)
                 .idempotencyKey(KEY)
-                .deadline(DEADLINE);
+                .deadline(DEADLINE)
+                .initiator(TestInitiators.USER);
     }
 
     static Stream<Arguments> missingRequired() {

@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.character.revive;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.kafka.commands.character.revive.model.RestartPoint;
@@ -10,40 +11,36 @@ import java.util.UUID;
 public final class ReviveCharacterCommand implements OwnerVerified, NxCommand<ReviveCharacterResult> {
 
     private final int characterId;
-    private final UUID masterAccountId;
     private final String restartPoint;
     private final boolean disconnectClient;
     private final boolean ownerVerified;
     private final Instant deadline;
     private final UUID idempotencyKey;
+    private final CommandInitiator initiator;
 
     public ReviveCharacterCommand(
             int characterId,
-            UUID masterAccountId,
             String restartPoint,
             boolean disconnectClient,
             boolean ownerVerified,
             Instant deadline,
-            UUID idempotencyKey) {
+            UUID idempotencyKey,
+            CommandInitiator initiator) {
         Objects.requireNonNull(restartPoint, "restartPoint");
         if (restartPoint.trim().isEmpty()) {
             throw new IllegalArgumentException("restartPoint must not be blank");
         }
         this.characterId = characterId;
-        this.masterAccountId = Objects.requireNonNull(masterAccountId, "masterAccountId");
         this.restartPoint = restartPoint;
         this.disconnectClient = disconnectClient;
         this.ownerVerified = ownerVerified;
         this.deadline = Objects.requireNonNull(deadline, "deadline");
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey");
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public int getCharacterId() {
         return characterId;
-    }
-
-    public UUID getMasterAccountId() {
-        return masterAccountId;
     }
 
     /**
@@ -76,15 +73,20 @@ public final class ReviveCharacterCommand implements OwnerVerified, NxCommand<Re
         return idempotencyKey;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .characterId(characterId)
-                .masterAccountId(masterAccountId)
                 .restartPoint(restartPoint)
                 .disconnectClient(disconnectClient)
                 .ownerVerified(ownerVerified)
                 .deadline(deadline)
-                .idempotencyKey(idempotencyKey);
+                .idempotencyKey(idempotencyKey)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -99,45 +101,39 @@ public final class ReviveCharacterCommand implements OwnerVerified, NxCommand<Re
         return characterId == that.characterId
                 && disconnectClient == that.disconnectClient
                 && ownerVerified == that.ownerVerified
-                && Objects.equals(masterAccountId, that.masterAccountId)
                 && Objects.equals(restartPoint, that.restartPoint)
                 && Objects.equals(deadline, that.deadline)
-                && Objects.equals(idempotencyKey, that.idempotencyKey);
+                && Objects.equals(idempotencyKey, that.idempotencyKey)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                characterId, masterAccountId, restartPoint, disconnectClient, ownerVerified, deadline, idempotencyKey);
+                characterId, restartPoint, disconnectClient, ownerVerified, deadline, idempotencyKey, initiator);
     }
 
     @Override
     public String toString() {
         return "ReviveCharacterCommand[characterId=" + characterId
-                + ", masterAccountId=" + masterAccountId
                 + ", restartPoint=" + restartPoint
                 + ", disconnectClient=" + disconnectClient
                 + ", ownerVerified=" + ownerVerified
                 + ", deadline=" + deadline
-                + ", idempotencyKey=" + idempotencyKey + "]";
+                + ", idempotencyKey=" + idempotencyKey + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
         private int characterId;
-        private UUID masterAccountId;
         private String restartPoint;
         private boolean disconnectClient;
         private boolean ownerVerified;
         private Instant deadline;
         private UUID idempotencyKey;
+        private CommandInitiator initiator;
 
         public Builder characterId(int characterId) {
             this.characterId = characterId;
-            return this;
-        }
-
-        public Builder masterAccountId(UUID masterAccountId) {
-            this.masterAccountId = masterAccountId;
             return this;
         }
 
@@ -171,15 +167,14 @@ public final class ReviveCharacterCommand implements OwnerVerified, NxCommand<Re
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public ReviveCharacterCommand build() {
             return new ReviveCharacterCommand(
-                    characterId,
-                    masterAccountId,
-                    restartPoint,
-                    disconnectClient,
-                    ownerVerified,
-                    deadline,
-                    idempotencyKey);
+                    characterId, restartPoint, disconnectClient, ownerVerified, deadline, idempotencyKey, initiator);
         }
     }
 }

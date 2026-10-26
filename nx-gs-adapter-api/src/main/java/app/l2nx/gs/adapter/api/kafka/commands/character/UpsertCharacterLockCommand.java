@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.character;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
@@ -22,8 +23,10 @@ public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharact
     private final Long charId;
     private final String lockType;
     private final @Nullable String value;
+    private final CommandInitiator initiator;
 
-    public UpsertCharacterLockCommand(Long charId, String lockType, @Nullable String value) {
+    public UpsertCharacterLockCommand(
+            Long charId, String lockType, @Nullable String value, CommandInitiator initiator) {
         if (charId == null) {
             throw new IllegalArgumentException("charId is required");
         }
@@ -33,6 +36,7 @@ public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharact
         this.charId = charId;
         this.lockType = lockType;
         this.value = value;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public Long getCharId() {
@@ -49,8 +53,13 @@ public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharact
         return value;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().charId(charId).lockType(lockType).value(value);
+        return new Builder().charId(charId).lockType(lockType).value(value).initiator(initiator);
     }
 
     public static Builder builder() {
@@ -64,23 +73,26 @@ public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharact
         UpsertCharacterLockCommand that = (UpsertCharacterLockCommand) o;
         return Objects.equals(charId, that.charId)
                 && Objects.equals(lockType, that.lockType)
-                && Objects.equals(value, that.value);
+                && Objects.equals(value, that.value)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, lockType, value);
+        return Objects.hash(charId, lockType, value, initiator);
     }
 
     @Override
     public String toString() {
-        return "UpsertCharacterLockCommand[charId=" + charId + ", lockType=" + lockType + ", value=" + value + "]";
+        return "UpsertCharacterLockCommand[charId=" + charId + ", lockType=" + lockType + ", value=" + value
+                + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
         private Long charId;
         private String lockType;
         private @Nullable String value;
+        private CommandInitiator initiator;
 
         public Builder charId(Long charId) {
             this.charId = charId;
@@ -97,8 +109,13 @@ public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharact
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public UpsertCharacterLockCommand build() {
-            return new UpsertCharacterLockCommand(charId, lockType, value);
+            return new UpsertCharacterLockCommand(charId, lockType, value, initiator);
         }
     }
 }

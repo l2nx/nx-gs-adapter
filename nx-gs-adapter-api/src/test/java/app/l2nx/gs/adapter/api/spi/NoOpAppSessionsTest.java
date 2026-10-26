@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -21,7 +21,8 @@ class NoOpAppSessionsTest {
 
     @Test
     void findOpen_shouldBeEmpty() {
-        assertTrue(NoOpAppSessions.INSTANCE.findOpen(ActivityType.OFFLINE_FISHING).isEmpty());
+        assertTrue(
+                NoOpAppSessions.INSTANCE.findOpen(ActivityType.OFFLINE_FISHING).isEmpty());
     }
 
     @ParameterizedTest(name = "{0}")

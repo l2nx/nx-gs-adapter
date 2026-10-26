@@ -1,4 +1,4 @@
-package app.l2nx.gs.gd.sync;
+package app.l2nx.gs.gd.sync.provider;
 
 import app.l2nx.gs.adapter.api.kafka.sync.gd.experiencelevel.ExperienceLevel;
 import app.l2nx.gs.adapter.api.spi.provider.ExperienceLevelProvider;
@@ -7,7 +7,7 @@ import java.util.Collections;
 
 public final class TestExperienceLevelProvider implements ExperienceLevelProvider {
 
-    static volatile Collection<ExperienceLevel> snapshot = Collections.emptyList();
+    public static volatile Collection<ExperienceLevel> snapshot = Collections.emptyList();
 
     @Override
     public String entityName() {

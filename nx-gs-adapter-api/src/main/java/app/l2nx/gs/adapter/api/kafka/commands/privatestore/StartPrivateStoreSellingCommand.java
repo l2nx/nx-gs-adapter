@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.PrivateStoreFee;
 import java.time.Instant;
@@ -22,8 +23,8 @@ public abstract class StartPrivateStoreSellingCommand extends StartPrivateStoreC
             boolean ownerVerified,
             @Nullable Instant deadline,
             UUID idempotencyKey,
-            @Nullable String initiatorIp) {
-        super(charId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiatorIp);
+            CommandInitiator initiator) {
+        super(charId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiator);
         if (sellerFeePercent != null
                 && (sellerFeePercent < 0 || sellerFeePercent > PrivateStoreFee.MAX_SELLER_FEE_PERCENT)) {
             throw new IllegalArgumentException("sellerFeePercent must be within 0.."

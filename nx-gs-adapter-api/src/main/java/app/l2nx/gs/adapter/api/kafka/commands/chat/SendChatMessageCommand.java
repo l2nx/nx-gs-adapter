@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.chat;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.kafka.events.chat.WellKnownChatChannels;
@@ -24,6 +25,7 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
     private final String text;
     private final @Nullable String targetCharacterName;
     private final boolean ownerVerified;
+    private final CommandInitiator initiator;
 
     public SendChatMessageCommand(
             UUID messageId,
@@ -35,7 +37,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
             String source,
             String text,
             @Nullable String targetCharacterName,
-            boolean ownerVerified) {
+            boolean ownerVerified,
+            CommandInitiator initiator) {
         this.messageId = Objects.requireNonNull(messageId, "messageId");
         this.channel = requireText(channel, "channel");
         this.audience = requireText(audience, "audience");
@@ -53,6 +56,7 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
         this.text = requireText(text, "text");
         this.targetCharacterName = targetCharacterName;
         this.ownerVerified = ownerVerified;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     private static void validateAudience(
@@ -138,6 +142,11 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
         return ownerVerified;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .messageId(messageId)
@@ -149,7 +158,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                 .source(source)
                 .text(text)
                 .targetCharacterName(targetCharacterName)
-                .ownerVerified(ownerVerified);
+                .ownerVerified(ownerVerified)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -170,7 +180,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                 && Objects.equals(source, that.source)
                 && Objects.equals(text, that.text)
                 && Objects.equals(targetCharacterName, that.targetCharacterName)
-                && ownerVerified == that.ownerVerified;
+                && ownerVerified == that.ownerVerified
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
@@ -185,7 +196,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                 source,
                 text,
                 targetCharacterName,
-                ownerVerified);
+                ownerVerified,
+                initiator);
     }
 
     @Override
@@ -199,7 +211,7 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                 + ", source=" + source
                 + ", text=" + text
                 + ", targetCharacterName=" + targetCharacterName
-                + ", ownerVerified=" + ownerVerified + "]";
+                + ", ownerVerified=" + ownerVerified + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -213,6 +225,7 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
         private String text;
         private @Nullable String targetCharacterName;
         private boolean ownerVerified;
+        private CommandInitiator initiator;
 
         public Builder messageId(UUID messageId) {
             this.messageId = messageId;
@@ -264,6 +277,11 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public SendChatMessageCommand build() {
             return new SendChatMessageCommand(
                     messageId,
@@ -275,7 +293,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                     source,
                     text,
                     targetCharacterName,
-                    ownerVerified);
+                    ownerVerified,
+                    initiator);
         }
     }
 }

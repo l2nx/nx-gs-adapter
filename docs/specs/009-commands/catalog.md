@@ -20,6 +20,9 @@ Naming convention: `{X}Command` → `{X}Result`. The reply envelope is
 always `CommandResult<R>` where `R` is the dedicated result type
 declared on the command's `NxCommand<R>` marker.
 
+Every command also carries a required `initiator` (`CommandInitiator`, spec R30; implemented in the adapter, not yet
+released): who triggered it. The input tables below do not repeat it; see Cross-cutting › Command initiator.
+
 ---
 
 ## Announcement commands
@@ -380,7 +383,6 @@ refusal. Idempotent by `idempotencyKey` (command receipts, [`040`](../040-comman
 | Field              | Type      | Required | Notes                                                                                                                                                                |
 | ------------------ | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `characterId`      | `int`     | yes      | Character to revive                                                                                                                                                  |
-| `masterAccountId`  | `UUID`    | yes      | Master account of the initiator, set by the platform                                                                                                                 |
 | `restartPoint`     | `String`  | yes      | `RestartPoint` token (open vocabulary, today `TOWN`); an unknown token is refused with `RESTART_POINT_UNSUPPORTED`                                                   |
 | `disconnectClient` | `boolean` | no       | Character in the world only: `true` closes the client and revives it out of the game, `false` revives it in the world; ignored out of the game; absent reads `false` |
 | `ownerVerified`    | `boolean` | no       | See Cross-cutting › Owner verification; absent reads as `false`                                                                                                      |
@@ -745,19 +747,16 @@ bait. The host decides every rule; the reply carries a reason code from the shar
 
 **Inputs**
 
-| Field             | Type      | Required | Notes                                                                                                                                                                   |
-| ----------------- | --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `characterId`     | `int`     | yes      | Character that goes fishing                                                                                                                                             |
-| `masterAccountId` | `UUID`    | yes      | Master account of the initiator, set by the platform; used for the one-fishing limit                                                                                    |
-| `initiatorIp`     | `String?` | no       | IP of the app request, set by the platform; stored in the session and returned in the session event                                                                     |
-| `durationMs`      | `long`    | yes      | Chosen duration, positive; outside the host's minimum..maximum it is refused with `INVALID_DURATION`; a longer-than-allowed-today value yields a shorter effective plan |
-| `rodItemId`       | `int`     | yes      | Inventory instance id of the chosen rod                                                                                                                                 |
-| `baitItemId`      | `int`     | yes      | Inventory instance id of the chosen bait stack                                                                                                                          |
-| `ownerVerified`   | `boolean` | no       | See Cross-cutting › Owner verification; absent reads as `false`                                                                                                         |
-| `deadline`        | `Instant` | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED`; checked before anything is read or changed                                                              |
-| `idempotencyKey`  | `UUID`    | yes      | Business identity of the start, stable across retries; the host dedups and replays by it; `correlationId` is one attempt only                                           |
-
-The initiator is the envelope's `CommandInitiator`.
+| Field               | Type       | Required | Notes                                                                                                                                                                      |
+| ------------------- | ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `characterId`       | `int`      | yes      | Character that goes fishing                                                                                                                                                |
+| `durationMs`        | `long`     | yes      | Chosen duration, positive; outside the host's minimum..maximum it is refused with `INVALID_DURATION`; a longer-than-allowed-today value yields a shorter effective plan    |
+| `rodItemId`         | `int`      | yes      | Inventory instance id of the chosen rod                                                                                                                                    |
+| `baitItemId`        | `int`      | yes      | Inventory instance id of the chosen bait stack                                                                                                                             |
+| `fishingShotItemId` | `Integer?` | no       | Inventory instance id of the chosen fishing shot stack; `null` fishes without shots. One shot is spent per cast; when the stack runs out the session goes on without shots |
+| `ownerVerified`     | `boolean`  | no       | See Cross-cutting › Owner verification; absent reads as `false`                                                                                                            |
+| `deadline`          | `Instant`  | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED`; checked before anything is read or changed                                                                 |
+| `idempotencyKey`    | `UUID`     | yes      | Business identity of the start, stable across retries; the host dedups and replays by it; `correlationId` is one attempt only                                              |
 
 **Result** (`StartOfflineFishingResult`)
 
@@ -770,10 +769,47 @@ The initiator is the envelope's `CommandInitiator`.
 
 **Errors.** A refusal carries `extensions.reason` from the shared enum: `RECENTLY_LOGGED_OUT` and `COOLDOWN` (with
 `retryAt`), `CHARACTER_ONLINE`, `DEAD`, `KARMA`, `CHARACTER_JAILED`, `CHARACTER_BANNED`, `UNSAFE_LOGOUT_LOCATION`, `IN_PRIVATE_STORE`,
-`NO_ROD`, `NO_BAIT`, `INVALID_ROD`, `INVALID_BAIT`, `INVALID_DURATION`, `FEATURE_DISABLED`, `DAILY_LIMIT`, `RESTART_SOON`,
-`NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope` `CHARACTER` / `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`), `COMMAND_EXPIRED`. Status per
-reason: `NO_ROD` / `NO_BAIT` and every other state refusal are `INVALID_STATE`; `INVALID_ROD` / `INVALID_BAIT` /
-`INVALID_DURATION` are `VALIDATION_FAILED`; `CHARACTER_BANNED` / `CHARACTER_JAILED` are `FORBIDDEN`.
+`NO_ROD`, `NO_BAIT`, `INVALID_ROD`, `INVALID_BAIT`, `INVALID_DURATION`, `FEATURE_DISABLED`, `DAILY_LIMIT` (with `retryAt` = the
+moment the daily allowance resets, when the host knows it), `RESTART_SOON`,
+`NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope` `CHARACTER` / `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`, `IP`), `COMMAND_EXPIRED`;
+`NO_FISHING_SHOT`, `INVALID_FISHING_SHOT`, `FISHING_SHOT_GRADE_MISMATCH`. Status per reason: `NO_ROD` / `NO_BAIT` /
+`NO_FISHING_SHOT` and every other state refusal are `INVALID_STATE`; `INVALID_ROD` / `INVALID_BAIT` / `INVALID_DURATION` /
+`INVALID_FISHING_SHOT` / `FISHING_SHOT_GRADE_MISMATCH` are `VALIDATION_FAILED`; `CHARACTER_BANNED` / `CHARACTER_JAILED` are
+`FORBIDDEN`.
+
+---
+
+### `CheckOfflineFishingCommand`
+
+**Purpose.** Answer whether `StartOfflineFishingCommand` with these inputs would start now, without starting
+anything (spec R31). The host runs the start's own checks and stops before the first side effect. Read-only: no
+idempotency key, nothing stored.
+
+**Inputs**
+
+| Field               | Type       | Required | Notes                                                                                           |
+| ------------------- | ---------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `characterId`       | `int`      | yes      | Character to check                                                                              |
+| `durationMs`        | `Long?`    | no       | As on start; absent skips the duration check and leaves `effectiveDurationMs` `null`            |
+| `rodItemId`         | `Integer?` | no       | As on start; absent skips the rod checks                                                        |
+| `baitItemId`        | `Integer?` | no       | As on start; absent skips the bait checks                                                       |
+| `fishingShotItemId` | `Integer?` | no       | As on start; absent skips the fishing-shot checks (the grade check needs `rodItemId` too)       |
+| `ownerVerified`     | `boolean`  | no       | See Cross-cutting › Owner verification; absent reads as `false`                                 |
+| `deadline`          | `Instant`  | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED`; checked before anything is read |
+
+**Result** (`AppSessionCheckResult`, shared by every app-session type)
+
+| Field                 | Type                       | Notes                                                                                            |
+| --------------------- | -------------------------- | ------------------------------------------------------------------------------------------------ |
+| `allowed`             | `boolean`                  | `true` when a start with these inputs would start now                                            |
+| `reason`              | `AppSessionRefusalReason?` | The first refusal in the start's order; `null` when `allowed`                                    |
+| `scope`               | `AlreadyActiveScope?`      | Non-null only with `reason = ALREADY_ACTIVE`: the limit hit, as a refused start carries it       |
+| `retryAt`             | `Instant?`                 | Set for `RECENTLY_LOGGED_OUT`, `COOLDOWN` and `DAILY_LIMIT` (the reset moment), as on start      |
+| `effectiveDurationMs` | `Long?`                    | What a start would run now (the daily stop applied); `null` without `durationMs` or when refused |
+
+**Errors.** A refusal is `OK` with `allowed = false`, its `reason` and, for `ALREADY_ACTIVE`, its `scope`. A `CommandProblem` means the check itself failed: `COMMAND_EXPIRED`, an invalid
+initiator (`VALIDATION_FAILED`), a host timeout (`UNAVAILABLE`). A core without the check handler answers
+`UNSUPPORTED_COMMAND` (adapter-emitted, as for any unknown type); the platform maps it to `501`.
 
 ---
 
@@ -782,8 +818,8 @@ reason: `NO_ROD` / `NO_BAIT` and every other state refusal are `INVALID_STATE`; 
 **Purpose.** End the character's running offline fishing session (end reason `APP_STOPPED`). Stopping a character with no
 running session is an idempotent edge flow, see [`offline-fishing.md`](./offline-fishing.md).
 
-**Inputs.** `characterId`, `masterAccountId`, `initiatorIp`, `ownerVerified`, `deadline`, `idempotencyKey` (same meaning
-as on start; the session is addressed by `characterId`).
+**Inputs.** `characterId`, `ownerVerified`, `deadline`, `idempotencyKey` (same meaning as on start; the session is
+addressed by `characterId`).
 
 **Result** (`StopOfflineFishingResult`)
 
@@ -838,9 +874,8 @@ it (sell, package sell, buy); `StopPrivateStoreCommand` never waits for it.
 | `deadline`         | `Instant`        | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED` instead of running the command; checked before anything is read or changed. `null` (older platform) reads as "no expiry"                                                                                                                                                                                                                              |
 
 The start commands also carry `idempotencyKey` (`UUID`, business identity of the start, becomes the session's
-`idempotency_key`) and `initiatorIp` (`String?`, IP of the app request, stored in the session), both declared on the
-shared base `StartPrivateStoreCommand` (as are `charId`, `title`, `offlineAllowed`, `ownerVerified` and `deadline`); the platform sends them already while the host still ignores them (an older
-host parses commands leniently and drops unknown fields).
+`idempotency_key`), declared on the shared base `StartPrivateStoreCommand` (as are `charId`, `title`, `offlineAllowed`,
+`ownerVerified` and `deadline`). The IP of the app request is `initiator.ip` (spec R30); the session stores it.
 
 **Result** (`StartPrivateStoreResult`)
 
@@ -952,7 +987,7 @@ match a fill by anything but the template and the price.
 | `ownerVerified`   | `boolean`          | no       | Same as on `StartPrivateStoreSellCommand`                                                                             |
 | `deadline`        | `Instant`          | yes      | Same as on `StartPrivateStoreSellCommand`                                                                             |
 
-`idempotencyKey` and `initiatorIp` come from the shared base, as on the sell starts.
+`idempotencyKey` comes from the shared base, as on the sell starts.
 
 **`WantedLine`** (package `kafka.commands.privatestore.model`)
 
@@ -1292,7 +1327,7 @@ Commands the platform sends on behalf of a player acting with their own characte
 `OwnerVerified` and carry `ownerVerified` (spec R28): `SendChatMessageCommand`,
 `StartPrivateStoreSellCommand`, `StartPrivateStorePackageSellCommand`, `StartPrivateStoreBuyCommand`,
 `StopPrivateStoreCommand`, `BuyFromPrivateStoreCommand`, `SellToPrivateStoreCommand`, `SendPlayerMailCommand`, `AcceptMailCommand`, `StartOfflineFishingCommand`,
-`StopOfflineFishingCommand`, `ReviveCharacterCommand`.
+`StopOfflineFishingCommand`, `CheckOfflineFishingCommand`, `ReviveCharacterCommand`.
 
 - `true` means the platform verified, against fresh master-account data, that the acting user owns
   the character. Everything else sends `false`: staff actions, socially linked characters, the
@@ -1300,6 +1335,17 @@ Commands the platform sends on behalf of a player acting with their own characte
 - It is not authorization. A host MAY use `true` only to relax checks bound to the player's device or
   game session, which a platform-issued command can never satisfy (a device-bound item lock is the
   typical one). Everything else is checked the same way regardless of the flag.
+
+### Command initiator
+
+Every command carries `initiator` (`CommandInitiator`, spec R30; implemented in the adapter, not yet released): `source` (`user` or the sending platform
+service), `userId` (`UUID`, set iff `source = user`), `label`, `email`, `ip`; absent values are `null`, never empty. The
+commands consumer refuses a missing or invalid initiator with `VALIDATION_FAILED` (`error.cause = "invalid-initiator"`)
+before the handler runs; an `OwnerVerified` command also needs `source = user`. The owner of an owner-scoped command is
+`initiator.userId`, its request IP `initiator.ip`: no command carries its own `masterAccountId` or `initiatorIp`. The
+api release that adds `initiator` removes those fields at once (no `@Deprecated` copy); until every game server of the
+tenant restarted on the new core the platform still writes them into the JSON of the four affected commands with its
+own legacy mapping (spec › Rollout).
 
 ### Sync triggers
 

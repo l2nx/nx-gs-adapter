@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.gd;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
@@ -10,8 +11,12 @@ class GdResyncCommandTest {
 
     @Test
     void command_shouldBeValueEqual_regardlessOfInstance() {
-        assertEquals(new GdResyncCommand(), GdResyncCommand.builder().build());
-        assertEquals(new GdResyncCommand().hashCode(), new GdResyncCommand().hashCode());
+        assertEquals(
+                new GdResyncCommand(TestInitiators.USER),
+                GdResyncCommand.builder().initiator(TestInitiators.USER).build());
+        assertEquals(
+                new GdResyncCommand(TestInitiators.USER).hashCode(),
+                new GdResyncCommand(TestInitiators.USER).hashCode());
     }
 
     @Test

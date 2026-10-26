@@ -3,10 +3,11 @@ package app.l2nx.gs.adapter.core.appsessions;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
-import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionCheckOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartRequest;
+import app.l2nx.gs.adapter.api.spi.model.session.ClientLoginOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import java.util.Collections;
@@ -99,6 +100,29 @@ final class AppSessionsFacade implements NxAppSessions {
             log.error("App sessions: start threw {}", t.getClass().getName(), t);
             return CompletableFuture.completedFuture(AppSessionStartOutcome.unavailable(
                     "start threw " + t.getClass().getName()));
+        }
+    }
+
+    @Override
+    public CompletableFuture<AppSessionCheckOutcome> check(int characterId, String spotPool, int spotId) {
+        AppSessionEngine e = engine;
+        if (e == null) {
+            return CompletableFuture.completedFuture(
+                    AppSessionCheckOutcome.unavailable("app sessions do not run on this server (" + state + ")"));
+        }
+        String pool;
+        try {
+            pool = AppSessionStartRequest.normalizeSpotPool(spotPool);
+            AppSessionStartRequest.requireValidSpotId(spotId);
+        } catch (IllegalArgumentException invalid) {
+            return CompletableFuture.completedFuture(AppSessionCheckOutcome.unavailable(invalid.getMessage()));
+        }
+        try {
+            return e.check(characterId, pool, spotId);
+        } catch (Throwable t) {
+            log.error("App sessions: check threw {}", t.getClass().getName(), t);
+            return CompletableFuture.completedFuture(AppSessionCheckOutcome.unavailable(
+                    "check threw " + t.getClass().getName()));
         }
     }
 

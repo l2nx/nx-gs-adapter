@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializer;
@@ -39,7 +40,8 @@ class SendPlayerMailCommandTest {
                 .recipientCharId(2L)
                 .title("Hello")
                 .idempotencyKey(KEY)
-                .deadline(DEADLINE);
+                .deadline(DEADLINE)
+                .initiator(TestInitiators.USER);
     }
 
     @Test
@@ -90,7 +92,8 @@ class SendPlayerMailCommandTest {
 
     @Test
     void equals_shouldDifferByIdempotencyKey() {
-        assertNotEquals(valid().build(), valid().idempotencyKey(UUID.randomUUID()).build());
+        assertNotEquals(
+                valid().build(), valid().idempotencyKey(UUID.randomUUID()).build());
     }
 
     @Test
@@ -137,7 +140,8 @@ class SendPlayerMailCommandTest {
 
     @Test
     void equals_shouldDifferByDeadline() {
-        assertNotEquals(valid().build(), valid().deadline(DEADLINE.plusSeconds(1)).build());
+        assertNotEquals(
+                valid().build(), valid().deadline(DEADLINE.plusSeconds(1)).build());
     }
 
     @Test

@@ -1,8 +1,8 @@
 package app.l2nx.gs.adapter.api.spi.provider;
 
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSessionPlacement;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSessionPlacement;
 import java.util.ServiceLoader;
 
 /**
@@ -14,7 +14,8 @@ import java.util.ServiceLoader;
  * overlap; calls for different sessions may. See {@link NxAppSessions#updateTypeState} for calling back in.</p>
  *
  * <p>The host checks its rules before {@link NxAppSessions#start} and again in {@link #placeInWorld} (a spot may be
- * taken after a restart). A method that throws is logged; what the engine does then is stated per method.</p>
+ * taken after a restart). {@link NxAppSessions#check} never calls this interface, so its {@code ALLOWED} does not
+ * rule out a {@link #placeInWorld} refusal of the start that follows. A method that throws is logged; what the engine does then is stated per method.</p>
  */
 public interface OfflineSessionHost {
 

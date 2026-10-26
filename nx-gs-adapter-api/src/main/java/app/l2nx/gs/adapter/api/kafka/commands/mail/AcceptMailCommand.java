@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.mail;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import java.time.Instant;
@@ -22,6 +23,7 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
     private final boolean ownerVerified;
     private final UUID idempotencyKey;
     private final Instant deadline;
+    private final CommandInitiator initiator;
 
     public AcceptMailCommand(
             Long receiverCharId,
@@ -31,7 +33,8 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
             @Nullable Long acceptedFeeAdena,
             boolean ownerVerified,
             UUID idempotencyKey,
-            Instant deadline) {
+            Instant deadline,
+            CommandInitiator initiator) {
         if (receiverCharId == null) {
             throw new IllegalArgumentException("receiverCharId is required");
         }
@@ -59,6 +62,7 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
         this.ownerVerified = ownerVerified;
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey");
         this.deadline = Objects.requireNonNull(deadline, "deadline");
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     /** Items and adena move to and from this character; it need not be online. */
@@ -101,6 +105,11 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
         return deadline;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .receiverCharId(receiverCharId)
@@ -110,7 +119,8 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
                 .acceptedFeeAdena(acceptedFeeAdena)
                 .ownerVerified(ownerVerified)
                 .idempotencyKey(idempotencyKey)
-                .deadline(deadline);
+                .deadline(deadline)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -129,7 +139,8 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
                 && Objects.equals(expectedCodAdena, that.expectedCodAdena)
                 && Objects.equals(acceptedFeeAdena, that.acceptedFeeAdena)
                 && Objects.equals(idempotencyKey, that.idempotencyKey)
-                && Objects.equals(deadline, that.deadline);
+                && Objects.equals(deadline, that.deadline)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
@@ -142,7 +153,8 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
                 acceptedFeeAdena,
                 ownerVerified,
                 idempotencyKey,
-                deadline);
+                deadline,
+                initiator);
     }
 
     @Override
@@ -154,7 +166,7 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
                 + ", acceptedFeeAdena=" + acceptedFeeAdena
                 + ", ownerVerified=" + ownerVerified
                 + ", idempotencyKey=" + idempotencyKey
-                + ", deadline=" + deadline + "]";
+                + ", deadline=" + deadline + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -166,6 +178,7 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
         private boolean ownerVerified;
         private UUID idempotencyKey;
         private Instant deadline;
+        private CommandInitiator initiator;
 
         public Builder receiverCharId(Long receiverCharId) {
             this.receiverCharId = receiverCharId;
@@ -207,6 +220,11 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public AcceptMailCommand build() {
             return new AcceptMailCommand(
                     receiverCharId,
@@ -216,7 +234,8 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
                     acceptedFeeAdena,
                     ownerVerified,
                     idempotencyKey,
-                    deadline);
+                    deadline,
+                    initiator);
         }
     }
 }

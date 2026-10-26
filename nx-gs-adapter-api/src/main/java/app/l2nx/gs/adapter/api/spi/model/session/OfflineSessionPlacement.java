@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.spi.model;
+package app.l2nx.gs.adapter.api.spi.model.session;
 
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AppSessionRefusalReason;
 import java.util.Objects;
@@ -29,14 +29,14 @@ public final class OfflineSessionPlacement {
         this.transientRefusal = transientRefusal;
     }
 
-    /** The character stands on {@code spotId} of the session's pool, the session's own spot or a free one. */
+    /** {@code spotId} is the session's own spot or a free one of its pool. */
     public static OfflineSessionPlacement placed(int spotId) {
         return placed(spotId, null);
     }
 
     /**
-     * Like {@link #placed(int)}, with the session's type state as the placement left it (a spot taken, a fee paid). The
-     * engine stores it in the same write as the spot, before {@code startAction}, which then sees it.
+     * Like {@link #placed(int)}, with the type state the placement changed. Stored with the spot, before
+     * {@code startAction}, which then sees it.
      *
      * @param typeState {@code null} or blank keeps the stored one
      */
@@ -46,8 +46,6 @@ public final class OfflineSessionPlacement {
     }
 
     /**
-     * The character was not placed and is not in the world.
-     *
      * @param refusal what a start reports to the player
      * @param detail log text, never shown to a player
      */

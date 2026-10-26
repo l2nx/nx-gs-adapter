@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.ClientLoginOutcome;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.adapter.api.spi.provider.SchemaMigrationException;
 import app.l2nx.gs.adapter.api.spi.provider.SchemaMigrator;

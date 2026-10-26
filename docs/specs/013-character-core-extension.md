@@ -115,7 +115,8 @@ online=false}`) для каждого id, который был в `previousOnli
   - `sessionId` is the app session's id;
   - the end of a session is `online = false` with the app-session `logoutReason`;
   - a session continued after a restart is `online = true` with the same `sessionId` and `resumed = true`;
-  - `ip` is the IP of the app request that started the session (`initiatorIp` of the start command) and `hwid` is the
+  - `ip` is the IP of the app request that started the session (`initiatorIp` of the start command, [planned] its
+    `initiator.ip`) and `hwid` is the
     hwid snapshot the engine used for the one-fishing-per-computer limit (`null` when empty, never `""`); `source = APP`
     marks both as "from the app".
 

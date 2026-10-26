@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.sync;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.*;
 import org.jspecify.annotations.Nullable;
@@ -23,8 +24,10 @@ public final class ResyncRowsCommand implements NxCommand<ResyncRowsResult> {
     private final String entityName;
     private final List<Long> pks;
     private final boolean cascade;
+    private final CommandInitiator initiator;
 
-    public ResyncRowsCommand(UUID resyncId, String entityName, List<Long> pks, boolean cascade) {
+    public ResyncRowsCommand(
+            UUID resyncId, String entityName, List<Long> pks, boolean cascade, CommandInitiator initiator) {
         if (resyncId == null) {
             throw new IllegalArgumentException("resyncId is required");
         }
@@ -42,6 +45,7 @@ public final class ResyncRowsCommand implements NxCommand<ResyncRowsResult> {
         this.entityName = entityName;
         this.pks = Collections.unmodifiableList(new ArrayList<Long>(pks));
         this.cascade = cascade;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     /** Echoed on every {@code ResyncCompletedEvent} the forced cycles emit. */
@@ -63,8 +67,18 @@ public final class ResyncRowsCommand implements NxCommand<ResyncRowsResult> {
         return cascade;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().resyncId(resyncId).entityName(entityName).pks(pks).cascade(cascade);
+        return new Builder()
+                .resyncId(resyncId)
+                .entityName(entityName)
+                .pks(pks)
+                .cascade(cascade)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -79,12 +93,13 @@ public final class ResyncRowsCommand implements NxCommand<ResyncRowsResult> {
         return cascade == that.cascade
                 && resyncId.equals(that.resyncId)
                 && entityName.equals(that.entityName)
-                && pks.equals(that.pks);
+                && pks.equals(that.pks)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resyncId, entityName, pks, cascade);
+        return Objects.hash(resyncId, entityName, pks, cascade, initiator);
     }
 
     @Override
@@ -92,7 +107,7 @@ public final class ResyncRowsCommand implements NxCommand<ResyncRowsResult> {
         return "ResyncRowsCommand[resyncId=" + resyncId
                 + ", entityName=" + entityName
                 + ", pks=" + pks.size()
-                + ", cascade=" + cascade + "]";
+                + ", cascade=" + cascade + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -100,6 +115,7 @@ public final class ResyncRowsCommand implements NxCommand<ResyncRowsResult> {
         private @Nullable String entityName;
         private @Nullable List<Long> pks;
         private boolean cascade;
+        private CommandInitiator initiator;
 
         public Builder resyncId(UUID resyncId) {
             this.resyncId = resyncId;
@@ -121,8 +137,13 @@ public final class ResyncRowsCommand implements NxCommand<ResyncRowsResult> {
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public ResyncRowsCommand build() {
-            return new ResyncRowsCommand(resyncId, entityName, pks, cascade);
+            return new ResyncRowsCommand(resyncId, entityName, pks, cascade, initiator);
         }
     }
 }

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.WantedLine;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -46,7 +47,7 @@ class StartPrivateStoreBuyCommandTest {
                 .ownerVerified(true)
                 .deadline(DEADLINE)
                 .idempotencyKey(KEY)
-                .initiatorIp("1.2.3.4");
+                .initiator(TestInitiators.USER);
     }
 
     @Test
@@ -61,7 +62,7 @@ class StartPrivateStoreBuyCommandTest {
         assertTrue(actual.isOwnerVerified());
         assertEquals(DEADLINE, actual.getDeadline());
         assertEquals(KEY, actual.getIdempotencyKey());
-        assertEquals("1.2.3.4", actual.getInitiatorIp());
+        assertEquals(TestInitiators.USER, actual.getInitiator());
     }
 
     @Test
@@ -123,11 +124,6 @@ class StartPrivateStoreBuyCommandTest {
     }
 
     @Test
-    void initiatorIp_shouldBeNull_whenBlank() {
-        assertNull(valid().initiatorIp("  ").build().getInitiatorIp());
-    }
-
-    @Test
     void toBuilder_shouldRoundtrip() {
         StartPrivateStoreBuyCommand original = valid().build();
 
@@ -159,7 +155,8 @@ class StartPrivateStoreBuyCommandTest {
                 + "\"lines\":[{\"itemTemplateId\":57,\"count\":10,\"priceAdena\":100},"
                 + "{\"itemTemplateId\":58,\"count\":1,\"priceAdena\":5000}],\"buyerFeePercent\":5,"
                 + "\"offlineAllowed\":true,\"ownerVerified\":true,\"deadline\":\"2026-10-22T12:00:00Z\","
-                + "\"idempotencyKey\":\"5b1f3c2e-0000-4000-8000-000000000001\",\"initiatorIp\":\"1.2.3.4\"}";
+                + "\"idempotencyKey\":\"5b1f3c2e-0000-4000-8000-000000000001\",\"initiator\":"
+                + TestInitiators.USER_JSON + "}";
 
         assertEquals(JsonParser.parseString(expected), GSON.toJsonTree(original));
         assertEquals(original, GSON.fromJson(GSON.toJson(original), StartPrivateStoreBuyCommand.class));

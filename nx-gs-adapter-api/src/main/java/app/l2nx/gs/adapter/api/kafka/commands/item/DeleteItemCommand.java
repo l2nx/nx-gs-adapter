@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.item;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 
@@ -13,8 +14,9 @@ public final class DeleteItemCommand implements NxCommand<DeleteItemResult> {
     private final Long charId;
     private final Long itemId;
     private final Long count;
+    private final CommandInitiator initiator;
 
-    public DeleteItemCommand(Long charId, Long itemId, Long count) {
+    public DeleteItemCommand(Long charId, Long itemId, Long count, CommandInitiator initiator) {
         if (charId == null) {
             throw new IllegalArgumentException("charId is required");
         }
@@ -30,6 +32,7 @@ public final class DeleteItemCommand implements NxCommand<DeleteItemResult> {
         this.charId = charId;
         this.itemId = itemId;
         this.count = count;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public Long getCharId() {
@@ -45,8 +48,13 @@ public final class DeleteItemCommand implements NxCommand<DeleteItemResult> {
         return count;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().charId(charId).itemId(itemId).count(count);
+        return new Builder().charId(charId).itemId(itemId).count(count).initiator(initiator);
     }
 
     public static Builder builder() {
@@ -60,23 +68,26 @@ public final class DeleteItemCommand implements NxCommand<DeleteItemResult> {
         DeleteItemCommand that = (DeleteItemCommand) o;
         return Objects.equals(charId, that.charId)
                 && Objects.equals(itemId, that.itemId)
-                && Objects.equals(count, that.count);
+                && Objects.equals(count, that.count)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, itemId, count);
+        return Objects.hash(charId, itemId, count, initiator);
     }
 
     @Override
     public String toString() {
-        return "DeleteItemCommand[charId=" + charId + ", itemId=" + itemId + ", count=" + count + "]";
+        return "DeleteItemCommand[charId=" + charId + ", itemId=" + itemId + ", count=" + count + ", initiator="
+                + initiator + "]";
     }
 
     public static final class Builder {
         private Long charId;
         private Long itemId;
         private Long count = 1L;
+        private CommandInitiator initiator;
 
         public Builder charId(Long charId) {
             this.charId = charId;
@@ -93,8 +104,13 @@ public final class DeleteItemCommand implements NxCommand<DeleteItemResult> {
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public DeleteItemCommand build() {
-            return new DeleteItemCommand(charId, itemId, count);
+            return new DeleteItemCommand(charId, itemId, count, initiator);
         }
     }
 }

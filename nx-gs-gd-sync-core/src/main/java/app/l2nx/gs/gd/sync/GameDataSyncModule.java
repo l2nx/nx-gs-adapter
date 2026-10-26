@@ -12,6 +12,9 @@ import app.l2nx.gs.adapter.api.kafka.sync.gd.augmentation.lifestone.LifeStone;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.augmentation.targetgroup.AugmentationTargetGroup;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.classtemplate.ClassTemplate;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.experiencelevel.ExperienceLevel;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.fishing.FishingBait;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.fishing.FishingRod;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.fishing.FishingShot;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.gearscore.GearScoreRuleset;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.instancetemplate.InstanceTemplate;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.itemoption.ItemOption;
@@ -26,6 +29,9 @@ import app.l2nx.gs.adapter.api.spi.provider.ArmorSetTemplateProvider;
 import app.l2nx.gs.adapter.api.spi.provider.AugmentationTargetGroupProvider;
 import app.l2nx.gs.adapter.api.spi.provider.ClassTemplateProvider;
 import app.l2nx.gs.adapter.api.spi.provider.ExperienceLevelProvider;
+import app.l2nx.gs.adapter.api.spi.provider.FishingBaitProvider;
+import app.l2nx.gs.adapter.api.spi.provider.FishingRodProvider;
+import app.l2nx.gs.adapter.api.spi.provider.FishingShotProvider;
 import app.l2nx.gs.adapter.api.spi.provider.GameDataReadinessProvider;
 import app.l2nx.gs.adapter.api.spi.provider.GearScoreRulesetProvider;
 import app.l2nx.gs.adapter.api.spi.provider.InstanceTemplateProvider;
@@ -172,7 +178,16 @@ public final class GameDataSyncModule implements AdapterModule {
         list.add(new EntityDescriptor<LifeStoneProvider, LifeStone>(
                 LifeStoneProvider.class, LifeStoneProvider::entityName, LifeStoneProvider::snapshot, t ->
                         (long) t.getItemTemplateId()));
-        // Singleton: Optional adapted to a 0-or-1 list; empty publishes a count=0 marker the platform ignores.
+        list.add(new EntityDescriptor<FishingBaitProvider, FishingBait>(
+                FishingBaitProvider.class, FishingBaitProvider::entityName, FishingBaitProvider::snapshot, t ->
+                        (long) t.getItemTemplateId()));
+        list.add(new EntityDescriptor<FishingRodProvider, FishingRod>(
+                FishingRodProvider.class, FishingRodProvider::entityName, FishingRodProvider::snapshot, t ->
+                        (long) t.getItemTemplateId()));
+        list.add(new EntityDescriptor<FishingShotProvider, FishingShot>(
+                FishingShotProvider.class, FishingShotProvider::entityName, FishingShotProvider::snapshot, t ->
+                        (long) t.getItemTemplateId()));
+        // empty publishes count=0, on which the platform deletes the server's ruleset
         list.add(new EntityDescriptor<GearScoreRulesetProvider, GearScoreRuleset>(
                 GearScoreRulesetProvider.class,
                 GearScoreRulesetProvider::entityName,
@@ -219,7 +234,7 @@ public final class GameDataSyncModule implements AdapterModule {
             log.warn("No gd template provider SPI registered — gd-sync DISABLED. Register an "
                     + "ItemTemplateProvider, NpcTemplateProvider, SkillProvider and/or one of the "
                     + "recipe/armor-set/soul-crystal/class/instance/item-option/augmentation-target-group/"
-                    + "life-stone providers via META-INF/services to "
+                    + "life-stone/fishing-bait/fishing-rod/fishing-shot providers via META-INF/services to "
                     + "enable game-data sync.");
             state = STATE_DISABLED;
             return;

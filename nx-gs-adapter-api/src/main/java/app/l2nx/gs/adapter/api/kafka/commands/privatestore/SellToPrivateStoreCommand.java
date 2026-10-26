@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
@@ -25,6 +26,7 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
     private final String mailSubject;
     private final String mailBody;
     private final boolean ownerVerified;
+    private final CommandInitiator initiator;
 
     public SellToPrivateStoreCommand(
             int sellerCharId,
@@ -35,7 +37,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
             String mailSender,
             String mailSubject,
             String mailBody,
-            boolean ownerVerified) {
+            boolean ownerVerified,
+            CommandInitiator initiator) {
         if (sellerCharId <= 0) {
             throw new IllegalArgumentException("sellerCharId must be positive (got " + sellerCharId + ")");
         }
@@ -76,6 +79,7 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
         this.mailSubject = requireText(mailSubject, "mailSubject");
         this.mailBody = requireText(mailBody, "mailBody");
         this.ownerVerified = ownerVerified;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     private static String requireText(String value, String field) {
@@ -136,6 +140,11 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
         return ownerVerified;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .sellerCharId(sellerCharId)
@@ -146,7 +155,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
                 .mailSender(mailSender)
                 .mailSubject(mailSubject)
                 .mailBody(mailBody)
-                .ownerVerified(ownerVerified);
+                .ownerVerified(ownerVerified)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -166,7 +176,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
                 && Objects.equals(mailSender, that.mailSender)
                 && Objects.equals(mailSubject, that.mailSubject)
                 && Objects.equals(mailBody, that.mailBody)
-                && ownerVerified == that.ownerVerified;
+                && ownerVerified == that.ownerVerified
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
@@ -180,7 +191,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
                 mailSender,
                 mailSubject,
                 mailBody,
-                ownerVerified);
+                ownerVerified,
+                initiator);
     }
 
     @Override
@@ -193,7 +205,7 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
                 + ", mailSender=" + mailSender
                 + ", mailSubject=" + mailSubject
                 + ", mailBody=" + mailBody
-                + ", ownerVerified=" + ownerVerified + "]";
+                + ", ownerVerified=" + ownerVerified + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -206,6 +218,7 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
         private String mailSubject;
         private String mailBody;
         private boolean ownerVerified;
+        private CommandInitiator initiator;
 
         public Builder sellerCharId(int sellerCharId) {
             this.sellerCharId = sellerCharId;
@@ -252,6 +265,11 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public SellToPrivateStoreCommand build() {
             return new SellToPrivateStoreCommand(
                     sellerCharId,
@@ -262,7 +280,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
                     mailSender,
                     mailSubject,
                     mailBody,
-                    ownerVerified);
+                    ownerVerified,
+                    initiator);
         }
     }
 }

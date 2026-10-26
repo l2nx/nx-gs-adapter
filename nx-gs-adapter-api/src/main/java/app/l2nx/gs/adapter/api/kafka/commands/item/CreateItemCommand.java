@@ -1,6 +1,7 @@
 package app.l2nx.gs.adapter.api.kafka.commands.item;
 
 import app.l2nx.gs.adapter.api.domain.item.ItemLocation;
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
@@ -20,13 +21,15 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
     private final Long count;
     private final @Nullable Long enchantLevel;
     private final @Nullable ItemLocation location;
+    private final CommandInitiator initiator;
 
     public CreateItemCommand(
             Long charId,
             Long itemTemplateId,
             Long count,
             @Nullable Long enchantLevel,
-            @Nullable ItemLocation location) {
+            @Nullable ItemLocation location,
+            CommandInitiator initiator) {
         if (charId == null) {
             throw new IllegalArgumentException("charId is required");
         }
@@ -47,6 +50,7 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
         this.count = count;
         this.enchantLevel = enchantLevel;
         this.location = location;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public Long getCharId() {
@@ -69,13 +73,19 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
         return location;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .charId(charId)
                 .itemTemplateId(itemTemplateId)
                 .count(count)
                 .enchantLevel(enchantLevel)
-                .location(location);
+                .location(location)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -91,12 +101,13 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
                 && Objects.equals(itemTemplateId, that.itemTemplateId)
                 && Objects.equals(count, that.count)
                 && Objects.equals(enchantLevel, that.enchantLevel)
-                && location == that.location;
+                && location == that.location
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, itemTemplateId, count, enchantLevel, location);
+        return Objects.hash(charId, itemTemplateId, count, enchantLevel, location, initiator);
     }
 
     @Override
@@ -105,7 +116,7 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
                 + ", itemTemplateId=" + itemTemplateId
                 + ", count=" + count
                 + ", enchantLevel=" + enchantLevel
-                + ", location=" + location + "]";
+                + ", location=" + location + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -114,6 +125,7 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
         private Long count = 1L;
         private @Nullable Long enchantLevel;
         private @Nullable ItemLocation location;
+        private CommandInitiator initiator;
 
         public Builder charId(Long charId) {
             this.charId = charId;
@@ -140,8 +152,13 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public CreateItemCommand build() {
-            return new CreateItemCommand(charId, itemTemplateId, count, enchantLevel, location);
+            return new CreateItemCommand(charId, itemTemplateId, count, enchantLevel, location, initiator);
         }
     }
 }

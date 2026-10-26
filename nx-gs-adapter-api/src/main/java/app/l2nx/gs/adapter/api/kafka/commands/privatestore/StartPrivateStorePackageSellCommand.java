@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
 import java.time.Instant;
 import java.util.List;
@@ -18,7 +19,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
             boolean ownerVerified,
             @Nullable Instant deadline,
             UUID idempotencyKey,
-            @Nullable String initiatorIp) {
+            CommandInitiator initiator) {
         super(
                 charId,
                 title,
@@ -28,7 +29,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
                 ownerVerified,
                 deadline,
                 idempotencyKey,
-                initiatorIp);
+                initiator);
     }
 
     public Builder toBuilder() {
@@ -41,7 +42,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
                 .ownerVerified(isOwnerVerified())
                 .deadline(getDeadline())
                 .idempotencyKey(getIdempotencyKey())
-                .initiatorIp(getInitiatorIp());
+                .initiator(getInitiator());
     }
 
     public static Builder builder() {
@@ -57,7 +58,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
         private boolean ownerVerified;
         private @Nullable Instant deadline;
         private @Nullable UUID idempotencyKey;
-        private @Nullable String initiatorIp;
+        private CommandInitiator initiator;
 
         public Builder charId(int charId) {
             this.charId = charId;
@@ -99,8 +100,8 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
             return this;
         }
 
-        public Builder initiatorIp(@Nullable String initiatorIp) {
-            this.initiatorIp = initiatorIp;
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
             return this;
         }
 
@@ -114,7 +115,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
                     ownerVerified,
                     deadline,
                     idempotencyKey,
-                    initiatorIp);
+                    initiator);
         }
     }
 }

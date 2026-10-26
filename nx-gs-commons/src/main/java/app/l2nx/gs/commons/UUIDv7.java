@@ -12,7 +12,7 @@ import org.jspecify.annotations.Nullable;
 public final class UUIDv7 {
 
     private static final long TS_MASK = 0x0000_FFFF_FFFF_FFFFL;
-    private static final long VERSION_BITS = 0x7L << 12; // version = 7 in MSB bits 12..15
+    private static final long VERSION_BITS = 0x7L << 12;
     private static final int COUNTER_MAX = 0x0FFF;
     private static final long VARIANT_CLEAR_MASK = 0x3FFF_FFFF_FFFF_FFFFL;
     private static final long VARIANT_SET_BIT = 0x8000_0000_0000_0000L;
@@ -51,11 +51,27 @@ public final class UUIDv7 {
      * @throws IllegalArgumentException if the instant is before the epoch or beyond the 48-bit millisecond range
      */
     public static UUID generate(Instant instant) {
+        return build(timestampMs(instant), ThreadLocalRandom.current().nextInt(COUNTER_MAX + 1));
+    }
+
+    /**
+     * Deterministic id whose timestamp is {@code instant} (millisecond precision) and whose other 74 bits (counter and
+     * random bits) are {@code bitsSource}'s: the same pair always gives the same id, so a republished fact keeps its id.
+     *
+     * @throws IllegalArgumentException if the instant is before the epoch or beyond the 48-bit millisecond range
+     */
+    public static UUID withTimestamp(Instant instant, UUID bitsSource) {
+        long msb = (timestampMs(instant) << 16) | VERSION_BITS | (bitsSource.getMostSignificantBits() & COUNTER_MAX);
+        long lsb = (bitsSource.getLeastSignificantBits() & VARIANT_CLEAR_MASK) | VARIANT_SET_BIT;
+        return new UUID(msb, lsb);
+    }
+
+    private static long timestampMs(Instant instant) {
         long timestampMs = instant.toEpochMilli();
         if (timestampMs < 0 || timestampMs > TS_MASK) {
             throw new IllegalArgumentException("Instant out of UUIDv7 48-bit millisecond range: " + instant);
         }
-        return build(timestampMs, ThreadLocalRandom.current().nextInt(COUNTER_MAX + 1));
+        return timestampMs;
     }
 
     private static UUID build(long timestampMs, int counter) {

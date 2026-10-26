@@ -10,9 +10,10 @@ import app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionRefusal;
  * <table>
  *   <caption>Status per reason</caption>
  *   <tr><th>CommandStatus</th><th>Reasons</th></tr>
- *   <tr><td>{@code VALIDATION_FAILED}</td><td>{@link #INVALID_ROD}, {@link #INVALID_BAIT}, {@link #INVALID_DURATION}</td></tr>
+ *   <tr><td>{@code VALIDATION_FAILED}</td><td>{@link #INVALID_ROD}, {@link #INVALID_BAIT}, {@link #INVALID_DURATION},
+ *     {@link #INVALID_FISHING_SHOT}, {@link #FISHING_SHOT_GRADE_MISMATCH}</td></tr>
  *   <tr><td>{@code FORBIDDEN}</td><td>{@link #CHARACTER_BANNED}, {@link #CHARACTER_JAILED}</td></tr>
- *   <tr><td>{@code INVALID_STATE}</td><td>{@link #NO_ROD}, {@link #NO_BAIT} and every other reason</td></tr>
+ *   <tr><td>{@code INVALID_STATE}</td><td>{@link #NO_ROD}, {@link #NO_BAIT}, {@link #NO_FISHING_SHOT} and every other reason</td></tr>
  * </table>
  */
 public enum AppSessionRefusalReason {
@@ -47,6 +48,14 @@ public enum AppSessionRefusalReason {
 
     INVALID_BAIT,
 
+    /** The chosen fishing shot is missing or its count is zero. */
+    NO_FISHING_SHOT,
+
+    INVALID_FISHING_SHOT,
+
+    FISHING_SHOT_GRADE_MISMATCH,
+
+    /** May carry {@code retryAt}: the moment the daily allowance resets; absent when the host does not know it. */
     DAILY_LIMIT,
 
     RESTART_SOON,

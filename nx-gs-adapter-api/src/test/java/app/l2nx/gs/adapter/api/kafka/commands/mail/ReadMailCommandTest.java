@@ -5,13 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import com.google.gson.Gson;
 import org.junit.jupiter.api.Test;
 
 class ReadMailCommandTest {
 
     private static ReadMailCommand.Builder valid() {
-        return ReadMailCommand.builder().charId(1L).mailId(10L);
+        return ReadMailCommand.builder().charId(1L).mailId(10L).initiator(TestInitiators.USER);
     }
 
     @Test

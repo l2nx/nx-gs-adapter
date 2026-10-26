@@ -7,10 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.adapter.core.appsessions.OfflineSessionStore.InsertResult;
 import app.l2nx.gs.adapter.core.appsessions.OfflineSessionStore.PlaceResult;
+import app.l2nx.gs.adapter.core.appsessions.OfflineSessionStore.UnpublishedEnds;
 import app.l2nx.gs.db.migrator.liquibase5.Liquibase5SchemaMigrator;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
@@ -20,7 +21,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -166,6 +169,41 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.close(first.getId(), 1_000L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
 
             assertEquals(InsertResult.INSERTED, store.insert(session(7, 1).build()));
+        }
+    }
+
+    @Nested
+    class ProbeInsert {
+
+        @Test
+        void probeInsert_shouldReportInserted_whenCharacterAndSpotAreFree() {
+            store.insert(session(8, 2).build());
+
+            assertEquals(InsertResult.INSERTED, store.probeInsert(7, "harbor", 1));
+            assertFalse(store.findOpenByCharacterId(7).isPresent());
+        }
+
+        @Test
+        void probeInsert_shouldReportCharacterBeforeSpot_whenBothAreHeld() {
+            store.insert(session(7, 1).build());
+
+            assertEquals(InsertResult.CHARACTER_ACTIVE, store.probeInsert(7, "harbor", 1));
+        }
+
+        @Test
+        void probeInsert_shouldReportSpotTaken_whenAnotherOpenSessionHoldsTheSpot() {
+            store.insert(session(8, 1).build());
+
+            assertEquals(InsertResult.SPOT_TAKEN, store.probeInsert(7, "harbor", 1));
+        }
+
+        @Test
+        void probeInsert_shouldReportInserted_whenTheHolderClosed() {
+            OfflineSession first = session(7, 1).build();
+            store.insert(first);
+            store.close(first.getId(), 1_000L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
+
+            assertEquals(InsertResult.INSERTED, store.probeInsert(7, "harbor", 1));
         }
     }
 
@@ -323,6 +361,103 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
     }
 
     @Nested
+    class EndPublished {
+
+        @Test
+        void findUnpublishedEnds_shouldReturnClosedRowsNotAcknowledged_earliestEndFirst() {
+            OfflineSession open = session(7, 1).build();
+            OfflineSession endedLater = session(8, 2).build();
+            OfflineSession endedFirst = session(9, 3).build();
+            OfflineSession acknowledged = session(10, 4).build();
+            for (OfflineSession row : new OfflineSession[] {open, endedLater, endedFirst, acknowledged}) {
+                store.insert(row);
+            }
+            store.close(endedLater.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED);
+            store.close(endedFirst.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_TIME_UP);
+            store.close(acknowledged.getId(), 0L, STARTED.plusSeconds(30), LogoutReason.APP_STOPPED);
+            store.markEndsPublished(Collections.singletonList(acknowledged.getId()), STARTED.plusSeconds(31));
+
+            UnpublishedEnds actual = store.findUnpublishedEnds(null, 10);
+
+            assertEquals(2, actual.rows.size());
+            assertEquals(endedFirst.getId(), actual.rows.get(0).getId());
+            assertEquals(LogoutReason.APP_TIME_UP, actual.rows.get(0).getEndReason());
+            assertEquals(endedLater.getId(), actual.rows.get(1).getId());
+            assertTrue(actual.exhausted);
+        }
+
+        @Test
+        void findUnpublishedEnds_shouldContinueAfterTheCursor() {
+            OfflineSession first = session(7, 1).build();
+            OfflineSession sameEnd = session(8, 2).build();
+            OfflineSession later = session(9, 3).build();
+            for (OfflineSession row : new OfflineSession[] {first, sameEnd, later}) {
+                store.insert(row);
+            }
+            store.close(first.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
+            store.close(sameEnd.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
+            store.close(later.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED);
+
+            UnpublishedEnds page1 = store.findUnpublishedEnds(null, 1);
+            UnpublishedEnds page2 = store.findUnpublishedEnds(page1.last, 1);
+            UnpublishedEnds page3 = store.findUnpublishedEnds(page2.last, 1);
+            UnpublishedEnds page4 = store.findUnpublishedEnds(page3.last, 1);
+
+            assertEquals(
+                    new HashSet<UUID>(Arrays.asList(first.getId(), sameEnd.getId(), later.getId())),
+                    new HashSet<UUID>(Arrays.asList(
+                            page1.rows.get(0).getId(),
+                            page2.rows.get(0).getId(),
+                            page3.rows.get(0).getId())));
+            assertEquals(later.getId(), page3.rows.get(0).getId());
+            assertFalse(page3.exhausted);
+            assertTrue(page4.rows.isEmpty());
+            assertTrue(page4.exhausted);
+        }
+
+        @Test
+        void markEndsPublished_shouldMarkEveryClosedRowOfTheBatchInOneWrite() {
+            OfflineSession a = session(7, 1).build();
+            OfflineSession b = session(8, 2).build();
+            store.insert(a);
+            store.insert(b);
+            store.close(a.getId(), 0L, STARTED, LogoutReason.APP_STOPPED);
+            store.close(b.getId(), 0L, STARTED, LogoutReason.APP_STOPPED);
+
+            store.markEndsPublished(Arrays.asList(a.getId(), b.getId()), STARTED.plusSeconds(5));
+
+            assertTrue(store.findUnpublishedEnds(null, 10).rows.isEmpty());
+        }
+
+        @Test
+        void markEndPublished_shouldLeaveAnOpenRow() {
+            OfflineSession row = session(7, 1).build();
+            store.insert(row);
+
+            store.markEndsPublished(Collections.singletonList(row.getId()), STARTED);
+            store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_LOGIN);
+
+            assertEquals(
+                    row.getId(), store.findUnpublishedEnds(null, 10).rows.get(0).getId());
+        }
+
+        @Test
+        void markEndPublished_shouldKeepTheFirstAcknowledgement() throws SQLException {
+            OfflineSession row = session(7, 1).build();
+            store.insert(row);
+            store.close(row.getId(), 0L, STARTED, LogoutReason.APP_STOPPED);
+
+            store.markEndsPublished(Collections.singletonList(row.getId()), STARTED.plusSeconds(5));
+            store.markEndsPublished(Collections.singletonList(row.getId()), STARTED.plusSeconds(600));
+
+            assertEquals(
+                    "1",
+                    text("SELECT COUNT(*) FROM " + JdbcOfflineSessionStore.TABLE
+                            + " WHERE end_published_at = '2026-10-15 12:00:05'"));
+        }
+    }
+
+    @Nested
     class FindLatestStartedByMasterAccount {
 
         private final UUID master = UUID.fromString("0192f000-0000-7000-8000-000000000001");
@@ -347,7 +482,8 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.insert(tieHigh);
             store.close(tieHigh.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED);
 
-            List<OfflineSession> actual = store.findLatestStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING, 3);
+            List<OfflineSession> actual =
+                    store.findLatestStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING, 3);
 
             assertEquals(tieHigh.getId(), actual.get(0).getId());
             assertEquals(tieLow.getId(), actual.get(1).getId());
@@ -359,7 +495,8 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.insert(started(1, UUID.randomUUID(), STARTED));
             store.insert(started(2, UUID.randomUUID(), STARTED.plusSeconds(60)));
 
-            List<OfflineSession> actual = store.findLatestStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING, 1);
+            List<OfflineSession> actual =
+                    store.findLatestStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING, 1);
 
             assertEquals(1, actual.size());
             assertEquals(STARTED.plusSeconds(60), actual.get(0).getStartedAt());

@@ -11,6 +11,9 @@ import app.l2nx.gs.adapter.api.kafka.sync.gd.augmentation.targetgroup.Augmentati
 import app.l2nx.gs.adapter.api.kafka.sync.gd.itemoption.ItemOption;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.ConnectContext;
+import app.l2nx.gs.gd.sync.provider.TestAugmentationTargetGroupProvider;
+import app.l2nx.gs.gd.sync.provider.TestItemOptionProvider;
+import app.l2nx.gs.gd.sync.provider.TestLifeStoneProvider;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;

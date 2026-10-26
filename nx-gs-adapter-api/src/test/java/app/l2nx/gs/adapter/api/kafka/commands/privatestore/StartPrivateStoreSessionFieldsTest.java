@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
 import java.util.Collections;
 import java.util.UUID;
@@ -20,7 +21,7 @@ class StartPrivateStoreSessionFieldsTest {
                 .charId(1)
                 .lines(Collections.singletonList(LINE))
                 .idempotencyKey(KEY)
-                .initiatorIp("1.2.3.4");
+                .initiator(TestInitiators.USER);
     }
 
     @Test
@@ -32,6 +33,7 @@ class StartPrivateStoreSessionFieldsTest {
                 () -> StartPrivateStorePackageSellCommand.builder()
                         .charId(1)
                         .lines(Collections.singletonList(LINE))
+                        .initiator(TestInitiators.USER)
                         .build());
     }
 
@@ -42,17 +44,12 @@ class StartPrivateStoreSessionFieldsTest {
                 .charId(1)
                 .lines(Collections.singletonList(LINE))
                 .idempotencyKey(KEY)
-                .initiatorIp("1.2.3.4")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(sell, sell.toBuilder().build());
         assertEquals(KEY, sell.toBuilder().build().getIdempotencyKey());
-        assertEquals("1.2.3.4", packageSell.toBuilder().build().getInitiatorIp());
-    }
-
-    @Test
-    void initiatorIp_shouldBeNull_whenBlank() {
-        assertNull(sell().initiatorIp("  ").build().getInitiatorIp());
+        assertEquals(TestInitiators.USER, packageSell.toBuilder().build().getInitiator());
     }
 
     @Test
@@ -66,11 +63,11 @@ class StartPrivateStoreSessionFieldsTest {
     }
 
     @Test
-    void equals_shouldDistinguishIdempotencyKeyAndInitiatorIp() {
+    void equals_shouldDistinguishIdempotencyKeyAndInitiator() {
         StartPrivateStoreSellCommand base = sell().build();
 
         assertNotEquals(base, sell().idempotencyKey(UUID.randomUUID()).build());
-        assertNotEquals(base, sell().initiatorIp("5.6.7.8").build());
+        assertNotEquals(base, sell().initiator(TestInitiators.SERVICE).build());
     }
 
     @Test

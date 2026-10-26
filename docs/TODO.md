@@ -23,3 +23,4 @@ removes its line.
 - [#45](https://github.com/l2nx/nx-gs-adapter/issues/45) Configurable online snapshot cadence
 - [#46](https://github.com/l2nx/nx-gs-adapter/issues/46) Remove `PrivateStoreOfferHasher` / `OfferRow` from `nx-gs-commons`
 - [#47](https://github.com/l2nx/nx-gs-adapter/issues/47) `PlayerMailItem` into `commands/mail/model/`
+- [#48](https://github.com/l2nx/nx-gs-adapter/issues/48) Check command for the app private store

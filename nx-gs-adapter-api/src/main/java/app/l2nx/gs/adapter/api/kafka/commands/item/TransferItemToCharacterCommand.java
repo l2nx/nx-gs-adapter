@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.item;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 
@@ -17,8 +18,10 @@ public final class TransferItemToCharacterCommand implements NxCommand<TransferI
     private final Long charIdTo;
     private final Long itemId;
     private final Long count;
+    private final CommandInitiator initiator;
 
-    public TransferItemToCharacterCommand(Long charIdFrom, Long charIdTo, Long itemId, Long count) {
+    public TransferItemToCharacterCommand(
+            Long charIdFrom, Long charIdTo, Long itemId, Long count, CommandInitiator initiator) {
         if (charIdFrom == null) {
             throw new IllegalArgumentException("charIdFrom is required");
         }
@@ -38,6 +41,7 @@ public final class TransferItemToCharacterCommand implements NxCommand<TransferI
         this.charIdTo = charIdTo;
         this.itemId = itemId;
         this.count = count;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public Long getCharIdFrom() {
@@ -57,12 +61,18 @@ public final class TransferItemToCharacterCommand implements NxCommand<TransferI
         return count;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .charIdFrom(charIdFrom)
                 .charIdTo(charIdTo)
                 .itemId(itemId)
-                .count(count);
+                .count(count)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -77,12 +87,13 @@ public final class TransferItemToCharacterCommand implements NxCommand<TransferI
         return Objects.equals(charIdFrom, that.charIdFrom)
                 && Objects.equals(charIdTo, that.charIdTo)
                 && Objects.equals(itemId, that.itemId)
-                && Objects.equals(count, that.count);
+                && Objects.equals(count, that.count)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charIdFrom, charIdTo, itemId, count);
+        return Objects.hash(charIdFrom, charIdTo, itemId, count, initiator);
     }
 
     @Override
@@ -90,7 +101,7 @@ public final class TransferItemToCharacterCommand implements NxCommand<TransferI
         return "TransferItemToCharacterCommand[charIdFrom=" + charIdFrom
                 + ", charIdTo=" + charIdTo
                 + ", itemId=" + itemId
-                + ", count=" + count + "]";
+                + ", count=" + count + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -98,6 +109,7 @@ public final class TransferItemToCharacterCommand implements NxCommand<TransferI
         private Long charIdTo;
         private Long itemId;
         private Long count = 1L;
+        private CommandInitiator initiator;
 
         public Builder charIdFrom(Long charIdFrom) {
             this.charIdFrom = charIdFrom;
@@ -119,8 +131,13 @@ public final class TransferItemToCharacterCommand implements NxCommand<TransferI
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public TransferItemToCharacterCommand build() {
-            return new TransferItemToCharacterCommand(charIdFrom, charIdTo, itemId, count);
+            return new TransferItemToCharacterCommand(charIdFrom, charIdTo, itemId, count, initiator);
         }
     }
 }

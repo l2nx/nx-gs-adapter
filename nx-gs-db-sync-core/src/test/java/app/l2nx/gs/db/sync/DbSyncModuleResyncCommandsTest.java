@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandResult;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandStatus;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
@@ -43,6 +44,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class DbSyncModuleResyncCommandsTest {
 
+    private static final CommandInitiator INITIATOR =
+            CommandInitiator.builder().source("nx-gameservers").build();
+
     private static final UUID RESYNC_ID = UUID.fromString("018f0000-0000-7000-8000-0000000000dd");
     private static final Gson GSON = new Gson();
 
@@ -79,7 +83,11 @@ class DbSyncModuleResyncCommandsTest {
         module.onConnect(ctx());
 
         CommandResult<ResyncEntitiesResult> result = module.handleResyncEntities(
-                ResyncEntitiesCommand.builder().resyncId(RESYNC_ID).build(), cctx);
+                ResyncEntitiesCommand.builder()
+                        .resyncId(RESYNC_ID)
+                        .initiator(INITIATOR)
+                        .build(),
+                cctx);
 
         assertEquals(CommandStatus.UNAVAILABLE, result.getStatus());
     }
@@ -99,7 +107,11 @@ class DbSyncModuleResyncCommandsTest {
         module = startedModule(failingJdbc());
 
         CommandResult<ResyncEntitiesResult> result = module.handleResyncEntities(
-                ResyncEntitiesCommand.builder().resyncId(RESYNC_ID).build(), cctx);
+                ResyncEntitiesCommand.builder()
+                        .resyncId(RESYNC_ID)
+                        .initiator(INITIATOR)
+                        .build(),
+                cctx);
 
         assertTrue(result.isOk());
         assertEquals(Arrays.asList("character", "item"), result.getPayload().getAcceptedEntities());
@@ -113,6 +125,7 @@ class DbSyncModuleResyncCommandsTest {
                 ResyncEntitiesCommand.builder()
                         .resyncId(RESYNC_ID)
                         .entities(Collections.singletonList("item"))
+                        .initiator(INITIATOR)
                         .build(),
                 cctx);
 
@@ -128,6 +141,7 @@ class DbSyncModuleResyncCommandsTest {
                 ResyncEntitiesCommand.builder()
                         .resyncId(RESYNC_ID)
                         .entities(Arrays.asList("character", "nope"))
+                        .initiator(INITIATOR)
                         .build(),
                 cctx);
 
@@ -226,6 +240,7 @@ class DbSyncModuleResyncCommandsTest {
                         .entityName("character")
                         .pks(Arrays.asList(1L, 2L))
                         .cascade(true)
+                        .initiator(INITIATOR)
                         .build(),
                 cctx);
 
@@ -248,6 +263,7 @@ class DbSyncModuleResyncCommandsTest {
                         .entityName("character")
                         .pks(Collections.singletonList(1L))
                         .cascade(true)
+                        .initiator(INITIATOR)
                         .build(),
                 cctx);
 
@@ -264,6 +280,7 @@ class DbSyncModuleResyncCommandsTest {
                         .entityName("item")
                         .pks(Collections.singletonList(9L))
                         .cascade(true)
+                        .initiator(INITIATOR)
                         .build(),
                 cctx);
 
@@ -351,6 +368,7 @@ class DbSyncModuleResyncCommandsTest {
                 .resyncId(RESYNC_ID)
                 .entityName(entityName)
                 .pks(Arrays.asList(pks))
+                .initiator(INITIATOR)
                 .build();
     }
 

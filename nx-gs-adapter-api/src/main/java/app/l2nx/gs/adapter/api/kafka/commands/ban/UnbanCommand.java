@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.ban;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTargetTypes;
 import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTypes;
@@ -17,8 +18,9 @@ public final class UnbanCommand implements NxCommand<UnbanResult> {
     private final String targetType;
     private final String targetValue;
     private final String banType;
+    private final CommandInitiator initiator;
 
-    public UnbanCommand(String targetType, String targetValue, String banType) {
+    public UnbanCommand(String targetType, String targetValue, String banType, CommandInitiator initiator) {
         if (targetType == null) {
             throw new IllegalArgumentException("targetType is required");
         }
@@ -31,6 +33,7 @@ public final class UnbanCommand implements NxCommand<UnbanResult> {
         this.targetType = targetType;
         this.targetValue = targetValue;
         this.banType = banType;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     /** A {@link WellKnownBanTargetTypes} value. */
@@ -47,8 +50,17 @@ public final class UnbanCommand implements NxCommand<UnbanResult> {
         return banType;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().targetType(targetType).targetValue(targetValue).banType(banType);
+        return new Builder()
+                .targetType(targetType)
+                .targetValue(targetValue)
+                .banType(banType)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -62,23 +74,26 @@ public final class UnbanCommand implements NxCommand<UnbanResult> {
         UnbanCommand that = (UnbanCommand) o;
         return Objects.equals(targetType, that.targetType)
                 && Objects.equals(targetValue, that.targetValue)
-                && Objects.equals(banType, that.banType);
+                && Objects.equals(banType, that.banType)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(targetType, targetValue, banType);
+        return Objects.hash(targetType, targetValue, banType, initiator);
     }
 
     @Override
     public String toString() {
-        return "UnbanCommand[targetType=" + targetType + ", targetValue=" + targetValue + ", banType=" + banType + "]";
+        return "UnbanCommand[targetType=" + targetType + ", targetValue=" + targetValue + ", banType=" + banType
+                + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
         private String targetType;
         private String targetValue;
         private String banType;
+        private CommandInitiator initiator;
 
         public Builder targetType(String targetType) {
             this.targetType = targetType;
@@ -95,8 +110,13 @@ public final class UnbanCommand implements NxCommand<UnbanResult> {
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public UnbanCommand build() {
-            return new UnbanCommand(targetType, targetValue, banType);
+            return new UnbanCommand(targetType, targetValue, banType, initiator);
         }
     }
 }

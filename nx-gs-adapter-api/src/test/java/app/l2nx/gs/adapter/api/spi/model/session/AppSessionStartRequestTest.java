@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.spi.model;
+package app.l2nx.gs.adapter.api.spi.model.session;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;

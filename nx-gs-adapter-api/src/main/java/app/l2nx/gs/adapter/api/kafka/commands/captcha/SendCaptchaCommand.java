@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.captcha;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandResult;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
@@ -22,14 +23,17 @@ public final class SendCaptchaCommand implements NxCommand<SendCaptchaResult> {
     private final Long characterId;
     private final @Nullable String issuedBy;
     private final @Nullable String staffNotes;
+    private final CommandInitiator initiator;
 
-    public SendCaptchaCommand(Long characterId, @Nullable String issuedBy, @Nullable String staffNotes) {
+    public SendCaptchaCommand(
+            Long characterId, @Nullable String issuedBy, @Nullable String staffNotes, CommandInitiator initiator) {
         if (characterId == null) {
             throw new IllegalArgumentException("characterId is required");
         }
         this.characterId = characterId;
         this.issuedBy = issuedBy;
         this.staffNotes = staffNotes;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public Long getCharacterId() {
@@ -46,8 +50,17 @@ public final class SendCaptchaCommand implements NxCommand<SendCaptchaResult> {
         return staffNotes;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().characterId(characterId).issuedBy(issuedBy).staffNotes(staffNotes);
+        return new Builder()
+                .characterId(characterId)
+                .issuedBy(issuedBy)
+                .staffNotes(staffNotes)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -61,24 +74,26 @@ public final class SendCaptchaCommand implements NxCommand<SendCaptchaResult> {
         SendCaptchaCommand that = (SendCaptchaCommand) o;
         return Objects.equals(characterId, that.characterId)
                 && Objects.equals(issuedBy, that.issuedBy)
-                && Objects.equals(staffNotes, that.staffNotes);
+                && Objects.equals(staffNotes, that.staffNotes)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(characterId, issuedBy, staffNotes);
+        return Objects.hash(characterId, issuedBy, staffNotes, initiator);
     }
 
     @Override
     public String toString() {
         return "SendCaptchaCommand[characterId=" + characterId + ", issuedBy=" + issuedBy + ", staffNotes=" + staffNotes
-                + "]";
+                + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
         private Long characterId;
         private @Nullable String issuedBy;
         private @Nullable String staffNotes;
+        private CommandInitiator initiator;
 
         public Builder characterId(Long characterId) {
             this.characterId = characterId;
@@ -95,8 +110,13 @@ public final class SendCaptchaCommand implements NxCommand<SendCaptchaResult> {
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public SendCaptchaCommand build() {
-            return new SendCaptchaCommand(characterId, issuedBy, staffNotes);
+            return new SendCaptchaCommand(characterId, issuedBy, staffNotes, initiator);
         }
     }
 }

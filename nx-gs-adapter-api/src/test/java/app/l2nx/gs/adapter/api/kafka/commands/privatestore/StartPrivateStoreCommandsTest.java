@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SellLine;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -39,10 +40,10 @@ class StartPrivateStoreCommandsTest {
             .create();
 
     static Stream<Arguments> constructors() {
-        Function<List<SellLine>, Object> sell =
-                lines -> new StartPrivateStoreSellCommand(1, null, lines, null, null, false, null, KEY, null);
-        Function<List<SellLine>, Object> packageSell =
-                lines -> new StartPrivateStorePackageSellCommand(1, null, lines, null, null, false, null, KEY, null);
+        Function<List<SellLine>, Object> sell = lines ->
+                new StartPrivateStoreSellCommand(1, null, lines, null, null, false, null, KEY, TestInitiators.USER);
+        Function<List<SellLine>, Object> packageSell = lines -> new StartPrivateStorePackageSellCommand(
+                1, null, lines, null, null, false, null, KEY, TestInitiators.USER);
         return Stream.of(Arguments.of("sell", sell), Arguments.of("package-sell", packageSell));
     }
 
@@ -61,7 +62,7 @@ class StartPrivateStoreCommandsTest {
         @Test
         void constructor_shouldKeepSellerFeePercent_whenAboveFifty() {
             StartPrivateStoreSellCommand actual = new StartPrivateStoreSellCommand(
-                    1, null, Collections.singletonList(LINE_1), 75, null, false, null, KEY, null);
+                    1, null, Collections.singletonList(LINE_1), 75, null, false, null, KEY, TestInitiators.USER);
 
             assertEquals(Integer.valueOf(75), actual.getSellerFeePercent());
         }
@@ -69,7 +70,7 @@ class StartPrivateStoreCommandsTest {
         @Test
         void constructor_shouldKeepSellerFeePercent_whenHundred() {
             StartPrivateStoreSellCommand actual = new StartPrivateStoreSellCommand(
-                    1, null, Collections.singletonList(LINE_1), 100, null, false, null, KEY, null);
+                    1, null, Collections.singletonList(LINE_1), 100, null, false, null, KEY, TestInitiators.USER);
 
             assertEquals(Integer.valueOf(100), actual.getSellerFeePercent());
         }
@@ -82,7 +83,7 @@ class StartPrivateStoreCommandsTest {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> new StartPrivateStorePackageSellCommand(
-                            1, null, lines, sellerFeePercent, null, false, null, KEY, null));
+                            1, null, lines, sellerFeePercent, null, false, null, KEY, TestInitiators.USER));
         }
     }
 
@@ -106,7 +107,7 @@ class StartPrivateStoreCommandsTest {
         @Test
         void constructor_shouldKeepDistinctLines() {
             StartPrivateStoreSellCommand actual = new StartPrivateStoreSellCommand(
-                    1, null, Arrays.asList(LINE_1, LINE_2), null, null, false, null, KEY, null);
+                    1, null, Arrays.asList(LINE_1, LINE_2), null, null, false, null, KEY, TestInitiators.USER);
 
             assertEquals(Arrays.asList(LINE_1, LINE_2), actual.getLines());
         }
@@ -118,7 +119,8 @@ class StartPrivateStoreCommandsTest {
         private static final String SELL_JSON = "{\"charId\":1,\"title\":\"t\","
                 + "\"lines\":[{\"itemId\":1,\"count\":1,\"priceAdena\":100}],\"sellerFeePercent\":5,"
                 + "\"offlineAllowed\":true,\"ownerVerified\":true,\"deadline\":\"2026-08-11T12:00:00Z\","
-                + "\"idempotencyKey\":\"5b1f3c2e-0000-4000-8000-000000000001\",\"initiatorIp\":\"1.2.3.4\"}";
+                + "\"idempotencyKey\":\"5b1f3c2e-0000-4000-8000-000000000001\",\"initiator\":"
+                + TestInitiators.USER_JSON + "}";
 
         @ParameterizedTest(name = "{0}")
         @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreCommandsTest#fullCommands")
@@ -138,10 +140,11 @@ class StartPrivateStoreCommandsTest {
         return Stream.of(
                 Arguments.of(
                         "sell",
-                        new StartPrivateStoreSellCommand(1, "t", lines, 5, true, true, DEADLINE, KEY, "1.2.3.4")),
+                        new StartPrivateStoreSellCommand(
+                                1, "t", lines, 5, true, true, DEADLINE, KEY, TestInitiators.USER)),
                 Arguments.of(
                         "package-sell",
                         new StartPrivateStorePackageSellCommand(
-                                1, "t", lines, 5, true, true, DEADLINE, KEY, "1.2.3.4")));
+                                1, "t", lines, 5, true, true, DEADLINE, KEY, TestInitiators.USER)));
     }
 }

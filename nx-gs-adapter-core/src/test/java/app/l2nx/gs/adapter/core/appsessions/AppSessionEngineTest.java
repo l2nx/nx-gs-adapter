@@ -9,27 +9,33 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AppSessionRefusalReason;
+import app.l2nx.gs.adapter.api.kafka.events.character.AppSessionsSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome.Status;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
-import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSessionPlacement;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionCheckOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartOutcome.Status;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartRequest;
+import app.l2nx.gs.adapter.api.spi.model.session.ClientLoginOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSessionPlacement;
+import app.l2nx.gs.adapter.core.events.EventsPublisher.AcknowledgedEvents;
+import app.l2nx.gs.adapter.core.events.EventsPublisher.SendCallback;
 import app.l2nx.gs.commons.UUIDv7;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -277,6 +283,103 @@ class AppSessionEngineTest {
 
             assertEquals(7, actual.getSpotId());
             assertEquals(7, store.row(actual.getId()).getSpotId());
+        }
+    }
+
+    @Nested
+    class Check {
+
+        private AppSessionCheckOutcome check(AppSessionStartRequest request) {
+            return engine.check(request.getCharacterId(), request.getSpotPool(), request.getSpotId())
+                    .join();
+        }
+
+        private void assertCheckMatchesStart(AppSessionStartRequest request) {
+            List<OfflineSession> rowsBefore = new ArrayList<OfflineSession>(store.rows.values());
+            List<String> hostCallsBefore = new ArrayList<String>(host.calls);
+            int eventsBefore = events.events.size();
+
+            AppSessionCheckOutcome checked = check(request);
+
+            assertEquals(rowsBefore, new ArrayList<OfflineSession>(store.rows.values()));
+            assertEquals(hostCallsBefore, host.calls);
+            assertEquals(eventsBefore, events.events.size());
+
+            AppSessionStartOutcome started = engine.start(request).join();
+
+            assertEquals(started.getStatus().name(), checked.getStatus().name(), checked + " vs " + started);
+            assertEquals(started.getSession(), checked.getSession());
+        }
+
+        @Test
+        void check_shouldAllowAndChangeNothing_whenCharacterAndSpotAreFree() {
+            AppSessionCheckOutcome actual = check(request().build());
+
+            assertEquals(AppSessionCheckOutcome.Status.ALLOWED, actual.getStatus());
+            assertNull(actual.getSession());
+            assertTrue(store.rows.isEmpty());
+            assertTrue(host.calls.isEmpty());
+            assertTrue(events.events.isEmpty());
+            assertFalse(engine.findActive(CHAR_ID).isPresent());
+            assertTrue(engine.findOpen(ActivityType.OFFLINE_FISHING).isEmpty());
+            assertEquals(Status.STARTED, engine.start(request().build()).join().getStatus());
+        }
+
+        @Test
+        void check_shouldMatchStart_whenCharacterHasAnotherOpenSession() {
+            started(request().build());
+
+            assertCheckMatchesStart(request().spotId(6).build());
+        }
+
+        @Test
+        void check_shouldMatchStart_whenTableHoldsAnOpenRowTheEngineDoesNotKnow() {
+            store.seed(openRow(CHAR_ID, 9, 0L));
+
+            assertCheckMatchesStart(request().build());
+        }
+
+        @Test
+        void check_shouldMatchStart_whenAnEndOfTheCharacterIsQueuedForRetry() {
+            started(request().build());
+            store.failCloses = 1;
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertCheckMatchesStart(request().spotId(6).build());
+        }
+
+        @Test
+        void check_shouldMatchStart_whenAnotherOpenSessionHoldsTheSpot() {
+            started(request().characterId(1).build());
+
+            assertCheckMatchesStart(request().characterId(2).build());
+        }
+
+        @Test
+        void check_shouldMatchStart_whenTheEngineStops() {
+            engine.shutdown();
+
+            assertCheckMatchesStart(request().build());
+        }
+
+        @Test
+        void check_shouldBeUnavailable_whenTheTableCannotBeRead() {
+            store.failReads = true;
+
+            AppSessionCheckOutcome actual = check(request().build());
+
+            assertEquals(AppSessionCheckOutcome.Status.UNAVAILABLE, actual.getStatus());
+            assertTrue(store.rows.isEmpty());
+        }
+
+        @Test
+        void check_shouldAnswerFromMemoryWithoutTheTable_whenCharacterIsBusy() {
+            started(request().build());
+
+            AppSessionCheckOutcome actual = check(request().spotId(6).build());
+
+            assertEquals(AppSessionCheckOutcome.Status.CHARACTER_BUSY, actual.getStatus());
+            assertEquals(0, store.probes);
         }
     }
 
@@ -1526,6 +1629,383 @@ class AppSessionEngineTest {
         }
     }
 
+    @Nested
+    class AcknowledgedEnd {
+
+        private List<CharacterPresenceEvent> ends(UUID sessionId) {
+            List<CharacterPresenceEvent> ends = new ArrayList<CharacterPresenceEvent>();
+            for (CharacterPresenceEvent event : events.events) {
+                if (!event.isOnline() && sessionId.equals(event.getSessionId())) {
+                    ends.add(event);
+                }
+            }
+            return ends;
+        }
+
+        @Test
+        void close_shouldRecordTheEndPublished_whenKafkaAcknowledges() {
+            OfflineSession session = started(request().build());
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(time.now().truncatedTo(ChronoUnit.SECONDS), store.endPublishedAt(session.getId()));
+        }
+
+        @Test
+        void close_shouldLeaveTheEndUnpublished_untilKafkaAnswers() {
+            events.holdAcks = true;
+            OfflineSession session = started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+            assertNull(store.endPublishedAt(session.getId()));
+
+            events.answerAll(null);
+
+            assertNotNull(store.endPublishedAt(session.getId()));
+        }
+
+        @Test
+        void flushTick_shouldRepublishTheSameEnd_untilKafkaAcknowledges() {
+            engine.startScheduling();
+            events.holdAcks = true;
+            OfflineSession session = started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+            events.answerAll(new IllegalStateException("broker down"));
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+            events.answerAll(new IllegalStateException("broker down"));
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+            events.answerAll(null);
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            List<CharacterPresenceEvent> actual = ends(session.getId());
+            assertEquals(3, actual.size(), actual.toString());
+            Instant endedAt = store.row(session.getId()).getEndedAt();
+            for (CharacterPresenceEvent end : actual) {
+                assertEquals(actual.get(0), end);
+                assertEquals(LogoutReason.APP_STOPPED, end.getLogoutReason());
+                assertEquals(endedAt, UUIDv7.extractCreatedAt(end.getEventId()));
+                assertAppFields(session, end);
+            }
+            assertNotNull(store.endPublishedAt(session.getId()));
+        }
+
+        @Test
+        void flushTick_shouldNotResendTheEnd_whileKafkaHasNotAnswered() {
+            engine.startScheduling();
+            events.holdAcks = true;
+            OfflineSession session = started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(1, ends(session.getId()).size());
+        }
+
+        @Test
+        void flushTick_shouldRepublishTheEnd_whenRecordingTheAcknowledgementFails() {
+            engine.startScheduling();
+            store.failMarks = 1;
+            OfflineSession session = started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+            assertNull(store.endPublishedAt(session.getId()));
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(2, ends(session.getId()).size());
+            assertNotNull(store.endPublishedAt(session.getId()));
+        }
+
+        @Test
+        void flushTick_shouldRepublishTheEnd_whenTheRowWasClosedBeforeTheRestart() {
+            Instant endedAt = time.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+            OfflineSession closed = openRow(CHAR_ID, 5, 0L).toBuilder()
+                    .endedAt(endedAt)
+                    .endReason(LogoutReason.APP_TIME_UP)
+                    .build();
+            bootWith(closed);
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            CharacterPresenceEvent actual = events.single();
+            assertFalse(actual.isOnline());
+            assertEquals(LogoutReason.APP_TIME_UP, actual.getLogoutReason());
+            assertEquals(endedAt, UUIDv7.extractCreatedAt(actual.getEventId()));
+            assertAppFields(closed, actual);
+            assertNotNull(store.endPublishedAt(closed.getId()));
+        }
+
+        @Test
+        void flushTick_shouldSendTheEndAgain_whenItsCloseReachesTheTableOnRetry() {
+            engine.startScheduling();
+            OfflineSession session = started(request().build());
+            store.failCloses = 1;
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+            assertNull(store.endPublishedAt(session.getId()), "an acknowledgement does not mark an open row");
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(2, ends(session.getId()).size());
+            assertNotNull(store.endPublishedAt(session.getId()));
+        }
+
+        @Test
+        void close_shouldNotSendTheEndTwice_whenAFlushTickReadsTheClosedRowBeforeTheCloseReturns() {
+            engine.startScheduling();
+            OfflineSession session = started(request().build());
+            store.afterClose = () -> {
+                store.afterClose = null;
+                time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+            };
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(1, ends(session.getId()).size());
+            assertNotNull(store.endPublishedAt(session.getId()));
+        }
+
+        @Test
+        void flushTick_shouldNotResendAnEnd_whenKafkaAcknowledgesItWhileTheTickReadsTheTable() {
+            engine.startScheduling();
+            events.holdAcks = true;
+            OfflineSession session = started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+            store.afterUnpublishedRead = () -> {
+                store.afterUnpublishedRead = null;
+                events.answerAll(null);
+            };
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(1, ends(session.getId()).size());
+            assertNotNull(store.endPublishedAt(session.getId()));
+        }
+
+        @Test
+        void flushTick_shouldPageBeyondUnreadableRows_whenTheyFillTheWindow() {
+            Instant endedAt = time.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+            List<OfflineSession> unreadable = new ArrayList<OfflineSession>();
+            for (int i = 0; i < AppSessionEngine.REPUBLISH_BATCH; i++) {
+                OfflineSession row = closedRow(CHAR_ID + i, i, endedAt);
+                store.unreadable.add(row.getId());
+                unreadable.add(row);
+            }
+            OfflineSession readable = closedRow(CHAR_ID - 1, 9_999, endedAt.plusSeconds(1));
+            unreadable.forEach(store::seed);
+            bootWith(readable);
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(readable.getId(), events.single().getSessionId());
+            assertNotNull(store.endPublishedAt(readable.getId()));
+            for (OfflineSession row : unreadable) {
+                assertNull(store.endPublishedAt(row.getId()), "a newer version may still publish it");
+            }
+        }
+
+        @Test
+        void flushTick_shouldSkipARowWhoseEndCannotBeBuilt_andSendTheRest() {
+            OfflineSession broken = closedRow(CHAR_ID, 5, Instant.EPOCH.minusSeconds(1));
+            OfflineSession fine = closedRow(CHAR_ID + 1, 6, time.now().truncatedTo(ChronoUnit.SECONDS));
+            store.seed(broken);
+            bootWith(fine);
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(fine.getId(), events.single().getSessionId());
+            assertNull(store.endPublishedAt(broken.getId()));
+        }
+
+        @Test
+        void flushTick_shouldSendTheRestAndRetryLater_whenSendingOneEndThrows() {
+            OfflineSession first = closedRow(CHAR_ID, 5, time.now().minus(2, ChronoUnit.MINUTES));
+            OfflineSession second = closedRow(CHAR_ID + 1, 6, time.now().minus(1, ChronoUnit.MINUTES));
+            boolean[] thrown = {false};
+            engine.bindEvents(new AcknowledgedEvents() {
+                @Override
+                public void publish(Object event, SendCallback callback) {
+                    if (!thrown[0]) {
+                        thrown[0] = true;
+                        throw new IllegalStateException("simulated producer failure");
+                    }
+                    events.publish(event, callback);
+                }
+
+                @Override
+                public void publish(@Nullable Object event) {
+                    events.publish(event);
+                }
+
+                @Override
+                public boolean flush(long timeoutMs) {
+                    return true;
+                }
+            });
+            store.seed(first);
+            bootWith(second);
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+            assertEquals(second.getId(), events.single().getSessionId());
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertNotNull(store.endPublishedAt(first.getId()));
+            assertNotNull(store.endPublishedAt(second.getId()));
+        }
+
+        @Test
+        void onEndAnswered_shouldRecordAcknowledgementsInOneWrite_whenTheyArriveTogether() {
+            List<Runnable> io = new ArrayList<Runnable>();
+            Executor queued = io::add;
+            AppSessionEngine batching =
+                    new AppSessionEngine(store, host, () -> rules, () -> rulesFromFile, queued, 4, time, time, 1_000L);
+            batching.bindEvents(events);
+            events.holdAcks = true;
+            List<UUID> ids = new ArrayList<UUID>();
+            for (int i = 0; i < 3; i++) {
+                CompletableFuture<AppSessionStartOutcome> start = batching.start(
+                        request().characterId(CHAR_ID + i).spotId(i).build());
+                runAll(io);
+                ids.add(start.join().getSession().getId());
+                batching.stop(CHAR_ID + i, ActivityType.OFFLINE_FISHING);
+                runAll(io);
+            }
+
+            events.answerAll(null);
+            runAll(io);
+
+            assertEquals(1, store.markWrites);
+            for (UUID id : ids) {
+                assertNotNull(store.endPublishedAt(id));
+            }
+        }
+
+        private void runAll(List<Runnable> io) {
+            while (!io.isEmpty()) {
+                io.remove(0).run();
+            }
+        }
+
+        private OfflineSession closedRow(int characterId, int spotId, Instant endedAt) {
+            return openRow(characterId, spotId, 0L).toBuilder()
+                    .endedAt(endedAt)
+                    .endReason(LogoutReason.APP_TIME_UP)
+                    .build();
+        }
+
+        @Test
+        void flushTick_shouldRecordTheEndPublishedOnce_whenTheBoundEventsCannotAcknowledge() {
+            RecordingEvents recorded = new RecordingEvents();
+            engine.bindEvents(new NxEvents() {
+                @Override
+                public void publish(@Nullable Object event) {
+                    recorded.publish(event);
+                }
+
+                @Override
+                public boolean flush(long timeoutMs) {
+                    return true;
+                }
+            });
+            engine.startScheduling();
+            OfflineSession session = started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertNotNull(store.endPublishedAt(session.getId()));
+            assertEquals(2, recorded.events.size(), "online and the end, never sent again");
+        }
+
+        @Test
+        void presence_shouldLeaveTheEndUnpublished_whenTheBufferBeforeConnectDropsIt() {
+            AppSessionEngine unbound = new AppSessionEngine(
+                    store, host, () -> rules, () -> rulesFromFile, Runnable::run, 4, time, time, 1_000L);
+            List<OfflineSession> rows = new ArrayList<OfflineSession>();
+            for (int i = 0; i <= PresencePublisher.MAX_PENDING; i++) {
+                OfflineSession row = openRow(CHAR_ID + i, i, 0L);
+                rows.add(row);
+                store.seed(row);
+            }
+            unbound.boot();
+            for (OfflineSession row : rows) {
+                unbound.onClientLogin(row.getCharacterId());
+            }
+
+            unbound.bindEvents(events);
+
+            assertEquals(PresencePublisher.MAX_PENDING, events.events.size());
+            assertEquals(1, store.unpublishedEnds().size());
+        }
+    }
+
+    @Nested
+    class OpenSessionsSnapshot {
+
+        @Test
+        void startScheduling_shouldPublishASnapshotAtOnceAndEveryMinute() {
+            engine.startScheduling();
+            time.advance(0L);
+            assertEquals(1, events.snapshots.size());
+
+            time.advance(AppSessionsSnapshotPublisher.INTERVAL_MS);
+
+            assertEquals(2, events.snapshots.size());
+        }
+
+        @Test
+        void snapshot_shouldListRunningAndPendingRestoreSessions() {
+            OfflineSession pending = openRow(CHAR_ID + 1, 6, 0L);
+            store.seed(pending);
+            engine.boot();
+            OfflineSession running = started(request().build());
+            OfflineSession ended =
+                    started(request().characterId(CHAR_ID + 2).spotId(7).build());
+            engine.stop(CHAR_ID + 2, ActivityType.OFFLINE_FISHING).join();
+            OfflineSession closePending =
+                    started(request().characterId(CHAR_ID + 3).spotId(8).build());
+            store.failCloses = 1;
+            engine.stop(CHAR_ID + 3, ActivityType.OFFLINE_FISHING).join();
+
+            engine.startScheduling();
+            time.advance(0L);
+
+            AppSessionsSnapshotEvent actual = events.snapshots.get(0);
+            assertEquals(
+                    new HashSet<UUID>(Arrays.asList(pending.getId(), running.getId())),
+                    new HashSet<UUID>(actual.getSessionIds()));
+            assertFalse(actual.getSessionIds().contains(ended.getId()));
+            assertFalse(actual.getSessionIds().contains(closePending.getId()));
+        }
+
+        @Test
+        void snapshot_shouldListAStartingSession_whenItsRowIsStoredAndThePlacementRuns() {
+            engine.startScheduling();
+            time.advance(0L);
+            List<AppSessionsSnapshotEvent> duringPlacement = new ArrayList<AppSessionsSnapshotEvent>();
+            host.placement = s -> {
+                time.advance(AppSessionsSnapshotPublisher.INTERVAL_MS);
+                duringPlacement.add(events.snapshots.get(events.snapshots.size() - 1));
+                return OfflineSessionPlacement.placed(s.getSpotId());
+            };
+
+            OfflineSession actual = started(request().build());
+
+            assertEquals(1, duringPlacement.size());
+            assertTrue(duringPlacement.get(0).getSessionIds().contains(actual.getId()));
+            assertFalse(duringPlacement.get(0).getTakenAt().isAfter(actual.getStartedAt()));
+        }
+
+        @Test
+        void snapshot_shouldCarryAnEmptyList_whenNoSessionIsOpen() {
+            engine.startScheduling();
+            time.advance(0L);
+
+            AppSessionsSnapshotEvent actual = events.snapshots.get(0);
+            assertTrue(actual.getSessionIds().isEmpty());
+            assertEquals(time.now(), actual.getTakenAt());
+        }
+    }
+
     private static void assertAppFields(OfflineSession session, CharacterPresenceEvent event) {
         assertEquals(SessionSource.APP, event.getSource());
         assertEquals(session.getActivity(), event.getActivity());
@@ -1537,12 +2017,38 @@ class AppSessionEngineTest {
         assertNull(event.getMetadata());
     }
 
-    static final class RecordingEvents implements NxEvents {
+    /** Acknowledges at once unless {@link #holdAcks} is set; then the answers wait in {@link #unanswered}. */
+    static final class RecordingEvents implements AcknowledgedEvents {
         final List<CharacterPresenceEvent> events = new ArrayList<CharacterPresenceEvent>();
+        final List<AppSessionsSnapshotEvent> snapshots = new ArrayList<AppSessionsSnapshotEvent>();
+        final List<SendCallback> unanswered = new ArrayList<SendCallback>();
+        boolean holdAcks;
 
         @Override
         public void publish(@Nullable Object event) {
-            events.add((CharacterPresenceEvent) event);
+            if (event instanceof AppSessionsSnapshotEvent) {
+                snapshots.add((AppSessionsSnapshotEvent) event);
+            } else {
+                events.add((CharacterPresenceEvent) event);
+            }
+        }
+
+        @Override
+        public void publish(Object event, SendCallback callback) {
+            publish(event);
+            if (holdAcks) {
+                unanswered.add(callback);
+            } else {
+                callback.onCompletion(null);
+            }
+        }
+
+        void answerAll(@Nullable Exception failure) {
+            List<SendCallback> answering = new ArrayList<SendCallback>(unanswered);
+            unanswered.clear();
+            for (SendCallback callback : answering) {
+                callback.onCompletion(failure);
+            }
         }
 
         @Override

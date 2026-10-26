@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.announcement;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 
@@ -12,9 +13,11 @@ import java.util.Objects;
 public final class DeleteAutoAnnouncementCommand implements NxCommand<Void> {
 
     private final long gameId;
+    private final CommandInitiator initiator;
 
-    public DeleteAutoAnnouncementCommand(long gameId) {
+    public DeleteAutoAnnouncementCommand(long gameId, CommandInitiator initiator) {
         this.gameId = gameId;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     /** Host's native row id; same value as {@code AutoAnnouncementDbDto.id} on the db-sync stream. */
@@ -22,8 +25,13 @@ public final class DeleteAutoAnnouncementCommand implements NxCommand<Void> {
         return gameId;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().gameId(gameId);
+        return new Builder().gameId(gameId).initiator(initiator);
     }
 
     public static Builder builder() {
@@ -35,29 +43,35 @@ public final class DeleteAutoAnnouncementCommand implements NxCommand<Void> {
         if (this == o) return true;
         if (!(o instanceof DeleteAutoAnnouncementCommand)) return false;
         DeleteAutoAnnouncementCommand that = (DeleteAutoAnnouncementCommand) o;
-        return gameId == that.gameId;
+        return gameId == that.gameId && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(gameId);
+        return Objects.hash(gameId, initiator);
     }
 
     @Override
     public String toString() {
-        return "DeleteAutoAnnouncementCommand[gameId=" + gameId + "]";
+        return "DeleteAutoAnnouncementCommand[gameId=" + gameId + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
         private long gameId;
+        private CommandInitiator initiator;
 
         public Builder gameId(long gameId) {
             this.gameId = gameId;
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public DeleteAutoAnnouncementCommand build() {
-            return new DeleteAutoAnnouncementCommand(gameId);
+            return new DeleteAutoAnnouncementCommand(gameId, initiator);
         }
     }
 }

@@ -1,8 +1,10 @@
 package app.l2nx.gs.adapter.core.events;
 
+import app.l2nx.gs.adapter.api.kafka.NxHeaders;
 import app.l2nx.gs.adapter.api.kafka.events.account.AccountAuthAttemptEvent;
 import app.l2nx.gs.adapter.api.kafka.events.castle.CastleSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.castle.SiegeFinishedEvent;
+import app.l2nx.gs.adapter.api.kafka.events.character.AppSessionsSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterDeathEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
 import app.l2nx.gs.adapter.api.kafka.events.characterlog.CharacterLogEvent;
@@ -35,7 +37,16 @@ final class EventTypeRegistry {
     private final Map<Class<?>, EventTypeBinding> bindings;
     private final Set<String> familyKeys;
 
+    /** Without the per-server types, which need a server to key them. */
     EventTypeRegistry() {
+        this(null, false);
+    }
+
+    EventTypeRegistry(UUID serverId) {
+        this(Objects.requireNonNull(serverId, "serverId"), true);
+    }
+
+    private EventTypeRegistry(@Nullable UUID serverId, boolean perServerTypes) {
         Map<Class<?>, EventTypeBinding> map = new HashMap<>();
         Set<String> families = new LinkedHashSet<>();
 
@@ -69,6 +80,11 @@ final class EventTypeRegistry {
                 CharacterDeathEvent.class,
                 "character",
                 evt -> LongBytes.bigEndian(((CharacterDeathEvent) evt).getCharId()));
+        if (perServerTypes) {
+            // the platform reads the snapshots of one server in order, and an unkeyed one could overtake its successor
+            byte[] serverKey = NxHeaders.encodeUuid(serverId);
+            register(map, families, AppSessionsSnapshotEvent.class, "character", evt -> serverKey);
+        }
         register(
                 map,
                 families,
@@ -165,7 +181,6 @@ final class EventTypeRegistry {
         return bindings.get(type);
     }
 
-    /** Declaration order. */
     Set<String> knownFamilies() {
         return familyKeys;
     }

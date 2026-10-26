@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.ban;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTargetTypes;
 import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTypes;
@@ -32,6 +33,7 @@ public final class BanCommand implements NxCommand<BanResult> {
     private final @Nullable Instant expiresAt;
     private final @Nullable String reason;
     private final @Nullable String issuedBy;
+    private final CommandInitiator initiator;
 
     public BanCommand(
             String targetType,
@@ -40,7 +42,8 @@ public final class BanCommand implements NxCommand<BanResult> {
             boolean permanent,
             @Nullable Instant expiresAt,
             @Nullable String reason,
-            @Nullable String issuedBy) {
+            @Nullable String issuedBy,
+            CommandInitiator initiator) {
         if (targetType == null) {
             throw new IllegalArgumentException("targetType is required");
         }
@@ -63,6 +66,7 @@ public final class BanCommand implements NxCommand<BanResult> {
         this.expiresAt = expiresAt;
         this.reason = reason;
         this.issuedBy = issuedBy;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     /** A {@link WellKnownBanTargetTypes} value; handler emits {@code VALIDATION_FAILED} when missing or unrecognized. */
@@ -98,6 +102,11 @@ public final class BanCommand implements NxCommand<BanResult> {
         return issuedBy;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .targetType(targetType)
@@ -106,7 +115,8 @@ public final class BanCommand implements NxCommand<BanResult> {
                 .permanent(permanent)
                 .expiresAt(expiresAt)
                 .reason(reason)
-                .issuedBy(issuedBy);
+                .issuedBy(issuedBy)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -124,12 +134,13 @@ public final class BanCommand implements NxCommand<BanResult> {
                 && Objects.equals(banType, that.banType)
                 && Objects.equals(expiresAt, that.expiresAt)
                 && Objects.equals(reason, that.reason)
-                && Objects.equals(issuedBy, that.issuedBy);
+                && Objects.equals(issuedBy, that.issuedBy)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(targetType, targetValue, banType, permanent, expiresAt, reason, issuedBy);
+        return Objects.hash(targetType, targetValue, banType, permanent, expiresAt, reason, issuedBy, initiator);
     }
 
     @Override
@@ -140,7 +151,7 @@ public final class BanCommand implements NxCommand<BanResult> {
                 + ", permanent=" + permanent
                 + ", expiresAt=" + expiresAt
                 + ", reason=" + reason
-                + ", issuedBy=" + issuedBy + "]";
+                + ", issuedBy=" + issuedBy + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -151,6 +162,7 @@ public final class BanCommand implements NxCommand<BanResult> {
         private @Nullable Instant expiresAt;
         private @Nullable String reason;
         private @Nullable String issuedBy;
+        private CommandInitiator initiator;
 
         public Builder targetType(String targetType) {
             this.targetType = targetType;
@@ -187,8 +199,13 @@ public final class BanCommand implements NxCommand<BanResult> {
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public BanCommand build() {
-            return new BanCommand(targetType, targetValue, banType, permanent, expiresAt, reason, issuedBy);
+            return new BanCommand(targetType, targetValue, banType, permanent, expiresAt, reason, issuedBy, initiator);
         }
     }
 }

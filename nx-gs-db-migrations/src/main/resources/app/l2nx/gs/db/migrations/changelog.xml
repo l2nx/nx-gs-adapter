@@ -179,4 +179,30 @@
             <column name="started_at"/>
         </createIndex>
     </changeSet>
+
+    <changeSet id="0011-offline-sessions-end-published-at" author="nx-gs-adapter">
+        <addColumn tableName="l2nx_offline_sessions">
+            <column name="end_published_at" type="datetime"/>
+        </addColumn>
+    </changeSet>
+
+    <!--
+        Ends of sessions closed before the column existed count as published, so an upgrade does not replay history.
+        Its own changeset: MariaDB and MySQL commit the ALTER above on their own, so a failed backfill must not leave
+        a changeset whose rerun fails on the existing column.
+    -->
+    <changeSet id="0012-offline-sessions-end-published-at-backfill" author="nx-gs-adapter">
+        <update tableName="l2nx_offline_sessions">
+            <column name="end_published_at" valueComputed="ended_at"/>
+            <where>ended_at IS NOT NULL AND end_published_at IS NULL</where>
+        </update>
+    </changeSet>
+
+    <!-- The flush tick looks up closed rows whose end is not acknowledged every minute. -->
+    <changeSet id="0013-offline-sessions-end-published-index" author="nx-gs-adapter">
+        <createIndex tableName="l2nx_offline_sessions" indexName="idx_l2nx_offline_sessions_end_published">
+            <column name="end_published_at"/>
+            <column name="ended_at"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>

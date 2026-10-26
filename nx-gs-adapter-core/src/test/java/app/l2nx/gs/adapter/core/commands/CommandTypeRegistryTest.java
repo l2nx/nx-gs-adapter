@@ -2,17 +2,31 @@ package app.l2nx.gs.adapter.core.commands;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandResult;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.offline.fishing.CheckOfflineFishingCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionCheckResult;
 import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CommandTypeRegistryTest {
 
-    static final class FakeCommandA implements NxCommand<Void> {}
+    static final class FakeCommandA implements NxCommand<Void> {
+        @Override
+        public CommandInitiator getInitiator() {
+            return null;
+        }
+    }
 
-    static final class FakeCommandB implements NxCommand<Void> {}
+    static final class FakeCommandB implements NxCommand<Void> {
+        @Override
+        public CommandInitiator getInitiator() {
+            return null;
+        }
+    }
 
     private static final CommandHandler<FakeCommandA, Void> NOOP_HANDLER_A = (cmd, ctx) -> CommandResult.<Void>ok();
     private static final CommandHandler<FakeCommandB, Void> NOOP_HANDLER_B = (cmd, ctx) -> CommandResult.<Void>ok();
@@ -102,5 +116,21 @@ class CommandTypeRegistryTest {
         assertArrayEquals(
                 "FakeCommandAResult".getBytes(java.nio.charset.StandardCharsets.UTF_8),
                 binding.replyMessageTypeBytes());
+    }
+
+    @Test
+    void register_shouldRouteACheckCommand_underItsSimpleNameWithItsResultReplyType() {
+        CommandTypeRegistry registry = new CommandTypeRegistry();
+        CommandHandler<CheckOfflineFishingCommand, AppSessionCheckResult> handler =
+                (cmd, ctx) -> CommandResult.ok(AppSessionCheckResult.allowed(null));
+
+        registry.register(CheckOfflineFishingCommand.class, handler);
+
+        CommandTypeBinding binding = registry.lookup("CheckOfflineFishingCommand");
+        assertNotNull(binding);
+        assertEquals(CheckOfflineFishingCommand.class, binding.commandClass());
+        assertSame(handler, binding.handler());
+        assertArrayEquals(
+                "CheckOfflineFishingResult".getBytes(StandardCharsets.UTF_8), binding.replyMessageTypeBytes());
     }
 }

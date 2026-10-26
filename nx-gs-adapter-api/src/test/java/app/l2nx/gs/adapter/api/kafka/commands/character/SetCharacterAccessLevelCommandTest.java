@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.character;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import org.junit.jupiter.api.Test;
 
 class SetCharacterAccessLevelCommandTest {
@@ -12,6 +13,7 @@ class SetCharacterAccessLevelCommandTest {
                 .charId(42L)
                 .accessLevel("7")
                 .staffNotes("promoted for event duty")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(42L, cmd.getCharId().longValue());
@@ -21,22 +23,24 @@ class SetCharacterAccessLevelCommandTest {
 
     @Test
     void constructor_shouldAcceptNullStaffNotes() {
-        SetCharacterAccessLevelCommand cmd = new SetCharacterAccessLevelCommand(1L, "0", null);
+        SetCharacterAccessLevelCommand cmd = new SetCharacterAccessLevelCommand(1L, "0", null, TestInitiators.USER);
 
         assertNull(cmd.getStaffNotes());
     }
 
     @Test
     void constructor_shouldRejectNullCharId() {
-        IllegalArgumentException ex =
-                assertThrows(IllegalArgumentException.class, () -> new SetCharacterAccessLevelCommand(null, "7", null));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SetCharacterAccessLevelCommand(null, "7", null, TestInitiators.USER));
         assertTrue(ex.getMessage().contains("charId"));
     }
 
     @Test
     void constructor_shouldRejectNullAccessLevel() {
-        IllegalArgumentException ex =
-                assertThrows(IllegalArgumentException.class, () -> new SetCharacterAccessLevelCommand(1L, null, null));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> new SetCharacterAccessLevelCommand(1L, null, null, TestInitiators.USER));
         assertTrue(ex.getMessage().contains("accessLevel"));
     }
 
@@ -46,6 +50,7 @@ class SetCharacterAccessLevelCommandTest {
                 .charId(42L)
                 .accessLevel("7")
                 .staffNotes("note")
+                .initiator(TestInitiators.USER)
                 .build();
 
         SetCharacterAccessLevelCommand copy = original.toBuilder().build();
@@ -58,10 +63,12 @@ class SetCharacterAccessLevelCommandTest {
         SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
                 .charId(1L)
                 .accessLevel("7")
+                .initiator(TestInitiators.USER)
                 .build();
         SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
                 .charId(2L)
                 .accessLevel("7")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertNotEquals(a, b);
@@ -72,10 +79,12 @@ class SetCharacterAccessLevelCommandTest {
         SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
                 .charId(1L)
                 .accessLevel("7")
+                .initiator(TestInitiators.USER)
                 .build();
         SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
                 .charId(1L)
                 .accessLevel("0")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertNotEquals(a, b);
@@ -87,11 +96,13 @@ class SetCharacterAccessLevelCommandTest {
                 .charId(1L)
                 .accessLevel("7")
                 .staffNotes("a")
+                .initiator(TestInitiators.USER)
                 .build();
         SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
                 .charId(1L)
                 .accessLevel("7")
                 .staffNotes("b")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertNotEquals(a, b);
@@ -103,11 +114,13 @@ class SetCharacterAccessLevelCommandTest {
                 .charId(1L)
                 .accessLevel("7")
                 .staffNotes("note")
+                .initiator(TestInitiators.USER)
                 .build();
         SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
                 .charId(1L)
                 .accessLevel("7")
                 .staffNotes("note")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(a.hashCode(), b.hashCode());
@@ -119,6 +132,7 @@ class SetCharacterAccessLevelCommandTest {
                 .charId(42L)
                 .accessLevel("7")
                 .staffNotes("note")
+                .initiator(TestInitiators.USER)
                 .build();
 
         String s = cmd.toString();
@@ -133,6 +147,7 @@ class SetCharacterAccessLevelCommandTest {
         SetCharacterAccessLevelCommand cmd = SetCharacterAccessLevelCommand.builder()
                 .charId(1L)
                 .accessLevel("7")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertInstanceOf(app.l2nx.gs.adapter.api.kafka.commands.NxCommand.class, cmd);

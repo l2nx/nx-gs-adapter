@@ -2,7 +2,7 @@ package app.l2nx.gs.adapter.core.appsessions;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.adapter.core.jdbc.JdbcValues;
 import app.l2nx.gs.commons.identifiers.ClientIdentifiers;
@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -87,7 +88,8 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
-    public List<OfflineSession> findLatestStartedByMasterAccount(UUID masterAccountId, ActivityType activity, int limit) {
+    public List<OfflineSession> findLatestStartedByMasterAccount(
+            UUID masterAccountId, ActivityType activity, int limit) {
         return call("find the latest started sessions of a master account", c -> {
             try (PreparedStatement ps = c.prepareStatement(latestStartedSql("master_account_id", limit))) {
                 setUuid(ps, 1, masterAccountId);
@@ -155,6 +157,19 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
+    public InsertResult probeInsert(int characterId, String spotPool, int spotId) {
+        return call("probe session insert", c -> {
+            if (characterActive(c, characterId)) {
+                return InsertResult.CHARACTER_ACTIVE;
+            }
+            if (exists(c, "active_spot_key = ?", ps -> ps.setString(1, spotKey(spotPool, spotId)))) {
+                return InsertResult.SPOT_TAKEN;
+            }
+            return InsertResult.INSERTED;
+        });
+    }
+
+    @Override
     public void delete(UUID id) {
         run("delete session", c -> {
             try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + TABLE + " WHERE id = ?")) {
@@ -176,7 +191,7 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
                 try (PreparedStatement ps = c.prepareStatement(sql)) {
                     int i = 1;
                     ps.setInt(i++, spotId);
-                    ps.setString(i++, spotPool + ":" + spotId);
+                    ps.setString(i++, spotKey(spotPool, spotId));
                     if (startedAt != null) {
                         JdbcValues.setInstant(ps, i++, startedAt);
                     }
@@ -226,6 +241,64 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
         });
     }
 
+    /**
+     * Served by the {@code (end_published_at, ended_at)} index. The cursor is spelled out instead of a row-value
+     * comparison, which MySQL does not resolve through an index.
+     */
+    @Override
+    public UnpublishedEnds findUnpublishedEnds(@Nullable EndCursor after, int limit) {
+        int pageSize = Math.max(1, limit);
+        return call("find unpublished session ends", c -> {
+            try (PreparedStatement ps = c.prepareStatement("SELECT " + COLUMNS + " FROM " + TABLE
+                    + " WHERE end_published_at IS NULL AND ended_at IS NOT NULL"
+                    + (after != null ? " AND (ended_at > ? OR (ended_at = ? AND id > ?))" : "")
+                    + " ORDER BY ended_at, id LIMIT " + pageSize)) {
+                if (after != null) {
+                    JdbcValues.setInstant(ps, 1, after.endedAt);
+                    JdbcValues.setInstant(ps, 2, after.endedAt);
+                    setUuid(ps, 3, after.id);
+                }
+                List<OfflineSession> rows = new ArrayList<OfflineSession>();
+                EndCursor last = null;
+                int scanned = 0;
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        scanned++;
+                        last = new EndCursor(
+                                JdbcValues.getInstant(rs, "ended_at"), UUID.fromString(rs.getString("id")));
+                        OfflineSession row = read(rs);
+                        if (row != null) {
+                            rows.add(row);
+                        }
+                    }
+                }
+                return new UnpublishedEnds(rows, last, scanned < pageSize);
+            }
+        });
+    }
+
+    @Override
+    public void markEndsPublished(Collection<UUID> ids, Instant publishedAt) {
+        if (ids.isEmpty()) {
+            return;
+        }
+        StringBuilder placeholders = new StringBuilder("?");
+        for (int i = 1; i < ids.size(); i++) {
+            placeholders.append(", ?");
+        }
+        run("mark session ends published", c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE " + TABLE + " SET end_published_at = ? WHERE id IN ("
+                    + placeholders + ") AND ended_at IS NOT NULL AND end_published_at IS NULL")) {
+                JdbcValues.setInstant(ps, 1, publishedAt);
+                int i = 2;
+                for (UUID id : ids) {
+                    setUuid(ps, i++, id);
+                }
+                ps.executeUpdate();
+            }
+        });
+    }
+
     @Override
     public boolean updateTypeState(UUID id, @Nullable String typeState) {
         return call("update type_state", c -> {
@@ -242,11 +315,20 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
         if (findByIdempotencyKey(c, s.getIdempotencyKey()).isPresent()) {
             return InsertResult.DUPLICATE_IDEMPOTENCY_KEY;
         }
-        if (exists(c, "active_character_id = ?", ps -> ps.setInt(1, s.getCharacterId()))) {
+        if (characterActive(c, s.getCharacterId())) {
             return InsertResult.CHARACTER_ACTIVE;
         }
         // the spot is the only unique left; if its holder closed meanwhile the caller retries
         return InsertResult.SPOT_TAKEN;
+    }
+
+    private boolean characterActive(Connection c, int characterId) throws SQLException {
+        return exists(c, "active_character_id = ?", ps -> ps.setInt(1, characterId));
+    }
+
+    /** The value of {@code active_spot_key}, as {@link OfflineSession#spotKey()} builds it. */
+    private static String spotKey(String spotPool, int spotId) {
+        return spotPool + ":" + spotId;
     }
 
     private Optional<OfflineSession> findByIdempotencyKey(Connection c, UUID key) throws SQLException {

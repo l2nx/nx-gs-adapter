@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import java.time.Instant;
@@ -21,7 +22,7 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
     private final boolean ownerVerified;
     private final @Nullable Instant deadline;
     private final @Nullable UUID idempotencyKey;
-    private final @Nullable String initiatorIp;
+    private final CommandInitiator initiator;
 
     StartPrivateStoreCommand(
             int charId,
@@ -30,14 +31,14 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
             boolean ownerVerified,
             @Nullable Instant deadline,
             UUID idempotencyKey,
-            @Nullable String initiatorIp) {
+            CommandInitiator initiator) {
         this.charId = charId;
         this.title = title == null || title.trim().isEmpty() ? null : title.trim();
         this.offlineAllowed = offlineAllowed;
         this.ownerVerified = ownerVerified;
         this.deadline = deadline;
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey");
-        this.initiatorIp = initiatorIp == null || initiatorIp.trim().isEmpty() ? null : initiatorIp;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public int getCharId() {
@@ -75,9 +76,9 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
         return idempotencyKey;
     }
 
-    /** IP of the app request that triggered the start, put in by the platform; {@code null} when unknown. */
-    public @Nullable String getInitiatorIp() {
-        return initiatorIp;
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
     }
 
     abstract String storeFieldsToString();
@@ -93,19 +94,19 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
                 && Objects.equals(offlineAllowed, that.offlineAllowed)
                 && Objects.equals(deadline, that.deadline)
                 && Objects.equals(idempotencyKey, that.idempotencyKey)
-                && Objects.equals(initiatorIp, that.initiatorIp);
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                getClass(), charId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiatorIp);
+                getClass(), charId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiator);
     }
 
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[charId=" + charId + ", title=" + title + ", " + storeFieldsToString()
                 + ", offlineAllowed=" + offlineAllowed + ", ownerVerified=" + ownerVerified + ", deadline=" + deadline
-                + ", idempotencyKey=" + idempotencyKey + ", initiatorIp=" + initiatorIp + "]";
+                + ", idempotencyKey=" + idempotencyKey + ", initiator=" + initiator + "]";
     }
 }

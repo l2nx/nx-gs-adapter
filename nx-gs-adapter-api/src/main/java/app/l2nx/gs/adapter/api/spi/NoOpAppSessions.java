@@ -3,10 +3,11 @@ package app.l2nx.gs.adapter.api.spi;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
-import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionCheckOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartRequest;
+import app.l2nx.gs.adapter.api.spi.model.session.ClientLoginOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +24,11 @@ final class NoOpAppSessions implements NxAppSessions {
     @Override
     public CompletableFuture<AppSessionStartOutcome> start(AppSessionStartRequest request) {
         return CompletableFuture.completedFuture(AppSessionStartOutcome.unavailable("app sessions are not wired"));
+    }
+
+    @Override
+    public CompletableFuture<AppSessionCheckOutcome> check(int characterId, String spotPool, int spotId) {
+        return CompletableFuture.completedFuture(AppSessionCheckOutcome.unavailable("app sessions are not wired"));
     }
 
     @Override

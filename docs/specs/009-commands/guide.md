@@ -467,7 +467,7 @@ AppSessionStartOutcome outcome = ctx.appSessions().start(AppSessionStartRequest.
         .idempotencyKey(cmd.getIdempotencyKey())
         .characterId(cmd.getCharacterId())
         .activity(ActivityType.OFFLINE_FISHING)
-        // account, hwid, initiatorIp, spot, safe origin, plannedMs, typeState ...
+        // account, hwid, initiator ip, spot, safe origin, plannedMs, typeState ...
         .build()).join();
 switch (outcome.getStatus()) {
     case STARTED:
@@ -494,6 +494,40 @@ switch (outcome.getStatus()) {
   attempt finds the session closed.
 - `findActive(characterId)` also returns, until a background retry reaches the table, a session
   whose close (or a rolled-back start) the table refused; such a character stays busy for starts.
+
+### Start, stop and check — one set per session type [planned]
+
+Every app-session type ships `Start<Type>Command`, `Stop<Type>Command` and `Check<Type>Command`
+(spec R31). The check answers "would this start now" for the app's start screen, so the platform
+never copies the host's rules.
+
+- Write the start's checks once, as a sequence of steps, and run that sequence for both commands. In
+  check mode stop before the first side effect: no mutation lock, no spot reservation, no
+  `ctx.appSessions().start(...)`, no world entry. The engine's own checks (character busy, free spot)
+  are available read-only (spec 038 R26).
+- An absent player choice in the check skips the checks that need it; never refuse a check because
+  the player has not chosen yet.
+- Return `CommandResult.ok(AppSessionCheckResult)` for a refusal too (`allowed = false`, the first
+  `reason`, `scope` with `ALREADY_ACTIVE`, `retryAt` where the start sets it: `DAILY_LIMIT` carries the moment the daily
+  allowance resets when the host knows it). Reserve `CommandProblem` for the check itself failing.
+- Do not cache: the platform caches checks and limits their rate.
+- A core that has not registered the check handler answers the rail's `UNSUPPORTED_COMMAND`, as for any unknown
+  `Nx-Message-Type`; the platform maps it to `501`. Nothing special to do on an old core.
+
+## Command initiator [planned]
+
+Every command carries `initiator` (`CommandInitiator`, spec R30): `source`, `userId`, `label`, `email`,
+`ip`. The consumer has already validated it when your handler runs, and an `OwnerVerified` command is
+guaranteed `source = user`.
+
+- The acting player is `cmd.getInitiator().getUserId()`; the request IP is `getIp()`. Use them for
+  per-master-account and per-IP rules and write the initiator into your command log.
+- It is context, not authorization: the platform authorized the command before sending it.
+- `ip` and `email` are often `null` (a service source, a user without email, an S2S path). A rule that
+  needs the IP treats `null` as "limits nothing", never as a match.
+- The api release that adds `initiator` removes `masterAccountId` / `initiatorIp` from the commands: a core switches
+  in that one release and reads only `initiator`. Old cores keep working because the platform, not the adapter, still
+  writes the old JSON fields until every game server restarted (spec › Rollout).
 
 ## CommandResult — what to return
 

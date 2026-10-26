@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
-import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
+import app.l2nx.gs.adapter.api.spi.model.session.ClientLoginOutcome;
 import java.util.Collections;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -55,7 +55,8 @@ class ConnectContextTest {
     void appRules_shouldKeepTheWiredInstance_whenCopiedThroughToBuilder() {
         NxAppRules wired = () -> AppRules.builder().returnThresholdMinutes(5).build();
 
-        ConnectContext ctx = ConnectContext.builder().appRules(wired).build().toBuilder().build();
+        ConnectContext ctx =
+                ConnectContext.builder().appRules(wired).build().toBuilder().build();
 
         assertSame(wired, ctx.appRules());
     }

@@ -465,7 +465,7 @@ public final class NxAdapter {
         // sync-module discovery; ConnectContext no-ops a missing facade and heartbeat omits the slot
         NxEvents events = null;
         try {
-            events = startEventsPublisher(active.topics());
+            events = startEventsPublisher(active.serverId(), active.topics());
         } catch (Throwable t) {
             log.error(
                     "Events publisher bootstrap failed — events disabled, continuing with sync/commands: {}",
@@ -529,7 +529,7 @@ public final class NxAdapter {
     }
 
     /** Facade stays stable across reconnects (publisher swapped behind it); absent messagingTopics yields an empty family map so publishX no-ops. */
-    private static NxEvents startEventsPublisher(MessagingTopics messagingTopics) {
+    private static NxEvents startEventsPublisher(UUID serverId, MessagingTopics messagingTopics) {
         if (failEventsBootstrapForTesting) {
             throw new NoClassDefFoundError(
                     "app/l2nx/gs/adapter/api/kafka/events/raid/RaidKillEvent (simulated classpath skew)");
@@ -552,12 +552,12 @@ public final class NxAdapter {
         EventsPublisher.ProducerFlusher flusher = () -> NxKafka.instance().flush();
         NxEvents facade = eventsFacade;
         if (facade == null) {
-            EventsBootstrap.Started started = EventsBootstrap.start(familyTopics, sender, flusher, cfg);
+            EventsBootstrap.Started started = EventsBootstrap.start(serverId, familyTopics, sender, flusher, cfg);
             eventsPublisher = started.publisher();
             eventsFacade = started.events();
             return eventsFacade;
         }
-        eventsPublisher = EventsBootstrap.swap(facade, familyTopics, sender, flusher, cfg);
+        eventsPublisher = EventsBootstrap.swap(facade, serverId, familyTopics, sender, flusher, cfg);
         return facade;
     }
 

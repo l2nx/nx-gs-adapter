@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.item.ItemClass;
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandResult;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandStatus;
 import app.l2nx.gs.adapter.api.kafka.commands.gd.GdResyncCommand;
@@ -16,6 +17,9 @@ import app.l2nx.gs.adapter.api.spi.ConnectContext;
 import app.l2nx.gs.adapter.api.spi.capability.NxGameData;
 import app.l2nx.gs.adapter.api.spi.capability.NxGameDataTrigger;
 import app.l2nx.gs.adapter.api.spi.provider.GameDataReadinessProvider;
+import app.l2nx.gs.gd.sync.provider.TestGameDataReadinessProvider;
+import app.l2nx.gs.gd.sync.provider.TestGearScoreRulesetProvider;
+import app.l2nx.gs.gd.sync.provider.TestItemTemplateProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,6 +36,9 @@ import org.junit.jupiter.api.Test;
 
 /** Drives the readiness gate through the production descriptor registry, resolving providers via a real ServiceLoader. */
 class GameDataReadinessTest {
+
+    private static final CommandInitiator INITIATOR =
+            CommandInitiator.builder().source("nx-gameservers").build();
 
     private static final String ITEM_TOPIC = "kbt.gd.sync.itemtemplate";
     private static final String GEARSCORE_TOPIC = "kbt.gd.sync.gearscore";
@@ -123,8 +130,8 @@ class GameDataReadinessTest {
             module.onConnect(ctx);
             module.start();
 
-            CommandResult<GdResyncResult> result =
-                    module.handleGdResync(GdResyncCommand.builder().build(), null);
+            CommandResult<GdResyncResult> result = module.handleGdResync(
+                    GdResyncCommand.builder().initiator(INITIATOR).build(), null);
 
             assertEquals(CommandStatus.UNAVAILABLE, result.getStatus());
         }
@@ -175,8 +182,8 @@ class GameDataReadinessTest {
             module.onConnect(ctx);
             module.start();
 
-            CommandResult<GdResyncResult> result =
-                    module.handleGdResync(GdResyncCommand.builder().build(), null);
+            CommandResult<GdResyncResult> result = module.handleGdResync(
+                    GdResyncCommand.builder().initiator(INITIATOR).build(), null);
 
             assertTrue(result.isOk());
         }

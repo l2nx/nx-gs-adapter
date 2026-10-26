@@ -47,6 +47,12 @@ its snapshot accessor and primary-key extractor, so adding an entity is one regi
 | `lifestone`               | `LifeStoneProvider`               | `stone.itemTemplateId`             |
 | `gearscore`               | `GearScoreRulesetProvider`        | constant `0` (singleton)           |
 | `experiencelevel`         | `ExperienceLevelProvider`         | `level`                            |
+| `fishingbait`             | `FishingBaitProvider`             | `bait.itemTemplateId`              |
+| `fishingrod`              | `FishingRodProvider`              | `rod.itemTemplateId`               |
+| `fishingshot`             | `FishingShotProvider`             | `shot.itemTemplateId`              |
+
+[done] The fishing gear entities (`fishingbait`, `fishingrod`, `fishingshot`): implemented in the adapter, not yet
+released. Their DTOs are specified in [`fishing-gear-contract.md`](fishing-gear-contract.md).
 
 Each present provider becomes an independent `EntitySync` with its own burst, `syncId` and heartbeat
 `EntityStats`. A missing provider is skipped; two impls of one SPI put the module in `FAILED` (the
@@ -107,9 +113,8 @@ the platform can tell "never synced" from "was synced, now degraded".
 The provider contract distinguishes two returns, and the distinction is load-bearing:
 
 - **empty collection** — "this catalog is legitimately empty". Legal. Emits `SNAPSHOT_COMPLETE`
-  with `count=0`. Its reconcile pass was designed to delete every row of that entity on the platform;
-  since 2026-10-08 the platform treats `count=0` as an anomaly and never reconciles it (§7), so a
-  real disappearance of an entity is done by hand.
+  with `count=0`. Its reconcile pass deletes all rows of that entity for that server on the platform
+  (§7), so a real disappearance of an entity needs no manual step.
 - **`null`** — "no snapshot to give". The publisher aborts the burst: no marker is emitted, nothing
   is reconciled, the previous platform state survives untouched.
 
@@ -391,8 +396,8 @@ a `@Deprecated` window (owner decision: the producer and the single wire consume
   `nx-gamedata/docs/specs/009-gear-score-design.md` §3.5, not scheduled.
 
 **Consumer guarantees** (platform side, protocol unchanged; live since 2026-10-08): a burst whose
-persisted row count does not match `SNAPSHOT_COMPLETE.count` is not reconciled; `count=0` is treated
-as an anomaly and never reconciles; infrastructure write failures are retried, not acknowledged. The
+persisted row count does not match `SNAPSHOT_COMPLETE.count` is not reconciled; `count=0` deletes all rows of the
+entity for that server; infrastructure write failures are retried, not acknowledged. The
 gd topic is kept for 48 h.
 
 ## 8. Links
@@ -400,6 +405,8 @@ gd topic is kept for 48 h.
 - Skill record contract (api 0.101.0): [`skill-contract.md`](skill-contract.md)
 - Augmentation catalog contract (api 0.116.0, `itemoption` / `lifestone` / `augmentationtargetgroup`):
   [`augmentation-contract.md`](augmentation-contract.md)
+- Fishing gear contract (`fishingbait` / `fishingrod` / `fishingshot`):
+  [`fishing-gear-contract.md`](fishing-gear-contract.md)
 - Issue: [l2nx/nx-gs-adapter#8](https://github.com/l2nx/nx-gs-adapter/issues/8)
 - `docs/specs/023-platform-sync-fixes-2026-06.md` — Fix ③, the gear-score deploy gap that first
   shipped the `gearscore` entity (`gd-sync/v0.10.0`); a version-skew incident, not a design record.

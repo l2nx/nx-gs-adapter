@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.mail;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.model.MailItem;
 import java.util.List;
@@ -25,10 +26,16 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
     private final List<MailItem> items;
     private final @Nullable Long adena;
     private final @Nullable UUID idempotencyKey;
+    private final CommandInitiator initiator;
 
     public SendMailCommand(
-            Long charId, @Nullable String author, String title, @Nullable String body, @Nullable List<MailItem> items) {
-        this(charId, author, title, body, items, null, null);
+            Long charId,
+            @Nullable String author,
+            String title,
+            @Nullable String body,
+            @Nullable List<MailItem> items,
+            CommandInitiator initiator) {
+        this(charId, author, title, body, items, null, null, initiator);
     }
 
     public SendMailCommand(
@@ -38,7 +45,8 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
             @Nullable String body,
             @Nullable List<MailItem> items,
             @Nullable Long adena,
-            @Nullable UUID idempotencyKey) {
+            @Nullable UUID idempotencyKey,
+            CommandInitiator initiator) {
         if (charId == null) {
             throw new IllegalArgumentException("charId is required");
         }
@@ -55,6 +63,7 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         this.items = MailLists.freeze(items);
         this.adena = adena;
         this.idempotencyKey = idempotencyKey;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public Long getCharId() {
@@ -93,6 +102,11 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         return idempotencyKey;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .charId(charId)
@@ -101,7 +115,8 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
                 .body(body)
                 .items(items)
                 .adena(adena)
-                .idempotencyKey(idempotencyKey);
+                .idempotencyKey(idempotencyKey)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -119,12 +134,13 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
                 && Objects.equals(body, that.body)
                 && Objects.equals(items, that.items)
                 && Objects.equals(adena, that.adena)
-                && Objects.equals(idempotencyKey, that.idempotencyKey);
+                && Objects.equals(idempotencyKey, that.idempotencyKey)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, author, title, body, items, adena, idempotencyKey);
+        return Objects.hash(charId, author, title, body, items, adena, idempotencyKey, initiator);
     }
 
     @Override
@@ -135,7 +151,7 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
                 + ", body=" + body
                 + ", items=" + items
                 + ", adena=" + adena
-                + ", idempotencyKey=" + idempotencyKey + "]";
+                + ", idempotencyKey=" + idempotencyKey + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -146,6 +162,7 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         private @Nullable List<MailItem> items;
         private @Nullable Long adena;
         private @Nullable UUID idempotencyKey;
+        private CommandInitiator initiator;
 
         public Builder charId(Long charId) {
             this.charId = charId;
@@ -182,8 +199,13 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public SendMailCommand build() {
-            return new SendMailCommand(charId, author, title, body, items, adena, idempotencyKey);
+            return new SendMailCommand(charId, author, title, body, items, adena, idempotencyKey, initiator);
         }
     }
 }

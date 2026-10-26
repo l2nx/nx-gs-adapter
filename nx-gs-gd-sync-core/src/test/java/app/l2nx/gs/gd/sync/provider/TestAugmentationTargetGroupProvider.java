@@ -1,4 +1,4 @@
-package app.l2nx.gs.gd.sync;
+package app.l2nx.gs.gd.sync.provider;
 
 import app.l2nx.gs.adapter.api.kafka.sync.gd.augmentation.targetgroup.AugmentationTargetGroup;
 import app.l2nx.gs.adapter.api.spi.provider.AugmentationTargetGroupProvider;
@@ -7,7 +7,7 @@ import java.util.Collections;
 
 public final class TestAugmentationTargetGroupProvider implements AugmentationTargetGroupProvider {
 
-    static volatile Collection<AugmentationTargetGroup> snapshot = Collections.emptyList();
+    public static volatile Collection<AugmentationTargetGroup> snapshot = Collections.emptyList();
 
     @Override
     public String entityName() {

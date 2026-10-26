@@ -3,9 +3,11 @@ package app.l2nx.gs.adapter.core.commands;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.NxHeaders;
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandResult;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandStatus;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.spi.HostExecutorTimeoutException;
 import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
@@ -26,15 +28,49 @@ import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CommandsConsumerTest {
 
+    static final String USER_INITIATOR_JSON =
+            "{\"source\":\"user\",\"userId\":\"019a0000-0000-7000-8000-0000000000aa\"}";
+
+    static byte[] payload(long charId) {
+        return payload(charId, USER_INITIATOR_JSON);
+    }
+
+    static byte[] payload(long charId, String initiatorJson) {
+        return ("{\"charId\":" + charId + ",\"initiator\":" + initiatorJson + "}").getBytes(StandardCharsets.UTF_8);
+    }
+
     static final class FakeCommand implements NxCommand<Void> {
         Long charId;
+        CommandInitiator initiator;
 
         public Long getCharId() {
             return charId;
+        }
+
+        @Override
+        public CommandInitiator getInitiator() {
+            return initiator;
+        }
+    }
+
+    static final class FakeOwnerCommand implements NxCommand<Void>, OwnerVerified {
+        CommandInitiator initiator;
+
+        @Override
+        public boolean isOwnerVerified() {
+            return true;
+        }
+
+        @Override
+        public CommandInitiator getInitiator() {
+            return initiator;
         }
     }
 
@@ -126,8 +162,7 @@ class CommandsConsumerTest {
         CommandsConsumer consumer = build("out");
         UUID corr = UUID.randomUUID();
 
-        consumer.processRecord(
-                recordWithHeaders("in", "FakeCommand", corr, "{\"charId\":123}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", corr, payload(123)));
 
         assertTrue(handlerCalled.get());
         assertEquals(1L, consumer.handledTotal());
@@ -203,8 +238,7 @@ class CommandsConsumerTest {
         });
         CommandsConsumer consumer = build("out");
 
-        consumer.processRecord(recordWithHeaders(
-                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1)));
 
         assertEquals(1L, consumer.internalErrorsTotal());
         CommandResult<?> body = (CommandResult<?>) sender.sent.get(0).value();
@@ -220,8 +254,7 @@ class CommandsConsumerTest {
         });
         CommandsConsumer consumer = build("out");
 
-        consumer.processRecord(recordWithHeaders(
-                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1)));
 
         assertEquals(1L, consumer.internalErrorsTotal());
         CommandResult<?> body = (CommandResult<?>) sender.sent.get(0).value();
@@ -235,8 +268,7 @@ class CommandsConsumerTest {
         registry.register(FakeCommand.class, (cmd, ctx) -> null);
         CommandsConsumer consumer = build("out");
 
-        consumer.processRecord(recordWithHeaders(
-                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1)));
 
         assertEquals(1L, consumer.internalErrorsTotal());
         CommandResult<?> body = (CommandResult<?>) sender.sent.get(0).value();
@@ -249,8 +281,7 @@ class CommandsConsumerTest {
         registry.register(FakeCommand.class, (cmd, ctx) -> CommandResult.ok());
         CommandsConsumer consumer = build(null);
 
-        consumer.processRecord(recordWithHeaders(
-                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1)));
 
         assertEquals(1L, consumer.handledTotal());
         assertEquals(0L, consumer.repliesPublishedTotal());
@@ -268,8 +299,7 @@ class CommandsConsumerTest {
         });
         CommandsConsumer consumer = build("out");
 
-        consumer.processRecord(recordWithHeaders(
-                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":42}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(42)));
 
         assertEquals(1, calls.get());
     }
@@ -282,8 +312,7 @@ class CommandsConsumerTest {
         });
         CommandsConsumer consumer = build("out");
 
-        consumer.processRecord(
-                recordWithHeaders("in", "FakeCommand", null, "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", null, payload(1)));
 
         assertEquals(1, sender.sent.size());
     }
@@ -294,8 +323,7 @@ class CommandsConsumerTest {
         registry.register(FakeCommand.class, (cmd, ctx) -> CommandResult.ok());
         CommandsConsumer consumer = build("out");
 
-        consumer.processRecord(recordWithHeaders(
-                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1)));
 
         assertEquals(1L, consumer.repliesFailedTotal());
         assertEquals(0L, consumer.repliesPublishedTotal());
@@ -310,8 +338,7 @@ class CommandsConsumerTest {
         });
         CommandsConsumer consumer = build("out");
 
-        consumer.processRecord(recordWithHeaders(
-                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1)));
 
         assertTrue(ioObserved.get(), "ctx.io().execute() must run on the supplied executor (direct-run double)");
     }
@@ -325,8 +352,7 @@ class CommandsConsumerTest {
         });
         CommandsConsumer consumer = build("out");
 
-        consumer.processRecord(recordWithHeaders(
-                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8)));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1)));
 
         assertSame(AppSettingsRuntime.rules(), seen.get());
     }
@@ -371,12 +397,7 @@ class CommandsConsumerTest {
         CommandsConsumer consumer = build("out");
         UUID otherServer = UUID.fromString("019a0000-0000-7000-8000-00000000beef");
 
-        consumer.processRecord(recordWithHeaders(
-                "in",
-                "FakeCommand",
-                UUID.randomUUID(),
-                "{\"charId\":1}".getBytes(StandardCharsets.UTF_8),
-                otherServer));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1), otherServer));
 
         assertFalse(handlerCalled.get(), "handler MUST NOT run for a record targeted at another server");
         assertEquals(1L, consumer.otherServerSkippedTotal());
@@ -392,11 +413,119 @@ class CommandsConsumerTest {
         });
         CommandsConsumer consumer = build("out");
 
-        consumer.processRecord(recordWithHeaders(
-                "in", "FakeCommand", UUID.randomUUID(), "{\"charId\":1}".getBytes(StandardCharsets.UTF_8), null));
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1), null));
 
         assertFalse(handlerCalled.get(), "missing target header → strict drop");
         assertEquals(1L, consumer.otherServerSkippedTotal());
         assertEquals(0, sender.sent.size());
+    }
+
+    @Nested
+    class Initiator {
+
+        private void assertInvalidInitiator(CommandsConsumer consumer, AtomicBoolean handlerCalled) {
+            assertFalse(handlerCalled.get(), "handler MUST NOT run for an invalid initiator");
+            assertEquals(1L, consumer.validationFailedTotal());
+            CommandResult<?> body = (CommandResult<?>) sender.sent.get(0).value();
+            assertEquals(CommandStatus.VALIDATION_FAILED, body.getStatus());
+            assertEquals("invalid-initiator", body.getProblem().getExtensions().get("error.cause"));
+            assertNotNull(body.getProblem().getDetail());
+        }
+
+        private AtomicBoolean registerFake() {
+            AtomicBoolean handlerCalled = new AtomicBoolean(false);
+            registry.register(FakeCommand.class, (cmd, ctx) -> {
+                handlerCalled.set(true);
+                return CommandResult.ok();
+            });
+            return handlerCalled;
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @ValueSource(
+                strings = {
+                    "{\"charId\":1}",
+                    "{\"charId\":1,\"initiator\":null}",
+                    "{\"charId\":1,\"initiator\":\"user\"}",
+                    "{\"charId\":1,\"initiator\":{\"source\":\"user\"}}",
+                    "{\"charId\":1,\"initiator\":{\"source\":\"nx-social\",\"userId\":\"019a0000-0000-7000-8000-0000000000aa\"}}",
+                    "{\"charId\":1,\"initiator\":{\"source\":\"  \"}}",
+                    "{\"charId\":1,\"initiator\":{\"source\":7}}",
+                    "{\"charId\":1,\"initiator\":{\"source\":\"user\",\"userId\":\"not-a-uuid\"}}",
+                    "{\"charId\":1,\"initiator\":{\"source\":\"a-service-name-longer-than-32-chars\"}}"
+                })
+        void processRecord_shouldReplyInvalidInitiator_whenMissingOrMalformed(String json) {
+            AtomicBoolean handlerCalled = registerFake();
+            CommandsConsumer consumer = build("out");
+
+            consumer.processRecord(
+                    recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), json.getBytes(StandardCharsets.UTF_8)));
+
+            assertInvalidInitiator(consumer, handlerCalled);
+        }
+
+        @Test
+        void processRecord_shouldHandNormalizedInitiatorToHandler() {
+            AtomicReference<CommandInitiator> seen = new AtomicReference<>();
+            registry.register(FakeCommand.class, (cmd, ctx) -> {
+                seen.set(cmd.getInitiator());
+                return CommandResult.ok();
+            });
+            CommandsConsumer consumer = build("out");
+
+            consumer.processRecord(recordWithHeaders(
+                    "in",
+                    "FakeCommand",
+                    UUID.randomUUID(),
+                    payload(
+                            1,
+                            "{\"source\":\" NX-Social \",\"label\":\" @handle \",\"email\":\" A@B.C \","
+                                    + "\"ip\":\"N/A\"}")));
+
+            CommandInitiator expected = CommandInitiator.builder()
+                    .source("nx-social")
+                    .label("@handle")
+                    .email("a@b.c")
+                    .build();
+            assertEquals(expected, seen.get());
+            assertEquals(1L, consumer.handledTotal());
+        }
+
+        @Test
+        void processRecord_shouldReplyInvalidInitiator_whenOwnerVerifiedCommandFromService() {
+            AtomicBoolean handlerCalled = new AtomicBoolean(false);
+            registry.register(FakeOwnerCommand.class, (cmd, ctx) -> {
+                handlerCalled.set(true);
+                return CommandResult.ok();
+            });
+            CommandsConsumer consumer = build("out");
+
+            consumer.processRecord(recordWithHeaders(
+                    "in",
+                    "FakeOwnerCommand",
+                    UUID.randomUUID(),
+                    "{\"initiator\":{\"source\":\"nx-gameservers\"}}".getBytes(StandardCharsets.UTF_8)));
+
+            assertInvalidInitiator(consumer, handlerCalled);
+        }
+
+        @Test
+        void processRecord_shouldInvokeHandler_whenOwnerVerifiedCommandFromUser() {
+            AtomicBoolean handlerCalled = new AtomicBoolean(false);
+            registry.register(FakeOwnerCommand.class, (cmd, ctx) -> {
+                handlerCalled.set(true);
+                return CommandResult.ok();
+            });
+            CommandsConsumer consumer = build("out");
+
+            consumer.processRecord(recordWithHeaders(
+                    "in",
+                    "FakeOwnerCommand",
+                    UUID.randomUUID(),
+                    ("{\"initiator\":" + USER_INITIATOR_JSON + "}").getBytes(StandardCharsets.UTF_8)));
+
+            assertTrue(handlerCalled.get());
+            assertEquals(0L, consumer.validationFailedTotal());
+        }
     }
 }

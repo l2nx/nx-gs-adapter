@@ -37,7 +37,7 @@ character getting up again). `spot-pool` is an app-session term of the adapter, 
   | Field              | Type      | Required | Notes                                                                                                                                                                                                                                             |
   | ------------------ | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | `characterId`      | `int`     | yes      | Character to revive                                                                                                                                                                                                                               |
-  | `masterAccountId`  | `UUID`    | yes      | Master account of the initiator, put in by the platform                                                                                                                                                                                           |
+  | `masterAccountId`  | `UUID`    | yes      | Master account of the initiator, put in by the platform. [planned] Removed in favour of `initiator.userId` ([`spec.md`](spec.md) R30)                                                                                                             |
   | `restartPoint`     | `String`  | yes      | `RestartPoint` token (R3)                                                                                                                                                                                                                         |
   | `disconnectClient` | `boolean` | no       | Applies to a character in the world only. `false`: the character gets up at the restart point and the client keeps playing it. `true`: the client is closed and the character stays out of the game at the restart point. Absent reads as `false` |
   | `ownerVerified`    | `boolean` | no       | See R28 in [`spec.md`](spec.md); absent reads as `false`                                                                                                                                                                                          |
@@ -64,11 +64,11 @@ character getting up again). `spot-pool` is an app-session term of the adapter, 
 - [done] R7. App settings keys (catalog in [`038`](../038-app-offline-sessions.md), public table in
   `docs/public/{en,ru}/configuration.md`):
 
-  | Key                         | Type                   | Default  | Meaning                                                                                                                                                    |
-  | --------------------------- | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `app.revive.enabled`        | boolean                | `true`   | Revive from the app on this server; off: `FEATURE_DISABLED`. On by default: with `NATIVE` it needs no other key                                            |
-  | `app.revive.town.mode`      | `NATIVE` / `SPOT_POOL` | `NATIVE` | How the host picks the location for `TOWN`: `NATIVE` as the game itself does for "to village", `SPOT_POOL` a spot from the pools below                     |
-  | `app.revive.town.spot-pool` | list of pool names     | empty    | Pools for `SPOT_POOL`; `SPOT_POOL` with an empty list is a file validation error. May be shared with `app.fishing.spot-pool` |
+  | Key                         | Type                   | Default  | Meaning                                                                                                                                |
+  | --------------------------- | ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+  | `app.revive.enabled`        | boolean                | `true`   | Revive from the app on this server; off: `FEATURE_DISABLED`. On by default: with `NATIVE` it needs no other key                        |
+  | `app.revive.town.mode`      | `NATIVE` / `SPOT_POOL` | `NATIVE` | How the host picks the location for `TOWN`: `NATIVE` as the game itself does for "to village", `SPOT_POOL` a spot from the pools below |
+  | `app.revive.town.spot-pool` | list of pool names     | empty    | Pools for `SPOT_POOL`; `SPOT_POOL` with an empty list is a file validation error. May be shared with `app.fishing.spot-pool`           |
 
   Keys are grouped per restart point (`town.*`), so a later restart point adds its own group without renaming these.
 

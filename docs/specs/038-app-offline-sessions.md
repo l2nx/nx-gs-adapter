@@ -24,7 +24,8 @@ configuration. The platform checks only ownership, server liveness and its rate 
 included) are shipped. Offline fishing (phase 3) is not implemented in the host: its start answers `FEATURE_DISABLED`.
 The adapter parts phase 3 needs (R20-R22: the app settings file, the session-history read, `ClientIdentifiers`) are
 released (api 0.111.0, core 0.45.0, db-migrations 0.3.0). The private-store start cooldown (R23) is implemented in the
-adapter and not yet released (see [Rollout](#rollout)).
+adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged end (R24), the open-sessions snapshot
+(R25) and the check mode (R26).
 
 ## Requirements
 
@@ -74,7 +75,8 @@ adapter and not yet released (see [Rollout](#rollout)).
 - [done] R11. A session survives a restart as open: the engine restores it on the schedule below with the same `id`.
   Restore that cannot happen ends the session with `APP_RESTORE_FAILED`. The platform's server-generation close does not
   touch `APP` sessions, and `SUPERSEDED` for an `APP` session has no generation boundary (a session lives across
-  restarts). Reconciling `APP` sessions left open by mistake is a platform task ([nx-gameservers#85](https://github.com/l2nx/nx-gameservers/issues/85)).
+  restarts). [planned] The platform reconciles `APP` sessions left open by mistake against the open-sessions snapshot
+  (R25), not by guessing ([nx-gameservers#85](https://github.com/l2nx/nx-gameservers/issues/85)).
 - [done] R12. There are no dedicated session events. The existing `CharacterPresenceEvent` is the session event: the end
   of a session is `online = false` with the required `logoutReason` (R15); a session restored after a restart is
   `online = true` with the same `sessionId` and `resumed = true` (R15).
@@ -99,6 +101,45 @@ adapter and not yet released (see [Rollout](#rollout)).
   scope is the character, not the master account; only app sessions count (`OFFLINE_PRIVATE_STORE`; a store opened in
   the game does not); stopping a store is never refused. The host enforces it; the adapter carries the key (R20) and
   the read (R21). Implemented in the adapter, not yet released (api 0.112.0, core 0.46.0, db-migrations 0.4.0).
+- [done] R24. **A session end reaches the platform.** Implemented in the adapter, not yet released. The end event is no longer fire-and-forget: the row records
+  `end_published_at` once Kafka acknowledged the end event, and the engine's flush tick republishes the end of every
+  closed row whose `end_published_at` is `NULL` until it is acknowledged. The events publisher gets a send with a
+  completion callback for this. A republish is the same event as the first send, `eventId` included: a UUIDv7 whose
+  timestamp is the end time and whose other 74 bits are the session id's own, so the platform deduplicates it by
+  `eventId` as well as by `sessionId`. Rows closed before the column exist count as published (the migration fills
+  `ended_at` into it), so an upgrade does not replay history.
+  - One sender per end: the close claims the end before its row commits as closed, and a claim lasts until Kafka
+    answers, or, once the acknowledgement is stored, until the next read of the unpublished ends. A flush tick never
+    sends an end the close or an acknowledgement in flight still holds.
+  - Acknowledgements are stored in batches, one `UPDATE ... WHERE id IN (...)` per up to 500 of them.
+  - A failure that a later send cannot fix (the bound events facade reports no acknowledgement, the `character` family
+    has no topic, the event type has no binding) marks the end published with one WARN instead of looping. Every other
+    failure (a full queue, a broker error, a drop before connect) leaves the end for the next tick.
+  - The flush tick reads the unpublished ends through the index `(end_published_at, ended_at)`, paging by the cursor
+    `(ended_at, id)` until it has sent 500 ends or reached the end. Rows this version cannot read (written by a newer
+    one) take their place in a page but are neither sent nor marked, so they never hide the rows behind them and a
+    newer version still publishes them. A row whose end event cannot be built is logged once as an ERROR and skipped.
+- [done] R25. **Open-sessions snapshot.** Implemented in the adapter, not yet released. Every 60 s and once at module start the engine publishes
+  `AppSessionsSnapshotEvent {eventId, takenAt, sessionIds}`: the ids of every open session of this server, the ones
+  running and the ones waiting for the post-restart restore (`PENDING_RESTORE`). It travels in the `character` event
+  family with the server as the record key (a server without an id from `/connect` publishes no snapshot: an unkeyed
+  one could overtake its successor); `eventId` is a UUIDv7 (dedup and order, as the online snapshot of
+  [`011`](011-events-online-snapshot.md)). A session that is starting is listed from the moment its row is written,
+  before its placement fixes `startedAt`. `takenAt` has the table's second precision and is read before the ids, so a
+  session missing from a snapshot has `startedAt >= takenAt`; the platform must not close sessions that started at or
+  after it. The platform knows the server's start
+  from `ServerStartedEvent` (`011`) and needs no generation counter in the snapshot. The platform closes an open
+  `APP` session that a snapshot newer than its login (past a grace) does not list. The snapshot is a full set, not a
+  diff; an empty list is a valid snapshot of a server with no open session.
+- [done] R26. **Check mode for start.** Implemented in the adapter, not yet released. The engine's own start checks (one active session per character, the
+  spot pool's free spot) are available without side effects, so a check command ([`009`](009-commands/spec.md) R31) can
+  run the start's path to its end without writing a row, taking a spot or placing the character.
+  `NxAppSessions.check(characterId, spotPool, spotId)` answers its own SPI type `AppSessionCheckOutcome` (`ALLOWED`,
+  `CHARACTER_BUSY` with the open session, `SPOT_TAKEN`, `UNAVAILABLE` with a detail); the start's
+  `AppSessionStartOutcome` has no `ALLOWED`. The spot is validated and trimmed by the same code as a start request
+  (`AppSessionStartRequest.normalizeSpotPool`, `requireValidSpotId`), so a check never accepts a spot a start would
+  reject. A busy character is reported as `ALREADY_ACTIVE` with `scope = CHARACTER` in `AppSessionCheckResult`, as a
+  refused start reports it.
 
 **Non-goals:**
 
@@ -316,11 +357,11 @@ Table `l2nx_offline_sessions`, owned by the adapter and created by the changelog
 | `idempotency_key`      | `uuid` NOT NULL UNIQUE        | start idempotency: a repeated command finds the created session                                                                                                                                                                                                                                                  |
 | `character_id`         | `int` NOT NULL                | character; history and rollback                                                                                                                                                                                                                                                                                  |
 | `active_character_id`  | `int` NULL UNIQUE             | equals `character_id` while the session runs, `NULL` once closed: at most one active session per character (all three engines allow many `NULL` in a unique index)                                                                                                                                               |
-| `master_account_id`    | `uuid` NULL                   | master-account limit (host rule, read through R21); taken from the command                                                                                                                                                                                                                                       |
+| `master_account_id`    | `uuid` NULL                   | master-account limit (host rule, read through R21); taken from the command's `initiator.userId`                                                                                                                                                                                                                  |
 | `activity`             | `varchar(32)` NOT NULL        | the session's `ActivityType`: `OFFLINE_FISHING`, `OFFLINE_PRIVATE_STORE` (app private store)                                                                                                                                                                                                                     |
 | `account_name`         | `varchar(45)` NOT NULL        | per-account limit                                                                                                                                                                                                                                                                                                |
 | `hwid`                 | `varchar(300)` NULL           | snapshot of the character's hwid for the host's one-fishing-per-device limit; a placeholder or empty value is stored as `NULL` (R22); `NULL` means no per-device limit; kept for investigations                                                                                                                  |
-| `initiator_ip`         | `varchar(45)` NULL            | IP of the app request that sent the start command (`initiatorIp`), a placeholder stored as `NULL` (R22); for investigations, never counted by an IP limit                                                                                                                                                        |
+| `initiator_ip`         | `varchar(45)` NULL            | IP of the app request that sent the start command (`initiator.ip`), a placeholder stored as `NULL` (R22); for investigations and the host's per-IP fishing limit                                                                                                                                                 |
 | `spot_pool`, `spot_id` | `varchar(32)`, `int` NOT NULL | the spot: a pool name and an id inside it, both chosen by the host (fishing: a pool of fishing spots; private store: a place of a trade zone)                                                                                                                                                                    |
 | `active_spot_key`      | `varchar(48)` NULL UNIQUE     | `<pool>:<spot>` while the session runs: one spot, one character                                                                                                                                                                                                                                                  |
 | `origin_x/y/z/heading` | `int` NOT NULL                | where to return the character; a dangerous origin is already replaced by a town. `heading` is the facing direction (0-65535)                                                                                                                                                                                     |
@@ -331,6 +372,7 @@ Table `l2nx_offline_sessions`, owned by the adapter and created by the changelog
 | `type_state`           | `clob` NULL                   | per-type JSON: fishing - rod, bait, what to return to the hands, interim catch; store - kind (`SELL` / `PACKAGE_SELL` / `BUY`), lots, message, seller fee percent (`BUY`: lots by template, buyer fee percent)                                                                                                   |
 | `ended_at`             | `datetime` NULL               | `NULL` means active                                                                                                                                                                                                                                                                                              |
 | `end_reason`           | `varchar(32)` NULL            | end reason: the `LogoutReason` constant name                                                                                                                                                                                                                                                                     |
+| `end_published_at`     | `datetime` NULL               | when Kafka acknowledged the end event (R24); `NULL` on a closed row means the end still has to reach the platform; the flush tick republishes it                                                                                                                                                                 |
 
 Indexes: `UNIQUE(active_character_id)`, `UNIQUE(active_spot_key)`, `UNIQUE(idempotency_key)`,
 `(account_name, ended_at)`, `(hwid, ended_at)`, `(master_account_id, ended_at)`,
@@ -374,7 +416,7 @@ Cleanup: closed sessions older than `app.history.retention-days` are deleted at 
 
 1. Start: host validates (R8), engine inserts the row under `idempotency_key` (R5, id = UUIDv7), `placeInWorld`,
    records the real `started_at` (and the host's spot and type state), `startAction`, then publishes `online = true, source = APP,
-activity, sessionId, ip = initiatorIp, hwid, accountName`.
+activity, sessionId, ip = initiator.ip, hwid, accountName`.
 2. Running: `active_ms` counts while the action runs, flushed every minute (a write never lowers the stored value and
    never touches a closed row) and on stop and shutdown (R7); a timer ends the session when `active_ms >= planned_ms`
    (`planned_ms` null: no time limit).
@@ -383,7 +425,8 @@ activity, sessionId, ip = initiatorIp, hwid, accountName`.
    `ended_at` and `end_reason`, clears `active_character_id` and `active_spot_key`, publishes `online = false, source = APP,
 logoutReason`. A failed close in the table is logged and retried until the table takes it (the character stays busy
    meanwhile); the event goes out at once. Only if the JVM stops before a retry succeeds is the row, still open, restored
-   at the next start (see Engine).
+   at the next start (see Engine). The end event is acknowledged into `end_published_at`; an end that Kafka
+   did not acknowledge is republished by the flush tick until it is (R24).
 4. Server stop: running sessions keep their row open; `active_ms` is stored; nothing is published.
 5. Restart: at engine start closed rows past the retention are deleted and rows with `ended_at IS NULL` wait for the
    restore. Once the `app-sessions` module has started and the host has called `hostReady` (whichever comes last), the
@@ -444,17 +487,18 @@ lives on the platform, in its own private legacy mapping (see Rollout).
     - app-only: `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`,
       `APP_INVENTORY_FULL`, `APP_SOLD_OUT`, `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`.
 
-  `metadata.logout_reason` and its lower_snake tokens are gone. For an `APP` event `ip` is the `initiatorIp` of the
+  `metadata.logout_reason` and its lower_snake tokens are gone. For an `APP` event `ip` is the `initiator.ip` of the
   start command (the app request IP) and `hwid` is the session's hwid snapshot (`null` when empty, never `""`);
   `source = APP` marks both as "from the app". Platform readers of "last game IP / HWID" take only `CLIENT` events; the
   session log shows both kinds with the mark. See [`013`](013-character-core-extension.md).
 
-- R16. No new event families: presence is the only session event, so nx-social and the platform consume what they already
-  consume.
+- R16. No new event families: presence is the only per-session event, so nx-social and the platform consume what they
+  already consume. The open-sessions snapshot (R25) is a per-server fact in the existing `character` family,
+  not a session event.
 - R17. The reason-code enum shared by the commands lives in the api (see
   [`offline-fishing.md`](009-commands/offline-fishing.md)); it includes `FEATURE_DISABLED` and `INVALID_DURATION`.
-  `StartPrivateStoreResult` gains `sessionId`, and the private-store start commands carry `idempotencyKey` and
-  `initiatorIp` (see [`catalog.md`](009-commands/catalog.md)).
+  `StartPrivateStoreResult` gains `sessionId`, and the private-store start commands carry `idempotencyKey`; the app
+  request IP is the command's `initiator.ip` (see [`catalog.md`](009-commands/catalog.md)).
 
 ### App settings file
 
@@ -629,8 +673,9 @@ CompletableFuture<Optional<OfflineSession>> findLastStartedByCharacter(int chara
   a booted engine.
 - Semantics: it counts app sessions only. The host does not know the master account of a live player, so live fishing
   never counts against this limit; the host's per-account and per-device limits cover live and app fishing together,
-  using the session's `accountName` and `hwid`. IP is not a limit subject: `initiator_ip` is the app request's IP, not
-  the game client's.
+  using the session's `accountName` and `hwid`. IP is not a limit subject of this read. The host's own
+  per-IP limit counts an app session under `initiator_ip` and the character's recent game-client IP
+  ([`offline-fishing.md`](009-commands/offline-fishing.md) R12); the host holds that registry, the read is unchanged.
 - Concurrency: the check and the engine `start` are two steps. Two starts for different characters of one master
   account can both pass unless the host serializes its fishing starts per master account (the table does not enforce
   this limit).
@@ -731,10 +776,12 @@ static @Nullable String ip(@Nullable String raw);
 | `BanDbDto.targetValue` when `targetType` is `IP` or `HWID`                    | db-sync, right after the row is mapped, before it is published                           |
 | `CharacterLockDbDto.lockValue` when `lockType` is `IP`, `HWID` or `ITEM`      | db-sync, as above                                                                        |
 | `l2nx_offline_sessions.hwid`, `.initiator_ip` (and the `OfflineSession` view) | the engine, on insert and on reading a row                                               |
+| `CommandInitiator.ip`                                                         | commands consumer, at deserialization                                                    |
 
 A placeholder never reaches the platform. db-sync computes its checksum in SQL over the raw columns, so a placeholder changing into another one (`N/A` to `0`) still resends the row with the same payload: harmless. The db-sync
 `character` entity and the runtime-sync DTOs carry no hwid or IP today; a field added later falls under this rule in the
-same change. Command inputs (`initiatorIp`) come from the platform and reach the wire only through the session row.
+same change. A command's `initiator.ip` comes from the platform, passes it in the adapter's commands consumer when the
+command is deserialized, and reaches the wire only through the session row.
 `AccountAuthAttemptEvent.clientIp` is the socket address of the login connection: always known, required and not
 normalized (only its `hwid` passes `ClientIdentifiers`).
 

@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.character;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
@@ -20,8 +21,10 @@ public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharac
     private final Long charId;
     private final String accessLevel;
     private final @Nullable String staffNotes;
+    private final CommandInitiator initiator;
 
-    public SetCharacterAccessLevelCommand(Long charId, String accessLevel, @Nullable String staffNotes) {
+    public SetCharacterAccessLevelCommand(
+            Long charId, String accessLevel, @Nullable String staffNotes, CommandInitiator initiator) {
         if (charId == null) {
             throw new IllegalArgumentException("charId is required");
         }
@@ -31,6 +34,7 @@ public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharac
         this.charId = charId;
         this.accessLevel = accessLevel;
         this.staffNotes = staffNotes;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public Long getCharId() {
@@ -50,8 +54,17 @@ public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharac
         return staffNotes;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().charId(charId).accessLevel(accessLevel).staffNotes(staffNotes);
+        return new Builder()
+                .charId(charId)
+                .accessLevel(accessLevel)
+                .staffNotes(staffNotes)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -65,24 +78,26 @@ public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharac
         SetCharacterAccessLevelCommand that = (SetCharacterAccessLevelCommand) o;
         return Objects.equals(charId, that.charId)
                 && Objects.equals(accessLevel, that.accessLevel)
-                && Objects.equals(staffNotes, that.staffNotes);
+                && Objects.equals(staffNotes, that.staffNotes)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, accessLevel, staffNotes);
+        return Objects.hash(charId, accessLevel, staffNotes, initiator);
     }
 
     @Override
     public String toString() {
         return "SetCharacterAccessLevelCommand[charId=" + charId + ", accessLevel=" + accessLevel + ", staffNotes="
-                + staffNotes + "]";
+                + staffNotes + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
         private Long charId;
         private String accessLevel;
         private @Nullable String staffNotes;
+        private CommandInitiator initiator;
 
         public Builder charId(Long charId) {
             this.charId = charId;
@@ -99,8 +114,13 @@ public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharac
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public SetCharacterAccessLevelCommand build() {
-            return new SetCharacterAccessLevelCommand(charId, accessLevel, staffNotes);
+            return new SetCharacterAccessLevelCommand(charId, accessLevel, staffNotes, initiator);
         }
     }
 }

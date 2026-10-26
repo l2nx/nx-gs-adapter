@@ -183,6 +183,8 @@ errorDetails` triple. Dropped before first release in favour of R23 + R24: three
       extension
     - Gson `JsonSyntaxException` (or a `null` object from a non-null body) →
       `VALIDATION_FAILED` with the parse message as `detail` + `error.class`
+    - missing or invalid `initiator` (R30) → `VALIDATION_FAILED`, `error.cause = "invalid-initiator"`
+      [planned]
     - any other deserialization `Throwable` → `INTERNAL_ERROR`
     - `HostExecutorTimeoutException` → `UNAVAILABLE` (`error.cause = "host-executor-timeout"`,
       `timeout.ms`)
@@ -414,6 +416,57 @@ replies-published == 0}` is visible as a failure rather than as silence
     character-acting command applies the host's shared ban lookup from its first release, and the catalog lists the
     two codes among its reasons.
 
+- [done] R30. **Command initiator.** Every command carries who triggered it. Implemented in the adapter, not yet
+  released.
+  `nx-gs-adapter-api.kafka.commands.CommandInitiator` is a value object, and `NxCommand<R>` gains
+  `CommandInitiator getInitiator()`: every command DTO has a required `initiator` field.
+
+  | Field    | Type      | Required            | Rule                                                                                                              |
+  | -------- | --------- | ------------------- | ----------------------------------------------------------------------------------------------------------------- |
+  | `source` | `String`  | yes                 | `user` for a platform user, otherwise the name of the sending platform service; trimmed, lowercase, ≤ 32          |
+  | `userId` | `UUID`    | iff `source = user` | the platform user; `null` for a service source                                                                    |
+  | `label`  | `String?` | no                  | human-readable attribution of a service source (a job name, a messenger handle); trimmed to `null`, ≤ 255         |
+  | `email`  | `String?` | no                  | the user's email at dispatch time, trimmed and lowercased, ≤ 254; `null` when the user has none                   |
+  | `ip`     | `String?` | no                  | the IP of the request that triggered the command, normalized by `ClientIdentifiers.ip`, ≤ 45; `null` when unknown |
+  - No value is `null`, never an empty string. The value object rejects a blank `source`, a `user` source without
+    `userId` and a service source with one.
+  - Gson bypasses the constructor, so the commands consumer validates the deserialized initiator once, before the
+    handler runs: a missing or invalid initiator is `VALIDATION_FAILED` with `error.cause = "invalid-initiator"`
+    (R11). Handlers read a valid initiator and never re-check its shape.
+  - A command implementing `OwnerVerified` (R28) requires `source = user`; anything else is refused the same way.
+    The player acting on their own character is `initiator.userId`: owner-scoped commands carry no separate
+    master-account field.
+  - The initiator is context for host rules and audit (per-IP limits, per-master-account cooldowns, the host's command
+    log), never authorization: the platform authorizes before sending, as with R28.
+  - Replaces the per-command `masterAccountId` and `initiatorIp` fields (`StartOfflineFishingCommand`,
+    `StopOfflineFishingCommand`, `ReviveCharacterCommand`, `StartPrivateStoreCommand`); see Rollout.
+  - `BanCommand.issuedBy` and `SendCaptchaCommand.issuedBy` stay: they are the in-game display name the host writes
+    into its own record (the ban row, the captcha check) and shows to staff, not the attribution of the command. The
+    initiator says who sent the command; `issuedBy` says what the record shows.
+  - Touching every command to add `initiator` is mechanical and does not convert the `WellKnown*` constant holders
+    of those commands' families to enums: that conversion stays a change of its own
+    ([#33](https://github.com/l2nx/nx-gs-adapter/issues/33)).
+
+- [done] R31. **Check commands of app sessions.** Implemented in the adapter, not yet released. Every app-session type
+  a player opens with a start command
+  ([`038`](../038-app-offline-sessions.md); not the app-phantom, which the item-modification commands open implicitly)
+  ships three commands: `Start<Type>Command`, `Stop<Type>Command` and `Check<Type>Command`. A new session type without
+  its check command is incomplete.
+  - The check takes the start's payload minus the dedup fields (no `idempotencyKey`), with every player choice
+    optional: a choice that is absent is not checked, so the platform can check before the player has chosen.
+  - Its result is the shared `AppSessionCheckResult {allowed, reason, scope, retryAt, effectiveDurationMs}` (`scope` only with
+    `ALREADY_ACTIVE`): `reason` is
+    the first refusal in the order the start would hit it, `retryAt` is set where the start would set it, and
+    `effectiveDurationMs` is what a start with these inputs would run now (`null` when no duration was given or
+    `allowed = false`).
+  - A refusal is a successful check: `CommandStatus.OK` with `allowed = false`. A `CommandProblem` means the check
+    itself failed (expired, invalid input shape, host timeout).
+  - The host runs the same step path for check and start and stops before the first side effect: no character
+    lock, no spot reservation, no world entry, no session row. One path keeps the two answers from drifting.
+  - Read-only: not idempotent by key, never stored, never audited as a start.
+  - Offline fishing ships first (`CheckOfflineFishingCommand`); the app private store, which predates the standard,
+    gets its check in [#48](https://github.com/l2nx/nx-gs-adapter/issues/48).
+
 **Non-goals:**
 
 - **Per-domain Kafka topics** — single topic; cross-domain ordering per character is the more
@@ -526,6 +579,7 @@ poll(pollTimeoutMs)
        2. Nx-Message-Type → CommandTypeRegistry.lookup  → miss: UNSUPPORTED_COMMAND
        3. Nx-Correlation-Id → UUID (fallback UUIDv7 on missing/malformed)
        4. gson.fromJson(value, binding.commandClass) → JsonSyntaxException: VALIDATION_FAILED
+          initiator missing / invalid (R30)        → VALIDATION_FAILED
        5. handler.handle(cmd, new CommandContextImpl(...))
             HostExecutorTimeoutException → UNAVAILABLE
             RuntimeException             → INTERNAL_ERROR
@@ -571,8 +625,36 @@ poll(pollTimeoutMs)
   shows up in the command's contract and its catalog entry; the interface lets a host read it
   generically instead of per command. A header would have needed new plumbing into the handler
   context and left the contract silent about which commands carry it.
+- **The initiator is a payload field on every command, not a Kafka header (R30).** It feeds host rules (per-IP
+  limits, cooldowns) and audit, so it belongs to the validated contract the handler receives; a header would sit
+  outside the DTO, outside validation and outside the catalog. One value object instead of loose per-command
+  `masterAccountId` / `initiatorIp` fields gives every command the same shape and one validation point. Its
+  vocabulary (`source` + `label`) is the platform's audit vocabulary, so the host sees which part of the platform
+  sent a command, not only "user or not".
+- **A check is a command, not a platform computation (R31).** The start's rules (cooldowns, limits, gear, daily
+  allowance) are host rules; a platform-side estimate would duplicate them and drift. Running the start's own steps
+  in check mode gives one rule set and one answer. Caching and rate limits of checks are the platform's job.
 
 ## Rollout
+
+`CommandInitiator` (R30) is a breaking change for platform-to-host commands and follows the repository's
+breaking-change canon (root `CLAUDE.md` › Versioning): one api release adds `initiator` to every command and removes
+`masterAccountId` / `initiatorIp` from the four commands that carry them, with no `@Deprecated` copy. Order:
+
+1. The api release ships `CommandInitiator` and the new command shapes.
+2. The platform switches to that api and sends `initiator` on every command. Until every game server of the tenant
+   has restarted on a host that reads `initiator`, the platform also writes the removed `masterAccountId` /
+   `initiatorIp` into the JSON of the four commands through its own legacy mapping (not adapter classes), marked
+   `TODO: drop once ...` on the platform. An old host ignores `initiator` and keeps reading the legacy fields.
+   Gate before step 3: every platform service that sends commands sends `initiator` before the first host upgrade. A
+   host on the new release refuses a command without it (`VALIDATION_FAILED`, `invalid-initiator`), so one sender
+   left on the old api breaks its commands on every upgraded server.
+3. The host switches in one release: it reads only `initiator` and the core consumer requires it.
+4. Gate "every game server of the tenant restarted on the new host" (checked per server by version): the platform
+   drops its legacy mapping. Nothing is left in the adapter to remove.
+
+Check commands (R31) are additive: until a host registers one, the adapter replies `UNSUPPORTED_COMMAND` and the
+platform reports the check as unsupported.
 
 `OwnerVerified` (R28) ships additively in `api/v0.92.0`: an absent field reads as `false`, so a new
 host with an old platform keeps its checks, and an old host ignores the field. Release order is free;

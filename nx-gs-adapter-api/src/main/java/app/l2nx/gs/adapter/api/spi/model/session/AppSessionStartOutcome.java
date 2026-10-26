@@ -1,37 +1,34 @@
-package app.l2nx.gs.adapter.api.spi.model;
+package app.l2nx.gs.adapter.api.spi.model.session;
 
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AppSessionRefusalReason;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
-/** Result of {@code NxAppSessions.start}. Every way a start can fail is a {@link Status}, never an exception. */
+/**
+ * Result of {@code NxAppSessions.start}. Every way a start can fail is a {@link Status}, never an exception; its check
+ * mode answers with {@link AppSessionCheckOutcome}, whose refusals carry the same data.
+ */
 public final class AppSessionStartOutcome {
 
     public enum Status {
-        /** A new session runs. */
         STARTED,
 
-        /** A session with the same idempotency key exists (a retry); {@link #getSession()} is it, open or closed. */
+        /** Same idempotency key (a retry); the session may be open or closed. */
         EXISTING,
 
-        /**
-         * Another session is open for the character; {@link #getSession()} is it. It may already carry {@code endedAt}
-         * while its close is retried against the table, which keeps the character busy until then.
-         */
+        /** The session may already carry {@code endedAt} while its close is retried; the character stays busy until then. */
         CHARACTER_BUSY,
 
-        /** Another open session holds the requested spot; the host may pick another and start again. */
+        /** The host may pick another spot and start again. */
         SPOT_TAKEN,
 
-        /** {@code OfflineSessionHost.placeInWorld} refused; {@link #getRefusal()} is its reason. No event, row deleted. */
+        /** {@code OfflineSessionHost.placeInWorld} refused. No event, row deleted. */
         PLACEMENT_REFUSED,
 
         /**
-         * The engine could not start the session: it is not running here, the database failed, or the host's
-         * {@code startAction} threw; {@link #getDetail()} says which. No event was published, a placed character went
-         * back to its origin and the row is deleted. When that delete fails it is retried in the background and the
-         * character counts as busy ({@link #CHARACTER_BUSY}, or {@code UNAVAILABLE} again for a retry of the same
-         * request); if the JVM stops first, the row is restored as an open session at the next start.
+         * Engine not running, database failure, or the host's {@code startAction} threw. No event, a placed character
+         * went back to its origin, the row is deleted; a failed delete is retried and keeps the character busy, and
+         * after a JVM stop the row is restored as an open session.
          */
         UNAVAILABLE
     }

@@ -11,11 +11,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStates;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
-import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionCheckOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartRequest;
+import app.l2nx.gs.adapter.api.spi.model.session.ClientLoginOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
 import app.l2nx.gs.adapter.core.schema.UnusableJdbcConnectionSource;
@@ -39,6 +40,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class AppSessionsRuntimeTest {
 
@@ -157,6 +160,55 @@ class AppSessionsRuntimeTest {
             } finally {
                 login.shutdownNow();
             }
+        }
+    }
+
+    @Nested
+    class Check {
+
+        @Test
+        void check_shouldBeUnavailable_whenTheEngineDoesNotRun() {
+            AppSessionsFacade facade = new AppSessionsFacade(10L);
+            facade.booting();
+
+            assertEquals(
+                    AppSessionCheckOutcome.Status.UNAVAILABLE,
+                    facade.check(7, "harbor", 1).join().getStatus());
+        }
+
+        @ParameterizedTest(name = "spotPool=[{0}]")
+        @NullAndEmptySource
+        @ValueSource(strings = {"   ", "a-spot-pool-name-longer-than-32-chars"})
+        void check_shouldBeUnavailable_whenTheStartRequestRejectsTheSpotPool(String spotPool) {
+            AppSessionsFacade facade = new AppSessionsFacade(10L);
+            facade.ready(bootedEngine(new InMemoryOfflineSessionStore()));
+
+            AppSessionCheckOutcome actual = facade.check(7, spotPool, 1).join();
+
+            assertEquals(AppSessionCheckOutcome.Status.UNAVAILABLE, actual.getStatus());
+            assertTrue(actual.getDetail().startsWith("AppSessionStartRequest.spotPool"), actual.getDetail());
+        }
+
+        @Test
+        void check_shouldBeUnavailable_whenTheStartRequestRejectsTheSpotId() {
+            AppSessionsFacade facade = new AppSessionsFacade(10L);
+            facade.ready(bootedEngine(new InMemoryOfflineSessionStore()));
+
+            assertEquals(
+                    AppSessionCheckOutcome.Status.UNAVAILABLE,
+                    facade.check(7, "harbor", -1).join().getStatus());
+        }
+
+        @Test
+        void check_shouldTrimTheSpotPool_asTheStartRequestDoes() {
+            InMemoryOfflineSessionStore store = new InMemoryOfflineSessionStore();
+            store.seed(openSession(7));
+            AppSessionsFacade facade = new AppSessionsFacade(10L);
+            facade.ready(bootedEngine(store));
+
+            assertEquals(
+                    AppSessionCheckOutcome.Status.SPOT_TAKEN,
+                    facade.check(8, " harbor ", 1).join().getStatus());
         }
     }
 

@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.spi.model;
+package app.l2nx.gs.adapter.api.spi.model.session;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
@@ -108,12 +108,12 @@ public final class OfflineSession {
         return masterAccountId;
     }
 
-    /** Snapshot of the character's hwid at the start; {@code null} when the host has none. */
+    /** {@code null} when the host has none. */
     public @Nullable String getHwid() {
         return hwid;
     }
 
-    /** IP of the app request that started the session; {@code null} when unknown. */
+    /** {@code null} when unknown. */
     public @Nullable String getInitiatorIp() {
         return initiatorIp;
     }
@@ -139,7 +139,7 @@ public final class OfflineSession {
         return originZ;
     }
 
-    /** Facing direction at the origin, 0-65535. */
+    /** 0-65535. */
     public int getOriginHeading() {
         return originHeading;
     }

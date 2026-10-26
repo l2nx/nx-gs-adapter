@@ -2,15 +2,19 @@ package app.l2nx.gs.adapter.core.appsessions;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
@@ -18,10 +22,18 @@ import org.jspecify.annotations.Nullable;
 final class InMemoryOfflineSessionStore implements OfflineSessionStore {
 
     final Map<UUID, OfflineSession> rows = new LinkedHashMap<UUID, OfflineSession>();
+    final Map<UUID, Instant> endPublishedAt = new HashMap<UUID, Instant>();
     int flushes;
     int failCloses;
     int failDeletes;
+    int failMarks;
+    int markWrites;
+    /** Rows a newer adapter wrote: they hold their place in a page but are never returned. */
+    final Set<UUID> unreadable = new HashSet<UUID>();
+
+    int unpublishedReads;
     boolean failReads;
+    int probes;
 
     synchronized void seed(OfflineSession row) {
         rows.put(row.getId(), row);
@@ -82,7 +94,8 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
     volatile @Nullable Runnable afterFindLatestStarted;
 
     @Override
-    public List<OfflineSession> findLatestStartedByMasterAccount(UUID masterAccountId, ActivityType activity, int limit) {
+    public List<OfflineSession> findLatestStartedByMasterAccount(
+            UUID masterAccountId, ActivityType activity, int limit) {
         return latestStarted(row -> masterAccountId.equals(row.getMasterAccountId()), activity, limit);
     }
 
@@ -137,6 +150,21 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
+    public synchronized InsertResult probeInsert(int characterId, String spotPool, int spotId) {
+        probes++;
+        if (failReads) {
+            throw new OfflineSessionStoreException("simulated read failure", new RuntimeException());
+        }
+        if (findOpenByCharacterId(characterId).isPresent()) {
+            return InsertResult.CHARACTER_ACTIVE;
+        }
+        if (spotHeld(spotPool + ":" + spotId, null)) {
+            return InsertResult.SPOT_TAKEN;
+        }
+        return InsertResult.INSERTED;
+    }
+
+    @Override
     public synchronized void delete(UUID id) {
         if (failDeletes > 0) {
             failDeletes--;
@@ -177,8 +205,19 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
         }
     }
 
+    /** Runs once the close is stored, outside the store's lock: a reader sees the row closed. */
+    volatile @Nullable Runnable afterClose;
+
+    /** Runs after a read of unpublished ends returned, outside the store's lock. */
+    volatile @Nullable Runnable afterUnpublishedRead;
+
     @Override
-    public synchronized void close(UUID id, long activeMs, Instant endedAt, LogoutReason reason) {
+    public void close(UUID id, long activeMs, Instant endedAt, LogoutReason reason) {
+        closeLocked(id, activeMs, endedAt, reason);
+        runHook(afterClose);
+    }
+
+    private synchronized void closeLocked(UUID id, long activeMs, Instant endedAt, LogoutReason reason) {
         if (failCloses > 0) {
             failCloses--;
             throw new OfflineSessionStoreException("simulated close failure", new RuntimeException());
@@ -193,6 +232,65 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
                             .endReason(reason)
                             .build());
         }
+    }
+
+    @Override
+    public UnpublishedEnds findUnpublishedEnds(@Nullable EndCursor after, int limit) {
+        UnpublishedEnds page = unpublishedEndsLocked(after, limit);
+        runHook(afterUnpublishedRead);
+        return page;
+    }
+
+    private synchronized UnpublishedEnds unpublishedEndsLocked(@Nullable EndCursor after, int limit) {
+        unpublishedReads++;
+        List<OfflineSession> found = new ArrayList<OfflineSession>();
+        for (OfflineSession row : rows.values()) {
+            if (!row.isOpen() && !endPublishedAt.containsKey(row.getId()) && isAfter(row, after)) {
+                found.add(row);
+            }
+        }
+        found.sort(Comparator.comparing(OfflineSession::getEndedAt).thenComparing(OfflineSession::getId));
+        List<OfflineSession> page = found.size() > limit ? found.subList(0, limit) : found;
+        List<OfflineSession> readable = new ArrayList<OfflineSession>();
+        for (OfflineSession row : page) {
+            if (!unreadable.contains(row.getId())) {
+                readable.add(row);
+            }
+        }
+        OfflineSession last = page.isEmpty() ? null : page.get(page.size() - 1);
+        return new UnpublishedEnds(
+                readable, last == null ? null : new EndCursor(last.getEndedAt(), last.getId()), page.size() < limit);
+    }
+
+    private static boolean isAfter(OfflineSession row, @Nullable EndCursor after) {
+        if (after == null) {
+            return true;
+        }
+        int byEnd = row.getEndedAt().compareTo(after.endedAt);
+        return byEnd > 0 || (byEnd == 0 && row.getId().compareTo(after.id) > 0);
+    }
+
+    synchronized List<OfflineSession> unpublishedEnds() {
+        return unpublishedEndsLocked(null, Integer.MAX_VALUE).rows;
+    }
+
+    @Override
+    public synchronized void markEndsPublished(Collection<UUID> ids, Instant publishedAt) {
+        markWrites++;
+        if (failMarks > 0) {
+            failMarks--;
+            throw new OfflineSessionStoreException("simulated mark failure", new RuntimeException());
+        }
+        for (UUID id : ids) {
+            OfflineSession row = rows.get(id);
+            if (row != null && !row.isOpen()) {
+                endPublishedAt.putIfAbsent(id, publishedAt);
+            }
+        }
+    }
+
+    synchronized @Nullable Instant endPublishedAt(UUID id) {
+        return endPublishedAt.get(id);
     }
 
     @Override

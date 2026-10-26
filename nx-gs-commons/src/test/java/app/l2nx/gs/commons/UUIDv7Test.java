@@ -55,6 +55,35 @@ class UUIDv7Test {
     }
 
     @Test
+    void withTimestamp_shouldKeepSourceCounterAndRandomBits_underGivenInstant() {
+        Instant instant = Instant.parse("2026-03-04T05:06:07.089Z");
+        UUID source = UUIDv7.generate(Instant.parse("2020-01-01T00:00:00Z"));
+
+        UUID id = UUIDv7.withTimestamp(instant, source);
+
+        assertEquals(7, id.version());
+        assertEquals(2, id.variant());
+        assertEquals(instant, UUIDv7.extractCreatedAt(id));
+        assertEquals(source.getMostSignificantBits() & 0x0FFFL, id.getMostSignificantBits() & 0x0FFFL);
+        assertEquals(source.getLeastSignificantBits(), id.getLeastSignificantBits());
+    }
+
+    @Test
+    void withTimestamp_shouldReturnSameId_whenInputsRepeat() {
+        Instant instant = Instant.parse("2026-03-04T05:06:07.089Z");
+        UUID source = UUIDv7.generate();
+
+        assertEquals(UUIDv7.withTimestamp(instant, source), UUIDv7.withTimestamp(instant, source));
+    }
+
+    @Test
+    void withTimestamp_shouldThrow_whenBeforeEpoch() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> UUIDv7.withTimestamp(Instant.ofEpochMilli(-1L), UUIDv7.generate()));
+    }
+
+    @Test
     void generate_shouldReturnVariantTen() {
         UUID id = UUIDv7.generate();
         assertEquals(2, id.variant());

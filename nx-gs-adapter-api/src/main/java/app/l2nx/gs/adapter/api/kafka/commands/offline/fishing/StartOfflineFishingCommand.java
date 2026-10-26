@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.offline.fishing;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandProblem;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
@@ -11,57 +12,47 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Sends a character fishing without a client. The host decides every rule; a refusal carries a reason under
- * {@link AppSessionRefusal#REASON} in {@link CommandProblem#getExtensions() CommandProblem.extensions}. Idempotent per
- * {@code idempotencyKey}. Gson bypasses the constructor, so the handler re-validates.
+ * {@link AppSessionRefusal#REASON} in {@link CommandProblem#getExtensions() CommandProblem.extensions}. Gson bypasses
+ * the constructor, so the handler re-validates.
  */
 public final class StartOfflineFishingCommand implements OwnerVerified, NxCommand<StartOfflineFishingResult> {
 
     private final int characterId;
-    private final UUID masterAccountId;
-    private final @Nullable String initiatorIp;
     private final long durationMs;
     private final int rodItemId;
     private final int baitItemId;
+    private final @Nullable Integer fishingShotItemId;
     private final boolean ownerVerified;
     private final Instant deadline;
     private final UUID idempotencyKey;
+    private final CommandInitiator initiator;
 
     public StartOfflineFishingCommand(
             int characterId,
-            UUID masterAccountId,
-            @Nullable String initiatorIp,
             long durationMs,
             int rodItemId,
             int baitItemId,
+            @Nullable Integer fishingShotItemId,
             boolean ownerVerified,
             Instant deadline,
-            UUID idempotencyKey) {
+            UUID idempotencyKey,
+            CommandInitiator initiator) {
         if (durationMs <= 0) {
             throw new IllegalArgumentException("durationMs must be positive");
         }
         this.characterId = characterId;
-        this.masterAccountId = Objects.requireNonNull(masterAccountId, "masterAccountId");
-        this.initiatorIp = initiatorIp == null || initiatorIp.trim().isEmpty() ? null : initiatorIp;
         this.durationMs = durationMs;
         this.rodItemId = rodItemId;
         this.baitItemId = baitItemId;
+        this.fishingShotItemId = fishingShotItemId;
         this.ownerVerified = ownerVerified;
         this.deadline = Objects.requireNonNull(deadline, "deadline");
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey");
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public int getCharacterId() {
         return characterId;
-    }
-
-    /** Master account of the initiator, put in by the platform. */
-    public UUID getMasterAccountId() {
-        return masterAccountId;
-    }
-
-    /** IP of the app request, put in by the platform; {@code null} when unknown. */
-    public @Nullable String getInitiatorIp() {
-        return initiatorIp;
     }
 
     public long getDurationMs() {
@@ -76,6 +67,11 @@ public final class StartOfflineFishingCommand implements OwnerVerified, NxComman
     /** Inventory instance id of the bait stack; the session never switches bait. */
     public int getBaitItemId() {
         return baitItemId;
+    }
+
+    /** Inventory instance id of the fishing-shot stack, one shot per cast; {@code null} fishes without shots. */
+    public @Nullable Integer getFishingShotItemId() {
+        return fishingShotItemId;
     }
 
     @Override
@@ -93,17 +89,22 @@ public final class StartOfflineFishingCommand implements OwnerVerified, NxComman
         return idempotencyKey;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .characterId(characterId)
-                .masterAccountId(masterAccountId)
-                .initiatorIp(initiatorIp)
                 .durationMs(durationMs)
                 .rodItemId(rodItemId)
                 .baitItemId(baitItemId)
+                .fishingShotItemId(fishingShotItemId)
                 .ownerVerified(ownerVerified)
                 .deadline(deadline)
-                .idempotencyKey(idempotencyKey);
+                .idempotencyKey(idempotencyKey)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -119,63 +120,52 @@ public final class StartOfflineFishingCommand implements OwnerVerified, NxComman
                 && durationMs == that.durationMs
                 && rodItemId == that.rodItemId
                 && baitItemId == that.baitItemId
+                && Objects.equals(fishingShotItemId, that.fishingShotItemId)
                 && ownerVerified == that.ownerVerified
-                && Objects.equals(masterAccountId, that.masterAccountId)
-                && Objects.equals(initiatorIp, that.initiatorIp)
                 && Objects.equals(deadline, that.deadline)
-                && Objects.equals(idempotencyKey, that.idempotencyKey);
+                && Objects.equals(idempotencyKey, that.idempotencyKey)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
                 characterId,
-                masterAccountId,
-                initiatorIp,
                 durationMs,
                 rodItemId,
                 baitItemId,
+                fishingShotItemId,
                 ownerVerified,
                 deadline,
-                idempotencyKey);
+                idempotencyKey,
+                initiator);
     }
 
     @Override
     public String toString() {
         return "StartOfflineFishingCommand[characterId=" + characterId
-                + ", masterAccountId=" + masterAccountId
-                + ", initiatorIp=" + initiatorIp
                 + ", durationMs=" + durationMs
                 + ", rodItemId=" + rodItemId
                 + ", baitItemId=" + baitItemId
+                + ", fishingShotItemId=" + fishingShotItemId
                 + ", ownerVerified=" + ownerVerified
                 + ", deadline=" + deadline
-                + ", idempotencyKey=" + idempotencyKey + "]";
+                + ", idempotencyKey=" + idempotencyKey + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
         private int characterId;
-        private UUID masterAccountId;
-        private @Nullable String initiatorIp;
         private long durationMs;
         private int rodItemId;
         private int baitItemId;
+        private @Nullable Integer fishingShotItemId;
         private boolean ownerVerified;
         private Instant deadline;
         private UUID idempotencyKey;
+        private CommandInitiator initiator;
 
         public Builder characterId(int characterId) {
             this.characterId = characterId;
-            return this;
-        }
-
-        public Builder masterAccountId(UUID masterAccountId) {
-            this.masterAccountId = masterAccountId;
-            return this;
-        }
-
-        public Builder initiatorIp(@Nullable String initiatorIp) {
-            this.initiatorIp = initiatorIp;
             return this;
         }
 
@@ -194,6 +184,11 @@ public final class StartOfflineFishingCommand implements OwnerVerified, NxComman
             return this;
         }
 
+        public Builder fishingShotItemId(@Nullable Integer fishingShotItemId) {
+            this.fishingShotItemId = fishingShotItemId;
+            return this;
+        }
+
         public Builder ownerVerified(boolean ownerVerified) {
             this.ownerVerified = ownerVerified;
             return this;
@@ -209,17 +204,22 @@ public final class StartOfflineFishingCommand implements OwnerVerified, NxComman
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public StartOfflineFishingCommand build() {
             return new StartOfflineFishingCommand(
                     characterId,
-                    masterAccountId,
-                    initiatorIp,
                     durationMs,
                     rodItemId,
                     baitItemId,
+                    fishingShotItemId,
                     ownerVerified,
                     deadline,
-                    idempotencyKey);
+                    idempotencyKey,
+                    initiator);
         }
     }
 }

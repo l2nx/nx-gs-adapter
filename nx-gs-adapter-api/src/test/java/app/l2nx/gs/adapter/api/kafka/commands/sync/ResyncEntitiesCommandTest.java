@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.sync;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -17,6 +18,7 @@ class ResyncEntitiesCommandTest {
         ResyncEntitiesCommand cmd = ResyncEntitiesCommand.builder()
                 .resyncId(RESYNC_ID)
                 .entities(Arrays.asList("character", "item"))
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(RESYNC_ID, cmd.getResyncId());
@@ -25,14 +27,14 @@ class ResyncEntitiesCommandTest {
 
     @Test
     void constructor_shouldRejectNullResyncId() {
-        IllegalArgumentException ex =
-                assertThrows(IllegalArgumentException.class, () -> new ResyncEntitiesCommand(null, null));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> new ResyncEntitiesCommand(null, null, TestInitiators.USER));
         assertTrue(ex.getMessage().contains("resyncId"));
     }
 
     @Test
     void constructor_shouldNormalizeNullEntitiesToEmpty() {
-        ResyncEntitiesCommand cmd = new ResyncEntitiesCommand(RESYNC_ID, null);
+        ResyncEntitiesCommand cmd = new ResyncEntitiesCommand(RESYNC_ID, null, TestInitiators.USER);
 
         assertNotNull(cmd.getEntities());
         assertTrue(cmd.getEntities().isEmpty());
@@ -43,6 +45,7 @@ class ResyncEntitiesCommandTest {
         ResyncEntitiesCommand cmd = ResyncEntitiesCommand.builder()
                 .resyncId(RESYNC_ID)
                 .entities(Arrays.asList("character"))
+                .initiator(TestInitiators.USER)
                 .build();
         List<String> entities = cmd.getEntities();
 
@@ -54,6 +57,7 @@ class ResyncEntitiesCommandTest {
         ResyncEntitiesCommand original = ResyncEntitiesCommand.builder()
                 .resyncId(RESYNC_ID)
                 .entities(Arrays.asList("clan"))
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(original, original.toBuilder().build());
@@ -61,22 +65,22 @@ class ResyncEntitiesCommandTest {
 
     @Test
     void equals_shouldDistinguishOnEntities() {
-        ResyncEntitiesCommand a = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("clan"));
-        ResyncEntitiesCommand b = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("item"));
+        ResyncEntitiesCommand a = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("clan"), TestInitiators.USER);
+        ResyncEntitiesCommand b = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("item"), TestInitiators.USER);
 
         assertNotEquals(a, b);
     }
 
     @Test
     void hashCode_shouldMatchEquals() {
-        ResyncEntitiesCommand a = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("clan"));
-        ResyncEntitiesCommand b = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("clan"));
+        ResyncEntitiesCommand a = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("clan"), TestInitiators.USER);
+        ResyncEntitiesCommand b = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("clan"), TestInitiators.USER);
 
         assertEquals(a.hashCode(), b.hashCode());
     }
 
     @Test
     void implementsNxCommandMarker() {
-        assertInstanceOf(NxCommand.class, new ResyncEntitiesCommand(RESYNC_ID, null));
+        assertInstanceOf(NxCommand.class, new ResyncEntitiesCommand(RESYNC_ID, null, TestInitiators.USER));
     }
 }

@@ -1,7 +1,7 @@
 package app.l2nx.gs.adapter.core.appsessions;
 
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSessionPlacement;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSessionPlacement;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
 import java.util.ArrayList;
 import java.util.List;

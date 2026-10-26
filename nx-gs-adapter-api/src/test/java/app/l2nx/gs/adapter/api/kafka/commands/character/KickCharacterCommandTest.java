@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.character;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import org.junit.jupiter.api.Test;
 
 class KickCharacterCommandTest {
@@ -12,6 +13,7 @@ class KickCharacterCommandTest {
                 .charId(42L)
                 .closeClient(true)
                 .staffNotes("botting suspicion")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(42L, cmd.getCharId().longValue());
@@ -21,15 +23,15 @@ class KickCharacterCommandTest {
 
     @Test
     void constructor_shouldAcceptNullStaffNotes() {
-        KickCharacterCommand cmd = new KickCharacterCommand(1L, false, null);
+        KickCharacterCommand cmd = new KickCharacterCommand(1L, false, null, TestInitiators.USER);
 
         assertNull(cmd.getStaffNotes());
     }
 
     @Test
     void constructor_shouldRejectNullCharId() {
-        IllegalArgumentException ex =
-                assertThrows(IllegalArgumentException.class, () -> new KickCharacterCommand(null, true, null));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> new KickCharacterCommand(null, true, null, TestInitiators.USER));
         assertTrue(ex.getMessage().contains("charId"));
     }
 
@@ -39,6 +41,7 @@ class KickCharacterCommandTest {
                 .charId(42L)
                 .closeClient(true)
                 .staffNotes("note")
+                .initiator(TestInitiators.USER)
                 .build();
 
         KickCharacterCommand copy = original.toBuilder().build();
@@ -48,28 +51,46 @@ class KickCharacterCommandTest {
 
     @Test
     void equals_shouldDistinguishOnCharId() {
-        KickCharacterCommand a = KickCharacterCommand.builder().charId(1L).build();
-        KickCharacterCommand b = KickCharacterCommand.builder().charId(2L).build();
+        KickCharacterCommand a = KickCharacterCommand.builder()
+                .charId(1L)
+                .initiator(TestInitiators.USER)
+                .build();
+        KickCharacterCommand b = KickCharacterCommand.builder()
+                .charId(2L)
+                .initiator(TestInitiators.USER)
+                .build();
 
         assertNotEquals(a, b);
     }
 
     @Test
     void equals_shouldDistinguishOnCloseClient() {
-        KickCharacterCommand a =
-                KickCharacterCommand.builder().charId(1L).closeClient(true).build();
-        KickCharacterCommand b =
-                KickCharacterCommand.builder().charId(1L).closeClient(false).build();
+        KickCharacterCommand a = KickCharacterCommand.builder()
+                .charId(1L)
+                .closeClient(true)
+                .initiator(TestInitiators.USER)
+                .build();
+        KickCharacterCommand b = KickCharacterCommand.builder()
+                .charId(1L)
+                .closeClient(false)
+                .initiator(TestInitiators.USER)
+                .build();
 
         assertNotEquals(a, b);
     }
 
     @Test
     void equals_shouldDistinguishOnStaffNotes() {
-        KickCharacterCommand a =
-                KickCharacterCommand.builder().charId(1L).staffNotes("a").build();
-        KickCharacterCommand b =
-                KickCharacterCommand.builder().charId(1L).staffNotes("b").build();
+        KickCharacterCommand a = KickCharacterCommand.builder()
+                .charId(1L)
+                .staffNotes("a")
+                .initiator(TestInitiators.USER)
+                .build();
+        KickCharacterCommand b = KickCharacterCommand.builder()
+                .charId(1L)
+                .staffNotes("b")
+                .initiator(TestInitiators.USER)
+                .build();
 
         assertNotEquals(a, b);
     }
@@ -80,11 +101,13 @@ class KickCharacterCommandTest {
                 .charId(1L)
                 .closeClient(true)
                 .staffNotes("note")
+                .initiator(TestInitiators.USER)
                 .build();
         KickCharacterCommand b = KickCharacterCommand.builder()
                 .charId(1L)
                 .closeClient(true)
                 .staffNotes("note")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(a.hashCode(), b.hashCode());
@@ -96,6 +119,7 @@ class KickCharacterCommandTest {
                 .charId(42L)
                 .closeClient(true)
                 .staffNotes("note")
+                .initiator(TestInitiators.USER)
                 .build();
 
         String s = cmd.toString();
@@ -107,7 +131,10 @@ class KickCharacterCommandTest {
 
     @Test
     void implementsNxCommandMarker() {
-        KickCharacterCommand cmd = KickCharacterCommand.builder().charId(1L).build();
+        KickCharacterCommand cmd = KickCharacterCommand.builder()
+                .charId(1L)
+                .initiator(TestInitiators.USER)
+                .build();
 
         assertInstanceOf(app.l2nx.gs.adapter.api.kafka.commands.NxCommand.class, cmd);
     }

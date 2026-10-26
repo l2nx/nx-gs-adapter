@@ -1,10 +1,12 @@
 package app.l2nx.gs.adapter.core.commands;
 
 import app.l2nx.gs.adapter.api.kafka.NxHeaders;
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandProblem;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandResult;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandStatus;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.kafka.ops.model.CommandsStats;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStates;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStatus;
@@ -17,10 +19,17 @@ import app.l2nx.gs.adapter.api.spi.capability.NxSync;
 import app.l2nx.gs.commons.UUIDv7;
 import app.l2nx.gs.commons.bytes.LongBytes;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
+import app.l2nx.gs.commons.identifiers.ClientIdentifiers;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import com.google.gson.Gson;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonSyntaxException;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
@@ -109,7 +118,9 @@ public final class CommandsConsumer {
         this.deferredReplies = deferredReplies;
         this.kafkaConsumer = kafkaConsumer;
         this.replySender = replySender;
-        this.gson = gson;
+        this.gson = gson.newBuilder()
+                .registerTypeAdapter(CommandInitiator.class, new InitiatorDeserializer())
+                .create();
         this.pollTimeoutMs = Math.max(1L, config.getPollTimeoutMs());
         this.shutdownTimeoutMs = Math.max(0L, config.getShutdownTimeoutMs());
         this.daemon = new Thread(SafeRunnable.wrap(this::pollLoop, log), "nx-commands-consumer");
@@ -291,6 +302,9 @@ public final class CommandsConsumer {
             if (command == null) {
                 throw new JsonSyntaxException("Gson returned null for non-null payload");
             }
+        } catch (InvalidInitiatorException iie) {
+            replyInvalidInitiator(messageType, correlationId, replyTypeBytes, iie.getMessage());
+            return;
         } catch (JsonSyntaxException jse) {
             validationFailedTotal.incrementAndGet();
             log.error(
@@ -327,6 +341,11 @@ public final class CommandsConsumer {
                                     .detail(String.valueOf(t.getMessage()))
                                     .extension("error.class", t.getClass().getSimpleName())
                                     .build()));
+            return;
+        }
+        String initiatorViolation = initiatorViolation(command);
+        if (initiatorViolation != null) {
+            replyInvalidInitiator(messageType, correlationId, replyTypeBytes, initiatorViolation);
             return;
         }
 
@@ -407,6 +426,35 @@ public final class CommandsConsumer {
             return;
         }
         sendReply(correlationId, replyTypeBytes, result);
+    }
+
+    /** The deserializer has already validated a present initiator; what is left is its absence and the owner rule. */
+    private static @Nullable String initiatorViolation(NxCommand<?> command) {
+        CommandInitiator initiator = command.getInitiator();
+        if (initiator == null) {
+            return "initiator is missing";
+        }
+        if (command instanceof OwnerVerified && !initiator.isUser()) {
+            return "an OwnerVerified command requires initiator source=" + CommandInitiator.USER_SOURCE + ", got "
+                    + initiator.getSource();
+        }
+        return null;
+    }
+
+    private void replyInvalidInitiator(
+            String messageType, UUID correlationId, byte[] replyTypeBytes, @Nullable String detail) {
+        validationFailedTotal.incrementAndGet();
+        log.error("Invalid initiator on command type {} (corr={}): {}", messageType, correlationId, detail);
+        sendReply(
+                correlationId,
+                replyTypeBytes,
+                CommandResult.error(
+                        CommandStatus.VALIDATION_FAILED,
+                        CommandProblem.builder()
+                                .title("Invalid command initiator")
+                                .detail(detail)
+                                .extension("error.cause", "invalid-initiator")
+                                .build()));
     }
 
     void sendReply(UUID correlationId, byte[] replyMessageTypeBytes, CommandResult<?> result) {
@@ -548,5 +596,50 @@ public final class CommandsConsumer {
 
     long commitFailuresTotal() {
         return commitFailuresTotal.get();
+    }
+
+    /**
+     * Builds the initiator through its constructor, which Gson would otherwise bypass, so a handler reads a normalized,
+     * validated value. Placeholder IPs become {@code null} here: the api cannot depend on {@link ClientIdentifiers}.
+     */
+    private static final class InitiatorDeserializer implements JsonDeserializer<CommandInitiator> {
+
+        @Override
+        public CommandInitiator deserialize(JsonElement json, Type type, JsonDeserializationContext context) {
+            if (!json.isJsonObject()) {
+                throw new InvalidInitiatorException("initiator must be a JSON object");
+            }
+            JsonObject object = json.getAsJsonObject();
+            String userId = string(object, "userId");
+            try {
+                return CommandInitiator.builder()
+                        .source(string(object, "source"))
+                        .userId(userId == null ? null : UUID.fromString(userId))
+                        .label(string(object, "label"))
+                        .email(string(object, "email"))
+                        .ip(ClientIdentifiers.ip(string(object, "ip")))
+                        .build();
+            } catch (IllegalArgumentException e) {
+                throw new InvalidInitiatorException(e.getMessage());
+            }
+        }
+
+        private static @Nullable String string(JsonObject object, String name) {
+            JsonElement element = object.get(name);
+            if (element == null || element.isJsonNull()) {
+                return null;
+            }
+            if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+                throw new InvalidInitiatorException("initiator." + name + " must be a string");
+            }
+            return element.getAsString();
+        }
+    }
+
+    private static final class InvalidInitiatorException extends JsonParseException {
+
+        InvalidInitiatorException(String message) {
+            super(message);
+        }
     }
 }

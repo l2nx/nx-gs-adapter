@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.mail;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 
@@ -14,8 +15,9 @@ public final class ReadMailCommand implements NxCommand<Void> {
 
     private final Long charId;
     private final Long mailId;
+    private final CommandInitiator initiator;
 
-    public ReadMailCommand(Long charId, Long mailId) {
+    public ReadMailCommand(Long charId, Long mailId, CommandInitiator initiator) {
         if (charId == null) {
             throw new IllegalArgumentException("charId is required");
         }
@@ -24,6 +26,7 @@ public final class ReadMailCommand implements NxCommand<Void> {
         }
         this.charId = charId;
         this.mailId = mailId;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public Long getCharId() {
@@ -35,8 +38,13 @@ public final class ReadMailCommand implements NxCommand<Void> {
         return mailId;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().charId(charId).mailId(mailId);
+        return new Builder().charId(charId).mailId(mailId).initiator(initiator);
     }
 
     public static Builder builder() {
@@ -48,22 +56,25 @@ public final class ReadMailCommand implements NxCommand<Void> {
         if (this == o) return true;
         if (!(o instanceof ReadMailCommand)) return false;
         ReadMailCommand that = (ReadMailCommand) o;
-        return Objects.equals(charId, that.charId) && Objects.equals(mailId, that.mailId);
+        return Objects.equals(charId, that.charId)
+                && Objects.equals(mailId, that.mailId)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, mailId);
+        return Objects.hash(charId, mailId, initiator);
     }
 
     @Override
     public String toString() {
-        return "ReadMailCommand[charId=" + charId + ", mailId=" + mailId + "]";
+        return "ReadMailCommand[charId=" + charId + ", mailId=" + mailId + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
         private Long charId;
         private Long mailId;
+        private CommandInitiator initiator;
 
         public Builder charId(Long charId) {
             this.charId = charId;
@@ -75,8 +86,13 @@ public final class ReadMailCommand implements NxCommand<Void> {
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public ReadMailCommand build() {
-            return new ReadMailCommand(charId, mailId);
+            return new ReadMailCommand(charId, mailId, initiator);
         }
     }
 }

@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -423,6 +424,100 @@ class NxEventsImplTest {
         assertTrue(latch2.await(2, TimeUnit.SECONDS), "swapped publisher did not receive event");
         assertEquals(1, captured2.size(), "swapped event must hit the new publisher only");
         assertEquals(1, captured1.size(), "old publisher must not see new event");
+    }
+
+    @Test
+    void publishWithCallback_shouldCompleteWithNullFailureOnceKafkaAcknowledged() throws InterruptedException {
+        EventsPublisher.Sender sender = (record, callback) -> callback.onCompletion(null, null);
+        EventTypeRegistry registry = new EventTypeRegistry();
+        publisher = new EventsPublisher(
+                Collections.singletonMap("premiumpurchase", "acme.gs.events.premiumpurchase"),
+                sender,
+                cfg(50, 500L),
+                registry);
+        publisher.start();
+        NxEventsImpl events = new NxEventsImpl(publisher, registry);
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<Exception>(new Exception("not called"));
+
+        events.publish(purchase(), f -> {
+            failure.set(f);
+            done.countDown();
+        });
+
+        assertTrue(done.await(2, TimeUnit.SECONDS), "callback not invoked");
+        assertNull(failure.get());
+    }
+
+    @Test
+    void publishWithCallback_shouldReportSendFailure() throws InterruptedException {
+        RuntimeException boom = new RuntimeException("broker down");
+        EventsPublisher.Sender sender = (record, callback) -> callback.onCompletion(null, boom);
+        EventTypeRegistry registry = new EventTypeRegistry();
+        publisher = new EventsPublisher(
+                Collections.singletonMap("premiumpurchase", "acme.gs.events.premiumpurchase"),
+                sender,
+                cfg(50, 500L),
+                registry);
+        publisher.start();
+        NxEventsImpl events = new NxEventsImpl(publisher, registry);
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<Exception>();
+
+        events.publish(purchase(), f -> {
+            failure.set(f);
+            done.countDown();
+        });
+
+        assertTrue(done.await(2, TimeUnit.SECONDS), "callback not invoked");
+        assertNotNull(failure.get());
+        assertFalse(failure.get() instanceof UndeliverableEventException, "a broker error may pass on a later send");
+    }
+
+    @Test
+    void publishWithCallback_shouldFailWhenFamilyHasNoTopic() {
+        EventTypeRegistry registry = new EventTypeRegistry();
+        publisher = new EventsPublisher(
+                Collections.<String, String>emptyMap(), (record, callback) -> {}, cfg(50, 500L), registry);
+        publisher.start();
+        NxEventsImpl events = new NxEventsImpl(publisher, registry);
+        AtomicReference<Exception> failure = new AtomicReference<Exception>();
+
+        events.publish(purchase(), failure::set);
+
+        assertInstanceOf(UndeliverableEventException.class, failure.get());
+    }
+
+    @Test
+    void publishWithCallback_shouldFailWhenEventHasNoBinding() {
+        EventTypeRegistry registry = new EventTypeRegistry();
+        publisher = new EventsPublisher(
+                Collections.<String, String>emptyMap(), (record, callback) -> {}, cfg(50, 500L), registry);
+        publisher.start();
+        NxEventsImpl events = new NxEventsImpl(publisher, registry);
+        AtomicReference<Exception> failure = new AtomicReference<Exception>();
+
+        events.publish("not an event", failure::set);
+
+        assertInstanceOf(UndeliverableEventException.class, failure.get());
+    }
+
+    @Test
+    void publishWithCallback_shouldFailBeforePublisherWired() {
+        NxEventsImpl events = new NxEventsImpl(null, null);
+        AtomicReference<Exception> failure = new AtomicReference<Exception>();
+
+        events.publish(purchase(), failure::set);
+
+        assertNotNull(failure.get());
+        assertFalse(failure.get() instanceof UndeliverableEventException, "a publisher may still be wired");
+    }
+
+    private static PremiumPurchaseEvent purchase() {
+        return PremiumPurchaseEvent.builder()
+                .eventId(UUIDv7.generate())
+                .characterId(1L)
+                .build();
     }
 
     private static EventsConfig cfg(int capacity, long shutdownDrainMs) {

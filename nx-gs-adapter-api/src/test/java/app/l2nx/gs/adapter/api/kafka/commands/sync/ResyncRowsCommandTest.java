@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.sync;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,7 @@ class ResyncRowsCommandTest {
                 .entityName("character")
                 .pks(Arrays.asList(1L, 2L, 3L))
                 .cascade(true)
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(RESYNC_ID, cmd.getResyncId());
@@ -31,6 +33,7 @@ class ResyncRowsCommandTest {
                 .resyncId(RESYNC_ID)
                 .entityName("character")
                 .pks(Collections.singletonList(1L))
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertFalse(cmd.isCascade());
@@ -40,7 +43,8 @@ class ResyncRowsCommandTest {
     void constructor_shouldRejectNullResyncId() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> new ResyncRowsCommand(null, "character", Collections.singletonList(1L), false));
+                () -> new ResyncRowsCommand(
+                        null, "character", Collections.singletonList(1L), false, TestInitiators.USER));
         assertTrue(ex.getMessage().contains("resyncId"));
     }
 
@@ -48,20 +52,24 @@ class ResyncRowsCommandTest {
     void constructor_shouldRejectNullEntityName() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
-                () -> new ResyncRowsCommand(RESYNC_ID, null, Collections.singletonList(1L), false));
+                () -> new ResyncRowsCommand(
+                        RESYNC_ID, null, Collections.singletonList(1L), false, TestInitiators.USER));
         assertTrue(ex.getMessage().contains("entityName"));
     }
 
     @Test
     void constructor_shouldRejectNullPks() {
-        assertThrows(IllegalArgumentException.class, () -> new ResyncRowsCommand(RESYNC_ID, "character", null, false));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new ResyncRowsCommand(RESYNC_ID, "character", null, false, TestInitiators.USER));
     }
 
     @Test
     void constructor_shouldRejectEmptyPks() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new ResyncRowsCommand(RESYNC_ID, "character", Collections.<Long>emptyList(), false));
+                () -> new ResyncRowsCommand(
+                        RESYNC_ID, "character", Collections.<Long>emptyList(), false, TestInitiators.USER));
     }
 
     @Test
@@ -72,7 +80,8 @@ class ResyncRowsCommandTest {
         }
 
         IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class, () -> new ResyncRowsCommand(RESYNC_ID, "character", oversized, false));
+                IllegalArgumentException.class,
+                () -> new ResyncRowsCommand(RESYNC_ID, "character", oversized, false, TestInitiators.USER));
         assertTrue(ex.getMessage().contains(String.valueOf(ResyncRowsCommand.MAX_PKS)));
     }
 
@@ -85,14 +94,15 @@ class ResyncRowsCommandTest {
 
         assertEquals(
                 ResyncRowsCommand.MAX_PKS,
-                new ResyncRowsCommand(RESYNC_ID, "character", atCap, false)
+                new ResyncRowsCommand(RESYNC_ID, "character", atCap, false, TestInitiators.USER)
                         .getPks()
                         .size());
     }
 
     @Test
     void getPks_shouldBeUnmodifiable() {
-        ResyncRowsCommand cmd = new ResyncRowsCommand(RESYNC_ID, "character", Collections.singletonList(1L), false);
+        ResyncRowsCommand cmd = new ResyncRowsCommand(
+                RESYNC_ID, "character", Collections.singletonList(1L), false, TestInitiators.USER);
 
         assertThrows(UnsupportedOperationException.class, () -> cmd.getPks().add(2L));
     }
@@ -104,6 +114,7 @@ class ResyncRowsCommandTest {
                 .entityName("character")
                 .pks(Arrays.asList(7L, 8L))
                 .cascade(true)
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(original, original.toBuilder().build());
@@ -111,8 +122,10 @@ class ResyncRowsCommandTest {
 
     @Test
     void equals_shouldDistinguishOnCascade() {
-        ResyncRowsCommand a = new ResyncRowsCommand(RESYNC_ID, "character", Collections.singletonList(1L), true);
-        ResyncRowsCommand b = new ResyncRowsCommand(RESYNC_ID, "character", Collections.singletonList(1L), false);
+        ResyncRowsCommand a =
+                new ResyncRowsCommand(RESYNC_ID, "character", Collections.singletonList(1L), true, TestInitiators.USER);
+        ResyncRowsCommand b = new ResyncRowsCommand(
+                RESYNC_ID, "character", Collections.singletonList(1L), false, TestInitiators.USER);
 
         assertNotEquals(a, b);
     }
@@ -120,6 +133,8 @@ class ResyncRowsCommandTest {
     @Test
     void implementsNxCommandMarker() {
         assertInstanceOf(
-                NxCommand.class, new ResyncRowsCommand(RESYNC_ID, "character", Collections.singletonList(1L), false));
+                NxCommand.class,
+                new ResyncRowsCommand(
+                        RESYNC_ID, "character", Collections.singletonList(1L), false, TestInitiators.USER));
     }
 }

@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.character;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 
@@ -23,8 +24,9 @@ public final class TransferCharToAccountCommand implements NxCommand<TransferCha
 
     private final Long charId;
     private final String accountTo;
+    private final CommandInitiator initiator;
 
-    public TransferCharToAccountCommand(Long charId, String accountTo) {
+    public TransferCharToAccountCommand(Long charId, String accountTo, CommandInitiator initiator) {
         if (charId == null) {
             throw new IllegalArgumentException("charId is required");
         }
@@ -33,6 +35,7 @@ public final class TransferCharToAccountCommand implements NxCommand<TransferCha
         }
         this.charId = charId;
         this.accountTo = accountTo;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     public Long getCharId() {
@@ -44,8 +47,13 @@ public final class TransferCharToAccountCommand implements NxCommand<TransferCha
         return accountTo;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().charId(charId).accountTo(accountTo);
+        return new Builder().charId(charId).accountTo(accountTo).initiator(initiator);
     }
 
     public static Builder builder() {
@@ -57,22 +65,26 @@ public final class TransferCharToAccountCommand implements NxCommand<TransferCha
         if (this == o) return true;
         if (!(o instanceof TransferCharToAccountCommand)) return false;
         TransferCharToAccountCommand that = (TransferCharToAccountCommand) o;
-        return Objects.equals(charId, that.charId) && Objects.equals(accountTo, that.accountTo);
+        return Objects.equals(charId, that.charId)
+                && Objects.equals(accountTo, that.accountTo)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, accountTo);
+        return Objects.hash(charId, accountTo, initiator);
     }
 
     @Override
     public String toString() {
-        return "TransferCharToAccountCommand[charId=" + charId + ", accountTo=" + accountTo + "]";
+        return "TransferCharToAccountCommand[charId=" + charId + ", accountTo=" + accountTo + ", initiator=" + initiator
+                + "]";
     }
 
     public static final class Builder {
         private Long charId;
         private String accountTo;
+        private CommandInitiator initiator;
 
         public Builder charId(Long charId) {
             this.charId = charId;
@@ -84,8 +96,13 @@ public final class TransferCharToAccountCommand implements NxCommand<TransferCha
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public TransferCharToAccountCommand build() {
-            return new TransferCharToAccountCommand(charId, accountTo);
+            return new TransferCharToAccountCommand(charId, accountTo, initiator);
         }
     }
 }

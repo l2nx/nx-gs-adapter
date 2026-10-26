@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.mail;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.model.WellKnownSendPlayerMailReasons;
@@ -30,6 +31,7 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
     private final boolean ownerVerified;
     private final UUID idempotencyKey;
     private final Instant deadline;
+    private final CommandInitiator initiator;
 
     public SendPlayerMailCommand(
             Long senderCharId,
@@ -41,7 +43,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
             @Nullable Long codPrice,
             boolean ownerVerified,
             UUID idempotencyKey,
-            Instant deadline) {
+            Instant deadline,
+            CommandInitiator initiator) {
         if (senderCharId == null) {
             throw new IllegalArgumentException("senderCharId is required");
         }
@@ -67,6 +70,7 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
         this.ownerVerified = ownerVerified;
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey");
         this.deadline = Objects.requireNonNull(deadline, "deadline");
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     /** Items and adena are taken from this character; it need not be online. */
@@ -119,6 +123,11 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
         return deadline;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .senderCharId(senderCharId)
@@ -130,7 +139,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
                 .codPrice(codPrice)
                 .ownerVerified(ownerVerified)
                 .idempotencyKey(idempotencyKey)
-                .deadline(deadline);
+                .deadline(deadline)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -151,7 +161,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
                 && Objects.equals(adena, that.adena)
                 && Objects.equals(codPrice, that.codPrice)
                 && Objects.equals(idempotencyKey, that.idempotencyKey)
-                && Objects.equals(deadline, that.deadline);
+                && Objects.equals(deadline, that.deadline)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
@@ -166,7 +177,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
                 codPrice,
                 ownerVerified,
                 idempotencyKey,
-                deadline);
+                deadline,
+                initiator);
     }
 
     @Override
@@ -180,7 +192,7 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
                 + ", codPrice=" + codPrice
                 + ", ownerVerified=" + ownerVerified
                 + ", idempotencyKey=" + idempotencyKey
-                + ", deadline=" + deadline + "]";
+                + ", deadline=" + deadline + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -194,6 +206,7 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
         private boolean ownerVerified;
         private UUID idempotencyKey;
         private Instant deadline;
+        private CommandInitiator initiator;
 
         public Builder senderCharId(Long senderCharId) {
             this.senderCharId = senderCharId;
@@ -245,6 +258,11 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public SendPlayerMailCommand build() {
             return new SendPlayerMailCommand(
                     senderCharId,
@@ -256,7 +274,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
                     codPrice,
                     ownerVerified,
                     idempotencyKey,
-                    deadline);
+                    deadline,
+                    initiator);
         }
     }
 }

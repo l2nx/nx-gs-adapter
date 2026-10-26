@@ -66,7 +66,7 @@ class DeferredReplyTest {
 
     private static ConsumerRecord<byte[], byte[]> record(UUID corr) {
         ConsumerRecord<byte[], byte[]> r =
-                new ConsumerRecord<>("in", 0, 0L, new byte[] {1}, "{\"charId\":1}".getBytes(StandardCharsets.UTF_8));
+                new ConsumerRecord<>("in", 0, 0L, new byte[] {1}, CommandsConsumerTest.payload(1));
         r.headers().add(NxHeaders.NX_MESSAGE_TYPE, "FakeCommand".getBytes(StandardCharsets.UTF_8));
         r.headers().add(NxHeaders.NX_CORRELATION_ID, corr.toString().getBytes(StandardCharsets.UTF_8));
         r.headers().add(NxHeaders.NX_TARGET_SERVER_ID, NxHeaders.encodeUuid(OWN_SERVER_ID));

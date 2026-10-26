@@ -1,6 +1,8 @@
 package app.l2nx.gs.adapter.api.kafka.commands.gd;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
+import java.util.Objects;
 
 /**
  * Re-publishes a full snapshot of every registered game-data entity, the same burst as on connect / datapack reload.
@@ -11,10 +13,19 @@ import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
  */
 public final class GdResyncCommand implements NxCommand<GdResyncResult> {
 
-    public GdResyncCommand() {}
+    private final CommandInitiator initiator;
+
+    public GdResyncCommand(CommandInitiator initiator) {
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
+    }
+
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
 
     public Builder toBuilder() {
-        return new Builder();
+        return new Builder().initiator(initiator);
     }
 
     public static Builder builder() {
@@ -24,23 +35,31 @@ public final class GdResyncCommand implements NxCommand<GdResyncResult> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        return o instanceof GdResyncCommand;
+        if (!(o instanceof GdResyncCommand)) return false;
+        GdResyncCommand that = (GdResyncCommand) o;
+        return Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return GdResyncCommand.class.hashCode();
+        return Objects.hashCode(initiator);
     }
 
     @Override
     public String toString() {
-        return "GdResyncCommand[]";
+        return "GdResyncCommand[initiator=" + initiator + "]";
     }
 
     public static final class Builder {
+        private CommandInitiator initiator;
+
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
 
         public GdResyncCommand build() {
-            return new GdResyncCommand();
+            return new GdResyncCommand(initiator);
         }
     }
 }

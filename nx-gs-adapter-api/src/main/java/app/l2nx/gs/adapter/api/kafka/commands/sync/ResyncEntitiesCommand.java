@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.sync;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.*;
 import org.jspecify.annotations.Nullable;
@@ -16,8 +17,9 @@ public final class ResyncEntitiesCommand implements NxCommand<ResyncEntitiesResu
 
     private final UUID resyncId;
     private final List<String> entities;
+    private final CommandInitiator initiator;
 
-    public ResyncEntitiesCommand(UUID resyncId, @Nullable List<String> entities) {
+    public ResyncEntitiesCommand(UUID resyncId, @Nullable List<String> entities, CommandInitiator initiator) {
         if (resyncId == null) {
             throw new IllegalArgumentException("resyncId is required");
         }
@@ -25,6 +27,7 @@ public final class ResyncEntitiesCommand implements NxCommand<ResyncEntitiesResu
         this.entities = entities == null
                 ? Collections.<String>emptyList()
                 : Collections.unmodifiableList(new ArrayList<String>(entities));
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     /** Echoed on every {@code ResyncCompletedEvent} the forced cycles emit. */
@@ -40,8 +43,13 @@ public final class ResyncEntitiesCommand implements NxCommand<ResyncEntitiesResu
         return entities;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
-        return new Builder().resyncId(resyncId).entities(entities);
+        return new Builder().resyncId(resyncId).entities(entities).initiator(initiator);
     }
 
     public static Builder builder() {
@@ -53,22 +61,26 @@ public final class ResyncEntitiesCommand implements NxCommand<ResyncEntitiesResu
         if (this == o) return true;
         if (!(o instanceof ResyncEntitiesCommand)) return false;
         ResyncEntitiesCommand that = (ResyncEntitiesCommand) o;
-        return resyncId.equals(that.resyncId) && entities.equals(that.entities);
+        return resyncId.equals(that.resyncId)
+                && entities.equals(that.entities)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resyncId, entities);
+        return Objects.hash(resyncId, entities, initiator);
     }
 
     @Override
     public String toString() {
-        return "ResyncEntitiesCommand[resyncId=" + resyncId + ", entities=" + entities + "]";
+        return "ResyncEntitiesCommand[resyncId=" + resyncId + ", entities=" + entities + ", initiator=" + initiator
+                + "]";
     }
 
     public static final class Builder {
         private @Nullable UUID resyncId;
         private @Nullable List<String> entities;
+        private CommandInitiator initiator;
 
         public Builder resyncId(UUID resyncId) {
             this.resyncId = resyncId;
@@ -80,8 +92,13 @@ public final class ResyncEntitiesCommand implements NxCommand<ResyncEntitiesResu
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public ResyncEntitiesCommand build() {
-            return new ResyncEntitiesCommand(resyncId, entities);
+            return new ResyncEntitiesCommand(resyncId, entities, initiator);
         }
     }
 }

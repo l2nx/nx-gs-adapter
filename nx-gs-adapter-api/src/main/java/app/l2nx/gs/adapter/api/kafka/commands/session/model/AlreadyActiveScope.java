@@ -8,5 +8,11 @@ public enum AlreadyActiveScope {
 
     HWID,
 
-    CHARACTER
+    CHARACTER,
+
+    /**
+     * The host's per-IP limit: counted under the start's {@code initiator.ip} and under the character's last game-client
+     * IP; an absent IP limits nothing.
+     */
+    IP
 }

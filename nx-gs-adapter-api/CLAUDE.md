@@ -21,26 +21,27 @@ provider SPIs.
 
 Root package `app.l2nx.gs.adapter.api`.
 
-| package                        | what lives there                                                                                                                                              | design     |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `rest`                         | `/connect` request/response, Kafka credentials, `SyncTopics`, `MessagingTopics`                                                                               | 001        |
-| `kafka`                        | `NxHeaders` — the wire-level header contract                                                                                                                  | 008        |
-| `kafka.sync.db.<entity>`       | CDC per-entity DTOs                                                                                                                                           | 003, 005   |
-| `kafka.sync.gd.<entity>`       | static game-data catalog DTOs, payload of `GameDataSyncEvent<T>`                                                                                              | 030        |
-| `kafka.sync.runtime.<entity>`  | volatile runtime-state DTOs                                                                                                                                   | 006        |
-| `kafka.sync.settings.<entity>` | host settings snapshots, payload of `SettingsSyncEvent<T>` (root of `kafka.sync.settings`)                                                                    | 038        |
-| `kafka.events.<family>`        | outbound discrete-fact / snapshot event DTOs, grouped by family                                                                                               | per family |
-| `kafka.commands.<group>`       | inbound command DTOs; the package root holds `NxCommand`, `CommandResult`, `CommandStatus` (+ nested `Tier`), `CommandProblem` and the `OwnerVerified` marker | 009        |
-| `kafka.ops`                    | `HeartbeatEvent`; its stats and state payloads in `kafka.ops.model`                                                                                           | 001        |
-| `spi`                          | `AdapterModule`, the two contexts, package-private `NoOp*`; sub-packages `provider`, `model`, `capability`                                                    | 002, 034   |
+| package                        | what lives there                                                                                                                                                                  | design     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `rest`                         | `/connect` request/response, Kafka credentials, `SyncTopics`, `MessagingTopics`                                                                                                   | 001        |
+| `kafka`                        | `NxHeaders` — the wire-level header contract                                                                                                                                      | 008        |
+| `kafka.sync.db.<entity>`       | CDC per-entity DTOs                                                                                                                                                               | 003, 005   |
+| `kafka.sync.gd.<entity>`       | static game-data catalog DTOs, payload of `GameDataSyncEvent<T>`                                                                                                                  | 030        |
+| `kafka.sync.runtime.<entity>`  | volatile runtime-state DTOs                                                                                                                                                       | 006        |
+| `kafka.sync.settings.<entity>` | host settings snapshots, payload of `SettingsSyncEvent<T>` (root of `kafka.sync.settings`)                                                                                        | 038        |
+| `kafka.events.<family>`        | outbound discrete-fact / snapshot event DTOs, grouped by family                                                                                                                   | per family |
+| `kafka.commands.<group>`       | inbound command DTOs; the package root holds `NxCommand`, `CommandInitiator`, `CommandResult`, `CommandStatus` (+ nested `Tier`), `CommandProblem` and the `OwnerVerified` marker | 009        |
+| `kafka.ops`                    | `HeartbeatEvent`; its stats and state payloads in `kafka.ops.model`                                                                                                               | 001        |
+| `spi`                          | `AdapterModule`, the two contexts, package-private `NoOp*`; sub-packages `provider`, `model` (+ `model.session`, `model.appsettings`, `model.receipt`), `capability`              | 002, 034   |
 
 Current entity / family / group names (the directory listing is authoritative — check it before
 assuming):
 
 - **db sync**: `alliance`, `announcement`, `ban`, `character`, `clan`, `item`, `rating`
 - **gd sync**: `armorsettemplate`, `augmentation.lifestone` (entity `lifestone`), `augmentation.targetgroup` (entity
-  `augmentationtargetgroup`), `classtemplate`, `experiencelevel`, `gearscore`, `instancetemplate`, `itemoption`,
-  `itemtemplate`, `npctemplate`, `recipetemplate`, `skill`, `soulcrystaltemplate`; the gd root holds the envelope
+  `augmentationtargetgroup`), `classtemplate`, `experiencelevel`, `fishing` (entities `fishingbait`, `fishingrod`,
+  `fishingshot`), `gearscore`, `instancetemplate`, `itemoption`, `itemtemplate`, `npctemplate`, `recipetemplate`,
+  `skill`, `soulcrystaltemplate`; the gd root holds the envelope
   `GameDataSyncEvent` and `StatModifier`, shared by `skill` and `itemoption`
 - **runtime sync**: `character`, `character.activity.usage` (entity name `characteractivityusage`: a per-character usage pack, also rides the db channel,
   routed by entity name)
@@ -50,7 +51,8 @@ assuming):
   `server.online` (family key `serveronline`), `sync`; `push` — facts published by platform services (not the host) to
   `<tenant>.push.events` for nx-social pushes
 - **commands**: `announcement`, `ban`, `captcha`, `character`, `character.revive`, `gd`, `item`,
-  `mail`, `offline.fishing`, `privatestore`, `session` (shared app-session refusal vocabulary), `sync`, `telegram`
+  `mail`, `offline.fishing`, `privatestore`, `session` (shared app-session refusal vocabulary and `AppSessionCheckResult`),
+  `sync`, `telegram`
 
 The command group is a code-organization bucket only — the commands topic stays single.
 
@@ -66,9 +68,10 @@ in its root and splits effect / condition / learn / produced types into sub-pack
 - **Tier-2** (`spi.provider`, mapping types in `spi.model`) — the per-domain provider SPIs a host
   implements: `DbSchemaProvider` (+ `EntityMapping`,
   `PrimarySource`, `ChildSource`, `ParentRef`), `RuntimeStateProvider` (+ `RuntimeEntityMapping`,
-  `RuntimeRow`), and the gd catalog providers (`ItemTemplateProvider`, `SkillProvider`, …, plus the
-  singleton `GearScoreRulesetProvider` and the optional `GameDataReadinessProvider` — absent means
-  "always ready", see spec 030), and `OfflineSessionHost` (+ `OfflineSession`, `OfflineSessionPlacement`)
+  `RuntimeRow`), and the gd catalog providers (`ItemTemplateProvider`, `SkillProvider`, `FishingBaitProvider`,
+  `FishingRodProvider`, `FishingShotProvider`, …, plus the singleton `GearScoreRulesetProvider` and the optional
+  `GameDataReadinessProvider` — absent means "always ready", see spec 030), and `OfflineSessionHost` (+ `OfflineSession`,
+  `OfflineSessionPlacement` in `spi.model.session`)
   — the game side of app sessions; none disables the engine, two fail it (spec 038), and `GameSettingsProvider` — the
   engine configuration for settings sync, called on connect and every 5 minutes; none publishes no `gamesettings`, two
   publish none (spec 041).
@@ -79,8 +82,9 @@ in its root and splits effect / condition / learn / produced types into sub-pack
   `l2nx_*` tables; implemented by the adapter's `nx-gs-db-migrator-liquibase5`, not by the host (spec 037).
 - **Capabilities** (`spi.capability`) handed to modules through `ConnectContext` / `CommandContext`:
   `NxEvents`, `NxCommands` (+ `CommandHandler`, `HostExecutor`, `DeferredReply`), `NxSync`,
-  `NxGameData`, `NxAppSessions` (+ `AppSessionStartRequest`, `AppSessionStartOutcome`, `ClientLoginOutcome` in
-  `spi.model`; also reachable as the static `NxAdapter.appSessions()` for host code outside a module),
+  `NxGameData`, `NxAppSessions` (+ `AppSessionStartRequest`, `AppSessionStartOutcome`, `AppSessionCheckOutcome`,
+  `ClientLoginOutcome` in `spi.model.session`; also reachable as the static `NxAdapter.appSessions()` for host code
+  outside a module),
   `NxAppRules` (+ `AppRules`, `SpotOrder`, `ReviveTownMode` in `spi.model.appsettings`; the live `l2nx-app.properties` values, also
   the static `NxAdapter.appRules()`, spec 038 R20),
   `NxCommandReceipts` (+ `spi.model.receipt`; via `CommandContext` and the static `NxAdapter.commandReceipts()`, spec
@@ -130,6 +134,20 @@ They all live here so a host provider depends on the contracts artifact alone.
   the host calls `NxAppSessions.hostReady()` once its world is loaded; a host that never calls it never gets them back.
   New app-session types use `characterId`, never `charId`
   (the legacy `charId` of older DTOs stays as it is on the wire).
+- **Every command carries a required `initiator` (`CommandInitiator`, spec 009 R30).** Who triggered it: `source`
+  (`user` or the sending platform service), `userId` iff `source = user`, optional `label`, `email`, `ip`. Gson bypasses
+  the constructor, so adapter-core's `CommandsConsumer` validates it once at deserialization (`ip` through
+  `ClientIdentifiers`) and refuses a missing or invalid one with `VALIDATION_FAILED` (`invalid-initiator`); an
+  `OwnerVerified` command also needs `source = user`. It is context for host rules and audit, never authorization. No
+  command carries its own `masterAccountId` / `initiatorIp`; `BanCommand.issuedBy` / `SendCaptchaCommand.issuedBy` are
+  the record's in-game display name, not attribution.
+- **Every app-session type a player starts ships a `Check<Type>Command`** (spec 009 R31): the start's payload without
+  `idempotencyKey`, every player choice optional, result `AppSessionCheckResult`. A refusal is `OK` with
+  `allowed = false`; a `CommandProblem` means the check itself failed. The host runs the start's path through
+  `NxAppSessions.check(...)` (`AppSessionCheckOutcome`, no side effects) and stops before the first side effect.
+- **`AppSessionsSnapshotEvent` is keyed by the server** (`character` family): the full set of open session ids every
+  60 s and at module start; a server without an id from `/connect` publishes none. A session opened at or after
+  `takenAt` may be missing, so a consumer never closes one on that basis (spec 038 R25).
 - **`NxCommandReceipts` is the host's only door to the receipts table.** Operations taking a `Connection` run inside
   the host's transaction and never commit, roll back or close it; `...OwnTx` ones report a database failure as
   `false`. Every call throws `IllegalStateException` until the schema is migrated in the JVM. Status names
@@ -162,9 +180,9 @@ They all live here so a host provider depends on the contracts artifact alone.
 - **Augmentation chances are the host's own roll, not a model to replay.** `AugmentationOutcome.chancePercent` is the
   final marginal of one slot; slot marginals are not combinable, and `LifeStone` rejects outcomes of unlisted groups,
   repeats and slot sums over 100. Contract: `docs/specs/030-gamedata-sync/augmentation-contract.md`.
-- **`SNAPSHOT_COMPLETE count=0` is ignored by the platform** (no-op + alert, nothing is deleted; reconcile is also
-  skipped when count != rows received). A gd provider with nothing to give yet should return `null` (burst
-  aborted, no marker) rather than an empty collection. See spec 030 §2.
+- **`SNAPSHOT_COMPLETE count=0` deletes on the platform**: all rows of the entity for that server (reconcile is
+  skipped when count != rows received). A gd provider with nothing to give yet must return `null` (burst aborted, no
+  marker), never an empty collection. See spec 030 §2.
 - **`ConnectContext.io()` / `CommandContext.io()` (binary-breaking for external implementers).**
   `CommandContext.io()` is abstract — any external implementer (test doubles, alternate adapters)
   MUST implement it. `ConnectContext` has one canonical constructor that grows with every capability (`io`,

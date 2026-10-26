@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.spi.model;
+package app.l2nx.gs.adapter.api.spi.model.session;
 
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
@@ -7,16 +7,11 @@ import org.jspecify.annotations.Nullable;
 public final class ClientLoginOutcome {
 
     public enum Status {
-        /** The open session was closed with {@code APP_LOGIN}; {@link #getSession()} is it. */
         CLOSED,
 
-        /** The character had no open session. */
         NONE,
 
-        /**
-         * The bounded wait ran out. The host refuses this login with "try again": letting the client in now could put a
-         * played character in the world while the app-loaded one still is.
-         */
+        /** The host refuses the login with "try again": the app-loaded character may still be in the world. */
         PENDING
     }
 

@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.telegram;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import java.util.Objects;
 
@@ -19,8 +20,14 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
     private final String charName;
     private final String confirmationCode;
     private final Long telegramUserId;
+    private final CommandInitiator initiator;
 
-    public TelegramCharLinkCommand(String accountName, String charName, String confirmationCode, Long telegramUserId) {
+    public TelegramCharLinkCommand(
+            String accountName,
+            String charName,
+            String confirmationCode,
+            Long telegramUserId,
+            CommandInitiator initiator) {
         if (accountName == null) {
             throw new IllegalArgumentException("accountName is required");
         }
@@ -37,6 +44,7 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
         this.charName = charName;
         this.confirmationCode = confirmationCode;
         this.telegramUserId = telegramUserId;
+        this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
     /** Handler MUST emit {@code VALIDATION_FAILED} on missing wire data. */
@@ -59,12 +67,18 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
         return telegramUserId;
     }
 
+    @Override
+    public CommandInitiator getInitiator() {
+        return initiator;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .accountName(accountName)
                 .charName(charName)
                 .confirmationCode(confirmationCode)
-                .telegramUserId(telegramUserId);
+                .telegramUserId(telegramUserId)
+                .initiator(initiator);
     }
 
     public static Builder builder() {
@@ -79,12 +93,13 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
         return Objects.equals(accountName, that.accountName)
                 && Objects.equals(charName, that.charName)
                 && Objects.equals(confirmationCode, that.confirmationCode)
-                && Objects.equals(telegramUserId, that.telegramUserId);
+                && Objects.equals(telegramUserId, that.telegramUserId)
+                && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(accountName, charName, confirmationCode, telegramUserId);
+        return Objects.hash(accountName, charName, confirmationCode, telegramUserId, initiator);
     }
 
     @Override
@@ -92,7 +107,7 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
         return "TelegramCharLinkCommand[accountName=" + accountName
                 + ", charName=" + charName
                 + ", confirmationCode=" + confirmationCode
-                + ", telegramUserId=" + telegramUserId + "]";
+                + ", telegramUserId=" + telegramUserId + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
@@ -100,6 +115,7 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
         private String charName;
         private String confirmationCode;
         private Long telegramUserId;
+        private CommandInitiator initiator;
 
         public Builder accountName(String accountName) {
             this.accountName = accountName;
@@ -121,8 +137,13 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
             return this;
         }
 
+        public Builder initiator(CommandInitiator initiator) {
+            this.initiator = initiator;
+            return this;
+        }
+
         public TelegramCharLinkCommand build() {
-            return new TelegramCharLinkCommand(accountName, charName, confirmationCode, telegramUserId);
+            return new TelegramCharLinkCommand(accountName, charName, confirmationCode, telegramUserId, initiator);
         }
     }
 }

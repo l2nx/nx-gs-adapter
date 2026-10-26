@@ -51,11 +51,27 @@ class OwnerVerifiedTest {
                 .unitPriceAdena(100L)
                 .build();
         return Stream.of(
-                Arguments.of(new StopPrivateStoreCommand(1, true, null)),
+                Arguments.of(new StopPrivateStoreCommand(1, true, null, TestInitiators.USER)),
                 Arguments.of(new StartPrivateStoreSellCommand(
-                        1, "t", Collections.singletonList(sell), null, null, true, null, UUID.randomUUID(), null)),
+                        1,
+                        "t",
+                        Collections.singletonList(sell),
+                        null,
+                        null,
+                        true,
+                        null,
+                        UUID.randomUUID(),
+                        TestInitiators.USER)),
                 Arguments.of(new StartPrivateStorePackageSellCommand(
-                        1, "t", Collections.singletonList(sell), null, null, true, null, UUID.randomUUID(), null)),
+                        1,
+                        "t",
+                        Collections.singletonList(sell),
+                        null,
+                        null,
+                        true,
+                        null,
+                        UUID.randomUUID(),
+                        TestInitiators.USER)),
                 Arguments.of(new StartPrivateStoreBuyCommand(
                         1,
                         "t",
@@ -65,7 +81,7 @@ class OwnerVerifiedTest {
                         true,
                         null,
                         UUID.randomUUID(),
-                        null)),
+                        TestInitiators.USER)),
                 Arguments.of(new BuyFromPrivateStoreCommand(
                         1,
                         2,
@@ -75,7 +91,8 @@ class OwnerVerifiedTest {
                         "Courier",
                         "Subject",
                         "Body",
-                        true)),
+                        true,
+                        TestInitiators.USER)),
                 Arguments.of(new SellToPrivateStoreCommand(
                         1,
                         2,
@@ -85,9 +102,20 @@ class OwnerVerifiedTest {
                         "Courier",
                         "Subject",
                         "Body",
-                        true)),
+                        true,
+                        TestInitiators.USER)),
                 Arguments.of(new SendChatMessageCommand(
-                        UUID.randomUUID(), "CLAN", ChatAudiences.CLAN, 7L, 100L, null, "APP", "hello", null, true)),
+                        UUID.randomUUID(),
+                        "CLAN",
+                        ChatAudiences.CLAN,
+                        7L,
+                        100L,
+                        null,
+                        "APP",
+                        "hello",
+                        null,
+                        true,
+                        TestInitiators.USER)),
                 Arguments.of(new SendPlayerMailCommand(
                         1L,
                         2L,
@@ -98,7 +126,8 @@ class OwnerVerifiedTest {
                         null,
                         true,
                         java.util.UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001"),
-                        Instant.parse("2026-08-11T12:00:00Z"))),
+                        Instant.parse("2026-08-11T12:00:00Z"),
+                        TestInitiators.USER)),
                 Arguments.of(new AcceptMailCommand(
                         1L,
                         10L,
@@ -107,7 +136,8 @@ class OwnerVerifiedTest {
                         null,
                         true,
                         java.util.UUID.fromString("5b1f3c2e-0000-4000-8000-000000000002"),
-                        Instant.parse("2026-08-11T12:00:00Z"))));
+                        Instant.parse("2026-08-11T12:00:00Z"),
+                        TestInitiators.USER)));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -138,6 +168,10 @@ class OwnerVerifiedTest {
 
     @Test
     void builder_shouldDefaultToNotVerified() {
-        assertFalse(StopPrivateStoreCommand.builder().charId(1).build().isOwnerVerified());
+        assertFalse(StopPrivateStoreCommand.builder()
+                .charId(1)
+                .initiator(TestInitiators.USER)
+                .build()
+                .isOwnerVerified());
     }
 }

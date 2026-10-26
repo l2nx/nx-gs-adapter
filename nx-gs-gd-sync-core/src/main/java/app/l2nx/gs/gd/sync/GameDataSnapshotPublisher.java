@@ -48,7 +48,8 @@ public final class GameDataSnapshotPublisher {
     }
 
     /**
-     * @param items null means "provider has nothing yet" (nothing published); empty is legal and emits count=0
+     * @param items null means "provider has nothing yet" (nothing published); empty is legal and emits count=0, on
+     *     which the platform deletes every row of the entity for this server
      * @return {@code null} when nothing was published (items null / topic absent)
      */
     public <T> Result publishSnapshot(
@@ -58,7 +59,7 @@ public final class GameDataSnapshotPublisher {
             return null;
         }
         if (items == null) {
-            // no marker: count=0 would raise a platform alert
+            // no marker: count=0 would make the platform delete the entity's rows of this server
             reportNullSnapshot(entity);
             return null;
         }

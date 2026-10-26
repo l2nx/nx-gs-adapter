@@ -1,4 +1,4 @@
-package app.l2nx.gs.adapter.api.spi.model;
+package app.l2nx.gs.adapter.api.spi.model.session;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import java.util.Objects;
@@ -63,11 +63,8 @@ public final class AppSessionStartRequest {
         this.masterAccountId = masterAccountId;
         this.hwid = optional(hwid, "hwid", HWID_MAX);
         this.initiatorIp = optional(initiatorIp, "initiatorIp", IP_MAX);
-        this.spotPool = required(spotPool, "spotPool", SPOT_POOL_MAX);
-        if (spotId < 0) {
-            throw new IllegalArgumentException("AppSessionStartRequest.spotId must not be negative");
-        }
-        this.spotId = spotId;
+        this.spotPool = normalizeSpotPool(spotPool);
+        this.spotId = requireValidSpotId(spotId);
         if (originHeading < 0 || originHeading > 65535) {
             throw new IllegalArgumentException("AppSessionStartRequest.originHeading must be 0-65535");
         }
@@ -82,7 +79,25 @@ public final class AppSessionStartRequest {
         this.typeState = typeState == null || typeState.trim().isEmpty() ? null : typeState;
     }
 
-    private static String required(String value, String field, int max) {
+    /**
+     * Trimmed, required, at most {@value #SPOT_POOL_MAX} characters. {@code NxAppSessions.check} validates with this
+     * and {@link #requireValidSpotId}, so a check never accepts a spot a start would reject.
+     *
+     * @throws IllegalArgumentException when the value is blank or too long
+     */
+    public static String normalizeSpotPool(@Nullable String spotPool) {
+        return required(spotPool, "spotPool", SPOT_POOL_MAX);
+    }
+
+    /** @throws IllegalArgumentException when {@code spotId} is negative */
+    public static int requireValidSpotId(int spotId) {
+        if (spotId < 0) {
+            throw new IllegalArgumentException("AppSessionStartRequest.spotId must not be negative");
+        }
+        return spotId;
+    }
+
+    private static String required(@Nullable String value, String field, int max) {
         String trimmed = optional(value, field, max);
         if (trimmed == null) {
             throw new IllegalArgumentException("AppSessionStartRequest." + field + " is required");
@@ -104,7 +119,7 @@ public final class AppSessionStartRequest {
         return trimmed;
     }
 
-    /** The start command's {@code idempotencyKey}; a repeated start returns the same session. */
+    /** A repeated start with the same key returns the same session. */
     public UUID getIdempotencyKey() {
         return idempotencyKey;
     }
@@ -121,6 +136,7 @@ public final class AppSessionStartRequest {
         return accountName;
     }
 
+    /** The initiator's user id, used by the host's master-account rules. */
     public @Nullable UUID getMasterAccountId() {
         return masterAccountId;
     }
@@ -129,6 +145,7 @@ public final class AppSessionStartRequest {
         return hwid;
     }
 
+    /** Returned in the session's presence events. */
     public @Nullable String getInitiatorIp() {
         return initiatorIp;
     }

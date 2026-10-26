@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.BuyLine;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,7 +44,8 @@ class BuyFromPrivateStoreCommandTest {
                 .deadline(DEADLINE)
                 .mailSender(MAIL_SENDER)
                 .mailSubject(MAIL_SUBJECT)
-                .mailBody(MAIL_BODY);
+                .mailBody(MAIL_BODY)
+                .initiator(TestInitiators.USER);
     }
 
     @ParameterizedTest(name = "buyerCharId={0}")

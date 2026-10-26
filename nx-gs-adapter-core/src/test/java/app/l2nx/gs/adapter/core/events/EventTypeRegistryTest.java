@@ -2,8 +2,10 @@ package app.l2nx.gs.adapter.core.events;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.NxHeaders;
 import app.l2nx.gs.adapter.api.kafka.events.account.AccountAuthAttemptEvent;
 import app.l2nx.gs.adapter.api.kafka.events.account.AuthOutcomes;
+import app.l2nx.gs.adapter.api.kafka.events.character.AppSessionsSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailAcceptedEvent;
@@ -30,6 +32,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -568,6 +571,45 @@ class EventTypeRegistryTest {
                     .accountName("acc")
                     .outcome(AuthOutcomes.SUCCESS)
                     .attemptedAt(Instant.parse("2026-06-01T12:00:00Z"));
+        }
+    }
+
+    @Nested
+    class AppSessionsSnapshot {
+
+        private final AppSessionsSnapshotEvent snapshot = AppSessionsSnapshotEvent.builder()
+                .eventId(UUIDv7.generate())
+                .takenAt(Instant.parse("2026-10-26T10:00:00Z"))
+                .build();
+
+        private final UUID serverId = UUID.fromString("0192f000-0000-7000-8000-00000000000a");
+
+        @Test
+        void lookup_shouldRouteTheSnapshotToTheCharacterFamily() {
+            EventTypeBinding actual = new EventTypeRegistry(serverId).lookup(AppSessionsSnapshotEvent.class);
+
+            assertEquals("character", actual.familyKey());
+            assertEquals("AppSessionsSnapshotEvent", actual.messageType());
+        }
+
+        @Test
+        void partitionKeyExtractor_shouldKeyTheSnapshotByTheServer() {
+            byte[] actual = new EventTypeRegistry(serverId)
+                    .lookup(AppSessionsSnapshotEvent.class)
+                    .partitionKeyExtractor()
+                    .apply(snapshot);
+
+            assertArrayEquals(NxHeaders.encodeUuid(serverId), actual);
+        }
+
+        @Test
+        void lookup_shouldHaveNoSnapshotBinding_whenTheServerIsUnknown() {
+            assertNull(new EventTypeRegistry().lookup(AppSessionsSnapshotEvent.class));
+        }
+
+        @Test
+        void constructor_shouldRejectANullServerId() {
+            assertThrows(NullPointerException.class, () -> new EventTypeRegistry((UUID) null));
         }
     }
 }

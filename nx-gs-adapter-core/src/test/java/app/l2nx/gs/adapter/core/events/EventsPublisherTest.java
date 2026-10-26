@@ -8,6 +8,7 @@ import app.l2nx.gs.adapter.api.kafka.ops.model.EventsStats;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStatus;
 import app.l2nx.gs.commons.UUIDv7;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -18,7 +19,10 @@ import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class EventsPublisherTest {
 
@@ -306,5 +310,108 @@ class EventsPublisherTest {
         assertDoesNotThrow(drained::drainOnShutdown);
         assertEquals(2, sent.size());
         assertEquals(0L, drained.droppedTotal());
+    }
+
+    @Nested
+    class SendCallbacks {
+
+        private static final String TOPIC = "acme.gs.events.premiumpurchase";
+        private final List<String> outcomes = new ArrayList<String>();
+        private final EventTypeRegistry registry = new EventTypeRegistry();
+        private final EventTypeBinding binding = registry.lookup(PremiumPurchaseEvent.class);
+
+        private EventsPublisher.SendCallback recorded(String name) {
+            return failure -> outcomes.add(name + ":" + (failure == null ? "acked" : failure.getMessage()));
+        }
+
+        private EventsPublisher newPublisher(
+                Map<String, String> topics,
+                EventsPublisher.Sender sender,
+                int capacity,
+                EventsPublisher.DropPolicy policy) {
+            return new EventsPublisher(topics, sender, cfg(capacity, policy, 0L), registry);
+        }
+
+        @Test
+        void enqueue_shouldReportTheAcknowledgement_whenKafkaAcknowledges() {
+            publisher = newPublisher(
+                    Collections.singletonMap("premiumpurchase", TOPIC),
+                    (record, callback) -> callback.onCompletion(null, null),
+                    5,
+                    EventsPublisher.DropPolicy.NEWEST);
+
+            publisher.enqueue(envelope(1L, binding), recorded("first"));
+            publisher.flush(0L);
+
+            assertEquals(Collections.singletonList("first:acked"), outcomes);
+        }
+
+        @Test
+        void enqueue_shouldReportTheFailure_whenKafkaRejects() {
+            publisher = newPublisher(
+                    Collections.singletonMap("premiumpurchase", TOPIC),
+                    (record, callback) -> callback.onCompletion(null, new IllegalStateException("broker down")),
+                    5,
+                    EventsPublisher.DropPolicy.NEWEST);
+
+            publisher.enqueue(envelope(1L, binding), recorded("first"));
+            publisher.flush(0L);
+
+            assertEquals(Collections.singletonList("first:broker down"), outcomes);
+        }
+
+        @Test
+        void enqueue_shouldReportTheFailure_whenTheSenderThrows() {
+            publisher = newPublisher(
+                    Collections.singletonMap("premiumpurchase", TOPIC),
+                    (record, callback) -> {
+                        throw new IllegalStateException("producer closed");
+                    },
+                    5,
+                    EventsPublisher.DropPolicy.NEWEST);
+
+            publisher.enqueue(envelope(1L, binding), recorded("first"));
+            publisher.flush(0L);
+
+            assertEquals(Collections.singletonList("first:producer closed"), outcomes);
+        }
+
+        @ParameterizedTest(name = "{0} drops {1}")
+        @CsvSource({"NEWEST, second", "OLDEST, first"})
+        void enqueue_shouldReportTheDrop_whenTheQueueIsFull(EventsPublisher.DropPolicy policy, String dropped) {
+            publisher = newPublisher(Collections.emptyMap(), noopSender(), 1, policy);
+
+            publisher.enqueue(envelope(1L, binding), recorded("first"));
+            publisher.enqueue(envelope(2L, binding), recorded("second"));
+
+            assertEquals(1, outcomes.size(), outcomes.toString());
+            assertTrue(outcomes.get(0).startsWith(dropped + ":Event dropped: "), outcomes.toString());
+        }
+
+        @Test
+        void enqueue_shouldReportTheDrop_whenTheFamilyHasNoTopic() {
+            publisher = newPublisher(Collections.emptyMap(), noopSender(), 5, EventsPublisher.DropPolicy.NEWEST);
+
+            publisher.enqueue(envelope(1L, binding), recorded("first"));
+            publisher.flush(0L);
+
+            assertEquals(
+                    Collections.singletonList("first:Event dropped: events.premiumpurchase has no topic"), outcomes);
+        }
+
+        @Test
+        void drainOnShutdown_shouldReportTheDrop_forEnvelopesLeftAfterTheDrain() {
+            publisher = newPublisher(
+                    Collections.singletonMap("premiumpurchase", TOPIC),
+                    noopSender(),
+                    5,
+                    EventsPublisher.DropPolicy.NEWEST);
+            publisher.enqueue(envelope(1L, binding), recorded("first"));
+
+            publisher.drainOnShutdown();
+
+            assertEquals(Collections.singletonList("first:Event dropped: events publisher stopped"), outcomes);
+            assertEquals(1L, publisher.droppedTotal());
+        }
     }
 }

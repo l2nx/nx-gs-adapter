@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.captcha;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import org.junit.jupiter.api.Test;
 
 class SendCaptchaCommandTest {
@@ -12,6 +13,7 @@ class SendCaptchaCommandTest {
                 .characterId(42L)
                 .issuedBy("sac-sentinel")
                 .staffNotes("episode 7")
+                .initiator(TestInitiators.USER)
                 .build();
 
         assertEquals(42L, cmd.getCharacterId().longValue());
@@ -21,15 +23,18 @@ class SendCaptchaCommandTest {
 
     @Test
     void constructor_shouldRejectNullCharacterId() {
-        IllegalArgumentException ex =
-                assertThrows(IllegalArgumentException.class, () -> new SendCaptchaCommand(null, null, null));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> new SendCaptchaCommand(null, null, null, TestInitiators.USER));
         assertTrue(ex.getMessage().contains("characterId"));
     }
 
     @Test
     void toBuilder_shouldRoundtrip() {
-        SendCaptchaCommand original =
-                SendCaptchaCommand.builder().characterId(1L).issuedBy("gm").build();
+        SendCaptchaCommand original = SendCaptchaCommand.builder()
+                .characterId(1L)
+                .issuedBy("gm")
+                .initiator(TestInitiators.USER)
+                .build();
 
         assertEquals(original, original.toBuilder().build());
         assertEquals(original.hashCode(), original.toBuilder().build().hashCode());

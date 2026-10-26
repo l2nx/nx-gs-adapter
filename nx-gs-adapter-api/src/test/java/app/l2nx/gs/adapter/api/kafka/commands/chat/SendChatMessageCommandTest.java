@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.chat;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.events.chat.WellKnownChatChannels;
 import java.util.UUID;
 import org.junit.jupiter.api.Nested;
@@ -19,7 +20,8 @@ class SendChatMessageCommandTest {
                 .audienceId(7L)
                 .senderCharacterId(100L)
                 .source("APP")
-                .text("hello");
+                .text("hello")
+                .initiator(TestInitiators.USER);
     }
 
     @Nested

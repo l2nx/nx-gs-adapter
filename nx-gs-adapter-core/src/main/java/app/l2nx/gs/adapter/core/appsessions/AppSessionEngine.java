@@ -1,16 +1,21 @@
 package app.l2nx.gs.adapter.core.appsessions;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartOutcome;
-import app.l2nx.gs.adapter.api.spi.model.AppSessionStartRequest;
-import app.l2nx.gs.adapter.api.spi.model.ClientLoginOutcome;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSession;
-import app.l2nx.gs.adapter.api.spi.model.OfflineSessionPlacement;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionCheckOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartRequest;
+import app.l2nx.gs.adapter.api.spi.model.session.ClientLoginOutcome;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
+import app.l2nx.gs.adapter.api.spi.model.session.OfflineSessionPlacement;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
+import app.l2nx.gs.adapter.core.appsessions.OfflineSessionStore.EndCursor;
+import app.l2nx.gs.adapter.core.appsessions.OfflineSessionStore.UnpublishedEnds;
+import app.l2nx.gs.adapter.core.events.UndeliverableEventException;
 import app.l2nx.gs.commons.UUIDv7;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
 import app.l2nx.gs.commons.identifiers.ClientIdentifiers;
@@ -43,6 +48,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
@@ -61,6 +67,8 @@ final class AppSessionEngine {
     static final int RESTORE_ATTEMPTS = 5;
     static final int LAST_STARTED_CANDIDATES = 4;
     static final int LAST_STARTED_ROUNDS = 3;
+    static final int REPUBLISH_BATCH = 500;
+    static final int MARK_BATCH = 500;
 
     static final Set<LogoutReason> HOST_END_REASONS = Collections.unmodifiableSet(EnumSet.of(
             LogoutReason.APP_OUT_OF_BAIT,
@@ -86,12 +94,29 @@ final class AppSessionEngine {
     private final ScheduledExecutorService scheduler;
     private final AppSessionClock clock;
     private final PresencePublisher presence = new PresencePublisher();
+    private final AppSessionsSnapshotPublisher snapshots;
     private final long loginCloseTimeoutMs;
 
     private final ConcurrentMap<UUID, Slot> byId = new ConcurrentHashMap<UUID, Slot>();
     private final ConcurrentMap<Integer, Slot> byCharacter = new ConcurrentHashMap<Integer, Slot>();
     private final ConcurrentMap<Integer, PendingWrite> pendingWrites = new ConcurrentHashMap<Integer, PendingWrite>();
     private final AtomicBoolean retrying = new AtomicBoolean();
+    /**
+     * Ends claimed by one sender: sent and not yet answered by Kafka, or acknowledged and not yet released by
+     * {@link #releasePublishedClaims}. A claimed end is never sent again.
+     */
+    private final Set<UUID> endsInFlight = ConcurrentHashMap.newKeySet();
+
+    private final ConcurrentLinkedQueue<UUID> acknowledgedEnds = new ConcurrentLinkedQueue<UUID>();
+
+    private final AtomicBoolean markScheduled = new AtomicBoolean();
+    /** Ends whose acknowledgement the table holds; their claims are released before the next read of the table. */
+    private final ConcurrentLinkedQueue<UUID> publishedEnds = new ConcurrentLinkedQueue<UUID>();
+
+    private final AtomicBoolean republishing = new AtomicBoolean();
+    /** Closed rows whose end event cannot be built; logged once and skipped from then on. */
+    private final Set<UUID> unbuildableEnds = ConcurrentHashMap.newKeySet();
+
     private final ConcurrentLinkedQueue<Slot> restoreQueue = new ConcurrentLinkedQueue<Slot>();
     private final AtomicBoolean scheduled = new AtomicBoolean();
     private final AtomicBoolean restoreBatchScheduled = new AtomicBoolean();
@@ -119,6 +144,7 @@ final class AppSessionEngine {
         this.scheduler = scheduler;
         this.clock = clock;
         this.loginCloseTimeoutMs = loginCloseTimeoutMs;
+        this.snapshots = new AppSessionsSnapshotPublisher(this::openSessionIds, clock);
     }
 
     /**
@@ -145,10 +171,12 @@ final class AppSessionEngine {
 
     void bindEvents(NxEvents events) {
         presence.bind(events);
+        snapshots.bind(events);
     }
 
     void unbindEvents() {
         presence.unbind();
+        snapshots.unbind();
     }
 
     void startScheduling() {
@@ -157,6 +185,7 @@ final class AppSessionEngine {
         }
         scheduler.scheduleWithFixedDelay(
                 SafeRunnable.wrap(this::flushTick, log), FLUSH_INTERVAL_MS, FLUSH_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        snapshots.start(scheduler);
         beginRestoreIfReady();
     }
 
@@ -210,12 +239,13 @@ final class AppSessionEngine {
         for (Slot slot : byId.values()) {
             slot.cancelEndTimer();
         }
-        if (snapshot.isEmpty() && pendingWrites.isEmpty()) {
+        if (snapshot.isEmpty() && pendingWrites.isEmpty() && acknowledgedEnds.isEmpty()) {
             return;
         }
         CompletableFuture<Void> flushed = new CompletableFuture<Void>();
         work.execute(() -> {
             try {
+                markAcknowledgedEnds();
                 if (!snapshot.isEmpty()) {
                     store.flushActiveMs(snapshot);
                     log.info("App sessions: active_ms of {} running session(s) stored at shutdown", snapshot.size());
@@ -288,6 +318,44 @@ final class AppSessionEngine {
         byId.put(row.getId(), slot);
         slot.ops.execute(() -> result.complete(doStart(slot)));
         return result;
+    }
+
+    /**
+     * Mirrors {@link #start} up to its first write. Without an idempotency key every open session of the character is busy, never {@code EXISTING}.
+     */
+    CompletableFuture<AppSessionCheckOutcome> check(int characterId, String spotPool, int spotId) {
+        if (stopped.get()) {
+            return CompletableFuture.completedFuture(AppSessionCheckOutcome.unavailable("app sessions are stopping"));
+        }
+        Slot existing = byCharacter.get(characterId);
+        if (existing != null) {
+            return CompletableFuture.completedFuture(
+                    AppSessionCheckOutcome.characterBusy(existing.view(clock.monotonicMs())));
+        }
+        PendingWrite pending = pendingWrites.get(characterId);
+        if (pending != null) {
+            return CompletableFuture.completedFuture(AppSessionCheckOutcome.characterBusy(pending.session));
+        }
+        CompletableFuture<AppSessionCheckOutcome> result = new CompletableFuture<AppSessionCheckOutcome>();
+        work.execute(() -> result.complete(probeTable(characterId, spotPool, spotId)));
+        return result;
+    }
+
+    private AppSessionCheckOutcome probeTable(int characterId, String spotPool, int spotId) {
+        try {
+            switch (store.probeInsert(characterId, spotPool, spotId)) {
+                case CHARACTER_ACTIVE:
+                    return characterActive(
+                            characterId, AppSessionCheckOutcome::characterBusy, AppSessionCheckOutcome::unavailable);
+                case SPOT_TAKEN:
+                    return AppSessionCheckOutcome.spotTaken();
+                default:
+                    return AppSessionCheckOutcome.allowed();
+            }
+        } catch (RuntimeException e) {
+            log.error("App sessions: check of character {} failed in the database: {}", characterId, e.getMessage(), e);
+            return AppSessionCheckOutcome.unavailable("database: " + e.getMessage());
+        }
     }
 
     CompletableFuture<Optional<OfflineSession>> stop(int characterId, ActivityType activity) {
@@ -559,6 +627,7 @@ final class AppSessionEngine {
             }
             switch (inserted) {
                 case INSERTED:
+                    slot.stored = true;
                     break;
                 case DUPLICATE_IDEMPOTENCY_KEY:
                     forget(slot);
@@ -568,10 +637,10 @@ final class AppSessionEngine {
                             : AppSessionStartOutcome.unavailable("idempotency key conflict without a stored session");
                 case CHARACTER_ACTIVE:
                     forget(slot);
-                    Optional<OfflineSession> holder = store.findOpenByCharacterId(row.getCharacterId());
-                    return holder.isPresent()
-                            ? AppSessionStartOutcome.characterBusy(holder.get())
-                            : AppSessionStartOutcome.unavailable("character session conflict without a stored session");
+                    return characterActive(
+                            row.getCharacterId(),
+                            AppSessionStartOutcome::characterBusy,
+                            AppSessionStartOutcome::unavailable);
                 case SPOT_TAKEN:
                 default:
                     forget(slot);
@@ -634,6 +703,13 @@ final class AppSessionEngine {
         presence.online(view, false);
         log.info("App sessions: started {}", view);
         return AppSessionStartOutcome.started(view);
+    }
+
+    private <T> T characterActive(int characterId, Function<OfflineSession, T> busy, Function<String, T> unavailable) {
+        Optional<OfflineSession> holder = store.findOpenByCharacterId(characterId);
+        return holder.isPresent()
+                ? busy.apply(holder.get())
+                : unavailable.apply("character session conflict without a stored session");
     }
 
     private void rollBack(Slot slot, OfflineSession row, boolean placed) {
@@ -792,6 +868,8 @@ final class AppSessionEngine {
         Instant endedAt = nowSeconds();
         OfflineSession closed =
                 row.toBuilder().endedAt(endedAt).endReason(reason).build();
+        // before the row commits as closed, so a flush tick reading it finds the end claimed and does not send it too
+        boolean claimed = endsInFlight.add(closed.getId());
         try {
             store.close(row.getId(), activeMs, endedAt, reason);
         } catch (RuntimeException e) {
@@ -807,7 +885,11 @@ final class AppSessionEngine {
         }
         slot.row = closed;
         forget(slot);
-        presence.offline(closed, reason);
+        if (claimed) {
+            sendEnd(closed);
+        } else {
+            log.warn("App sessions: the end of session {} is already being sent, not sent again", closed.getId());
+        }
         log.info("App sessions: ended {}", closed);
         return Optional.of(closed);
     }
@@ -848,6 +930,7 @@ final class AppSessionEngine {
         if (!pendingWrites.isEmpty()) {
             work.execute(this::retryPendingWrites);
         }
+        work.execute(this::republishUnacknowledgedEnds);
         Map<UUID, Long> snapshot = activeSnapshot();
         if (snapshot.isEmpty()) {
             return;
@@ -859,6 +942,156 @@ final class AppSessionEngine {
                 log.warn("App sessions: periodic active_ms flush failed, retried next minute: {}", e.getMessage());
             }
         });
+    }
+
+    /**
+     * An end whose close is still pending is sent again once its retry lands; the platform dedups by {@code sessionId}
+     * and {@code eventId}. Pages by the {@code (ended_at, id)} cursor so unreadable rows never fill the window.
+     */
+    private void republishUnacknowledgedEnds() {
+        if (!republishing.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            releasePublishedClaims();
+            int sent = 0;
+            EndCursor after = null;
+            while (sent < REPUBLISH_BATCH) {
+                UnpublishedEnds page;
+                try {
+                    page = store.findUnpublishedEnds(after, REPUBLISH_BATCH);
+                } catch (RuntimeException e) {
+                    log.warn(
+                            "App sessions: reading unacknowledged session ends failed, retried next minute: {}",
+                            e.getMessage());
+                    break;
+                }
+                for (OfflineSession closed : page.rows) {
+                    if (sent >= REPUBLISH_BATCH) {
+                        break;
+                    }
+                    UUID id = closed.getId();
+                    if (!unbuildableEnds.contains(id) && endsInFlight.add(id) && sendEnd(closed)) {
+                        sent++;
+                    }
+                }
+                if (page.exhausted || page.last == null) {
+                    break;
+                }
+                after = page.last;
+            }
+            if (sent > 0) {
+                log.info("App sessions: sent {} unacknowledged session end(s) again", sent);
+            }
+        } finally {
+            republishing.set(false);
+        }
+    }
+
+    /**
+     * Sends an end its caller claimed; {@code false} releases the claim.
+     */
+    private boolean sendEnd(OfflineSession closed) {
+        UUID id = closed.getId();
+        CharacterPresenceEvent end;
+        try {
+            end = PresencePublisher.endEvent(closed);
+        } catch (RuntimeException e) {
+            endsInFlight.remove(id);
+            if (unbuildableEnds.add(id)) {
+                log.error(
+                        "App sessions: the end event of session {} cannot be built, it is never sent: {}",
+                        id,
+                        e.getMessage(),
+                        e);
+            }
+            return false;
+        }
+        try {
+            presence.sendEnd(end, failure -> onEndAnswered(id, failure));
+            return true;
+        } catch (RuntimeException e) {
+            endsInFlight.remove(id);
+            log.error("App sessions: sending the end of session {} threw, sent again later: {}", id, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Called on the Kafka producer thread among others, so the table write hops to the engine's pool. An end the bound
+     * facade can never deliver is recorded as published: sending it again would loop forever.
+     */
+    private void onEndAnswered(UUID sessionId, @Nullable Exception failure) {
+        if (failure instanceof UndeliverableEventException) {
+            log.warn(
+                    "App sessions: the end of session {} cannot be delivered ({}); recorded as published without"
+                            + " reaching the platform",
+                    sessionId,
+                    failure.getMessage());
+        } else if (failure != null) {
+            endsInFlight.remove(sessionId);
+            log.warn(
+                    "App sessions: the end of session {} was not acknowledged, sent again by the flush tick: {}",
+                    sessionId,
+                    failure.getMessage());
+            return;
+        }
+        acknowledgedEnds.add(sessionId);
+        if (markScheduled.compareAndSet(false, true)) {
+            work.execute(this::markAcknowledgedEnds);
+        }
+    }
+
+    /** One write per {@value #MARK_BATCH} acknowledged ends; acknowledgements arriving meanwhile join the batch. */
+    private void markAcknowledgedEnds() {
+        markScheduled.set(false);
+        List<UUID> batch = new ArrayList<UUID>();
+        while (true) {
+            UUID next;
+            while (batch.size() < MARK_BATCH && (next = acknowledgedEnds.poll()) != null) {
+                batch.add(next);
+            }
+            if (batch.isEmpty()) {
+                return;
+            }
+            try {
+                store.markEndsPublished(batch, nowSeconds());
+                publishedEnds.addAll(batch);
+            } catch (RuntimeException e) {
+                endsInFlight.removeAll(batch);
+                log.warn(
+                        "App sessions: recording {} acknowledged session end(s) failed, they are sent again: {}",
+                        batch.size(),
+                        e.getMessage());
+            }
+            batch.clear();
+        }
+    }
+
+    /**
+     * A claim released here belongs to a row the table already holds as published; one acknowledged during the read
+     * of the unpublished ends stays claimed until the next.
+     */
+    private void releasePublishedClaims() {
+        UUID id;
+        while ((id = publishedEnds.poll()) != null) {
+            endsInFlight.remove(id);
+        }
+    }
+
+    /**
+     * Running, waiting for the restore, or starting with its row written: a start takes its {@code startedAt} after the
+     * insert, so a snapshot taken after that start time lists it.
+     */
+    private List<UUID> openSessionIds() {
+        List<UUID> ids = new ArrayList<UUID>();
+        for (Slot slot : byId.values()) {
+            Phase phase = slot.phase;
+            if (phase == Phase.RUNNING || phase == Phase.PENDING_RESTORE || (phase == Phase.STARTING && slot.stored)) {
+                ids.add(slot.id);
+            }
+        }
+        return ids;
     }
 
     void retryPendingWrites() {
@@ -996,6 +1229,8 @@ final class AppSessionEngine {
         volatile OfflineSession row;
         volatile Phase phase;
         volatile @Nullable CompletableFuture<AppSessionStartOutcome> startOutcome;
+        volatile boolean stored;
+
         int restoreAttempts;
 
         private long activeBaseMs;
