@@ -14,7 +14,7 @@ here are drop-in: bump the version and restart.
   what changed, and what to do.
 - The documentation always describes the current version.
 
-## nx-gs-adapter-api 0.120.0, nx-gs-adapter-core 0.51.0, nx-gs-gd-sync-core 0.16.0: command initiator, session checks, fishing gear
+## nx-gs-adapter-api 0.120.0, nx-gs-adapter-core 0.51.0, nx-gs-gd-sync-core 0.16.0, nx-gs-db-migrations 0.5.0: command initiator, session checks, fishing gear
 
 **Breaking.** Update the api, the core and gd-sync together and switch the host in one release.
 
@@ -49,7 +49,7 @@ here are drop-in: bump the version and restart.
   open.
 - **Open-sessions snapshot.** The core publishes `AppSessionsSnapshotEvent` (the ids of every open app session of the
   server) every 60 s and when the app-sessions module starts, and republishes a session end until the platform has
-  acknowledged it. Nothing to do on the host; the schema migration that ships with the core adds the column it needs.
+  acknowledged it. Bump `nx-gs-db-migrations` to 0.5.0 with the core: its changesets add the column this needs.
 - **Fishing gear catalog.** New game data providers `FishingBaitProvider`, `FishingRodProvider` and
   `FishingShotProvider` (entities `fishingbait`, `fishingrod`, `fishingshot`). Optional: a server without fishing
   registers none. A host that implements them registers each in `META-INF/services` and returns `null` from
