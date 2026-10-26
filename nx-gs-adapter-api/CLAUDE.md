@@ -49,7 +49,7 @@ assuming):
   `mail`, `olympiad`, `premiumpurchase`, `privatestore`, `privatetrade`, `raid`, `schedule`,
   `server.online` (family key `serveronline`), `sync`; `push` — facts published by platform services (not the host) to
   `<tenant>.push.events` for nx-social pushes
-- **commands**: `announcement`, `ban`, `captcha`, `character`, `gd`, `item`,
+- **commands**: `announcement`, `ban`, `captcha`, `character`, `character.revive`, `gd`, `item`,
   `mail`, `offline.fishing`, `privatestore`, `session` (shared app-session refusal vocabulary), `sync`, `telegram`
 
 The command group is a code-organization bucket only — the commands topic stays single.
@@ -81,7 +81,7 @@ in its root and splits effect / condition / learn / produced types into sub-pack
   `NxEvents`, `NxCommands` (+ `CommandHandler`, `HostExecutor`, `DeferredReply`), `NxSync`,
   `NxGameData`, `NxAppSessions` (+ `AppSessionStartRequest`, `AppSessionStartOutcome`, `ClientLoginOutcome` in
   `spi.model`; also reachable as the static `NxAdapter.appSessions()` for host code outside a module),
-  `NxAppRules` (+ `AppRules`, `SpotOrder` in `spi.model.appsettings`; the live `l2nx-app.properties` values, also
+  `NxAppRules` (+ `AppRules`, `SpotOrder`, `ReviveTownMode` in `spi.model.appsettings`; the live `l2nx-app.properties` values, also
   the static `NxAdapter.appRules()`, spec 038 R20),
   `NxCommandReceipts` (+ `spi.model.receipt`; via `CommandContext` and the static `NxAdapter.commandReceipts()`, spec
   040). Each ships a `NoOp*` fallback so a context wired without that runtime never returns null; the receipts
@@ -107,7 +107,7 @@ They all live here so a host provider depends on the contracts artifact alone.
   bounded retention, not log compaction, so consumers MUST handle the `DELETED` op explicitly rather
   than relying on the null-value tombstone protocol.
 - **Closed vocabularies are enums, constant name on the wire.** `ActivityType` (`domain.character`),
-  `SessionSource`, `LogoutReason`, `ServerOnlineBucket`, `UsageUnit`, `AppSessionRefusalReason`. A new value is an api
+  `SessionSource`, `LogoutReason`, `ServerOnlineBucket`, `UsageUnit`, `AppSessionRefusalReason`, `ReviveRefusalReason`. A new value is an api
   release first, then the platform enum and CHECK, then the host. A wire consumer must treat an unknown constant as
   data it cannot place (skip with a metric), never as a reason to stop a partition.
 - **`CharacterPresenceEvent` is validated in the constructor, and Gson/Jackson may bypass it.** `source` is required;
@@ -137,6 +137,9 @@ They all live here so a host provider depends on the contracts artifact alone.
 - **App-session command refusals** carry `reason` (an `AppSessionRefusalReason` name), plus `retryAt` (ISO-8601
   instant) or `scope` (`AlreadyActiveScope`) where the reason defines them; the `CommandStatus` per reason is on the
   enum.
+- **Revive refusals** carry `reason` (`ReviveRefusal.REASON`, a `ReviveRefusalReason` name), a separate vocabulary from
+  the app-session one; `ReviveCharacterCommand.restartPoint` stays a `String` (open `RestartPoint`), so an older host
+  refuses a newer token instead of failing to deserialize.
 - **`CharacterRuntimeDto` must keep exactly ONE constructor.** It binds through implicit
   constructor-parameter names; adding an overload (even a back-compat one) makes creator detection
   ambiguous and consumers silently stop deserializing the whole channel.

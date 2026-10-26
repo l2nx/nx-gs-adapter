@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.core.appsettings;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
+import app.l2nx.gs.adapter.api.spi.model.appsettings.ReviveTownMode;
 import app.l2nx.gs.adapter.core.appsettings.AppSettingsCatalog.InvalidValueException;
 import app.l2nx.gs.adapter.core.appsettings.AppSettingsCatalog.Key;
 import java.io.IOException;
@@ -83,6 +84,17 @@ final class AppSettingsFile {
                         && "true".equals(trimmed(properties, type.getKey()))) {
                     errors.add(type.getKey() + ": true requires " + AppSettingsCatalog.FISHING_SPOT_POOL);
                 }
+            }
+        }
+        if (!failed.contains(AppSettingsCatalog.REVIVE_TOWN_MODE)
+                && !failed.contains(AppSettingsCatalog.REVIVE_TOWN_SPOT_POOL)) {
+            String mode = trimmed(properties, AppSettingsCatalog.REVIVE_TOWN_MODE);
+            String pools = trimmed(properties, AppSettingsCatalog.REVIVE_TOWN_SPOT_POOL);
+            if (!AppRules.reviveTownSpotPoolsSuffice(
+                    blank(mode) ? defaults.reviveTownMode() : AppSettingsCatalog.reviveTownMode(mode),
+                    blank(pools) ? defaults.reviveTownSpotPools() : AppSettingsCatalog.spotPools(pools))) {
+                errors.add(AppSettingsCatalog.REVIVE_TOWN_MODE + ": " + ReviveTownMode.SPOT_POOL + " requires "
+                        + AppSettingsCatalog.REVIVE_TOWN_SPOT_POOL);
             }
         }
         return errors.isEmpty() ? Result.valid(builder.build()) : Result.invalid(errors);

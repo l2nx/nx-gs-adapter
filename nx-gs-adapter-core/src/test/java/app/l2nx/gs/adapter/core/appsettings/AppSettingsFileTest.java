@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
+import app.l2nx.gs.adapter.api.spi.model.appsettings.ReviveTownMode;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.SpotOrder;
 import java.io.IOException;
 import java.io.Reader;
@@ -64,6 +65,9 @@ class AppSettingsFileTest {
                     + "app.fishing.float-distance=200\n"
                     + "app.fishing.spot-order=FIRST_FREE\n"
                     + "app.fishing.spot-pool=harbor_1\n"
+                    + "app.revive.enabled=false\n"
+                    + "app.revive.town.mode=SPOT_POOL\n"
+                    + "app.revive.town.spot-pool=harbor_1, giran\n"
                     + "app.restore.batch-size=3\n"
                     + "app.restore.batch-pause-millis=250\n"
                     + "app.history.retention-days=30\n");
@@ -83,6 +87,9 @@ class AppSettingsFileTest {
                     .fishingFloatDistance(200)
                     .fishingSpotOrder(SpotOrder.FIRST_FREE)
                     .fishingSpotPool("harbor_1")
+                    .reviveEnabled(false)
+                    .reviveTownMode(ReviveTownMode.SPOT_POOL)
+                    .reviveTownSpotPools(Arrays.asList("harbor_1", "giran"))
                     .restoreBatchSize(3)
                     .restoreBatchPauseMillis(250)
                     .historyRetentionDays(30)
@@ -103,6 +110,19 @@ class AppSettingsFileTest {
             AppRules actual = valid(key + "=" + value + "\n");
 
             assertNull(key.equals("app.phantom.title.text") ? actual.phantomTitleText() : actual.fishingSpotPool());
+        }
+
+        @ParameterizedTest(name = "''{0}'' -> {1}")
+        @CsvSource(
+                delimiter = '|',
+                value = {"''|", "'   '|", "town|town", "' a , b_2 '|a,b_2", "a,b,c|a,b,c"})
+        void parse_shouldReadTheReviveSpotPoolsAsAList(String value, String expected) throws IOException {
+            List<String> expectedPools =
+                    expected == null ? Collections.<String>emptyList() : Arrays.asList(expected.split(","));
+
+            AppRules actual = valid("app.revive.town.spot-pool=" + value + "\n");
+
+            assertEquals(expectedPools, actual.reviveTownSpotPools());
         }
 
         @Test
@@ -148,6 +168,15 @@ class AppSettingsFileTest {
                     "app.fishing.spot-order|random|app.fishing.spot-order: expected RANDOM or FIRST_FREE, got 'random'",
                     "app.fishing.spot-pool|Giran-Harbor|app.fishing.spot-pool: expected 1-32 characters of a-z, 0-9"
                             + " and _, got 'Giran-Harbor'",
+                    "app.revive.enabled|on|app.revive.enabled: expected true or false, got 'on'",
+                    "app.revive.town.mode|native|app.revive.town.mode: expected NATIVE or SPOT_POOL, got 'native'",
+                    "app.revive.town.spot-pool|giran-town|app.revive.town.spot-pool: expected comma-separated names of"
+                            + " 1-32 characters of a-z, 0-9 and _, got 'giran-town'",
+                    "app.revive.town.spot-pool|a,,b|app.revive.town.spot-pool: expected comma-separated names of 1-32"
+                            + " characters of a-z, 0-9 and _, got ''",
+                    "app.revive.town.spot-pool|a,|app.revive.town.spot-pool: expected comma-separated names of 1-32"
+                            + " characters of a-z, 0-9 and _, got ''",
+                    "app.revive.town.spot-pool|a, a|app.revive.town.spot-pool: 'a' is listed twice",
                     "app.restore.batch-size|0|app.restore.batch-size: less than 1: 0",
                     "app.restore.batch-pause-millis|-5|app.restore.batch-pause-millis: less than 0: -5",
                     "app.history.retention-days|6|app.history.retention-days: less than 7: 6"
@@ -196,6 +225,26 @@ class AppSettingsFileTest {
 
             assertEquals(
                     Collections.singletonList("app.fishing.enabled: true requires app.fishing.spot-pool"),
+                    actual.errors());
+        }
+
+        @Test
+        void parse_shouldRejectTheFile_whenReviveSpotPoolModeHasNoPool() throws IOException {
+            AppSettingsFile.Result actual = parse("app.revive.town.mode=SPOT_POOL\napp.revive.town.spot-pool= \n");
+
+            assertNull(actual.rules());
+            assertEquals(
+                    Collections.singletonList("app.revive.town.mode: SPOT_POOL requires app.revive.town.spot-pool"),
+                    actual.errors());
+        }
+
+        @Test
+        void parse_shouldReportOnlyThePoolError_whenReviveSpotPoolModeHasAnInvalidPool() throws IOException {
+            AppSettingsFile.Result actual = parse("app.revive.town.mode=SPOT_POOL\napp.revive.town.spot-pool=A\n");
+
+            assertEquals(
+                    Collections.singletonList("app.revive.town.spot-pool: expected comma-separated names of 1-32"
+                            + " characters of a-z, 0-9 and _, got 'A'"),
                     actual.errors());
         }
 
@@ -286,6 +335,8 @@ class AppSettingsFileTest {
                     .sessionTypeEnabled(ActivityType.OFFLINE_FISHING, true)
                     .fishingSpotPool("harbor")
                     .phantomTitleColorRgb(0x00FF00)
+                    .reviveTownMode(ReviveTownMode.SPOT_POOL)
+                    .reviveTownSpotPools(Arrays.asList("harbor", "giran"))
                     .build();
 
             List<String> actual = AppSettingsCatalog.diff(before, after);
@@ -295,7 +346,9 @@ class AppSettingsFileTest {
                             "app.phantom.title.color: FFFF00 -> 00FF00",
                             "app.session.return-threshold-minutes: 30 -> 45",
                             "app.fishing.enabled: false -> true",
-                            "app.fishing.spot-pool: <unset> -> harbor"),
+                            "app.fishing.spot-pool: <unset> -> harbor",
+                            "app.revive.town.mode: NATIVE -> SPOT_POOL",
+                            "app.revive.town.spot-pool: <unset> -> harbor,giran"),
                     actual);
         }
 

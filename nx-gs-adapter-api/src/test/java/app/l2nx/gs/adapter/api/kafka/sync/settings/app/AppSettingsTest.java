@@ -41,6 +41,7 @@ class AppSettingsTest {
                 .restartWindowMinutes(10)
                 .fishingMinDurationMs(600_000L)
                 .fishingMaxDurationMs(7_200_000L)
+                .revive(new ReviveSettings(true))
                 .updatedAt(NOW);
     }
 
@@ -100,6 +101,25 @@ class AppSettingsTest {
         assertNotEquals(
                 original,
                 original.toBuilder().privateStoreStartCooldownMinutes(6).build());
+        assertNotEquals(
+                original, original.toBuilder().revive(new ReviveSettings(false)).build());
+    }
+
+    @Test
+    void gson_shouldWriteReviveEnabledUnderItsWireName() {
+        String actual = GSON.toJson(valid().build());
+
+        assertTrue(actual.contains("\"revive\":{\"enabled\":true}"), actual);
+    }
+
+    @Test
+    void gson_shouldReadNoRevive_whenAnOlderHostOmitsTheGroup() {
+        String json = GSON.toJson(valid().revive(null).build());
+
+        AppSettings actual = GSON.fromJson(json, AppSettings.class);
+
+        assertFalse(json.contains("revive"), json);
+        assertNull(actual.getRevive());
     }
 
     @Test

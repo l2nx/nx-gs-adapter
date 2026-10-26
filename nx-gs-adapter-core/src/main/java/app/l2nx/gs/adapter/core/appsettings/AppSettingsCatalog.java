@@ -2,13 +2,16 @@ package app.l2nx.gs.adapter.core.appsettings;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
+import app.l2nx.gs.adapter.api.spi.model.appsettings.ReviveTownMode;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.SpotOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
@@ -30,6 +33,9 @@ final class AppSettingsCatalog {
     static final String FISHING_FLOAT_DISTANCE = "app.fishing.float-distance";
     static final String FISHING_SPOT_ORDER = "app.fishing.spot-order";
     static final String FISHING_SPOT_POOL = "app.fishing.spot-pool";
+    static final String REVIVE_ENABLED = "app.revive.enabled";
+    static final String REVIVE_TOWN_MODE = "app.revive.town.mode";
+    static final String REVIVE_TOWN_SPOT_POOL = "app.revive.town.spot-pool";
     static final String RESTORE_BATCH_SIZE = "app.restore.batch-size";
     static final String RESTORE_BATCH_PAUSE_MILLIS = "app.restore.batch-pause-millis";
     static final String HISTORY_RETENTION_DAYS = "app.history.retention-days";
@@ -188,6 +194,13 @@ final class AppSettingsCatalog {
                 (raw, b) -> b.fishingFloatDistance(intIn(raw, AppRules.FISHING_FLOAT_DISTANCE)));
         put(keys, FISHING_SPOT_ORDER, r -> r.fishingSpotOrder().name(), (raw, b) -> b.fishingSpotOrder(spotOrder(raw)));
         put(keys, FISHING_SPOT_POOL, r -> orUnset(r.fishingSpotPool()), (raw, b) -> b.fishingSpotPool(spotPool(raw)));
+        put(keys, REVIVE_ENABLED, r -> String.valueOf(r.reviveEnabled()), (raw, b) -> b.reviveEnabled(bool(raw)));
+        put(keys, REVIVE_TOWN_MODE, r -> r.reviveTownMode().name(), (raw, b) -> b.reviveTownMode(reviveTownMode(raw)));
+        put(
+                keys,
+                REVIVE_TOWN_SPOT_POOL,
+                r -> r.reviveTownSpotPools().isEmpty() ? UNSET : String.join(",", r.reviveTownSpotPools()),
+                (raw, b) -> b.reviveTownSpotPools(spotPools(raw)));
         put(
                 keys,
                 RESTORE_BATCH_SIZE,
@@ -235,6 +248,24 @@ final class AppSettingsCatalog {
         return raw;
     }
 
+    static List<String> spotPools(String raw) {
+        if (raw.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<String> pools = new LinkedHashSet<String>();
+        for (String part : raw.split(",", -1)) {
+            String pool = part.trim();
+            if (!AppRules.isSpotPoolName(pool)) {
+                throw new InvalidValueException(
+                        "expected comma-separated names of 1-32 characters of a-z, 0-9 and _, got '" + pool + "'");
+            }
+            if (!pools.add(pool)) {
+                throw new InvalidValueException("'" + pool + "' is listed twice");
+            }
+        }
+        return new ArrayList<String>(pools);
+    }
+
     private static int rgb(String raw) {
         if (!RGB_HEX.matcher(raw).matches()) {
             throw new InvalidValueException("expected 6 hex digits RGB, got '" + raw + "'");
@@ -278,5 +309,14 @@ final class AppSettingsCatalog {
             }
         }
         throw new InvalidValueException("expected RANDOM or FIRST_FREE, got '" + raw + "'");
+    }
+
+    static ReviveTownMode reviveTownMode(String raw) {
+        for (ReviveTownMode mode : ReviveTownMode.values()) {
+            if (mode.name().equals(raw)) {
+                return mode;
+            }
+        }
+        throw new InvalidValueException("expected NATIVE or SPOT_POOL, got '" + raw + "'");
     }
 }

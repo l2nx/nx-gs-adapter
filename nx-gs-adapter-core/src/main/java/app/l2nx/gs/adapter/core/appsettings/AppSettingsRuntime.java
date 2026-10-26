@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.core.appsettings;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSessionTypeSettings;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.ReviveSettings;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.log.NxLog;
@@ -151,6 +152,7 @@ public final class AppSettingsRuntime implements NxAppRules {
                 .restartWindowMinutes(rules.restartWindowMinutes())
                 .fishingMinDurationMs(TimeUnit.MINUTES.toMillis(rules.fishingMinDurationMinutes()))
                 .fishingMaxDurationMs(TimeUnit.MINUTES.toMillis(rules.fishingMaxDurationMinutes()))
+                .revive(new ReviveSettings(rules.reviveEnabled()))
                 .updatedAt(updatedAt)
                 .build();
     }

@@ -1,8 +1,11 @@
 package app.l2nx.gs.adapter.api.spi.model.appsettings;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -17,6 +20,7 @@ public final class AppRules {
     public static final int PHANTOM_TITLE_MAX_CODE_POINTS = 16;
     /** The platform's name over a placed character; a server file sets its own or an empty value for none. */
     public static final String DEFAULT_PHANTOM_TITLE_TEXT = "l2nx.app";
+
     public static final Range PHANTOM_TITLE_COLOR_RGB = Range.between(0, 0xFFFFFF);
     public static final Range RECENT_LOGOUT_MINUTES = Range.between(0, 60);
     public static final Range RESTART_WINDOW_MINUTES = Range.between(0, 120);
@@ -53,6 +57,9 @@ public final class AppRules {
     private final int fishingFloatDistance;
     private final SpotOrder fishingSpotOrder;
     private final @Nullable String fishingSpotPool;
+    private final boolean reviveEnabled;
+    private final ReviveTownMode reviveTownMode;
+    private final List<String> reviveTownSpotPools;
     private final int restoreBatchSize;
     private final int restoreBatchPauseMillis;
     private final int historyRetentionDays;
@@ -74,6 +81,11 @@ public final class AppRules {
         this.fishingFloatDistance = b.fishingFloatDistance;
         this.fishingSpotOrder = Objects.requireNonNull(b.fishingSpotOrder, "AppRules.fishingSpotOrder is required");
         this.fishingSpotPool = b.fishingSpotPool;
+        this.reviveEnabled = b.reviveEnabled;
+        this.reviveTownMode = b.reviveTownMode;
+        this.reviveTownSpotPools = b.reviveTownSpotPools.isEmpty()
+                ? Collections.<String>emptyList()
+                : Collections.unmodifiableList(new ArrayList<String>(b.reviveTownSpotPools));
         this.restoreBatchSize = b.restoreBatchSize;
         this.restoreBatchPauseMillis = b.restoreBatchPauseMillis;
         this.historyRetentionDays = b.historyRetentionDays;
@@ -113,6 +125,22 @@ public final class AppRules {
                 }
             }
         }
+        Objects.requireNonNull(b.reviveTownMode, "AppRules.reviveTownMode is required");
+        Objects.requireNonNull(b.reviveTownSpotPools, "AppRules.reviveTownSpotPools is required");
+        Set<String> seen = new HashSet<String>();
+        for (String pool : b.reviveTownSpotPools) {
+            if (pool == null || !isSpotPoolName(pool)) {
+                throw new IllegalArgumentException("AppRules.reviveTownSpotPools: every name must match "
+                        + SPOT_POOL_NAME.pattern() + ": '" + pool + "'");
+            }
+            if (!seen.add(pool)) {
+                throw new IllegalArgumentException("AppRules.reviveTownSpotPools: '" + pool + "' is listed twice");
+            }
+        }
+        if (!reviveTownSpotPoolsSuffice(b.reviveTownMode, b.reviveTownSpotPools)) {
+            throw new IllegalArgumentException(
+                    "AppRules.reviveTownSpotPools is required while reviveTownMode is " + ReviveTownMode.SPOT_POOL);
+        }
         RESTORE_BATCH_SIZE.check("restoreBatchSize", b.restoreBatchSize);
         RESTORE_BATCH_PAUSE_MILLIS.check("restoreBatchPauseMillis", b.restoreBatchPauseMillis);
         HISTORY_RETENTION_DAYS.check("historyRetentionDays", b.historyRetentionDays);
@@ -126,6 +154,10 @@ public final class AppRules {
     /** The cross-key rule of the fishing duration: the maximum is at least the minimum. */
     public static boolean fishingDurationsOrdered(int minMinutes, int maxMinutes) {
         return maxMinutes >= minMinutes;
+    }
+
+    public static boolean reviveTownSpotPoolsSuffice(ReviveTownMode mode, List<String> pools) {
+        return mode != ReviveTownMode.SPOT_POOL || !pools.isEmpty();
     }
 
     /** 1-32 characters of {@code a-z}, {@code 0-9} and {@code _}. */
@@ -213,6 +245,18 @@ public final class AppRules {
         return fishingSpotPool;
     }
 
+    public boolean reviveEnabled() {
+        return reviveEnabled;
+    }
+
+    public ReviveTownMode reviveTownMode() {
+        return reviveTownMode;
+    }
+
+    public List<String> reviveTownSpotPools() {
+        return reviveTownSpotPools;
+    }
+
     /** Sessions restored per batch after a restart; the engine caps it at its share of the IO pool. */
     public int restoreBatchSize() {
         return restoreBatchSize;
@@ -241,6 +285,9 @@ public final class AppRules {
                 .fishingFloatDistance(fishingFloatDistance)
                 .fishingSpotOrder(fishingSpotOrder)
                 .fishingSpotPool(fishingSpotPool)
+                .reviveEnabled(reviveEnabled)
+                .reviveTownMode(reviveTownMode)
+                .reviveTownSpotPools(reviveTownSpotPools)
                 .restoreBatchSize(restoreBatchSize)
                 .restoreBatchPauseMillis(restoreBatchPauseMillis)
                 .historyRetentionDays(historyRetentionDays);
@@ -269,10 +316,13 @@ public final class AppRules {
                 && restoreBatchSize == that.restoreBatchSize
                 && restoreBatchPauseMillis == that.restoreBatchPauseMillis
                 && historyRetentionDays == that.historyRetentionDays
+                && reviveEnabled == that.reviveEnabled
                 && Objects.equals(phantomTitleText, that.phantomTitleText)
                 && enabledSessionTypes.equals(that.enabledSessionTypes)
                 && fishingSpotOrder == that.fishingSpotOrder
-                && Objects.equals(fishingSpotPool, that.fishingSpotPool);
+                && Objects.equals(fishingSpotPool, that.fishingSpotPool)
+                && reviveTownMode == that.reviveTownMode
+                && reviveTownSpotPools.equals(that.reviveTownSpotPools);
     }
 
     @Override
@@ -291,6 +341,9 @@ public final class AppRules {
                 fishingFloatDistance,
                 fishingSpotOrder,
                 fishingSpotPool,
+                reviveEnabled,
+                reviveTownMode,
+                reviveTownSpotPools,
                 restoreBatchSize,
                 restoreBatchPauseMillis,
                 historyRetentionDays);
@@ -311,6 +364,9 @@ public final class AppRules {
                 + ", fishingFloatDistance=" + fishingFloatDistance
                 + ", fishingSpotOrder=" + fishingSpotOrder
                 + ", fishingSpotPool=" + fishingSpotPool
+                + ", reviveEnabled=" + reviveEnabled
+                + ", reviveTownMode=" + reviveTownMode
+                + ", reviveTownSpotPools=" + reviveTownSpotPools
                 + ", restoreBatchSize=" + restoreBatchSize
                 + ", restoreBatchPauseMillis=" + restoreBatchPauseMillis
                 + ", historyRetentionDays=" + historyRetentionDays + "]";
@@ -331,6 +387,9 @@ public final class AppRules {
         private int fishingFloatDistance = 170;
         private SpotOrder fishingSpotOrder = SpotOrder.RANDOM;
         private @Nullable String fishingSpotPool;
+        private boolean reviveEnabled = true;
+        private ReviveTownMode reviveTownMode = ReviveTownMode.NATIVE;
+        private List<String> reviveTownSpotPools = Collections.<String>emptyList();
         private int restoreBatchSize = 10;
         private int restoreBatchPauseMillis = 1000;
         private int historyRetentionDays = 90;
@@ -412,6 +471,21 @@ public final class AppRules {
 
         public Builder fishingSpotPool(@Nullable String fishingSpotPool) {
             this.fishingSpotPool = fishingSpotPool;
+            return this;
+        }
+
+        public Builder reviveEnabled(boolean reviveEnabled) {
+            this.reviveEnabled = reviveEnabled;
+            return this;
+        }
+
+        public Builder reviveTownMode(ReviveTownMode reviveTownMode) {
+            this.reviveTownMode = reviveTownMode;
+            return this;
+        }
+
+        public Builder reviveTownSpotPools(List<String> reviveTownSpotPools) {
+            this.reviveTownSpotPools = reviveTownSpotPools;
             return this;
         }
 

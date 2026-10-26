@@ -367,6 +367,41 @@ them again — hosts dedupe on the correlation id. `staffNotes` is a staff-only 
 
 ---
 
+### `ReviveCharacterCommand`
+
+Package `character.revive`. Full contract, reason-code table and edge flows: [`revive-character.md`](./revive-character.md).
+
+**Purpose.** Get a dead character up at a restart point without the game client, whether it is still in the world or
+already out of the game. The host revives the way its own restart request does; the reply carries a reason code on
+refusal. Idempotent by `idempotencyKey` (command receipts, [`040`](../040-command-receipts.md)).
+
+**Inputs**
+
+| Field              | Type      | Required | Notes                                                                                                                                                                |
+| ------------------ | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `characterId`      | `int`     | yes      | Character to revive                                                                                                                                                  |
+| `masterAccountId`  | `UUID`    | yes      | Master account of the initiator, set by the platform                                                                                                                 |
+| `restartPoint`     | `String`  | yes      | `RestartPoint` token (open vocabulary, today `TOWN`); an unknown token is refused with `RESTART_POINT_UNSUPPORTED`                                                   |
+| `disconnectClient` | `boolean` | no       | Character in the world only: `true` closes the client and revives it out of the game, `false` revives it in the world; ignored out of the game; absent reads `false` |
+| `ownerVerified`    | `boolean` | no       | See Cross-cutting › Owner verification; absent reads as `false`                                                                                                      |
+| `deadline`         | `Instant` | yes      | Moment after which the host MUST refuse with `COMMAND_EXPIRED`; checked before anything is read or changed                                                           |
+| `idempotencyKey`   | `UUID`    | yes      | Business identity of the revive, stable across retries; a retry after success answers the recorded result                                                            |
+
+**Result** (`ReviveCharacterResult`)
+
+| Field                | Type      | Notes                                                          |
+| -------------------- | --------- | -------------------------------------------------------------- |
+| `restartPoint`       | `String`  | Echo                                                           |
+| `x`, `y`, `z`        | `int`     | Where the character stands after the revive                    |
+| `clientDisconnected` | `boolean` | `true` only when a connected client was closed by this command |
+
+**Errors.** A missing character is `NOT_FOUND` without a reason. A refusal carries `extensions.reason`
+(`ReviveRefusal.REASON`) from the closed enum `ReviveRefusalReason`: `FEATURE_DISABLED`, `RESTART_POINT_UNAVAILABLE`,
+`NOT_DEAD`, `UNSAFE_LOGOUT_LOCATION` are `INVALID_STATE`; `RESTART_POINT_UNSUPPORTED` is `VALIDATION_FAILED`;
+`CHARACTER_BANNED` / `CHARACTER_JAILED` are `FORBIDDEN`. A passed deadline is the rail's `COMMAND_EXPIRED`.
+
+---
+
 ## Gd commands
 
 ### `GdResyncCommand`
@@ -1077,17 +1112,17 @@ writes them verbatim.
 
 **Inputs**
 
-| Field              | Type             | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------ | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sellerCharId`     | `int`            | yes      | Character giving the items and receiving the proceeds. Need not be online — the host loads an offline character for the duration of the deal                                                                                                                                                                                                                                          |
-| `buyerCharId`      | `int`            | yes      | Owner of the buy-store. MUST be in the world with a buy-store open. MUST differ from `sellerCharId`                                                                                                                                                                                                                                                                                   |
-| `lines`            | `List<SellLine>` | yes      | Lots to sell, non-empty, no duplicate `itemId`; the platform caps the count. Each `SellLine`: `itemId` (`int`, the instance object-id in the seller's inventory), `count` (`long`, positive), `priceAdena` (`long`, the buy-store line's unit price the seller saw). The item template is taken from the instance |
-| `sellerFeePercent` | `Integer`        | yes      | Seller-side fee in whole percent (`5` = 5%) withheld from the proceeds and burned: `ceilDiv(itemsTotal * pct, 100)`. Negative or above `100` (the proceeds would go negative) is rejected with `VALIDATION_FAILED`, never clamped; the platform decides the rate. `0` means no fee. `null` is `VALIDATION_FAILED` (absence is never read as `0`)                                      |
-| `deadline`         | `Instant`        | yes      | Same as on `BuyFromPrivateStoreCommand`                                                                                                                                                                                                                                                                                                                                               |
-| `mailSender`       | `String`         | yes      | Author shown on the proceeds mail, non-blank. Platform-authored, already localized; written verbatim                                                                                                                                                                                                                                                                                  |
-| `mailSubject`      | `String`         | yes      | Subject of the proceeds mail, non-blank. Same rules as `mailSender`                                                                                                                                                                                                                                                                                                                   |
-| `mailBody`         | `String`         | yes      | Body of the proceeds mail, non-blank, final text (no placeholders). Same rules as `mailSender`                                                                                                                                                                                                                                                                                        |
-| `ownerVerified`    | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                                                                                                                                                   |
+| Field              | Type             | Required | Notes                                                                                                                                                                                                                                                                                                                                            |
+| ------------------ | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sellerCharId`     | `int`            | yes      | Character giving the items and receiving the proceeds. Need not be online — the host loads an offline character for the duration of the deal                                                                                                                                                                                                     |
+| `buyerCharId`      | `int`            | yes      | Owner of the buy-store. MUST be in the world with a buy-store open. MUST differ from `sellerCharId`                                                                                                                                                                                                                                              |
+| `lines`            | `List<SellLine>` | yes      | Lots to sell, non-empty, no duplicate `itemId`; the platform caps the count. Each `SellLine`: `itemId` (`int`, the instance object-id in the seller's inventory), `count` (`long`, positive), `priceAdena` (`long`, the buy-store line's unit price the seller saw). The item template is taken from the instance                                |
+| `sellerFeePercent` | `Integer`        | yes      | Seller-side fee in whole percent (`5` = 5%) withheld from the proceeds and burned: `ceilDiv(itemsTotal * pct, 100)`. Negative or above `100` (the proceeds would go negative) is rejected with `VALIDATION_FAILED`, never clamped; the platform decides the rate. `0` means no fee. `null` is `VALIDATION_FAILED` (absence is never read as `0`) |
+| `deadline`         | `Instant`        | yes      | Same as on `BuyFromPrivateStoreCommand`                                                                                                                                                                                                                                                                                                          |
+| `mailSender`       | `String`         | yes      | Author shown on the proceeds mail, non-blank. Platform-authored, already localized; written verbatim                                                                                                                                                                                                                                             |
+| `mailSubject`      | `String`         | yes      | Subject of the proceeds mail, non-blank. Same rules as `mailSender`                                                                                                                                                                                                                                                                              |
+| `mailBody`         | `String`         | yes      | Body of the proceeds mail, non-blank, final text (no placeholders). Same rules as `mailSender`                                                                                                                                                                                                                                                   |
+| `ownerVerified`    | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                                                                                                              |
 
 Deserialization bypasses the constructor, so the host re-validates ids, lines, duplicates, the fee and the mail text.
 
@@ -1121,14 +1156,14 @@ fees are burned.
 
 **Errors**
 
-| Status              | When                                                                                                                                                                                                                                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VALIDATION_FAILED` | Malformed `lines`, a duplicate `itemId`, more than 36 lines (`TOO_MANY_LINES`), `sellerFeePercent` missing or out of range, blank mail text, or seller and store owner are the same character                                                                                                                                            |
-| `NOT_FOUND`         | The store owner is not in the world or has no open buy-store (`STORE_CLOSED`)                                                                                                                                                                                                                                       |
+| Status              | When                                                                                                                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `VALIDATION_FAILED` | Malformed `lines`, a duplicate `itemId`, more than 36 lines (`TOO_MANY_LINES`), `sellerFeePercent` missing or out of range, blank mail text, or seller and store owner are the same character                                  |
+| `NOT_FOUND`         | The store owner is not in the world or has no open buy-store (`STORE_CLOSED`)                                                                                                                                                  |
 | `INVALID_STATE`     | `OFFER_CHANGED` (with `changedLines`), `SELLER_ITEM_UNAVAILABLE` (with `itemIds`), `STORE_OWNER_INSUFFICIENT_ADENA`, `SELLER_BUSY` (trade, craft, own store), `SELLER_LOGIN_IN_PROGRESS` (race with a login), `ADENA_OVERFLOW` |
-| `FORBIDDEN`         | `SELLER_ACCESS_RESTRICTED`: the seller is barred from trading at all (ban, jail, restricted account); `SELLER_ITEM_LOCKED`: the character's item lock, unless `ownerVerified`                                                                                                                                                                                                                |
-| `INTERNAL_ERROR`    | `MAIL_DELIVERY_FAILED`: the proceeds mail could not be persisted; the seller's items and the owner's adena are returned |
-| `COMMAND_EXPIRED`   | `deadline` has already passed when the host picked up the command; nothing moved                                                                                                                                                                                                                                    |
+| `FORBIDDEN`         | `SELLER_ACCESS_RESTRICTED`: the seller is barred from trading at all (ban, jail, restricted account); `SELLER_ITEM_LOCKED`: the character's item lock, unless `ownerVerified`                                                  |
+| `INTERNAL_ERROR`    | `MAIL_DELIVERY_FAILED`: the proceeds mail could not be persisted; the seller's items and the owner's adena are returned                                                                                                        |
+| `COMMAND_EXPIRED`   | `deadline` has already passed when the host picked up the command; nothing moved                                                                                                                                               |
 
 **Event.** The deal is reported by the existing `PrivateStorePurchaseEvent` with `storeType = BID`, `source = APP`,
 `seller_fee_*` metadata when the rate is above `0` and `buyer_fee_*` for a store opened from the app; the event api is
@@ -1257,7 +1292,7 @@ Commands the platform sends on behalf of a player acting with their own characte
 `OwnerVerified` and carry `ownerVerified` (spec R28): `SendChatMessageCommand`,
 `StartPrivateStoreSellCommand`, `StartPrivateStorePackageSellCommand`, `StartPrivateStoreBuyCommand`,
 `StopPrivateStoreCommand`, `BuyFromPrivateStoreCommand`, `SellToPrivateStoreCommand`, `SendPlayerMailCommand`, `AcceptMailCommand`, `StartOfflineFishingCommand`,
-`StopOfflineFishingCommand`.
+`StopOfflineFishingCommand`, `ReviveCharacterCommand`.
 
 - `true` means the platform verified, against fresh master-account data, that the acting user owns
   the character. Everything else sends `false`: staff actions, socially linked characters, the

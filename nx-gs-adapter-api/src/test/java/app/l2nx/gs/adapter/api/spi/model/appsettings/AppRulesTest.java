@@ -8,6 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -44,6 +48,12 @@ class AppRulesTest {
                 invalid("float distance 251", b -> b.fishingFloatDistance(251)),
                 invalid("spot pool with a dash", b -> b.fishingSpotPool("giran-harbor")),
                 invalid("fishing without a spot pool", b -> b.sessionTypeEnabled(ActivityType.OFFLINE_FISHING, true)),
+                invalid(
+                        "revive spot pool null name",
+                        b -> b.reviveTownSpotPools(Collections.<String>singletonList(null))),
+                invalid("revive spot pool with a dash", b -> b.reviveTownSpotPools(Arrays.asList("giran-town"))),
+                invalid("revive spot pool listed twice", b -> b.reviveTownSpotPools(Arrays.asList("giran", "giran"))),
+                invalid("revive SPOT_POOL without a pool", b -> b.reviveTownMode(ReviveTownMode.SPOT_POOL)),
                 invalid("restore batch 0", b -> b.restoreBatchSize(0)),
                 invalid("restore pause -1", b -> b.restoreBatchPauseMillis(-1)),
                 invalid("retention 6 days", b -> b.historyRetentionDays(6)));
@@ -82,6 +92,9 @@ class AppRulesTest {
             assertEquals(10, actual.restoreBatchSize());
             assertEquals(1000, actual.restoreBatchPauseMillis());
             assertEquals(90, actual.historyRetentionDays());
+            assertTrue(actual.reviveEnabled());
+            assertEquals(ReviveTownMode.NATIVE, actual.reviveTownMode());
+            assertEquals(Collections.<String>emptyList(), actual.reviveTownSpotPools());
         }
 
         @ParameterizedTest(name = "{0} is off by default")
@@ -177,6 +190,37 @@ class AppRulesTest {
             assertEquals(buildAccepts, AppRules.fishingDurationsOrdered(min, max));
         }
 
+        @ParameterizedTest(name = "{0} with {1} pools")
+        @CsvSource({"NATIVE, 0", "NATIVE, 1", "SPOT_POOL, 0", "SPOT_POOL, 1"})
+        void reviveTownSpotPoolsSuffice_shouldMatchWhatBuildEnforces(ReviveTownMode mode, int poolCount) {
+            List<String> pools = poolCount == 0 ? Collections.<String>emptyList() : Arrays.asList("giran");
+            AppRules.Builder builder = AppRules.builder().reviveTownMode(mode).reviveTownSpotPools(pools);
+
+            boolean buildAccepts = true;
+            try {
+                builder.build();
+            } catch (IllegalArgumentException e) {
+                buildAccepts = false;
+            }
+
+            assertEquals(buildAccepts, AppRules.reviveTownSpotPoolsSuffice(mode, pools));
+        }
+
+        @Test
+        void reviveTownSpotPools_shouldBeACopyFrozenOnBuild() {
+            List<String> pools = new ArrayList<String>(Arrays.asList("giran", "harbor"));
+            AppRules actual = AppRules.builder()
+                    .reviveTownMode(ReviveTownMode.SPOT_POOL)
+                    .reviveTownSpotPools(pools)
+                    .build();
+            pools.clear();
+
+            assertEquals(Arrays.asList("giran", "harbor"), actual.reviveTownSpotPools());
+            assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> actual.reviveTownSpotPools().add("dion"));
+        }
+
         @Test
         void build_shouldAcceptEveryRangeBound() {
             AppRules.builder()
@@ -225,6 +269,9 @@ class AppRulesTest {
                     .fishingFloatDistance(200)
                     .fishingSpotOrder(SpotOrder.FIRST_FREE)
                     .fishingSpotPool("harbor")
+                    .reviveEnabled(false)
+                    .reviveTownMode(ReviveTownMode.SPOT_POOL)
+                    .reviveTownSpotPools(Arrays.asList("harbor", "giran"))
                     .restoreBatchSize(3)
                     .restoreBatchPauseMillis(250)
                     .historyRetentionDays(30)

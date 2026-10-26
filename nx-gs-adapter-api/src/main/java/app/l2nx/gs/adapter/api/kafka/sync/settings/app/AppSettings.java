@@ -24,6 +24,7 @@ public final class AppSettings {
     private final int restartWindowMinutes;
     private final long fishingMinDurationMs;
     private final long fishingMaxDurationMs;
+    private final @Nullable ReviveSettings revive;
     private final Instant updatedAt;
 
     public AppSettings(
@@ -35,6 +36,7 @@ public final class AppSettings {
             int restartWindowMinutes,
             long fishingMinDurationMs,
             long fishingMaxDurationMs,
+            @Nullable ReviveSettings revive,
             Instant updatedAt) {
         if (recentlyLeftGameMinutes < 0
                 || fishingStartCooldownMinutes < 0
@@ -57,6 +59,7 @@ public final class AppSettings {
         this.restartWindowMinutes = restartWindowMinutes;
         this.fishingMinDurationMs = fishingMinDurationMs;
         this.fishingMaxDurationMs = fishingMaxDurationMs;
+        this.revive = revive;
         this.updatedAt = Objects.requireNonNull(updatedAt, "AppSettings.updatedAt is required");
     }
 
@@ -98,6 +101,14 @@ public final class AppSettings {
         return fishingMaxDurationMs;
     }
 
+    /**
+     * {@code null}: the host runs an adapter older than this group and knows no revive command; the platform offers no
+     * revive for the server.
+     */
+    public @Nullable ReviveSettings getRevive() {
+        return revive;
+    }
+
     public Instant getUpdatedAt() {
         return updatedAt;
     }
@@ -112,6 +123,7 @@ public final class AppSettings {
                 .restartWindowMinutes(restartWindowMinutes)
                 .fishingMinDurationMs(fishingMinDurationMs)
                 .fishingMaxDurationMs(fishingMaxDurationMs)
+                .revive(revive)
                 .updatedAt(updatedAt);
     }
 
@@ -132,6 +144,7 @@ public final class AppSettings {
                 && fishingMinDurationMs == that.fishingMinDurationMs
                 && fishingMaxDurationMs == that.fishingMaxDurationMs
                 && Objects.equals(sessionTypes, that.sessionTypes)
+                && Objects.equals(revive, that.revive)
                 && Objects.equals(updatedAt, that.updatedAt);
     }
 
@@ -146,6 +159,7 @@ public final class AppSettings {
                 restartWindowMinutes,
                 fishingMinDurationMs,
                 fishingMaxDurationMs,
+                revive,
                 updatedAt);
     }
 
@@ -159,6 +173,7 @@ public final class AppSettings {
                 + ", restartWindowMinutes=" + restartWindowMinutes
                 + ", fishingMinDurationMs=" + fishingMinDurationMs
                 + ", fishingMaxDurationMs=" + fishingMaxDurationMs
+                + ", revive=" + revive
                 + ", updatedAt=" + updatedAt + "]";
     }
 
@@ -171,6 +186,7 @@ public final class AppSettings {
         private int restartWindowMinutes;
         private long fishingMinDurationMs;
         private long fishingMaxDurationMs;
+        private @Nullable ReviveSettings revive;
         private @Nullable Instant updatedAt;
 
         public Builder sessionTypes(@Nullable List<AppSessionTypeSettings> sessionTypes) {
@@ -213,6 +229,11 @@ public final class AppSettings {
             return this;
         }
 
+        public Builder revive(@Nullable ReviveSettings revive) {
+            this.revive = revive;
+            return this;
+        }
+
         public Builder updatedAt(Instant updatedAt) {
             this.updatedAt = updatedAt;
             return this;
@@ -228,6 +249,7 @@ public final class AppSettings {
                     restartWindowMinutes,
                     fishingMinDurationMs,
                     fishingMaxDurationMs,
+                    revive,
                     updatedAt);
         }
     }

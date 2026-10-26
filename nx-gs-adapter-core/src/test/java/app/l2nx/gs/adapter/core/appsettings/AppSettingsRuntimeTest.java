@@ -8,13 +8,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSessionTypeSettings;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.ReviveSettings;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
+import app.l2nx.gs.adapter.api.spi.model.appsettings.ReviveTownMode;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -178,6 +181,7 @@ class AppSettingsRuntimeTest {
                     .restartWindowMinutes(25)
                     .fishingMinDurationMinutes(10)
                     .fishingMaxDurationMinutes(240)
+                    .reviveEnabled(false)
                     .build();
 
             AppSettings actual = AppSettingsRuntime.toSettings(rules, Instant.parse("2026-10-23T10:00:00Z"));
@@ -193,6 +197,7 @@ class AppSettingsRuntimeTest {
                     .restartWindowMinutes(25)
                     .fishingMinDurationMs(600_000L)
                     .fishingMaxDurationMs(14_400_000L)
+                    .revive(new ReviveSettings(false))
                     .updatedAt(Instant.parse("2026-10-23T10:00:00Z"))
                     .build();
             assertEquals(expected, actual);
@@ -206,10 +211,20 @@ class AppSettingsRuntimeTest {
                     AppRules.builder()
                             .fishingFloatDistance(200)
                             .restoreBatchSize(2)
+                            .reviveTownMode(ReviveTownMode.SPOT_POOL)
+                            .reviveTownSpotPools(Collections.singletonList("harbor"))
                             .build(),
                     at);
 
             assertEquals(AppSettingsRuntime.toSettings(AppRules.defaults(), at), actual);
+        }
+
+        @Test
+        void toSettings_shouldCarryReviveEnabled_whenDefaults() {
+            AppSettings actual =
+                    AppSettingsRuntime.toSettings(AppRules.defaults(), Instant.parse("2026-10-23T10:00:00Z"));
+
+            assertEquals(new ReviveSettings(true), actual.getRevive());
         }
     }
 
