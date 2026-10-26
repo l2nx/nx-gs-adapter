@@ -14,6 +14,18 @@ description: Шаги обновления адаптера через breaking 
   что изменилось и что делать.
 - Документация всегда описывает текущую версию.
 
+## nx-gs-adapter-api 0.119.0: `clanId` и `allianceId` в сообщениях чата
+
+**Ломает только Java-код.** `ChatMetadataKeys.CLAN_ID` и `ChatMetadataKeys.ALLIANCE_ID` удалены, deprecated-копии нет.
+У `ChatMessageEvent` появились поля `clanId` и `allianceId` (`Long`, nullable) на каждом канале; конструктор принимает
+их двумя новыми последними параметрами, а у билдера есть `clanId(...)` и `allianceId(...)`.
+
+- Хост, который писал id клана и альянса в `metadata` события, задаёт вместо этого два поля и перестаёт писать эти
+  ключи: платформа больше не читает их из `metadata`.
+- Поля хранят клан и альянс говорящего на момент реплики. Сообщение без законного отправителя несёт адресата: на `CLAN`
+  его клан и альянс, на `ALLIANCE` только альянс. Нет клана или альянса: `null`.
+- Код, который вызывает конструктор `ChatMessageEvent` напрямую, передаёт в новые параметры `null` либо id.
+
 ## nx-gs-adapter-api 0.117.1, nx-gs-adapter-core 0.49.1: `LifeStoneGrade.JEWELRY`, `GameSettingsProvider`
 
 **Ломает только Java-код.** Константа `ACCESSORY` в `LifeStoneGrade` теперь `JEWELRY` (слоты шеи, ушей и пальцев);

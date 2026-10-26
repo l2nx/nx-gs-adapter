@@ -12,7 +12,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * {@code eventId} is the dedup key under at-least-once delivery. {@code charId} {@code 0} means the platform spoke:
  * store an absent character. {@code senderDisplayName}, {@code recipientCharacterIds} and {@code items} are additive:
- * hosts that predate them send {@code null}.
+ * hosts that predate them send {@code null}. {@code clanId} and {@code allianceId} are the speaker's at the moment of speaking. Without a
+ * legal sender they carry the addressee: on {@code CLAN} its clan and alliance, on {@code ALLIANCE} only the alliance.
  */
 public final class ChatMessageEvent {
 
@@ -27,6 +28,8 @@ public final class ChatMessageEvent {
     private final @Nullable String senderDisplayName;
     private final @Nullable List<Long> recipientCharacterIds;
     private final @Nullable List<ChatItemSnapshot> items;
+    private final @Nullable Long clanId;
+    private final @Nullable Long allianceId;
 
     public ChatMessageEvent(
             UUID eventId,
@@ -39,7 +42,9 @@ public final class ChatMessageEvent {
             @Nullable Map<String, String> metadata,
             @Nullable String senderDisplayName,
             @Nullable List<Long> recipientCharacterIds,
-            @Nullable List<ChatItemSnapshot> items) {
+            @Nullable List<ChatItemSnapshot> items,
+            @Nullable Long clanId,
+            @Nullable Long allianceId) {
         this.eventId = Objects.requireNonNull(eventId, "eventId");
         this.charId = charId;
         this.charName = charName;
@@ -54,6 +59,8 @@ public final class ChatMessageEvent {
                 ? null
                 : Collections.unmodifiableList(new ArrayList<Long>(recipientCharacterIds));
         this.items = items == null ? null : Collections.unmodifiableList(new ArrayList<ChatItemSnapshot>(items));
+        this.clanId = clanId;
+        this.allianceId = allianceId;
     }
 
     public UUID getEventId() {
@@ -102,6 +109,14 @@ public final class ChatMessageEvent {
         return items;
     }
 
+    public @Nullable Long getClanId() {
+        return clanId;
+    }
+
+    public @Nullable Long getAllianceId() {
+        return allianceId;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .eventId(eventId)
@@ -114,7 +129,9 @@ public final class ChatMessageEvent {
                 .metadata(metadata)
                 .senderDisplayName(senderDisplayName)
                 .recipientCharacterIds(recipientCharacterIds)
-                .items(items);
+                .items(items)
+                .clanId(clanId)
+                .allianceId(allianceId);
     }
 
     public static Builder builder() {
@@ -136,7 +153,9 @@ public final class ChatMessageEvent {
                 && Objects.equals(metadata, that.metadata)
                 && Objects.equals(senderDisplayName, that.senderDisplayName)
                 && Objects.equals(recipientCharacterIds, that.recipientCharacterIds)
-                && Objects.equals(items, that.items);
+                && Objects.equals(items, that.items)
+                && Objects.equals(clanId, that.clanId)
+                && Objects.equals(allianceId, that.allianceId);
     }
 
     @Override
@@ -152,7 +171,9 @@ public final class ChatMessageEvent {
                 metadata,
                 senderDisplayName,
                 recipientCharacterIds,
-                items);
+                items,
+                clanId,
+                allianceId);
     }
 
     @Override
@@ -167,7 +188,9 @@ public final class ChatMessageEvent {
                 + ", metadata=" + metadata
                 + ", senderDisplayName=" + senderDisplayName
                 + ", recipientCharacterIds=" + recipientCharacterIds
-                + ", items=" + items + "]";
+                + ", items=" + items
+                + ", clanId=" + clanId
+                + ", allianceId=" + allianceId + "]";
     }
 
     public static final class Builder {
@@ -182,6 +205,8 @@ public final class ChatMessageEvent {
         private @Nullable String senderDisplayName;
         private @Nullable List<Long> recipientCharacterIds;
         private @Nullable List<ChatItemSnapshot> items;
+        private @Nullable Long clanId;
+        private @Nullable Long allianceId;
 
         public Builder eventId(UUID eventId) {
             this.eventId = eventId;
@@ -238,6 +263,16 @@ public final class ChatMessageEvent {
             return this;
         }
 
+        public Builder clanId(@Nullable Long clanId) {
+            this.clanId = clanId;
+            return this;
+        }
+
+        public Builder allianceId(@Nullable Long allianceId) {
+            this.allianceId = allianceId;
+            return this;
+        }
+
         public ChatMessageEvent build() {
             return new ChatMessageEvent(
                     eventId,
@@ -250,7 +285,9 @@ public final class ChatMessageEvent {
                     metadata,
                     senderDisplayName,
                     recipientCharacterIds,
-                    items);
+                    items,
+                    clanId,
+                    allianceId);
         }
     }
 }

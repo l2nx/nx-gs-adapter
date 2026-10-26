@@ -10,7 +10,7 @@ import org.jspecify.annotations.Nullable;
  * Wire DTO for one clan, payload of {@code SyncEvent<ClanDbDto>}. {@code id} and {@code name} are required.
  *
  * Zero sentinels ({@code leader_id}/{@code ally_id}) map to null. {@code skills} is null when the tenant does
- * not sync skills, empty when none. {@code icon} is the crest as decoded PNG bytes.
+ * not sync skills, empty when none. {@code icon} is the clan icon as decoded PNG bytes.
  */
 public final class ClanDbDto {
 

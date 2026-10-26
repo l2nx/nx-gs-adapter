@@ -102,6 +102,46 @@ class ChatMessageEventTest {
     }
 
     @Nested
+    class ClanFields {
+
+        @Test
+        void builder_shouldCarryClanAndAlliance() {
+            ChatMessageEvent event = base().clanId(7L).allianceId(3L).build();
+
+            assertEquals(7L, event.getClanId());
+            assertEquals(3L, event.getAllianceId());
+            assertEquals(event, event.toBuilder().build());
+        }
+
+        @Test
+        void equals_shouldDistinguishClanId() {
+            UUID id = UUID.randomUUID();
+
+            assertNotEquals(
+                    base().eventId(id).clanId(1L).build(),
+                    base().eventId(id).clanId(2L).build());
+        }
+
+        @Test
+        void roundtrip_shouldPreserveClanAndAlliance() {
+            ChatMessageEvent original = base().clanId(7L).allianceId(3L).build();
+
+            assertEquals(original, GSON.fromJson(GSON.toJson(original), ChatMessageEvent.class));
+        }
+
+        @Test
+        void fromJson_shouldReadClanFieldsAsNull_whenAbsent() {
+            String old = "{\"eventId\":\"" + UUID.randomUUID()
+                    + "\",\"charId\":5,\"charName\":\"Vasya\",\"channel\":\"CLAN\",\"text\":\"hi\"}";
+
+            ChatMessageEvent parsed = GSON.fromJson(old, ChatMessageEvent.class);
+
+            assertNull(parsed.getClanId());
+            assertNull(parsed.getAllianceId());
+        }
+    }
+
+    @Nested
     class GsonRoundtrip {
 
         @Test
@@ -182,10 +222,5 @@ class ChatMessageEventTest {
             assertEquals(original, original.toBuilder().build());
             assertEquals(original.hashCode(), original.toBuilder().build().hashCode());
         }
-    }
-
-    @Test
-    void allianceIdKey_shouldBeCamelCase() {
-        assertEquals("allianceId", ChatMetadataKeys.ALLIANCE_ID);
     }
 }

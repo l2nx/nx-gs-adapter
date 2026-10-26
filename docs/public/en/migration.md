@@ -14,6 +14,18 @@ here are drop-in: bump the version and restart.
   what changed, and what to do.
 - The documentation always describes the current version.
 
+## nx-gs-adapter-api 0.119.0: `clanId` and `allianceId` on chat messages
+
+**Breaking for Java code only.** `ChatMetadataKeys.CLAN_ID` and `ChatMetadataKeys.ALLIANCE_ID` are removed, with no
+deprecated copy. `ChatMessageEvent` now has the fields `clanId` and `allianceId` (`Long`, nullable) on every channel;
+its constructor takes them as two new trailing parameters, and the builder has `clanId(...)` and `allianceId(...)`.
+
+- A host that wrote the clan and alliance ids into the event `metadata` sets the two fields instead and stops writing
+  those keys: the platform no longer reads them from `metadata`.
+- The fields hold the speaker's clan and alliance at the moment of speaking. A message without a legal sender carries
+  the addressee: on `CLAN` its clan and alliance, on `ALLIANCE` only the alliance. No clan or alliance means `null`.
+- Code that calls the `ChatMessageEvent` constructor directly passes `null` for both new parameters, or the ids.
+
 ## nx-gs-adapter-api 0.117.1, nx-gs-adapter-core 0.49.1: `LifeStoneGrade.JEWELRY`, `GameSettingsProvider`
 
 **Breaking for Java code only.** The `LifeStoneGrade` constant `ACCESSORY` is now `JEWELRY` (neck, ear and finger

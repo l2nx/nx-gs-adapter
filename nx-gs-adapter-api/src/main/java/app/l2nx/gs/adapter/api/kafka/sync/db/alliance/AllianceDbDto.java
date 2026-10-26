@@ -6,7 +6,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Wire DTO for one alliance, payload of {@code SyncEvent<AllianceDbDto>}. {@code id} and {@code name} are required.
- * {@code icon} is the crest as PNG bytes, same as {@code ClanDbDto.icon}.
+ * {@code icon} is the alliance icon as PNG bytes, same as {@code ClanDbDto.icon}.
  */
 public final class AllianceDbDto {
 

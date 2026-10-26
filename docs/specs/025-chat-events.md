@@ -53,6 +53,8 @@ path.
     for a build-specific channel this catalog does not yet name. Null-checked in the constructor.
   - `String text` — REQUIRED. Message body, already sanitized host-side. Null-checked in the
     constructor.
+  - `@Nullable Long clanId` / `@Nullable Long allianceId` — the speaker's clan and its alliance at the moment of
+    speaking, on every channel; see R7, R21.
   - `@Nullable Long targetCharId` / `@Nullable String targetCharName` — whisper recipient.
     Populated ONLY on the `WHISPER` channel; both `null` on every other channel. `targetCharId` is
     `null` only when the recipient cannot be resolved at all; an offline addressee is resolved by
@@ -94,11 +96,16 @@ path.
   sender id; retention follows the platform-wide event-topic default — long-term moderation history
   is a consumer-side concern, not Kafka's. Design: `nx-gameservers/docs/specs/073-chat.md`.
 
-- [done] R7. On the `CLAN` and `ALLIANCE` channels the host SHOULD carry the speaker's clan id in
-  `metadata` under the key `clanId` (the alliance id travels under its own key, R21). The platform scopes clan-chat reads by it. Resolving the clan
-  from the platform's own replica instead is wrong: the replica lags, so a message from a character
-  who just left the clan lands in the wrong scope, while the host knows the clan at the moment of
-  speaking. No api release is needed — `metadata` is the open map R1 provides for exactly this.
+- [done] R7. `ChatMessageEvent.clanId` MUST carry the speaker's clan id at the moment of speaking, on every channel, for
+  any message with a legal sender; `null` when the speaker has no clan. A line without a legal sender (a system line
+  sent by command) carries the addressee instead: on `CLAN` the addressed clan and its alliance, on `ALLIANCE` only the
+  addressed alliance with `clanId` `null`, elsewhere both `null`. The platform scopes
+  clan-chat reads by it and shows the speaker's clan next to every line. Resolving the clan from the platform's own
+  replica instead is wrong: the replica lags, so a message from a character who just left the clan lands in the wrong
+  scope and shows the wrong clan, while the host knows the clan at the moment of speaking. The echo of a command sent
+  from the app carries the same fields. (Before `api/v0.119.0` the id rode in `metadata` under `clanId`, on `CLAN` and
+  `ALLIANCE` only, as a routing address; once it became an attribute of the speaker that every build must fill, it
+  moved to a typed field and the metadata key was removed in the same release.)
 
 - [done] R16. `ChatMessageEvent.senderDisplayName` MUST carry the name exactly as the game client
   renders it. The host appends `*` (no space) when the speaking character is not in game (offline or
@@ -111,7 +118,7 @@ path.
   regional `SHOUT` (R28) (`null` elsewhere): the characters that actually received the packet, plus
   the speaker. Party has no stable id and the `GENERAL` / regional `SHOUT` audience is positional, so
   the recipient list is the only way to scope those channels on the read side. Clan / alliance scoping
-  keeps using metadata ids.
+  uses the `clanId` / `allianceId` fields (R7, R21).
 
 - [done] R18. `ChatMessageEvent.items` MUST hold an immutable `ChatItemSnapshot` for every item link
   present in `text`, one per objectId, taken at send time: the item's later state (enchant, augment,
@@ -145,8 +152,9 @@ path.
 - [done] R20. `WHISPER`: `targetCharId` MUST be set also when the addressee is offline; the host
   resolves by name, including the `Name*` form (R16).
 
-- [done] R21. `ChatMetadataKeys.ALLIANCE_ID = "allianceId"` MUST carry the speaker's alliance id as a
-  decimal string on the `CLAN` and `ALLIANCE` channels, same rationale as R7. Naming follows the
+- [done] R21. `ChatMessageEvent.allianceId` MUST carry the alliance of the speaker's clan at the moment of speaking, on
+  every channel; `null` when the clan has no alliance or the speaker has no clan. Same rationale as R7; a field of its
+  own, not derived from the clan on the read side, because the clan may change alliance after the message. Naming follows the
   platform canon (full words: alliance, character); the shipped `charId` / `targetCharId` /
   `targetCharName` are NOT renamed.
 
@@ -164,9 +172,9 @@ path.
     the whole online set on every message, so the host publishes **no** list and instead marks the
     event with `ChatMetadataKeys.SERVER_WIDE = "serverWide"`, value `"true"` (key absent otherwise).
     Consumers treat a `serverWide` `SHOUT` like `WORLD` / `HERO`: visible server-wide.
-  Without the marker a consumer would see a `SHOUT` with neither a list nor a scope key and could only
-  guess between "nobody" and "everybody". `metadata` is the open map R1 provides, so the key needs no
-  new field; consumers ignore it on hosts that never send it.
+    Without the marker a consumer would see a `SHOUT` with neither a list nor a scope key and could only
+    guess between "nobody" and "everybody". `metadata` is the open map R1 provides, so the key needs no
+    new field; consumers ignore it on hosts that never send it.
 
 > Host-internal, not wire: the host keeps a bounded snapshot cache (objectId -> item info, TTL 6h,
 > re-link refreshes) so in-game players can open links sent by offline characters.
@@ -184,14 +192,23 @@ path.
 ## Compatibility
 
 Purely additive and already released — `ChatMessageEvent` + `WellKnownChatChannels` in
-`api/v0.67.0`, the registry binding in `core/v0.32.0`. R16-R21 and R28 are additive on top of that: new
+`api/v0.67.0`, the registry binding in `core/v0.32.0`. R16-R20, R21a and R28 are additive on top of that: new
 nullable event fields, one new wire class, new metadata keys, `ChatItemSnapshot.count`; old hosts omit
 them and consumers tolerate absence. The one behavioral change is R19 (publish after delivery).
+
+**`api/v0.119.0` — clan and alliance as fields (R7, R21).** Breaking on the wire: `ChatMetadataKeys.CLAN_ID` /
+`ALLIANCE_ID` are removed in the same release that adds `clanId` / `allianceId`, with no `@Deprecated` copy. The host
+switches in one release. The platform reads the `metadata` keys of a not-yet-restarted host with its own private
+constants until the gate "every game server of the tenant restarted on the new host", then deletes that branch.
 
 **Constructor rule.** `ChatItemSnapshot.count` is appended at the end of its canonical constructor; no
 overload keeping the old signature (two visible constructors break parameter-name binding for every
 consumer). On the wire nothing breaks; a host calling the constructor positionally adds one `null` and
 recompiles — hosts use `builder()`.
+
+**Deferred.** `ChatMetadataKeys` and `WellKnownChatChannels` are still constant holders, and the chat slice has three
+supporting types in its root (`model/` threshold, spec 034). Converting them to enums and moving them is
+[#33](https://github.com/l2nx/nx-gs-adapter/issues/33); it changes Java types only, not the wire.
 
 ## Non-goals
 
