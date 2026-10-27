@@ -45,8 +45,8 @@ description: Шаги обновления адаптера через breaking 
   `StartOfflineFishingCommand.fishingShotItemId`. Отказ `DAILY_LIMIT` теперь может нести `retryAt` — момент сброса
   суточного лимита; если ваша сборка этот момент не знает, не передавайте его.
 - **`ActivityMetadataKey`** называет ключи `metadata` строки activity usage (`elapsed`, `remaining`, `rodItemId`,
-  `baitItemId`, `fishingShotItemId`, `spotPool`, `spotId` и `lots` — число позиций в лавке `SELL`, `PACKAGE_SELL` или
-  `BUY`); пишите `key()` вместо своих строк. Словарь остаётся открытым.
+  `baitItemId`, `fishingShotItemId`, `spotPool`, `spotId`); пишите `key()` вместо своих строк. Словарь остаётся
+  открытым.
 - **Снимок открытых сессий.** Core публикует `AppSessionsSnapshotEvent` (id всех открытых сессий приложения сервера)
   раз в 60 с и при старте модуля app-sessions и переотправляет завершение сессии, пока платформа его не подтвердит. На
   хосте поднимите `nx-gs-db-migrations` до 0.5.0 вместе с core: нужную колонку добавляют его changeset-ы.

@@ -45,8 +45,8 @@ here are drop-in: bump the version and restart.
   `StartOfflineFishingCommand.fishingShotItemId`. A `DAILY_LIMIT` refusal may now carry `retryAt`, the moment your
   daily allowance resets; leave it out when your build does not know that moment.
 - **`ActivityMetadataKey`** names the keys of an activity-usage row `metadata` (`elapsed`, `remaining`, `rodItemId`,
-  `baitItemId`, `fishingShotItemId`, `spotPool`, `spotId`, and `lots` — the lines listed in a `SELL`, `PACKAGE_SELL` or
-  `BUY` private store); write `key()` instead of your own strings. The map stays open.
+  `baitItemId`, `fishingShotItemId`, `spotPool`, `spotId`); write `key()` instead of your own strings. The map stays
+  open.
 - **Open-sessions snapshot.** The core publishes `AppSessionsSnapshotEvent` (the ids of every open app session of the
   server) every 60 s and when the app-sessions module starts, and republishes a session end until the platform has
   acknowledged it. Bump `nx-gs-db-migrations` to 0.5.0 with the core: its changesets add the column this needs.
