@@ -1499,3 +1499,10 @@ to players yet, so the contract is changed directly, with no deprecated fields a
   `SoldLine`. No existing member changes; the event api is unchanged (`PrivateStorePurchaseEvent` with `storeType = BID`).
 - Rollout: release the api, then the platform; a host that has not restarted answers `UNSUPPORTED_COMMAND` for the new
   command, and the host picks it up on its next restart.
+
+### Changes of api `0.122.0` (runtime)
+
+- Breaking (source): the canonical constructor of `CharacterRuntimeDto` takes a new last parameter,
+  `privateStoreBuySlots` (`@Nullable Integer`, the maximum number of lines of a private buy store, independent of
+  `privateStoreSellSlots`; `null` = not reported); callers and builders-by-constructor must pass it
+  ([`028`](../028-character-inventory-capacity.md)).

@@ -42,6 +42,7 @@ public final class CharacterRuntimeDto {
     private final @Nullable Integer maxWeight;
     private final @Nullable List<CharacterEffect> effects;
     private final @Nullable Integer privateStoreSellSlots;
+    private final @Nullable Integer privateStoreBuySlots;
 
     /**
      * Must stay the only constructor: an overload makes creator detection ambiguous and consumers stop deserializing
@@ -73,7 +74,8 @@ public final class CharacterRuntimeDto {
             @Nullable Integer curWeight,
             @Nullable Integer maxWeight,
             @Nullable List<CharacterEffect> effects,
-            @Nullable Integer privateStoreSellSlots) {
+            @Nullable Integer privateStoreSellSlots,
+            @Nullable Integer privateStoreBuySlots) {
         this.id = id;
         this.curHp = curHp;
         this.maxHp = maxHp;
@@ -100,6 +102,7 @@ public final class CharacterRuntimeDto {
         this.maxWeight = maxWeight;
         this.effects = copy(effects);
         this.privateStoreSellSlots = privateStoreSellSlots;
+        this.privateStoreBuySlots = privateStoreBuySlots;
     }
 
     private static <T> @Nullable List<T> copy(@Nullable List<T> values) {
@@ -138,7 +141,8 @@ public final class CharacterRuntimeDto {
                 || curWeight != null
                 || maxWeight != null
                 || effects != null
-                || privateStoreSellSlots != null;
+                || privateStoreSellSlots != null
+                || privateStoreBuySlots != null;
     }
 
     public @Nullable Integer getCurHp() {
@@ -253,6 +257,13 @@ public final class CharacterRuntimeDto {
         return privateStoreSellSlots;
     }
 
+    /**
+     * Maximum lines of a private buy store, independent of the sell limit; {@code null} = not reported.
+     */
+    public @Nullable Integer getPrivateStoreBuySlots() {
+        return privateStoreBuySlots;
+    }
+
     public boolean isOnlineEffective() {
         return online == null || online;
     }
@@ -284,7 +295,8 @@ public final class CharacterRuntimeDto {
                 .curWeight(curWeight)
                 .maxWeight(maxWeight)
                 .effects(effects)
-                .privateStoreSellSlots(privateStoreSellSlots);
+                .privateStoreSellSlots(privateStoreSellSlots)
+                .privateStoreBuySlots(privateStoreBuySlots);
     }
 
     public static Builder builder() {
@@ -321,7 +333,8 @@ public final class CharacterRuntimeDto {
                 && Objects.equals(curWeight, that.curWeight)
                 && Objects.equals(maxWeight, that.maxWeight)
                 && Objects.equals(effects, that.effects)
-                && Objects.equals(privateStoreSellSlots, that.privateStoreSellSlots);
+                && Objects.equals(privateStoreSellSlots, that.privateStoreSellSlots)
+                && Objects.equals(privateStoreBuySlots, that.privateStoreBuySlots);
     }
 
     @Override
@@ -352,7 +365,8 @@ public final class CharacterRuntimeDto {
                 curWeight,
                 maxWeight,
                 effects,
-                privateStoreSellSlots);
+                privateStoreSellSlots,
+                privateStoreBuySlots);
     }
 
     @Override
@@ -374,7 +388,8 @@ public final class CharacterRuntimeDto {
                 + ", maxQuestInventorySlots=" + maxQuestInventorySlots
                 + ", curWeight=" + curWeight + ", maxWeight=" + maxWeight
                 + ", effects=" + effects
-                + ", privateStoreSellSlots=" + privateStoreSellSlots + "]";
+                + ", privateStoreSellSlots=" + privateStoreSellSlots
+                + ", privateStoreBuySlots=" + privateStoreBuySlots + "]";
     }
 
     public static final class Builder {
@@ -404,6 +419,7 @@ public final class CharacterRuntimeDto {
         private @Nullable Integer maxWeight;
         private @Nullable List<CharacterEffect> effects;
         private @Nullable Integer privateStoreSellSlots;
+        private @Nullable Integer privateStoreBuySlots;
 
         public Builder id(long id) {
             this.id = id;
@@ -535,6 +551,11 @@ public final class CharacterRuntimeDto {
             return this;
         }
 
+        public Builder privateStoreBuySlots(@Nullable Integer privateStoreBuySlots) {
+            this.privateStoreBuySlots = privateStoreBuySlots;
+            return this;
+        }
+
         public CharacterRuntimeDto build() {
             return new CharacterRuntimeDto(
                     id,
@@ -562,7 +583,8 @@ public final class CharacterRuntimeDto {
                     curWeight,
                     maxWeight,
                     effects,
-                    privateStoreSellSlots);
+                    privateStoreSellSlots,
+                    privateStoreBuySlots);
         }
     }
 }

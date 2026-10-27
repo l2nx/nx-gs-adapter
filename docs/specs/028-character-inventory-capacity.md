@@ -59,21 +59,29 @@ engine's own capacity accessors on the runtime snapshot thread (all O(1) field r
 calls) and adds the six values to the runtime hash, so a pickup or a cap change propagates on the
 next tick.
 
-## Private sell store slots (design, not released)
+## Private store slots
 
-One more optional field on `CharacterRuntimeDto`, appended at the end of the canonical constructor under
-the same no-overload rule:
+Two optional fields at the end of the canonical constructor of `CharacterRuntimeDto`, under the same no-overload
+rule:
 
-| field                   | semantics                                                                                                                                                                                           |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `privateStoreSellSlots` | `@Nullable Integer`: the maximum number of lines a private sell store of this character may hold right now. `null` = the host does not report it (no signal, not zero), as for the six fields above |
+| field                   | semantics                                                                                                                                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `privateStoreSellSlots` | `@Nullable Integer`: the maximum number of lines a private **sell** store (including a package sell store) of this character may hold right now. `null` = the host does not report it (no signal, not zero) |
+| `privateStoreBuySlots`  | `@Nullable Integer`: the maximum number of lines a private **buy** store of this character may hold right now. `null` = the host does not report it                                                         |
 
-The value is computed by the host (race, purchased expansion, stats and server cap are host internals the
-platform does not reconstruct). The host SHOULD resync when the value changes (an expansion purchase, a stat
-change), not on a timer, so a consumer shows the new limit without a relog; the runtime hash includes the
-field. The platform does not pre-validate the line count against it: the host stays the judge and refuses
-an oversized start with `TOO_MANY_LINES`
-([`009-commands/catalog.md`](009-commands/catalog.md)). Purely additive, same release rule as below.
+The two limits are independent: a host computes each from its own base, stat and purchased expansion, so a
+character may hold 4 sell lines and 9 buy lines. A consumer picks the limit by store type and never applies the
+sell limit to a buy store.
+
+The values are computed by the host (race, purchased expansion, stats and server cap are host internals the
+platform does not reconstruct). The host SHOULD resync when a value changes (an expansion purchase, a stat
+change), not on a timer, so a consumer shows the new limit without a relog; the runtime hash includes both
+fields. The platform does not pre-validate the line count against them: the host stays the judge and refuses
+an oversized start with `TOO_MANY_LINES` ([`009-commands/catalog.md`](009-commands/catalog.md)).
+
+`privateStoreSellSlots` shipped in api `0.103.0`, `privateStoreBuySlots` in api `0.122.0`. Adding a field is
+source-breaking for callers of the canonical constructor (they pass `null` for a value they do not report) and
+additive on the wire.
 
 ## Release
 
