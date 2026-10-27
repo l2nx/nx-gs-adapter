@@ -84,9 +84,8 @@ The session mechanics (table, lifecycle, events, restart) are in
   and `spotId` ([`017`](../017-character-runtime-activity.md) R17), so every device of the player sees the plan and the
   gear, not only the one that started it. Implemented in the adapter, not yet released.
 - [done] R12. **IP limit.** The app session counts in the host's per-IP fishing limit (scope `IP`, a new
-  `AlreadyActiveScope` value) under two IPs: `initiator.ip` of the start, and the character's last game-client IP when
-  the character played with a client recently enough (the host's own setting). Live fishing counts app sessions under
-  both IPs too. Both IPs pass `ClientIdentifiers`; a placeholder limits nothing. The limit itself is a host rule, off
+  `AlreadyActiveScope` value) under `initiator.ip` of the start. Live fishing counts app sessions under that IP too.
+  The IP passes `ClientIdentifiers`; a placeholder limits nothing. The limit itself is a host rule, off
   when the host's per-IP limit is off. Implemented in the adapter, not yet released.
 
 **Non-goals:**
@@ -135,7 +134,7 @@ Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 | `MASTER_ACCOUNT` | another fishing app session of the same master account is open; counts app sessions only, because the host does not know the master account of a live player |
 | `ACCOUNT`        | the game account already fishes, live or through the app                                                                                                     |
 | `HWID`           | the device (the session's hwid snapshot) already fishes, live or through the app; a missing or placeholder hwid is `null` and limits nothing                 |
-| `IP`             | the IP already fishes, live or through the app (R12); an app session counts under the start's `initiator.ip` and the character's recent game-client IP       |
+| `IP`             | the IP already fishes, live or through the app (R12); an app session counts under the start's `initiator.ip`                                                  |
 
 Until R12 ships there is no IP scope and app sessions are not counted in any per-IP limit.
 

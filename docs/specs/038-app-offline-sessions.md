@@ -674,7 +674,7 @@ CompletableFuture<Optional<OfflineSession>> findLastStartedByCharacter(int chara
 - Semantics: it counts app sessions only. The host does not know the master account of a live player, so live fishing
   never counts against this limit; the host's per-account and per-device limits cover live and app fishing together,
   using the session's `accountName` and `hwid`. IP is not a limit subject of this read. The host's own
-  per-IP limit counts an app session under `initiator_ip` and the character's recent game-client IP
+  per-IP limit counts an app session under `initiator_ip`
   ([`offline-fishing.md`](009-commands/offline-fishing.md) R12); the host holds that registry, the read is unchanged.
 - Concurrency: the check and the engine `start` are two steps. Two starts for different characters of one master
   account can both pass unless the host serializes its fishing starts per master account (the table does not enforce
