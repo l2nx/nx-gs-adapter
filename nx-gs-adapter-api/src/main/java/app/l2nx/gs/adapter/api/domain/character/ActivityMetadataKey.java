@@ -34,7 +34,14 @@ public enum ActivityMetadataKey implements Vocabularies.Keyed {
     SPOT_POOL("spotPool"),
 
     /** The spot inside {@link #SPOT_POOL}. */
-    SPOT_ID("spotId");
+    SPOT_ID("spotId"),
+
+    /**
+     * Lines listed in the current private store, decimal; a {@code BUY} store counts the lines of its buy list.
+     * {@link ActivityType#PRIVATE_STORE} / {@link ActivityType#OFFLINE_PRIVATE_STORE} rows of a {@code SELL},
+     * {@code PACKAGE_SELL} or {@code BUY} store; absent for {@code CRAFT}.
+     */
+    LOTS("lots");
 
     private final String key;
 

@@ -22,7 +22,8 @@ class ActivityMetadataKeyTest {
             "baitItemId,BAIT_ITEM_ID",
             "fishingShotItemId,FISHING_SHOT_ITEM_ID",
             "spotPool,SPOT_POOL",
-            "spotId,SPOT_ID"
+            "spotId,SPOT_ID",
+            "lots,LOTS"
         })
         void fromToken_shouldResolveWireKey(String token, ActivityMetadataKey expected) {
             assertEquals(expected, ActivityMetadataKey.fromToken(token));

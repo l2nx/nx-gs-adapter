@@ -111,17 +111,18 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
   offline-store place check works unchanged.
 - [done] R17. Metadata keys are a vocabulary in the api: enum `ActivityMetadataKey` (`Vocabularies.Keyed`, lower
   camelCase wire keys), so the platform and every host agree on them instead of each host inventing strings. The map
-  stays open (R9): a consumer ignores a key it does not know. Implemented in the adapter, not yet released.
+  stays open (R9): a consumer ignores a key it does not know. Released in `api/v0.120.0`; `lots` in `api/v0.121.0`.
 
-  | Key                 | Rows                        | Value                                                                                 |
-  | ------------------- | --------------------------- | ------------------------------------------------------------------------------------- |
-  | `elapsed`           | any running row             | ISO-8601 duration the current run has been active                                     |
-  | `remaining`         | any running row with a plan | ISO-8601 duration left of the planned run (an app session: planned minus active time) |
-  | `rodItemId`         | `OFFLINE_FISHING`           | inventory instance id of the session's rod                                            |
-  | `baitItemId`        | `OFFLINE_FISHING`           | inventory instance id of the session's bait stack                                     |
-  | `fishingShotItemId` | `OFFLINE_FISHING`           | inventory instance id of the session's fishing-shot stack; absent without shots       |
-  | `spotPool`          | `OFFLINE_FISHING`           | pool of the spot the character stands on                                              |
-  | `spotId`            | `OFFLINE_FISHING`           | the spot inside the pool                                                              |
+  | Key                 | Rows                                                                                  | Value                                                                                        |
+  | ------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+  | `elapsed`           | any running row                                                                       | ISO-8601 duration the current run has been active                                            |
+  | `remaining`         | any running row with a plan                                                           | ISO-8601 duration left of the planned run (an app session: planned minus active time)        |
+  | `rodItemId`         | `OFFLINE_FISHING`                                                                     | inventory instance id of the session's rod                                                   |
+  | `baitItemId`        | `OFFLINE_FISHING`                                                                     | inventory instance id of the session's bait stack                                            |
+  | `fishingShotItemId` | `OFFLINE_FISHING`                                                                     | inventory instance id of the session's fishing-shot stack; absent without shots              |
+  | `spotPool`          | `OFFLINE_FISHING`                                                                     | pool of the spot the character stands on                                                     |
+  | `spotId`            | `OFFLINE_FISHING`                                                                     | the spot inside the pool                                                                     |
+  | `lots`              | `PRIVATE_STORE`, `OFFLINE_PRIVATE_STORE` with subtype `SELL` / `PACKAGE_SELL` / `BUY` | lines listed in the current store (a `BUY` store: lines of its buy list); absent for `CRAFT` |
 
   Ids are decimal strings, as every value of the `Map<String,String>`. A host rounds `elapsed` / `remaining` in its row
   hash to whole minutes, so the row is republished about once a minute, not every tick. The platform derives the
