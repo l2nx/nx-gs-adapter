@@ -12,6 +12,7 @@ import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ class AppSettingsTest {
                 .fishingMinDurationMs(600_000L)
                 .fishingMaxDurationMs(7_200_000L)
                 .revive(new ReviveSettings(true))
+                .chat(new ChatSettings(true, Arrays.asList("CLAN", "PARTY"), Arrays.asList("WHISPER")))
                 .updatedAt(NOW);
     }
 
@@ -103,6 +105,79 @@ class AppSettingsTest {
                 original.toBuilder().privateStoreStartCooldownMinutes(6).build());
         assertNotEquals(
                 original, original.toBuilder().revive(new ReviveSettings(false)).build());
+        assertNotEquals(
+                original,
+                original.toBuilder()
+                        .chat(new ChatSettings(true, Arrays.asList("CLAN"), Arrays.asList("WHISPER")))
+                        .build());
+    }
+
+    @Test
+    void gson_shouldWriteChatUnderItsWireNames() {
+        String actual = GSON.toJson(valid().build());
+
+        assertTrue(
+                actual.contains("\"chat\":{\"enabled\":true,\"onlineSendChannels\":[\"CLAN\",\"PARTY\"],"
+                        + "\"offlineSendChannels\":[\"WHISPER\"]}"),
+                actual);
+    }
+
+    @Test
+    void gson_shouldReadNoChat_whenAnOlderHostOmitsTheGroup() {
+        String json = GSON.toJson(valid().chat(null).build());
+
+        AppSettings actual = GSON.fromJson(json, AppSettings.class);
+
+        assertFalse(json.contains("chat"), json);
+        assertNull(actual.getChat());
+    }
+
+    @Test
+    void gson_shouldKeepEmptyChatChannelLists() {
+        ChatSettings original =
+                new ChatSettings(true, Collections.<String>emptyList(), Collections.<String>emptyList());
+
+        String json = GSON.toJson(original);
+        ChatSettings actual = GSON.fromJson(json, ChatSettings.class);
+
+        assertTrue(json.contains("\"onlineSendChannels\":[]"), json);
+        assertEquals(original, actual);
+    }
+
+    @Test
+    void chatSettings_shouldBeEmptyAndFrozen_whenChannelsOmitted() {
+        ChatSettings actual = ChatSettings.builder().enabled(true).build();
+
+        assertTrue(actual.getOnlineSendChannels().isEmpty());
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> actual.getOfflineSendChannels().add("CLAN"));
+    }
+
+    @Test
+    void chatSettings_shouldStayEmptyAndEqual_whenGsonOmitsTheLists() {
+        ChatSettings actual = GSON.fromJson("{\"enabled\":true}", ChatSettings.class);
+
+        assertTrue(actual.getOnlineSendChannels().isEmpty());
+        assertTrue(actual.getOfflineSendChannels().isEmpty());
+        assertEquals(ChatSettings.builder().enabled(true).build(), actual);
+        assertEquals(ChatSettings.builder().enabled(true).build().hashCode(), actual.hashCode());
+        assertEquals("ChatSettings[enabled=true, onlineSendChannels=[], offlineSendChannels=[]]", actual.toString());
+    }
+
+    @Test
+    void chatSettings_shouldHandOutFrozenLists_whenGsonFillsThem() {
+        ChatSettings actual = GSON.fromJson(
+                "{\"enabled\":true,\"onlineSendChannels\":[\"CLAN\"],\"offlineSendChannels\":[\"WHISPER\"]}",
+                ChatSettings.class);
+
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> actual.getOnlineSendChannels().add("PARTY"));
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> actual.getOfflineSendChannels().clear());
+        assertEquals(new ChatSettings(true, Arrays.asList("CLAN"), Arrays.asList("WHISPER")), actual);
     }
 
     @Test

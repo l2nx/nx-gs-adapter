@@ -1,6 +1,7 @@
 package app.l2nx.gs.adapter.api.spi.model.appsettings;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -60,6 +61,9 @@ public final class AppRules {
     private final boolean reviveEnabled;
     private final ReviveTownMode reviveTownMode;
     private final List<String> reviveTownSpotPools;
+    private final boolean chatEnabled;
+    private final Set<ChatChannel> chatOnlineSendChannels;
+    private final Set<ChatChannel> chatOfflineSendChannels;
     private final int restoreBatchSize;
     private final int restoreBatchPauseMillis;
     private final int historyRetentionDays;
@@ -86,6 +90,9 @@ public final class AppRules {
         this.reviveTownSpotPools = b.reviveTownSpotPools.isEmpty()
                 ? Collections.<String>emptyList()
                 : Collections.unmodifiableList(new ArrayList<String>(b.reviveTownSpotPools));
+        this.chatEnabled = b.chatEnabled;
+        this.chatOnlineSendChannels = frozen(b.chatOnlineSendChannels);
+        this.chatOfflineSendChannels = frozen(b.chatOfflineSendChannels);
         this.restoreBatchSize = b.restoreBatchSize;
         this.restoreBatchPauseMillis = b.restoreBatchPauseMillis;
         this.historyRetentionDays = b.historyRetentionDays;
@@ -141,9 +148,40 @@ public final class AppRules {
             throw new IllegalArgumentException(
                     "AppRules.reviveTownSpotPools is required while reviveTownMode is " + ReviveTownMode.SPOT_POOL);
         }
+        requireChannels("chatOnlineSendChannels", b.chatOnlineSendChannels, false);
+        requireChannels("chatOfflineSendChannels", b.chatOfflineSendChannels, true);
         RESTORE_BATCH_SIZE.check("restoreBatchSize", b.restoreBatchSize);
         RESTORE_BATCH_PAUSE_MILLIS.check("restoreBatchPauseMillis", b.restoreBatchPauseMillis);
         HISTORY_RETENTION_DAYS.check("historyRetentionDays", b.historyRetentionDays);
+    }
+
+    private static void requireChannels(String property, Set<ChatChannel> channels, boolean offline) {
+        Objects.requireNonNull(channels, "AppRules." + property + " is required");
+        for (ChatChannel channel : channels) {
+            if (channel == null) {
+                throw new IllegalArgumentException("AppRules." + property + " must not contain null");
+            }
+            if (offline ? !channel.sendableOffline() : !channel.sendableFromApp()) {
+                throw new IllegalArgumentException("AppRules." + property + ": " + channel
+                        + " is not sendable from the app" + (offline ? " while out of game" : ""));
+            }
+        }
+    }
+
+    private static Set<ChatChannel> frozen(Set<ChatChannel> channels) {
+        return channels.isEmpty()
+                ? Collections.<ChatChannel>emptySet()
+                : Collections.unmodifiableSet(EnumSet.copyOf(channels));
+    }
+
+    private static Set<ChatChannel> sendable(boolean offline) {
+        Set<ChatChannel> channels = EnumSet.noneOf(ChatChannel.class);
+        for (ChatChannel channel : ChatChannel.values()) {
+            if (offline ? channel.sendableOffline() : channel.sendableFromApp()) {
+                channels.add(channel);
+            }
+        }
+        return channels;
     }
 
     /** {@code true} for a session type that may be enabled only with {@link #fishingSpotPool()} set. */
@@ -151,7 +189,6 @@ public final class AppRules {
         return activity == ActivityType.OFFLINE_FISHING;
     }
 
-    /** The cross-key rule of the fishing duration: the maximum is at least the minimum. */
     public static boolean fishingDurationsOrdered(int minMinutes, int maxMinutes) {
         return maxMinutes >= minMinutes;
     }
@@ -257,6 +294,30 @@ public final class AppRules {
         return reviveTownSpotPools;
     }
 
+    /**
+     * The whole chat with the app: {@code false} publishes no game chat to the platform and refuses every send from a
+     * character; lines without a character (announcements, staff personas) are not chat with the app and still go out.
+     */
+    public boolean chatEnabled() {
+        return chatEnabled;
+    }
+
+    /**
+     * Channels the app may send to while the character is in game, each {@link ChatChannel#sendableFromApp() sendable
+     * from the app}; empty: read-only in that state.
+     */
+    public Set<ChatChannel> chatOnlineSendChannels() {
+        return chatOnlineSendChannels;
+    }
+
+    /**
+     * Channels the app may send to while the character is out of game; empty: read-only in that state. Only channels
+     * that are {@link ChatChannel#sendableOffline() sendable offline}.
+     */
+    public Set<ChatChannel> chatOfflineSendChannels() {
+        return chatOfflineSendChannels;
+    }
+
     /** Sessions restored per batch after a restart; the engine caps it at its share of the IO pool. */
     public int restoreBatchSize() {
         return restoreBatchSize;
@@ -288,6 +349,9 @@ public final class AppRules {
                 .reviveEnabled(reviveEnabled)
                 .reviveTownMode(reviveTownMode)
                 .reviveTownSpotPools(reviveTownSpotPools)
+                .chatEnabled(chatEnabled)
+                .chatOnlineSendChannels(chatOnlineSendChannels)
+                .chatOfflineSendChannels(chatOfflineSendChannels)
                 .restoreBatchSize(restoreBatchSize)
                 .restoreBatchPauseMillis(restoreBatchPauseMillis)
                 .historyRetentionDays(historyRetentionDays);
@@ -317,12 +381,15 @@ public final class AppRules {
                 && restoreBatchPauseMillis == that.restoreBatchPauseMillis
                 && historyRetentionDays == that.historyRetentionDays
                 && reviveEnabled == that.reviveEnabled
+                && chatEnabled == that.chatEnabled
                 && Objects.equals(phantomTitleText, that.phantomTitleText)
                 && enabledSessionTypes.equals(that.enabledSessionTypes)
                 && fishingSpotOrder == that.fishingSpotOrder
                 && Objects.equals(fishingSpotPool, that.fishingSpotPool)
                 && reviveTownMode == that.reviveTownMode
-                && reviveTownSpotPools.equals(that.reviveTownSpotPools);
+                && reviveTownSpotPools.equals(that.reviveTownSpotPools)
+                && chatOnlineSendChannels.equals(that.chatOnlineSendChannels)
+                && chatOfflineSendChannels.equals(that.chatOfflineSendChannels);
     }
 
     @Override
@@ -344,6 +411,9 @@ public final class AppRules {
                 reviveEnabled,
                 reviveTownMode,
                 reviveTownSpotPools,
+                chatEnabled,
+                chatOnlineSendChannels,
+                chatOfflineSendChannels,
                 restoreBatchSize,
                 restoreBatchPauseMillis,
                 historyRetentionDays);
@@ -367,12 +437,14 @@ public final class AppRules {
                 + ", reviveEnabled=" + reviveEnabled
                 + ", reviveTownMode=" + reviveTownMode
                 + ", reviveTownSpotPools=" + reviveTownSpotPools
+                + ", chatEnabled=" + chatEnabled
+                + ", chatOnlineSendChannels=" + chatOnlineSendChannels
+                + ", chatOfflineSendChannels=" + chatOfflineSendChannels
                 + ", restoreBatchSize=" + restoreBatchSize
                 + ", restoreBatchPauseMillis=" + restoreBatchPauseMillis
                 + ", historyRetentionDays=" + historyRetentionDays + "]";
     }
 
-    /** The field initializers are the default of every key. */
     public static final class Builder {
         private @Nullable String phantomTitleText = DEFAULT_PHANTOM_TITLE_TEXT;
         private int phantomTitleColorRgb = 0xFFFF00;
@@ -390,6 +462,9 @@ public final class AppRules {
         private boolean reviveEnabled = true;
         private ReviveTownMode reviveTownMode = ReviveTownMode.NATIVE;
         private List<String> reviveTownSpotPools = Collections.<String>emptyList();
+        private boolean chatEnabled;
+        private Set<ChatChannel> chatOnlineSendChannels = sendable(false);
+        private Set<ChatChannel> chatOfflineSendChannels = sendable(true);
         private int restoreBatchSize = 10;
         private int restoreBatchPauseMillis = 1000;
         private int historyRetentionDays = 90;
@@ -486,6 +561,21 @@ public final class AppRules {
 
         public Builder reviveTownSpotPools(List<String> reviveTownSpotPools) {
             this.reviveTownSpotPools = reviveTownSpotPools;
+            return this;
+        }
+
+        public Builder chatEnabled(boolean chatEnabled) {
+            this.chatEnabled = chatEnabled;
+            return this;
+        }
+
+        public Builder chatOnlineSendChannels(Set<ChatChannel> chatOnlineSendChannels) {
+            this.chatOnlineSendChannels = chatOnlineSendChannels;
+            return this;
+        }
+
+        public Builder chatOfflineSendChannels(Set<ChatChannel> chatOfflineSendChannels) {
+            this.chatOfflineSendChannels = chatOfflineSendChannels;
             return this;
         }
 

@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.events.chat;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import app.l2nx.gs.adapter.api.kafka.sync.db.item.ItemAugmentationDbDto;
 import com.google.gson.Gson;
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ class ChatMessageEventTest {
                 .eventId(UUID.randomUUID())
                 .charId(268437521L)
                 .charName("Vasya")
-                .channel(WellKnownChatChannels.GENERAL)
+                .channel(ChatChannel.GENERAL)
                 .text("hi");
     }
 

@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import app.l2nx.gs.adapter.api.kafka.commands.chat.ChatAudiences;
 import app.l2nx.gs.adapter.api.kafka.commands.chat.SendChatMessageCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.chat.model.ChatAudience;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.AcceptMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.SendPlayerMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.BuyFromPrivateStoreCommand;
@@ -107,7 +107,7 @@ class OwnerVerifiedTest {
                 Arguments.of(new SendChatMessageCommand(
                         UUID.randomUUID(),
                         "CLAN",
-                        ChatAudiences.CLAN,
+                        ChatAudience.CLAN.name(),
                         7L,
                         100L,
                         null,
@@ -115,7 +115,8 @@ class OwnerVerifiedTest {
                         "hello",
                         null,
                         true,
-                        TestInitiators.USER)),
+                        TestInitiators.USER,
+                        null)),
                 Arguments.of(new SendPlayerMailCommand(
                         1L,
                         2L,

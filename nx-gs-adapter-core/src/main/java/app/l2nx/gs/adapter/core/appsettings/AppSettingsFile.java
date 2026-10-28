@@ -91,7 +91,7 @@ final class AppSettingsFile {
             String mode = trimmed(properties, AppSettingsCatalog.REVIVE_TOWN_MODE);
             String pools = trimmed(properties, AppSettingsCatalog.REVIVE_TOWN_SPOT_POOL);
             if (!AppRules.reviveTownSpotPoolsSuffice(
-                    blank(mode) ? defaults.reviveTownMode() : AppSettingsCatalog.reviveTownMode(mode),
+                    blank(mode) ? defaults.reviveTownMode() : AppSettingsCatalog.token(ReviveTownMode.class, mode),
                     blank(pools) ? defaults.reviveTownSpotPools() : AppSettingsCatalog.spotPools(pools))) {
                 errors.add(AppSettingsCatalog.REVIVE_TOWN_MODE + ": " + ReviveTownMode.SPOT_POOL + " requires "
                         + AppSettingsCatalog.REVIVE_TOWN_SPOT_POOL);

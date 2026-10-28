@@ -3,7 +3,7 @@
 > Owner: @n1rmata
 
 Living spec of the `chat` family's inbound fact (`ChatMessageEvent`, host → platform). The outbound
-command (`SendChatMessageCommand`, R8–R15 and R22–R27) lives in
+command (`SendChatMessageCommand`, R8–R15, R22–R27, R29, R30 and R32–R34) lives in
 [`009-commands/send-chat-message.md`](009-commands/send-chat-message.md).
 
 **Counterpart specs (cross-repo):**
@@ -49,8 +49,9 @@ path.
   - `@Nullable String charName` — clean sender character name (no offline postfix); OPTIONAL.
   - `@Nullable String senderDisplayName` — name as the game client renders it, e.g.
     `Vasya*`; see R16.
-  - `String channel` — REQUIRED. A `WellKnownChatChannels` code, or the raw string `UNKNOWN_<int>`
-    for a build-specific channel this catalog does not yet name. Null-checked in the constructor.
+  - `String channel` — REQUIRED. A `ChatChannel` name, or the raw string `UNKNOWN_<int>`
+    (`ChatChannel.unknownToken(int)`) for a build-specific channel the enum does not yet name; consumers read it with
+    `ChatChannel.fromToken`, `null` for the latter. Null-checked in the constructor.
   - `String text` — REQUIRED. Message body, already sanitized host-side. Null-checked in the
     constructor.
   - `@Nullable Long clanId` / `@Nullable Long allianceId` — the speaker's clan and its alliance at the moment of
@@ -68,11 +69,14 @@ path.
   These three fields (api 0.91.0) are additive: a host built before them omits them (they read as
   `null`), and consumers MUST tolerate their absence.
 
-- [done] R2. `nx-gs-adapter-api.kafka.events.chat.WellKnownChatChannels` MUST ship the canonical
-  `UPPER_SNAKE_CASE` open-string channel vocabulary used as the `channel` value. A host maps its
-  build-specific numeric chat type onto one of these codes; an exposed-but-unnamed channel is
-  published as the raw string `UNKNOWN_<int>` (the platform still routes it but cannot aggregate it
-  canonically). Adding a constant is a non-breaking minor-version change. Shipped codes:
+- [done] R2. `nx-gs-adapter-api.kafka.events.chat.model.ChatChannel` MUST ship the canonical channel vocabulary used
+  as the `channel` value: an open vocabulary enum whose `name()` is the token. A host maps its build-specific numeric
+  chat type onto one of these constants; an exposed-but-unnamed channel is published as the raw string
+  `UNKNOWN_<int>` (`ChatChannel.unknownToken(int)`; the platform still routes it but cannot aggregate it
+  canonically), which is why the wire field stays a string. Adding a constant is a non-breaking minor-version change.
+  The enum also carries which channels a player may write to from the app (`sendableFromApp()`: `CLAN`, `ALLIANCE`,
+  `PARTY`, `WHISPER`; `sendableOffline()`: the same without `PARTY`), so the settings of outbound R33 hold no second
+  token list. Shipped constants:
 
   `GENERAL`, `SHOUT`, `WHISPER`, `PARTY`, `CLAN`, `ALLIANCE`, `TRADE`, `WORLD`, `HERO`, `GM`,
   `PETITION`, `PETITION_GM`, `ANNOUNCEMENT`, `CRITICAL_ANNOUNCEMENT`, `SCREEN_ANNOUNCEMENT`,
@@ -88,7 +92,7 @@ path.
 
 - [done] R6. The host MUST hook its chat-handler path and publish one
   `ChatMessageEvent` per player-typed message via the cached `NxEvents` facade — and (R19) only after the channel handler actually delivered it. Sanitize `text`
-  host-side; map the build's numeric chat type to a `WellKnownChatChannels` code (or
+  host-side; map the build's numeric chat type to a `ChatChannel` constant (or
   `UNKNOWN_<int>`); set `targetCharId` / `targetCharName` only for whispers. Any uncaught `Throwable`
   in the publish path is caught and logged, never propagated to the game thread.
 
@@ -158,7 +162,7 @@ path.
   platform canon (full words: alliance, character); the shipped `charId` / `targetCharId` /
   `targetCharName` are NOT renamed.
 
-- [done] R21a. `ChatMetadataKeys.SHADOWED = "shadowed"` (`"true"`) MUST mark a message the host
+- [done] R21a. `ChatMetadataKey.SHADOWED` (key `"shadowed"`, value `"true"`) MUST mark a message the host
   delivered only to the speaker (shadow-ban, broadcast filter). Such a message is still published
   (R19 counts it as delivered — it is exactly the spam the corpus exists for); `recipientCharacterIds`
   is `[speaker]` on `GENERAL` / `PARTY`. Consumers store it but show it only to the speaker.
@@ -170,11 +174,23 @@ path.
     `GENERAL` (R17), so the read side scopes the message to the characters who could actually see it.
   - **Global shout** (the host broadcasts `SHOUT` to every online player): a recipient list would be
     the whole online set on every message, so the host publishes **no** list and instead marks the
-    event with `ChatMetadataKeys.SERVER_WIDE = "serverWide"`, value `"true"` (key absent otherwise).
+    event with `ChatMetadataKey.SERVER_WIDE` (key `"serverWide"`), value `"true"` (key absent otherwise).
     Consumers treat a `serverWide` `SHOUT` like `WORLD` / `HERO`: visible server-wide.
     Without the marker a consumer would see a `SHOUT` with neither a list nor a scope key and could only
     guess between "nobody" and "everybody". `metadata` is the open map R1 provides, so the key needs no
     new field; consumers ignore it on hosts that never send it.
+
+- R31. **A whisper that reached no game client is marked.** `ChatMetadataKey.UNDELIVERED` (key `"undelivered"`), value
+  `"true"`, MUST mark a message whose addressee's game client got no packet: an in-game whisper to `Name*` (R16, R20)
+  to a character out of game, and a `SendChatMessageCommand` whisper to an addressee out of game (outbound R32). The
+  key is absent when the client got the packet, and on every message without a single addressee. Only the host knows
+  whether the packet went out at the moment of sending; a platform guess from presence races with login and logout.
+  The platform keeps the flag with the stored message and drives the addressee's unread badge and notification from
+  it, so a whisper the player already saw in the client is never notified twice. The key names a delivery outcome,
+  not a channel: further "out of game" addressees reuse it. A shadowed message (R21a) may carry it too; consumers
+  apply `shadowed` first. Old hosts never send it; the platform's fallback for them is its own (`Name*` addressee on
+  `WHISPER`), not adapter code. For a whisper sent by command the reply carries the same fact as
+  `SendChatMessageResult.targetInGame` (outbound R34), so the sender learns it without waiting for the echo.
 
 > Host-internal, not wire: the host keeps a bounded snapshot cache (objectId -> item info, TTL 6h,
 > re-link refreshes) so in-game players can open links sent by offline characters.
@@ -191,10 +207,17 @@ path.
 
 ## Compatibility
 
-Purely additive and already released — `ChatMessageEvent` + `WellKnownChatChannels` in
+Purely additive and already released — `ChatMessageEvent` + the channel constants (then `WellKnownChatChannels`) in
 `api/v0.67.0`, the registry binding in `core/v0.32.0`. R16-R20, R21a and R28 are additive on top of that: new
 nullable event fields, one new wire class, new metadata keys, `ChatItemSnapshot.count`; old hosts omit
 them and consumers tolerate absence. The one behavioral change is R19 (publish after delivery).
+
+**`api/v0.123.0`, `core/v0.52.0` — `UNDELIVERED` (R31) and the chat vocabularies as enums.** Additive on the wire: one
+new metadata key, absent on older hosts. Source-breaking for Java code only, wire strings unchanged, no `@Deprecated`
+copy: `WellKnownChatChannels` becomes `kafka.events.chat.model.ChatChannel` and `ChatMetadataKeys` becomes
+`kafka.events.chat.model.ChatMetadataKey` (wire string `key()`), both with a lenient `fromToken`; the event's
+`channel` field and its builder's `channel(String)` stay, and the builder also takes a `ChatChannel`. The host
+switches in its release that takes this api; the platform reads the same strings as before, so it needs no straddle.
 
 **`api/v0.119.0` — clan and alliance as fields (R7, R21).** Breaking on the wire: `ChatMetadataKeys.CLAN_ID` /
 `ALLIANCE_ID` are removed in the same release that adds `clanId` / `allianceId`, with no `@Deprecated` copy. The host
@@ -205,10 +228,6 @@ constants until the gate "every game server of the tenant restarted on the new h
 overload keeping the old signature (two visible constructors break parameter-name binding for every
 consumer). On the wire nothing breaks; a host calling the constructor positionally adds one `null` and
 recompiles — hosts use `builder()`.
-
-**Deferred.** `ChatMetadataKeys` and `WellKnownChatChannels` are still constant holders, and the chat slice has three
-supporting types in its root (`model/` threshold, spec 034). Converting them to enums and moving them is
-[#33](https://github.com/l2nx/nx-gs-adapter/issues/33); it changes Java types only, not the wire.
 
 ## Non-goals
 

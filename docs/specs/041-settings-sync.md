@@ -45,12 +45,12 @@ SettingsSyncEvent`. Each record is the full current settings of one server; the 
   `attribute.chances` and `attribute.limits` are keyed by the closed vocabulary `AttributeItemType`: an engine item type
   outside it is a new vocabulary value (adapter, then platform, then host), not a raw token.
 
-  | Group          | Fields                                                                                                                                                                                                                                                                                                                                                                   |
-  | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-  | `enchant`      | `maxWeapon`, `maxArmor`, `maxJewelry`: the server-wide caps the engine applies; `null` = no server-wide cap (scroll and item limits apply). Whether the engine refuses at the cap or clamps the attempt while spending the scroll is the engine's                                                                                                                      |
+  | Group          | Fields                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+  | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `enchant`      | `maxWeapon`, `maxArmor`, `maxJewelry`: the server-wide caps the engine applies; `null` = no server-wide cap (scroll and item limits apply). Whether the engine refuses at the cap or clamps the attempt while spending the scroll is the engine's                                                                                                                                                                                                                   |
   | `attribute`    | `maxWeaponAttributes`, `maxArmorAttributes`; `oppositePairs`: `{attribute, opposite}` (an armor never holds both); `chances`: `{grade?, type, target?, chancePercent}`; `limits`: `{grade, type, target, maxPower}`, the **only** power-limit table: the host expands grade x type x target with its configuration applied (`0` = the type cannot be used on that grade); `chancePercent` is the server's base chance, per-account bonuses are not a server setting |
-  | `mail`         | `feeAdena`, `feeAdenaPerAttachment`                                                                                                                                                                                                                                                                                                                                      |
-  | `privateStore` | `offlineFeeItemTemplateId`, `offlineFeeItemTemplateCount`, `offlineFeePeriodHours`: the fee of the offline mode of a private store (a store with a live client is free); `null` = no offline fee                                                                                                                                                                                     |
+  | `mail`         | `feeAdena`, `feeAdenaPerAttachment`                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+  | `privateStore` | `offlineFeeItemTemplateId`, `offlineFeeItemTemplateCount`, `offlineFeePeriodHours`: the fee of the offline mode of a private store (a store with a live client is free); `null` = no offline fee                                                                                                                                                                                                                                                                    |
 
 - [done] R5. `updatedAt` of every settings entity MUST be the moment the snapshot was built. The platform keeps a row
   only when its content changed, so its `updated_at` reads "these settings hold since".
@@ -64,6 +64,17 @@ SettingsSyncEvent`. Each record is the full current settings of one server; the 
 - [done] R8. The canonical term for neck, ear and finger equipment is `jewelry`. The same api release renames
   `LifeStoneGrade.ACCESSORY` to `JEWELRY` (no deprecated copy); a host switches in its release, and the platform reads
   `ACCESSORY` from a not-yet-restarted host with its own legacy mapping (`nx-gamedata/docs/specs/025-augmentation-via-adapter.md`).
+
+- R9. `AppSettings` MUST carry the server's chat settings in a `chat` group (`ChatSettings`), built from the
+  `app.chat.*` keys of the app settings file ([`send-chat-message`](009-commands/send-chat-message.md) R33):
+  `enabled`, `onlineSendChannels`, `offlineSendChannels`. Channels are `ChatChannel` names with `sendableFromApp()`
+  (`CLAN`, `ALLIANCE`, `PARTY`, `WHISPER`), carried as strings so a platform reads a channel a newer host adds instead
+  of failing; the host lists them in `ChatChannel` declaration order. An empty list means the app only reads chat in
+  that character state; `enabled = false` refuses every send from a character, not the platform's own lines
+  (announcements, staff personas). `ChatSettings` reads its lists null-safe and hands them out unmodifiable even when
+  Gson bypasses its constructor. The group is `null` only from a host on an adapter older than it; the platform reads that
+  as the behaviour of such a host (chat on, its built-in channels), not as "chat off". Additive: a platform older than
+  the group ignores it.
 
 **Non-goals:**
 
@@ -104,6 +115,8 @@ Volume: two records per server every 5 minutes.
   `updatedAt = builtAt` (R5), `null` = not ready, no snapshot this time.
 - `domain.item.AttributeItemType` (`STONE` … `ENERGY`) and `domain.item.AttributeTarget` (`WEAPON`, `ARMOR`): the
   vocabularies of `attribute.chances` and `attribute.limits`.
+- `kafka.sync.settings.app.ChatSettings` (`enabled`, `onlineSendChannels`, `offlineSendChannels`) and the nullable
+  `AppSettings.chat` (R9); `AppSettings`' public constructor takes it as a new parameter.
 
 ### Edge cases
 
@@ -124,6 +137,8 @@ Volume: two records per server every 5 minutes.
   build moment; a throwing provider gives one WARN per streak and no snapshot; a missing map entry gives one ERROR per
   connect.
 - Unit: `GameSettings` builders reject a negative cap, count or power; `null` groups serialize as `null`.
+- Unit: the `chat` group carries the three `app.chat.*` values with their defaults; an absent group reads as `null`;
+  empty channel lists survive the wire.
 
 ## Rollout
 

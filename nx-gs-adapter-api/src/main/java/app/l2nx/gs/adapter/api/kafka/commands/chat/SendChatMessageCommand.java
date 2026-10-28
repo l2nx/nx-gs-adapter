@@ -3,15 +3,18 @@ package app.l2nx.gs.adapter.api.kafka.commands.chat;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
-import app.l2nx.gs.adapter.api.kafka.events.chat.WellKnownChatChannels;
+import app.l2nx.gs.adapter.api.kafka.commands.chat.model.ChatAudience;
+import app.l2nx.gs.adapter.api.kafka.commands.chat.model.SendChatMessageRefusalReason;
+import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
+import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatMetadataKey;
 import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A shadow-banned or filtered speaker still gets {@code OK}; the echo is flagged
- * {@link app.l2nx.gs.adapter.api.kafka.events.chat.ChatMetadataKeys#SHADOWED}. At-most-once: a re-issue after a reply
- * timeout looks fresh, so {@code messageId} dedup needs a host-side window. Gson bypasses the constructor.
+ * A shadow-banned or filtered speaker still gets {@code OK}; the echo is flagged {@link ChatMetadataKey#SHADOWED}.
+ * At-most-once: a re-issue after a reply timeout looks fresh, so {@code messageId} dedup needs a host-side window.
+ * Gson bypasses the constructor.
  */
 public final class SendChatMessageCommand implements OwnerVerified, NxCommand<SendChatMessageResult> {
 
@@ -26,6 +29,7 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
     private final @Nullable String targetCharacterName;
     private final boolean ownerVerified;
     private final CommandInitiator initiator;
+    private final @Nullable Boolean offlineDelivery;
 
     public SendChatMessageCommand(
             UUID messageId,
@@ -38,7 +42,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
             String text,
             @Nullable String targetCharacterName,
             boolean ownerVerified,
-            CommandInitiator initiator) {
+            CommandInitiator initiator,
+            @Nullable Boolean offlineDelivery) {
         this.messageId = Objects.requireNonNull(messageId, "messageId");
         this.channel = requireText(channel, "channel");
         this.audience = requireText(audience, "audience");
@@ -48,7 +53,7 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
         }
         this.audienceId = audienceId;
         this.senderCharacterId = senderCharacterId;
-        if (senderCharacterId == null && !WellKnownChatChannels.ANNOUNCEMENT.equals(channel)) {
+        if (senderCharacterId == null && !ChatChannel.ANNOUNCEMENT.name().equals(channel)) {
             Objects.requireNonNull(senderDisplayName, "senderDisplayName");
         }
         this.senderDisplayName = senderDisplayName;
@@ -57,11 +62,12 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
         this.targetCharacterName = targetCharacterName;
         this.ownerVerified = ownerVerified;
         this.initiator = Objects.requireNonNull(initiator, "initiator");
+        this.offlineDelivery = offlineDelivery;
     }
 
     private static void validateAudience(
             String audience, Long audienceId, Long senderCharacterId, String targetCharacterName) {
-        if (ChatAudiences.CHARACTER.equals(audience)) {
+        if (ChatAudience.CHARACTER.name().equals(audience)) {
             boolean hasName =
                     targetCharacterName != null && !targetCharacterName.trim().isEmpty();
             if (targetCharacterName != null && !hasName) {
@@ -76,11 +82,11 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
         if (targetCharacterName != null) {
             throw new IllegalArgumentException("targetCharacterName is only allowed for audience=CHARACTER");
         }
-        if (ChatAudiences.ALL_ONLINE.equals(audience)) {
+        if (ChatAudience.ALL_ONLINE.name().equals(audience)) {
             if (audienceId != null) {
                 throw new IllegalArgumentException("audienceId must be null for audience=ALL_ONLINE");
             }
-        } else if (ChatAudiences.PARTY.equals(audience)) {
+        } else if (ChatAudience.PARTY.name().equals(audience)) {
             if (audienceId != null) {
                 throw new IllegalArgumentException("audienceId must be null for audience=PARTY");
             }
@@ -103,10 +109,15 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
         return messageId;
     }
 
+    /**
+     * A {@link ChatChannel} name, kept a string so a host refuses a channel it does not accept with
+     * {@code VALIDATION_FAILED} instead of failing to read the command.
+     */
     public String getChannel() {
         return channel;
     }
 
+    /** A {@link ChatAudience} name, kept a string for the same reason as {@link #getChannel()}. */
     public String getAudience() {
         return audience;
     }
@@ -147,6 +158,14 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
         return initiator;
     }
 
+    /**
+     * {@code false}: a {@code WHISPER} to an out-of-game addressee is refused with
+     * {@link SendChatMessageRefusalReason#TARGET_OFFLINE}. {@code null} (older platform) reads as {@code true}.
+     */
+    public @Nullable Boolean getOfflineDelivery() {
+        return offlineDelivery;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .messageId(messageId)
@@ -159,7 +178,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                 .text(text)
                 .targetCharacterName(targetCharacterName)
                 .ownerVerified(ownerVerified)
-                .initiator(initiator);
+                .initiator(initiator)
+                .offlineDelivery(offlineDelivery);
     }
 
     public static Builder builder() {
@@ -181,7 +201,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                 && Objects.equals(text, that.text)
                 && Objects.equals(targetCharacterName, that.targetCharacterName)
                 && ownerVerified == that.ownerVerified
-                && Objects.equals(initiator, that.initiator);
+                && Objects.equals(initiator, that.initiator)
+                && Objects.equals(offlineDelivery, that.offlineDelivery);
     }
 
     @Override
@@ -197,7 +218,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                 text,
                 targetCharacterName,
                 ownerVerified,
-                initiator);
+                initiator,
+                offlineDelivery);
     }
 
     @Override
@@ -211,7 +233,9 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                 + ", source=" + source
                 + ", text=" + text
                 + ", targetCharacterName=" + targetCharacterName
-                + ", ownerVerified=" + ownerVerified + ", initiator=" + initiator + "]";
+                + ", ownerVerified=" + ownerVerified
+                + ", initiator=" + initiator
+                + ", offlineDelivery=" + offlineDelivery + "]";
     }
 
     public static final class Builder {
@@ -226,6 +250,7 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
         private @Nullable String targetCharacterName;
         private boolean ownerVerified;
         private CommandInitiator initiator;
+        private @Nullable Boolean offlineDelivery;
 
         public Builder messageId(UUID messageId) {
             this.messageId = messageId;
@@ -237,8 +262,18 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
             return this;
         }
 
+        public Builder channel(ChatChannel channel) {
+            this.channel = channel.name();
+            return this;
+        }
+
         public Builder audience(String audience) {
             this.audience = audience;
+            return this;
+        }
+
+        public Builder audience(ChatAudience audience) {
+            this.audience = audience.name();
             return this;
         }
 
@@ -272,6 +307,11 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
             return this;
         }
 
+        public Builder offlineDelivery(@Nullable Boolean offlineDelivery) {
+            this.offlineDelivery = offlineDelivery;
+            return this;
+        }
+
         public Builder ownerVerified(boolean ownerVerified) {
             this.ownerVerified = ownerVerified;
             return this;
@@ -294,7 +334,8 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
                     text,
                     targetCharacterName,
                     ownerVerified,
-                    initiator);
+                    initiator,
+                    offlineDelivery);
         }
     }
 }

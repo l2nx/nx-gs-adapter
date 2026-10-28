@@ -1,12 +1,15 @@
 package app.l2nx.gs.adapter.core.appsettings;
 
+import app.l2nx.gs.adapter.api.Vocabularies;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.ReviveTownMode;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.SpotOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -36,13 +39,20 @@ final class AppSettingsCatalog {
     static final String REVIVE_ENABLED = "app.revive.enabled";
     static final String REVIVE_TOWN_MODE = "app.revive.town.mode";
     static final String REVIVE_TOWN_SPOT_POOL = "app.revive.town.spot-pool";
+    static final String CHAT_ENABLED = "app.chat.enabled";
+    static final String CHAT_ONLINE_SEND_CHANNELS = "app.chat.online-send-channels";
+    static final String CHAT_OFFLINE_SEND_CHANNELS = "app.chat.offline-send-channels";
     static final String RESTORE_BATCH_SIZE = "app.restore.batch-size";
     static final String RESTORE_BATCH_PAUSE_MILLIS = "app.restore.batch-pause-millis";
     static final String HISTORY_RETENTION_DAYS = "app.history.retention-days";
 
     static final String UNSET = "<unset>";
+    /** An empty list that is a value of its own, not a fallback to a default. */
+    static final String NONE = "<none>";
 
     private static final Pattern RGB_HEX = Pattern.compile("[0-9A-Fa-f]{6}");
+
+    private static final Set<ChatChannel> SENDABLE_FROM_APP = sendableFromApp();
 
     /** In {@link AppRules#SESSION_TYPES} order, which the snapshot keeps. */
     static final Map<String, ActivityType> SESSION_TYPE_KEYS = sessionTypeKeys();
@@ -192,15 +202,34 @@ final class AppSettingsCatalog {
                 FISHING_FLOAT_DISTANCE,
                 r -> String.valueOf(r.fishingFloatDistance()),
                 (raw, b) -> b.fishingFloatDistance(intIn(raw, AppRules.FISHING_FLOAT_DISTANCE)));
-        put(keys, FISHING_SPOT_ORDER, r -> r.fishingSpotOrder().name(), (raw, b) -> b.fishingSpotOrder(spotOrder(raw)));
+        put(
+                keys,
+                FISHING_SPOT_ORDER,
+                r -> r.fishingSpotOrder().name(),
+                (raw, b) -> b.fishingSpotOrder(token(SpotOrder.class, raw)));
         put(keys, FISHING_SPOT_POOL, r -> orUnset(r.fishingSpotPool()), (raw, b) -> b.fishingSpotPool(spotPool(raw)));
         put(keys, REVIVE_ENABLED, r -> String.valueOf(r.reviveEnabled()), (raw, b) -> b.reviveEnabled(bool(raw)));
-        put(keys, REVIVE_TOWN_MODE, r -> r.reviveTownMode().name(), (raw, b) -> b.reviveTownMode(reviveTownMode(raw)));
+        put(
+                keys,
+                REVIVE_TOWN_MODE,
+                r -> r.reviveTownMode().name(),
+                (raw, b) -> b.reviveTownMode(token(ReviveTownMode.class, raw)));
         put(
                 keys,
                 REVIVE_TOWN_SPOT_POOL,
                 r -> r.reviveTownSpotPools().isEmpty() ? UNSET : String.join(",", r.reviveTownSpotPools()),
                 (raw, b) -> b.reviveTownSpotPools(spotPools(raw)));
+        put(keys, CHAT_ENABLED, r -> String.valueOf(r.chatEnabled()), (raw, b) -> b.chatEnabled(bool(raw)));
+        put(
+                keys,
+                CHAT_ONLINE_SEND_CHANNELS,
+                r -> channels(r.chatOnlineSendChannels()),
+                (raw, b) -> b.chatOnlineSendChannels(chatChannels(raw, false)));
+        put(
+                keys,
+                CHAT_OFFLINE_SEND_CHANNELS,
+                r -> channels(r.chatOfflineSendChannels()),
+                (raw, b) -> b.chatOfflineSendChannels(chatChannels(raw, true)));
         put(
                 keys,
                 RESTORE_BATCH_SIZE,
@@ -266,6 +295,42 @@ final class AppSettingsCatalog {
         return new ArrayList<String>(pools);
     }
 
+    /** Empty: read-only in that character state, not the default list. */
+    private static Set<ChatChannel> chatChannels(String raw, boolean offline) {
+        Set<ChatChannel> channels = EnumSet.noneOf(ChatChannel.class);
+        if (raw.isEmpty()) {
+            return channels;
+        }
+        for (String part : raw.split(",", -1)) {
+            ChatChannel channel = token(ChatChannel.class, part.trim(), SENDABLE_FROM_APP);
+            if (!channels.add(channel)) {
+                throw new InvalidValueException("'" + channel + "' is listed twice");
+            }
+            if (offline && !channel.sendableOffline()) {
+                throw new InvalidValueException(channel + " is not available out of game");
+            }
+        }
+        return channels;
+    }
+
+    private static Set<ChatChannel> sendableFromApp() {
+        Set<ChatChannel> channels = EnumSet.allOf(ChatChannel.class);
+        channels.removeIf(channel -> !channel.sendableFromApp());
+        return Collections.unmodifiableSet(channels);
+    }
+
+    private static String channels(Set<ChatChannel> channels) {
+        return channels.isEmpty() ? NONE : String.join(",", channelNames(channels));
+    }
+
+    static List<String> channelNames(Set<ChatChannel> channels) {
+        List<String> names = new ArrayList<String>(channels.size());
+        for (ChatChannel channel : channels) {
+            names.add(channel.name());
+        }
+        return names;
+    }
+
     private static int rgb(String raw) {
         if (!RGB_HEX.matcher(raw).matches()) {
             throw new InvalidValueException("expected 6 hex digits RGB, got '" + raw + "'");
@@ -302,21 +367,29 @@ final class AppSettingsCatalog {
         throw new InvalidValueException("expected true or false, got '" + raw + "'");
     }
 
-    private static SpotOrder spotOrder(String raw) {
-        for (SpotOrder order : SpotOrder.values()) {
-            if (order.name().equals(raw)) {
-                return order;
-            }
-        }
-        throw new InvalidValueException("expected RANDOM or FIRST_FREE, got '" + raw + "'");
+    static <E extends Enum<E>> E token(Class<E> type, String raw) {
+        return token(type, raw, EnumSet.allOf(type));
     }
 
-    static ReviveTownMode reviveTownMode(String raw) {
-        for (ReviveTownMode mode : ReviveTownMode.values()) {
-            if (mode.name().equals(raw)) {
-                return mode;
-            }
+    /** {@code allowed} renders the error in declaration order, so the message follows the enum. */
+    private static <E extends Enum<E>> E token(Class<E> type, String raw, Set<E> allowed) {
+        E value = Vocabularies.fromToken(type, raw);
+        if (value == null || !allowed.contains(value)) {
+            throw new InvalidValueException("expected " + alternatives(allowed) + ", got '" + raw + "'");
         }
-        throw new InvalidValueException("expected NATIVE or SPOT_POOL, got '" + raw + "'");
+        return value;
+    }
+
+    private static String alternatives(Set<? extends Enum<?>> allowed) {
+        StringBuilder text = new StringBuilder();
+        int index = 0;
+        for (Enum<?> value : allowed) {
+            if (index > 0) {
+                text.append(index == allowed.size() - 1 ? " or " : ", ");
+            }
+            text.append(value.name());
+            index++;
+        }
+        return text.toString();
     }
 }

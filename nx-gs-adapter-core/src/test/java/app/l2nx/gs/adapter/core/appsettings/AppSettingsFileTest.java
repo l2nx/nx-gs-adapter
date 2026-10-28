@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.ReviveTownMode;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.SpotOrder;
@@ -68,6 +69,9 @@ class AppSettingsFileTest {
                     + "app.revive.enabled=false\n"
                     + "app.revive.town.mode=SPOT_POOL\n"
                     + "app.revive.town.spot-pool=harbor_1, giran\n"
+                    + "app.chat.enabled=true\n"
+                    + "app.chat.online-send-channels=WHISPER, PARTY\n"
+                    + "app.chat.offline-send-channels=CLAN\n"
                     + "app.restore.batch-size=3\n"
                     + "app.restore.batch-pause-millis=250\n"
                     + "app.history.retention-days=30\n");
@@ -90,6 +94,9 @@ class AppSettingsFileTest {
                     .reviveEnabled(false)
                     .reviveTownMode(ReviveTownMode.SPOT_POOL)
                     .reviveTownSpotPools(Arrays.asList("harbor_1", "giran"))
+                    .chatEnabled(true)
+                    .chatOnlineSendChannels(EnumSet.of(ChatChannel.PARTY, ChatChannel.WHISPER))
+                    .chatOfflineSendChannels(EnumSet.of(ChatChannel.CLAN))
                     .restoreBatchSize(3)
                     .restoreBatchPauseMillis(250)
                     .historyRetentionDays(30)
@@ -123,6 +130,21 @@ class AppSettingsFileTest {
             AppRules actual = valid("app.revive.town.spot-pool=" + value + "\n");
 
             assertEquals(expectedPools, actual.reviveTownSpotPools());
+        }
+
+        @ParameterizedTest(name = "{0}=''{1}'' is read-only")
+        @CsvSource({
+            "app.chat.online-send-channels, ''",
+            "app.chat.online-send-channels, '   '",
+            "app.chat.offline-send-channels, ''"
+        })
+        void parse_shouldReadBlankChatChannelsAsNone(String key, String value) throws IOException {
+            AppRules actual = valid(key + "=" + value + "\n");
+
+            assertTrue(
+                    key.equals("app.chat.online-send-channels")
+                            ? actual.chatOnlineSendChannels().isEmpty()
+                            : actual.chatOfflineSendChannels().isEmpty());
         }
 
         @Test
@@ -177,6 +199,20 @@ class AppSettingsFileTest {
                     "app.revive.town.spot-pool|a,|app.revive.town.spot-pool: expected comma-separated names of 1-32"
                             + " characters of a-z, 0-9 and _, got ''",
                     "app.revive.town.spot-pool|a, a|app.revive.town.spot-pool: 'a' is listed twice",
+                    "app.chat.enabled|1|app.chat.enabled: expected true or false, got '1'",
+                    "app.chat.online-send-channels|clan|app.chat.online-send-channels: expected WHISPER, PARTY, CLAN or"
+                            + " ALLIANCE, got 'clan'",
+                    "app.chat.online-send-channels|TRADE|app.chat.online-send-channels: expected WHISPER, PARTY, CLAN or"
+                            + " ALLIANCE, got 'TRADE'",
+                    "app.chat.online-send-channels|UNKNOWN_7|app.chat.online-send-channels: expected WHISPER, PARTY,"
+                            + " CLAN or ALLIANCE, got 'UNKNOWN_7'",
+                    "app.chat.online-send-channels|CLAN,,PARTY|app.chat.online-send-channels: expected WHISPER, PARTY,"
+                            + " CLAN or ALLIANCE, got ''",
+                    "app.chat.online-send-channels|CLAN, CLAN|app.chat.online-send-channels: 'CLAN' is listed twice",
+                    "app.chat.offline-send-channels|CLAN,PARTY|app.chat.offline-send-channels: PARTY is not available"
+                            + " out of game",
+                    "app.chat.offline-send-channels|WHISPER,WHISPER|app.chat.offline-send-channels: 'WHISPER' is listed"
+                            + " twice",
                     "app.restore.batch-size|0|app.restore.batch-size: less than 1: 0",
                     "app.restore.batch-pause-millis|-5|app.restore.batch-pause-millis: less than 0: -5",
                     "app.history.retention-days|6|app.history.retention-days: less than 7: 6"
@@ -337,6 +373,8 @@ class AppSettingsFileTest {
                     .phantomTitleColorRgb(0x00FF00)
                     .reviveTownMode(ReviveTownMode.SPOT_POOL)
                     .reviveTownSpotPools(Arrays.asList("harbor", "giran"))
+                    .chatEnabled(true)
+                    .chatOfflineSendChannels(EnumSet.noneOf(ChatChannel.class))
                     .build();
 
             List<String> actual = AppSettingsCatalog.diff(before, after);
@@ -348,7 +386,9 @@ class AppSettingsFileTest {
                             "app.fishing.enabled: false -> true",
                             "app.fishing.spot-pool: <unset> -> harbor",
                             "app.revive.town.mode: NATIVE -> SPOT_POOL",
-                            "app.revive.town.spot-pool: <unset> -> harbor,giran"),
+                            "app.revive.town.spot-pool: <unset> -> harbor,giran",
+                            "app.chat.enabled: false -> true",
+                            "app.chat.offline-send-channels: WHISPER,CLAN,ALLIANCE -> <none>"),
                     actual);
         }
 

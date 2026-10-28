@@ -25,6 +25,7 @@ public final class AppSettings {
     private final long fishingMinDurationMs;
     private final long fishingMaxDurationMs;
     private final @Nullable ReviveSettings revive;
+    private final @Nullable ChatSettings chat;
     private final Instant updatedAt;
 
     public AppSettings(
@@ -37,6 +38,7 @@ public final class AppSettings {
             long fishingMinDurationMs,
             long fishingMaxDurationMs,
             @Nullable ReviveSettings revive,
+            @Nullable ChatSettings chat,
             Instant updatedAt) {
         if (recentlyLeftGameMinutes < 0
                 || fishingStartCooldownMinutes < 0
@@ -60,6 +62,7 @@ public final class AppSettings {
         this.fishingMinDurationMs = fishingMinDurationMs;
         this.fishingMaxDurationMs = fishingMaxDurationMs;
         this.revive = revive;
+        this.chat = chat;
         this.updatedAt = Objects.requireNonNull(updatedAt, "AppSettings.updatedAt is required");
     }
 
@@ -109,6 +112,14 @@ public final class AppSettings {
         return revive;
     }
 
+    /**
+     * {@code null}: the host runs an adapter older than this group, which knows no chat settings; such a host
+     * publishes game chat and accepts sends from the app on its built-in channels.
+     */
+    public @Nullable ChatSettings getChat() {
+        return chat;
+    }
+
     public Instant getUpdatedAt() {
         return updatedAt;
     }
@@ -124,6 +135,7 @@ public final class AppSettings {
                 .fishingMinDurationMs(fishingMinDurationMs)
                 .fishingMaxDurationMs(fishingMaxDurationMs)
                 .revive(revive)
+                .chat(chat)
                 .updatedAt(updatedAt);
     }
 
@@ -145,6 +157,7 @@ public final class AppSettings {
                 && fishingMaxDurationMs == that.fishingMaxDurationMs
                 && Objects.equals(sessionTypes, that.sessionTypes)
                 && Objects.equals(revive, that.revive)
+                && Objects.equals(chat, that.chat)
                 && Objects.equals(updatedAt, that.updatedAt);
     }
 
@@ -160,6 +173,7 @@ public final class AppSettings {
                 fishingMinDurationMs,
                 fishingMaxDurationMs,
                 revive,
+                chat,
                 updatedAt);
     }
 
@@ -174,6 +188,7 @@ public final class AppSettings {
                 + ", fishingMinDurationMs=" + fishingMinDurationMs
                 + ", fishingMaxDurationMs=" + fishingMaxDurationMs
                 + ", revive=" + revive
+                + ", chat=" + chat
                 + ", updatedAt=" + updatedAt + "]";
     }
 
@@ -187,6 +202,7 @@ public final class AppSettings {
         private long fishingMinDurationMs;
         private long fishingMaxDurationMs;
         private @Nullable ReviveSettings revive;
+        private @Nullable ChatSettings chat;
         private @Nullable Instant updatedAt;
 
         public Builder sessionTypes(@Nullable List<AppSessionTypeSettings> sessionTypes) {
@@ -234,6 +250,11 @@ public final class AppSettings {
             return this;
         }
 
+        public Builder chat(@Nullable ChatSettings chat) {
+            this.chat = chat;
+            return this;
+        }
+
         public Builder updatedAt(Instant updatedAt) {
             this.updatedAt = updatedAt;
             return this;
@@ -250,6 +271,7 @@ public final class AppSettings {
                     fishingMinDurationMs,
                     fishingMaxDurationMs,
                     revive,
+                    chat,
                     updatedAt);
         }
     }

@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.events.chat;
 
+import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -10,10 +11,9 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * {@code eventId} is the dedup key under at-least-once delivery. {@code charId} {@code 0} means the platform spoke:
- * store an absent character. {@code senderDisplayName}, {@code recipientCharacterIds} and {@code items} are additive:
- * hosts that predate them send {@code null}. {@code clanId} and {@code allianceId} are the speaker's at the moment of speaking. Without a
- * legal sender they carry the addressee: on {@code CLAN} its clan and alliance, on {@code ALLIANCE} only the alliance.
+ * {@code eventId} is the dedup key under at-least-once delivery; {@code charId} {@code 0} means the platform spoke.
+ * {@code clanId} / {@code allianceId} are the speaker's at speaking time; without a legal sender they carry the
+ * addressee's (on {@code CLAN} its clan and alliance, on {@code ALLIANCE} only the alliance).
  */
 public final class ChatMessageEvent {
 
@@ -75,6 +75,10 @@ public final class ChatMessageEvent {
         return charName;
     }
 
+    /**
+     * A {@link ChatChannel} name, or {@link ChatChannel#unknownToken(int) UNKNOWN_<int>} for a build's channel no
+     * constant names; read it with {@link ChatChannel#fromToken(String)}, which is {@code null} for the latter.
+     */
     public String getChannel() {
         return channel;
     }
@@ -225,6 +229,11 @@ public final class ChatMessageEvent {
 
         public Builder channel(String channel) {
             this.channel = channel;
+            return this;
+        }
+
+        public Builder channel(ChatChannel channel) {
+            this.channel = channel.name();
             return this;
         }
 

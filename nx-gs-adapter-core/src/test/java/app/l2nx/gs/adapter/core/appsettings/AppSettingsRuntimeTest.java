@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSessionTypeSettings;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
+import app.l2nx.gs.adapter.api.kafka.sync.settings.app.ChatSettings;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.ReviveSettings;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.ReviveTownMode;
@@ -18,6 +20,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -49,7 +52,6 @@ class AppSettingsRuntimeTest {
         AppSettingsRuntime.resetForTesting();
     }
 
-    /** What {@code NxAdapter.appRules()} does on a game server. */
     private AppRules appRulesOfAGameServer() {
         if (!AppSettingsRuntime.initialized()) {
             AppSettingsRuntime.loadForGameServer(config);
@@ -182,6 +184,9 @@ class AppSettingsRuntimeTest {
                     .fishingMinDurationMinutes(10)
                     .fishingMaxDurationMinutes(240)
                     .reviveEnabled(false)
+                    .chatEnabled(true)
+                    .chatOnlineSendChannels(EnumSet.of(ChatChannel.WHISPER, ChatChannel.CLAN))
+                    .chatOfflineSendChannels(EnumSet.noneOf(ChatChannel.class))
                     .build();
 
             AppSettings actual = AppSettingsRuntime.toSettings(rules, Instant.parse("2026-10-23T10:00:00Z"));
@@ -198,6 +203,7 @@ class AppSettingsRuntimeTest {
                     .fishingMinDurationMs(600_000L)
                     .fishingMaxDurationMs(14_400_000L)
                     .revive(new ReviveSettings(false))
+                    .chat(new ChatSettings(true, Arrays.asList("WHISPER", "CLAN"), Collections.<String>emptyList()))
                     .updatedAt(Instant.parse("2026-10-23T10:00:00Z"))
                     .build();
             assertEquals(expected, actual);
@@ -225,6 +231,19 @@ class AppSettingsRuntimeTest {
                     AppSettingsRuntime.toSettings(AppRules.defaults(), Instant.parse("2026-10-23T10:00:00Z"));
 
             assertEquals(new ReviveSettings(true), actual.getRevive());
+        }
+
+        @Test
+        void toSettings_shouldCarryTheDefaultChat_whenDefaults() {
+            AppSettings actual =
+                    AppSettingsRuntime.toSettings(AppRules.defaults(), Instant.parse("2026-10-23T10:00:00Z"));
+
+            assertEquals(
+                    new ChatSettings(
+                            false,
+                            Arrays.asList("WHISPER", "PARTY", "CLAN", "ALLIANCE"),
+                            Arrays.asList("WHISPER", "CLAN", "ALLIANCE")),
+                    actual.getChat());
         }
     }
 

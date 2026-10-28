@@ -5,7 +5,8 @@
 Outbound half of the `chat` family (`SendChatMessageCommand`, platform → host). The inbound fact
 `ChatMessageEvent` and the problem statement live in [`025-chat-events.md`](../025-chat-events.md);
 requirements keep their original numbers (R8–R15) so existing references stay valid. The whisper /
-party / alliance / item-link slice continues as R22–R27 (R16–R21 live in the events spec).
+party / alliance / item-link slice continues as R22–R27 (R16–R21 live in the events spec); the server's chat
+settings, offline delivery and the delivery signal are R32–R34 (R31 lives in the events spec).
 
 **Counterpart spec (cross-repo):** `nx-gameservers/docs/specs/073-chat.md` — announcement-scheduler
 cutover and the platform send path.
@@ -119,10 +120,11 @@ is registered for the `Nx-Message-Type`. That is an explicit, fast, per-server n
 ## Whisper, party, alliance and item links
 
 - [done] R22. The channel whitelist MUST grow to `CLAN`, `ALLIANCE`, `PARTY`, `WHISPER`,
-  `ANNOUNCEMENT`, and `ChatAudiences` MUST gain:
+  `ANNOUNCEMENT`, and `ChatAudience` MUST gain:
   - `ALLIANCE` — `audienceId` = allianceId;
   - `PARTY` — `audienceId` = `null`; the host resolves the party from the sender, who therefore MUST
-    be online and in a party, else `INVALID_STATE`;
+    be in a party, else `INVALID_STATE`. Whether `PARTY` is open to a sender out of game is not a host rule
+    but data: the channel lists of R33, where `PARTY` is never valid for a character out of game;
   - `CHARACTER` (whisper) is now allowed for an **offline** addressee. The host runs the same gates as
     the in-game whisper — sender chat ban, min level 40, the addressee's block list (read from the DB
     when offline), message refusal mode — sends a packet only if the addressee is online, and
@@ -167,6 +169,64 @@ is registered for the `Nx-Message-Type`. That is an explicit, fast, per-server n
   until hosts with this change are restarted (platform-side follow-up), so both forms must be accepted
   and rendered as the same nameless line.
 
+## Chat settings and offline delivery
+
+- R32. **`offlineDelivery` lets the platform refuse a whisper nobody would read.** `SendChatMessageCommand` gains
+  `@Nullable Boolean offlineDelivery`. `false` and a `WHISPER` addressee out of game at the moment of the command: the
+  host refuses with reason `TARGET_OFFLINE`, publishes no echo and stores nothing. `true`, or `null` from a platform
+  that predates the field, keeps R22: the whisper goes to the app only and its echo carries
+  `ChatMetadataKey.UNDELIVERED` (events R31). Other channels ignore the field. Only the platform knows whether the
+  addressee has a user who reads chat in the app, and only the host knows at the moment of sending whether the
+  addressee is in game, so the platform states its verdict up front and the host applies it; the reply then tells the
+  sender the truth without a second round trip. The field is boxed so an absent value is distinguishable from
+  `false`: a primitive would read an older platform's command as "refuse", the opposite of what that platform meant.
+
+- R33. **The server's chat settings decide availability, not hard-coded host rules.** Three keys of the app settings
+  file (spec 038 R20), typed in `AppRules` and synced in the `chat` group of `appsettings` (spec 041):
+  - `app.chat.enabled` (default `false`, per the rule that a world-acting feature is off by default) — the chat with
+    the app as a whole. `false`: the host publishes no game chat to the platform, refuses every
+    `SendChatMessageCommand` **from a character** (`senderCharacterId` set) with `CHAT_DISABLED`, and answers an
+    in-game whisper to `Name*` to a character out of game as to an unknown name. A command without
+    `senderCharacterId` (an announcement, a line under a staff persona) is not chat with the app: the platform speaks
+    for itself, and the line still goes out.
+  - `app.chat.online-send-channels` (default `CLAN,ALLIANCE,PARTY,WHISPER`) and `app.chat.offline-send-channels`
+    (default `CLAN,ALLIANCE,WHISPER`) — the channels the app may send to while the sender is in game and out of it.
+    Values are `ChatChannel` names: the online list takes those with `sendableFromApp()` (`CLAN`, `ALLIANCE`, `PARTY`,
+    `WHISPER`), the offline list those with `sendableOffline()` (the same without `PARTY`: there is no party out of
+    game); comma-separated, no repeats, empty means read-only in that state. The predicates live on the one channel
+    vocabulary, so no second token list exists. Any invalid value rejects the whole file (the file's general rule).
+
+  The host picks the list by whether the sender is in game when it runs the command and refuses a channel outside
+  that list with `CHANNEL_DISABLED`. The former host rule "`PARTY` only while in game" is now the default data of
+  these lists. The platform reads the same lists from the settings sync to hide what the app cannot send, but the host
+  stays the authority.
+
+- R34. **The reply says whether the whisper addressee is in game.** `SendChatMessageResult` gains
+  `@Nullable Boolean targetInGame`, set on `WHISPER` only: `true` when the addressee is in game (a shadowed whisper (R10) to an
+  in-game addressee is still `true`), `false` when the addressee was out of game and the message lives only in the app (R32 with `offlineDelivery`
+  not `false`). `null` on every other channel and from a host older than the field. The platform derives delivery from
+  this field, never from `recipients`: `recipients` is best-effort telemetry a host MAY report as `0`, and a shadowed
+  whisper (R10) reaches no client although the addressee is in game. Only the host knows at the moment of sending
+  whether the addressee is in game, so the fact rides the reply, as the echo's `UNDELIVERED` key (events R31) does for
+  the stored message.
+
+**Refusal reasons.** A `SendChatMessageCommand` refusal carries `extensions.reason` (`SendChatMessageRefusal.REASON`),
+a `SendChatMessageRefusalReason` name; the platform lifts it into its API error code, so a constant is never renamed.
+The enum is closed: a new reason is an api release first, then the platform, then the host. A missing clan or alliance
+is `NOT_FOUND` without a reason.
+
+| Reason             | Status              | When                                                                                      |
+| ------------------ | ------------------- | ----------------------------------------------------------------------------------------- |
+| `CHAT_FORBIDDEN`   | `FORBIDDEN`         | a chat gate of the game (R10, R22): chat ban, level floor, jail, block list, refusal mode |
+| `NOT_IN_CLAN`      | `INVALID_STATE`     | the sender is not a member of the addressed clan                                          |
+| `NOT_IN_ALLIANCE`  | `INVALID_STATE`     | the sender's clan is not in the addressed alliance                                        |
+| `NOT_IN_PARTY`     | `INVALID_STATE`     | audience `PARTY` and the sender is in no party (R22)                                      |
+| `TARGET_NOT_FOUND` | `NOT_FOUND`         | the whisper addressee does not exist (R24)                                                |
+| `ITEM_NOT_OWNED`   | `VALIDATION_FAILED` | a linked item is missing or not the sender's (R25)                                        |
+| `CHAT_DISABLED`    | `INVALID_STATE`     | `app.chat.enabled = false` and the command has a `senderCharacterId` (R33)                |
+| `CHANNEL_DISABLED` | `INVALID_STATE`     | the channel is outside the list for the sender's state (R33)                              |
+| `TARGET_OFFLINE`   | `INVALID_STATE`     | `offlineDelivery = false` and the `WHISPER` addressee is out of game (R32)                |
+
 ## Topic & wire summary
 
 | Item              | Value                                                   |
@@ -181,6 +241,25 @@ Additive on release (R22-R27 and R30 too: one new nullable field, new audience a
 than the slice answers `VALIDATION_FAILED` for them): a host built against an older api never registers the handler, and the platform
 sees `UNSUPPORTED_COMMAND` — exactly the signal phase 1 relies on. The removal in R14 is the only
 breaking step, and it is gated on the fallback metric.
+
+**`api/v0.123.0`, `core/v0.52.0` (R32-R34).** Additive on the wire: an older host ignores `offlineDelivery`, keeps
+delivering whispers to the app and replies without `targetInGame`; the platform reads a settings snapshot without the
+`chat` group as the behaviour of such a host. Source-breaking for Java code, with the wire strings unchanged and no
+`@Deprecated` copy (one-release rule):
+
+- The chat vocabularies are enums ([#33](https://github.com/l2nx/nx-gs-adapter/issues/33)): `WellKnownChatChannels` ->
+  `kafka.events.chat.model.ChatChannel` (same names, plus `sendableFromApp()`, `sendableOffline()`, `fromToken` and
+  `unknownToken(int)` for `UNKNOWN_<int>`), `ChatMetadataKeys` -> `kafka.events.chat.model.ChatMetadataKey` (the wire
+  string is `key()`), `ChatAudiences` -> `kafka.commands.chat.model.ChatAudience`. The wire fields `channel` and
+  `audience` stay strings; the builders also take the enums.
+- The `chat*` members of `AppRules` are new; `AppRules.chatOnlineSendChannels()` / `chatOfflineSendChannels()` return
+  `Set<ChatChannel>`.
+- New `SendChatMessageRefusalReason` and `SendChatMessageRefusal.REASON` replace the host's own reason constants (same
+  strings).
+- The public constructors of `SendChatMessageCommand` (`offlineDelivery` last, after `initiator`),
+  `SendChatMessageResult` (`targetInGame` last) and `AppSettings` (`chat`) take one new parameter each.
+
+A host that updates the core sets `app.chat.enabled=true` to keep chat on, since the default is `false`.
 
 ## Non-goals
 

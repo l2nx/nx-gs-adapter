@@ -8,10 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -54,12 +58,15 @@ class AppRulesTest {
                 invalid("revive spot pool with a dash", b -> b.reviveTownSpotPools(Arrays.asList("giran-town"))),
                 invalid("revive spot pool listed twice", b -> b.reviveTownSpotPools(Arrays.asList("giran", "giran"))),
                 invalid("revive SPOT_POOL without a pool", b -> b.reviveTownMode(ReviveTownMode.SPOT_POOL)),
+                invalid(
+                        "chat online channels with null",
+                        b -> b.chatOnlineSendChannels(new HashSet<ChatChannel>(Arrays.asList(ChatChannel.CLAN, null)))),
+                invalid("chat offline PARTY", b -> b.chatOfflineSendChannels(EnumSet.of(ChatChannel.PARTY))),
                 invalid("restore batch 0", b -> b.restoreBatchSize(0)),
                 invalid("restore pause -1", b -> b.restoreBatchPauseMillis(-1)),
                 invalid("retention 6 days", b -> b.historyRetentionDays(6)));
     }
 
-    /** Every rule window the host reads through the session-history read. */
     static Stream<Arguments> historyReadWindows() {
         return Stream.of(
                 Arguments.of("private-store start cooldown", AppRules.PRIVATE_STORE_START_COOLDOWN_MINUTES),
@@ -95,6 +102,13 @@ class AppRulesTest {
             assertTrue(actual.reviveEnabled());
             assertEquals(ReviveTownMode.NATIVE, actual.reviveTownMode());
             assertEquals(Collections.<String>emptyList(), actual.reviveTownSpotPools());
+            assertFalse(actual.chatEnabled());
+            assertEquals(
+                    EnumSet.of(ChatChannel.CLAN, ChatChannel.ALLIANCE, ChatChannel.PARTY, ChatChannel.WHISPER),
+                    actual.chatOnlineSendChannels());
+            assertEquals(
+                    EnumSet.of(ChatChannel.CLAN, ChatChannel.ALLIANCE, ChatChannel.WHISPER),
+                    actual.chatOfflineSendChannels());
         }
 
         @ParameterizedTest(name = "{0} is off by default")
@@ -221,6 +235,60 @@ class AppRulesTest {
                     () -> actual.reviveTownSpotPools().add("dion"));
         }
 
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(ChatChannel.class)
+        void build_shouldAcceptAnOnlineChannel_whenSendableFromApp(ChatChannel channel) {
+            AppRules.Builder builder = AppRules.builder().chatOnlineSendChannels(EnumSet.of(channel));
+
+            boolean buildAccepts = true;
+            try {
+                builder.build();
+            } catch (IllegalArgumentException e) {
+                buildAccepts = false;
+            }
+
+            assertEquals(channel.sendableFromApp(), buildAccepts);
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(ChatChannel.class)
+        void build_shouldAcceptAnOfflineChannel_whenSendableOffline(ChatChannel channel) {
+            AppRules.Builder builder = AppRules.builder().chatOfflineSendChannels(EnumSet.of(channel));
+
+            boolean buildAccepts = true;
+            try {
+                builder.build();
+            } catch (IllegalArgumentException e) {
+                buildAccepts = false;
+            }
+
+            assertEquals(channel.sendableOffline(), buildAccepts);
+        }
+
+        @Test
+        void build_shouldAcceptEmptyChatChannels() {
+            AppRules actual = AppRules.builder()
+                    .chatOnlineSendChannels(EnumSet.noneOf(ChatChannel.class))
+                    .chatOfflineSendChannels(Collections.<ChatChannel>emptySet())
+                    .build();
+
+            assertTrue(actual.chatOnlineSendChannels().isEmpty());
+            assertTrue(actual.chatOfflineSendChannels().isEmpty());
+        }
+
+        @Test
+        void chatSendChannels_shouldBeACopyFrozenOnBuild() {
+            Set<ChatChannel> channels = EnumSet.of(ChatChannel.CLAN, ChatChannel.WHISPER);
+            AppRules actual =
+                    AppRules.builder().chatOnlineSendChannels(channels).build();
+            channels.clear();
+
+            assertEquals(EnumSet.of(ChatChannel.CLAN, ChatChannel.WHISPER), actual.chatOnlineSendChannels());
+            assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> actual.chatOnlineSendChannels().add(ChatChannel.PARTY));
+        }
+
         @Test
         void build_shouldAcceptEveryRangeBound() {
             AppRules.builder()
@@ -272,6 +340,9 @@ class AppRulesTest {
                     .reviveEnabled(false)
                     .reviveTownMode(ReviveTownMode.SPOT_POOL)
                     .reviveTownSpotPools(Arrays.asList("harbor", "giran"))
+                    .chatEnabled(true)
+                    .chatOnlineSendChannels(EnumSet.of(ChatChannel.PARTY))
+                    .chatOfflineSendChannels(EnumSet.of(ChatChannel.WHISPER))
                     .restoreBatchSize(3)
                     .restoreBatchPauseMillis(250)
                     .historyRetentionDays(30)
