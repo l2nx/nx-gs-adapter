@@ -848,7 +848,7 @@ Phases across repos, in delivery order:
    `NxAppSessions.publishSettings`), R21 (session-history read) and R22 (`ClientIdentifiers` in commons, applied at the
    wire boundary), plus the db-migrations changesets `0008` (adds
    `return_threshold_ms`) and `0009` (the `(master_account_id, activity, started_at)` index needed by R21).
-   **[todo] Follow-up adapter release for the private-store cooldown** (api 0.112.0, core 0.46.0, db-migrations 0.4.0,
+   **[done] Follow-up adapter release for the private-store cooldown** (api 0.112.0, core 0.46.0, db-migrations 0.4.0,
    R23): the key `app.private-store.start-cooldown-minutes`, `AppRules.privateStoreStartCooldownMinutes()`, the
    snapshot field `privateStoreStartCooldownMinutes`, `NxAppSessions.findLastStartedByCharacter(int, ActivityType)`,
    the `PrivateStoreReason.COOLDOWN` token and the changeset `0010` (the `(character_id, activity, started_at)` index).
@@ -859,18 +859,20 @@ Phases across repos, in delivery order:
    `privateStoreStartCooldownMinutes` there, and the fishing cooldown under `startCooldownMinutes`. The platform reads
    both cooldown names until the gate "every GS of the tenant on core 0.46.0+", then drops the old one. Then the host
    enforces R23 in its private-store start path.
-   **[todo] Adapter release for the fishing host's restore and interrupt** (api 0.115.0, core 0.48.0): `NxAppSessions.findOpen(ActivityType)`
+   **[done] Adapter release for the fishing host's restore and interrupt** (api 0.115.0, core 0.48.0): `NxAppSessions.findOpen(ActivityType)`
    (R21) and the new `LogoutReason.APP_INTERRUPTED`, accepted by `onActionEnded`. Additive, no migration. Order (new
    vocabulary value): this api release, then the platform enum and its CHECK learn `APP_INTERRUPTED`, then the host sends
    it; a host that never sends it needs no change.
-4. **[todo] Host, second restart: offline fishing.** The host switches in one release: it reads its rule values from
+4. **[done] Host, second restart: offline fishing** (bohpts-core #3139, 2026-10-23; fishing enabled on x7 only). The host switches in one release: it reads its rule values from
    `NxAppRules`, drops its own settings-file code, uses R21 for `COOLDOWN` and the master-account limit and
    `ClientIdentifiers` for its own identifier checks, and runs offline fishing with its datapack (spot pool data, fishing
    and peace zones where needed). `app.fishing.enabled=true` and `app.fishing.spot-pool` only on the servers that get
    fishing. Every `app.*` line of a server's file must pass the adapter's validation (for example `app.fishing.spot-order`
    takes `RANDOM` / `FIRST_FREE`), so the datapack change ships in the same restart. The next morning restart verifies
    fisher restore.
-5. **[todo] Platform opening.** The platform drops its `501`, the permission goes to a testers role, then, after a prod
+5. **[in progress] Platform opening.** Done: the platform dropped its `501` and its phase-1 legacy mapping (2026-10-24); testers
+   hold the permission by a manual grant. Open: the prod check on x7, the player role (nx-gameservers #104), the frontend.
+   Plan: the platform drops its `501`, the permission goes to a testers role, then, after a prod
    check, to the player role; frontend. The platform drops its legacy mapping of the old shapes once every game server of
    the tenant is on the phase-2 host; backlog by priority ([#40](https://github.com/l2nx/nx-gs-adapter/issues/40) first).
 

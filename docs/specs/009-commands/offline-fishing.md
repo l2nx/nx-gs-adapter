@@ -28,7 +28,7 @@ The session mechanics (table, lifecycle, events, restart) are in
   (`CommandInitiator`, [`spec.md`](spec.md) R30), not a payload field: the session row stores `initiator.userId` as
   `master_account_id` (the host reads it back through the session-history read for the master-account limit, which
   counts app sessions only) and `initiator.ip` as `initiator_ip` (a placeholder as `null`, returned in the session
-  event). The `masterAccountId` and `initiatorIp` fields left the payload with R30 (not yet released):
+  event). The `masterAccountId` and `initiatorIp` fields left the payload with R30 (api 0.120.0):
 
   | Field               | Type       | Required | Notes                                                                                                                                                                                                                                 |
   | ------------------- | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -73,20 +73,20 @@ The session mechanics (table, lifecycle, events, restart) are in
   (`INVALID_FISHING_SHOT`), and that its grade fits the chosen rod (`FISHING_SHOT_GRADE_MISMATCH`). During the session
   the host charges one shot before every cast, as its own fishing-shot use does, and stores the choice in the session's
   type state. When the stack runs out the session goes on without shots: running out of shots is not an end reason.
-  What a shot does to a catch is the host's game mechanics, not part of this contract. Implemented in the adapter, not yet released.
+  What a shot does to a catch is the host's game mechanics, not part of this contract. Released in api 0.120.0 / core 0.51.0.
 - [done] R10. **`CheckOfflineFishingCommand`** is the check command of this session type ([`spec.md`](spec.md)
   R31): the start's payload without `idempotencyKey` and with every player choice optional, result
   `AppSessionCheckResult`. It runs the start's checks in the start's order, `COOLDOWN`, `RECENTLY_LOGGED_OUT` and
   `DAILY_LIMIT` with `retryAt` as on start, and the daily stop as `effectiveDurationMs`, and changes nothing. It is how the platform shows a cooldown or
-  a missing item before the player presses start. Implemented in the adapter, not yet released.
+  a missing item before the player presses start. Released in api 0.120.0 / core 0.51.0.
 - [done] R11. **Running session in the activity usage.** While the session runs, the host fills the `OFFLINE_FISHING`
   activity-usage row's metadata with `remaining`, `elapsed`, `rodItemId`, `baitItemId`, `fishingShotItemId`, `spotPool`
   and `spotId` ([`017`](../017-character-runtime-activity.md) R17), so every device of the player sees the plan and the
-  gear, not only the one that started it. Implemented in the adapter, not yet released.
+  gear, not only the one that started it. Released in api 0.120.0 / core 0.51.0.
 - [done] R12. **IP limit.** The app session counts in the host's per-IP fishing limit (scope `IP`, a new
   `AlreadyActiveScope` value) under `initiator.ip` of the start. Live fishing counts app sessions under that IP too.
   The IP passes `ClientIdentifiers`; a placeholder limits nothing. The limit itself is a host rule, off
-  when the host's per-IP limit is off. Implemented in the adapter, not yet released.
+  when the host's per-IP limit is off. Released in api 0.120.0 / core 0.51.0.
 
 **Non-goals:**
 
@@ -240,15 +240,9 @@ Status: the commands, results and reason codes are released, and the reference h
 is gated only by the server's `app.fishing.enabled` (`FEATURE_DISABLED` when off). The adapter side it needs (`038`
 R20-R22: app settings file, session-history read, `ClientIdentifiers`) shipped in api 0.111.0 / core 0.45.0.
 
-Next release (implemented in the adapter, not yet released):
-
-- R9 (fishing shot), R10 (check), R12 (`IP` scope) add a field, a command and enum values: an api release first, then
-  the platform (enums, CHECKs, REST), then the host. Until the host registers the check handler the platform gets
-  `UNSUPPORTED_COMMAND`.
-- R11 is host-only (the metadata map is open); the key enum ([`017`](../017-character-runtime-activity.md) R17) ships in
-  the same api release.
-- The initiator replaces `masterAccountId` / `initiatorIp` per [`spec.md`](spec.md) › Rollout: one api release, the
-  platform straddles with its own legacy mapping until every game server restarted on the new host.
+R9 (fishing shot), R10 (check), R11 (session state in the activity usage) and R12 (`IP` scope), together with the
+initiator that replaced `masterAccountId` / `initiatorIp`, shipped in api 0.120.0 / core 0.51.0; the reference host runs
+them since bohpts-core #3153, the platform since nx-gameservers 0.212.0.
 
 ## Open questions
 

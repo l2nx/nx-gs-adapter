@@ -1,6 +1,6 @@
 # gd-sync fishing gear contract
 
-[done] Implemented in the adapter, not yet released. This file is the living, build-agnostic contract of the fishing gear catalog on the gd-sync stream: the
+[done] Released in api 0.120.0 / gd-sync 0.16.0. This file is the living, build-agnostic contract of the fishing gear catalog on the gd-sync stream: the
 entities `fishingbait`, `fishingrod` and `fishingshot`. It is kept in sync with the DTOs in `kafka.sync.gd.fishing` in
 the same commit: any change to one updates the other. The module mechanics (burst protocol, readiness, `null` vs empty
 snapshot) are in [`spec.md`](spec.md); the naming rules N1-N10 of [`skill-contract.md`](skill-contract.md) apply here
