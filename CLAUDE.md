@@ -144,6 +144,10 @@ Things that cost time to learn and are not visible from the code you are editing
   the host refuses that login with "try again". The engine holds at most half of `l2nx.io.workers` at once (restore
   batches are capped to it), and a session end the table refused is retried until it lands, the character staying busy
   meanwhile. See 038.
+- **Runtime sync waits for the host.** Ticks start only after the module start and `NxAdapter.runtimeSync().hostStarted()`,
+  whichever comes last; no timer, no fallback, so a host that never calls it sends no runtime data. See 006 R14.
+- **A failure of the `result` column never ends a session.** The engine logs and counts it: a failed read means
+  `partial`, a failed clear a stale block. See 043.
 - **`SNAPSHOT_COMPLETE` is a reconcile point.** A provider that is not ready returns `null` (burst
   aborted, nothing reconciled; a `null` lasting past the readiness window is an ERROR); a registered
   provider whose catalog is legitimately empty returns an empty collection — a `count=0` marker, on
@@ -169,6 +173,7 @@ Adapter-owned threads (all daemon — never block JVM exit):
 | `nx-runtime-sync-pool-N`    | configurable | Shared runtime-sync engine pool (all entities)                                                                                                                          |
 | `nx-gd-sync-scheduler`      | 0-1          | gd-sync host-readiness polling + periodic resync                                                                                                                        |
 | `nx-app-sessions-scheduler` | 0-1          | App-session restore batches, end-by-time timers, `active_ms` flush tick with the republish of unacknowledged ends, 60 s open-sessions snapshot (work hops to `nx-io-N`) |
+| `nx-app-sessions-stop`      | 0-1          | One batched write of the running results at a graceful stop, apart from the IO pool                                                                                     |
 | `nx-app-settings-watcher`   | 0-1          | Polls `l2nx-app.properties` (~5 s, by content) and swaps in a valid file (game server only)                                                                             |
 | `nx-settings-tick`          | 0-1          | 5-minute unconditional resend of every settings snapshot (work hops to `nx-io-N`)                                                                                       |
 | Kafka producer I/O          | 1            | Internal to `KafkaProducer` (kafka-clients-managed)                                                                                                                     |

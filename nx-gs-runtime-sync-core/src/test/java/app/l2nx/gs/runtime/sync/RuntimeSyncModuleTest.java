@@ -171,6 +171,19 @@ class RuntimeSyncModuleTest {
         }
 
         @Test
+        void start_shouldFail_whenTheConfigIsInvalid_withoutWaitingForTheHost() {
+            RuntimeSyncModule invalid = new RuntimeSyncModule(
+                    () -> Collections.singletonList(stubProvider()), key -> "not-a-number", NEVER_CALLED);
+            invalid.onConnect(gated);
+
+            invalid.start();
+
+            assertEquals(RuntimeSyncModule.STATE_FAILED, invalid.stateForTesting());
+            gate.hostStarted();
+            assertFalse(invalid.engineStartedForTesting());
+        }
+
+        @Test
         void start_shouldNeverTick_whenTheContextHasNoGate() {
             module.onConnect(CTX_WITH_TOPIC);
 

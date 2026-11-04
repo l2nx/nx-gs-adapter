@@ -80,6 +80,14 @@ class CharacterPresenceEventTest {
             assertEquals(ActivityType.OFFLINE_PRIVATE_STORE, actual.getActivity());
         }
 
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(value = ActivityType.class, mode = EnumSource.Mode.EXCLUDE, names = "OFFLINE_PRIVATE_STORE")
+        void constructor_shouldRejectClient_whenActivityIsNotTheNativeStore(ActivityType activity) {
+            CharacterPresenceEvent.Builder builder = clientLogin().activity(activity);
+
+            assertThrows(IllegalArgumentException.class, builder::build);
+        }
+
         @Test
         void constructor_shouldRejectResult_whenOnline() {
             CharacterPresenceEvent.Builder builder =

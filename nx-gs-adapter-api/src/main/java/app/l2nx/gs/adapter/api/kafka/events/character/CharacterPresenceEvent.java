@@ -68,6 +68,10 @@ public final class CharacterPresenceEvent {
         if (source == SessionSource.APP && activity == null) {
             throw new IllegalArgumentException("CharacterPresenceEvent.activity is required when source is APP");
         }
+        if (source == SessionSource.CLIENT && activity != null && activity != ActivityType.OFFLINE_PRIVATE_STORE) {
+            throw new IllegalArgumentException(
+                    "CharacterPresenceEvent.activity with source CLIENT is only OFFLINE_PRIVATE_STORE");
+        }
         if (resumed && !(online && source == SessionSource.APP)) {
             throw new IllegalArgumentException(
                     "CharacterPresenceEvent.resumed is only allowed on an online=true event with source APP");

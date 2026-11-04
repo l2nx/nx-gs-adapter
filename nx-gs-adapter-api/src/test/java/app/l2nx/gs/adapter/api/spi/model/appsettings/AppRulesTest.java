@@ -63,6 +63,7 @@ class AppRulesTest {
                         b -> b.chatOnlineSendChannels(new HashSet<ChatChannel>(Arrays.asList(ChatChannel.CLAN, null)))),
                 invalid("chat offline PARTY", b -> b.chatOfflineSendChannels(EnumSet.of(ChatChannel.PARTY))),
                 invalid("restore batch 0", b -> b.restoreBatchSize(0)),
+                invalid("shutdown result budget 0", b -> b.shutdownResultMillisPerSession(0)),
                 invalid("restore pause -1", b -> b.restoreBatchPauseMillis(-1)),
                 invalid("retention 6 days", b -> b.historyRetentionDays(6)));
     }
@@ -98,6 +99,7 @@ class AppRulesTest {
             assertNull(actual.fishingSpotPool());
             assertEquals(10, actual.restoreBatchSize());
             assertEquals(1000, actual.restoreBatchPauseMillis());
+            assertEquals(20, actual.shutdownResultMillisPerSession());
             assertEquals(90, actual.historyRetentionDays());
             assertTrue(actual.reviveEnabled());
             assertEquals(ReviveTownMode.NATIVE, actual.reviveTownMode());

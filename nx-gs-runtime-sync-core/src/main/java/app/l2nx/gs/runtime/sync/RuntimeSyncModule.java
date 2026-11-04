@@ -53,8 +53,8 @@ public final class RuntimeSyncModule implements AdapterModule {
     private volatile EntityStatsTracker statsTracker;
     private volatile RuntimeSyncEngine engine;
     private volatile List<RuntimeEntityMapping<?>> cachedMappings;
-    /** The start waiting for the host; {@code stop} and {@code onDisconnect} drop it, so a stale callback builds nothing. */
-    private @Nullable Object pendingStart;
+    /** Built and waiting for the host; {@code stop} and {@code onDisconnect} drop it, so a stale callback starts nothing. */
+    private @Nullable RuntimeSyncEngine pendingEngine;
 
     public RuntimeSyncModule() {
         this(RuntimeSyncModule::loadProviders, EngineConfig.productionChain(), RuntimeSyncModule::sendViaNxKafka);
@@ -129,30 +129,37 @@ public final class RuntimeSyncModule implements AdapterModule {
             state = STATE_DISABLED;
             return;
         }
-        Object start = new Object();
-        synchronized (startLock) {
-            pendingStart = start;
+        RuntimeSyncEngine built;
+        try {
+            EngineConfig config = EngineConfig.from(configSource);
+            TopicResolver resolver = TopicResolver.fromContext(ctx);
+            SyncEventPublisher publisher = new SyncEventPublisher(kafkaSender);
+            built = new RuntimeSyncEngine(mappings, resolver, publisher, tracker, config);
+        } catch (Throwable t) {
+            log.error(
+                    "RuntimeSyncEngine setup threw {}: {} — runtime-sync FAILED",
+                    t.getClass().getName(),
+                    t.getMessage());
+            state = STATE_FAILED;
+            return;
         }
-        ctx.runtimeSync().onHostStarted(() -> startEngine(start, ctx, tracker, mappings));
         synchronized (startLock) {
-            if (pendingStart == start) {
+            pendingEngine = built;
+        }
+        ctx.runtimeSync().onHostStarted(() -> startTicks(built));
+        synchronized (startLock) {
+            if (pendingEngine == built) {
                 log.info("runtime-sync: no ticks until the host declares its start through hostStarted()");
             }
         }
     }
 
-    private void startEngine(
-            Object start, ConnectContext ctx, EntityStatsTracker tracker, List<RuntimeEntityMapping<?>> mappings) {
+    private void startTicks(RuntimeSyncEngine built) {
         synchronized (startLock) {
-            if (pendingStart != start) {
+            if (pendingEngine != built) {
                 return;
             }
-            pendingStart = null;
-            EngineConfig config = EngineConfig.from(configSource);
-            TopicResolver resolver = TopicResolver.fromContext(ctx);
-            SyncEventPublisher publisher = new SyncEventPublisher(kafkaSender);
-
-            RuntimeSyncEngine built = new RuntimeSyncEngine(mappings, resolver, publisher, tracker, config);
+            pendingEngine = null;
             this.engine = built;
             try {
                 built.start();
@@ -171,7 +178,7 @@ public final class RuntimeSyncModule implements AdapterModule {
     public void stop() {
         RuntimeSyncEngine running;
         synchronized (startLock) {
-            pendingStart = null;
+            pendingEngine = null;
             running = engine;
         }
         if (running != null) {
@@ -187,7 +194,7 @@ public final class RuntimeSyncModule implements AdapterModule {
     @Override
     public void onDisconnect() {
         synchronized (startLock) {
-            pendingStart = null;
+            pendingEngine = null;
             engine = null;
         }
         provider = null;

@@ -498,11 +498,11 @@ End-to-end per tick (one entity, e.g. `character`):
    `failedAcks`, `timedOutAcks`. `CycleResult` is `DEGRADED` if either ack
    counter is non-zero, otherwise `HEALTHY`.
 
-Start gate (R14): `RuntimeSyncModule.start()` builds the engine and registers
-`onHostStarted`; the callback starts the engine. The flag "host started" is a one-way JVM-wide fact on
+Start gate (R14): `RuntimeSyncModule.start()` reads its config and builds the engine, so a config failure is `FAILED` at
+once, then registers `onHostStarted`; only the start of the ticks waits for the callback. The flag "host started" is a one-way JVM-wide fact on
 the core's facade, so it is safe from any thread, early and repeated calls included, and it outlives a
 reconnect: the `start()` after a reconnect finds it set and ticks at once. A `stop()` or `onDisconnect`
-before the host's call drops the pending start, so a stale callback builds nothing. While it waits the
+before the host's call drops the pending start, so a stale callback starts nothing. While it waits the
 module stays `ACTIVE` with no entity stats and logs one INFO.
 
 Shutdown: `stop()` cancels scheduled tasks and waits up to

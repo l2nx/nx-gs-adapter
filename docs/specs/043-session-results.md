@@ -34,17 +34,18 @@ from that data on the platform.
 - [done] R6. Serialized, `result` MUST fit `SessionResult.MAX_JSON_BYTES` (800,000 UTF-8 bytes). Past it a host folds
   `uniques` into `items` and counts them in `overflow`. A `result` still over it MUST be dropped, not the end: the end of
   a session never depends on its result ([Byte budget](#byte-budget)).
-- [done] R7. `OfflineSessionHost` MUST gain `takeSessionResult`, called by the engine once per close of a session that
-  was placed in this JVM and once per session left open by a graceful stop ([SPI](#spi)).
+- [done] R7. `OfflineSessionHost` MUST gain `takeSessionResult`, called by the engine once after every `removeFromWorld`
+  and once per session left open by a graceful stop ([SPI](#spi)).
 - [done] R8. An `APP` end MUST be identical on its first send and on every republish, `result` included, so the
   result is stored in the JSON column `result` of `l2nx_offline_sessions`, written by the close.
 - [done] R9. `result` MUST survive a graceful restart of an `APP` session. The graceful stop takes the running block of every
   session left open and writes it into the same column `result`. A restore reads and clears the column and hands the
   block to the host as `OfflineSession.getCarriedResult()`; the host seeds the session's recorder with it, so the end
-  carries the whole session. Nothing is written while a session runs. A restore that finds the column empty means the
-  stop was not graceful: what ran before it is lost and the block carries `partial = true`, which later restores keep.
-- [done] R10. A close of a session whose character was not placed in this JVM MUST have `result = null`: a stop or a
-  login before the restore, an `APP_TIME_UP` without placement, a refused placement. The reason does not decide it: a
+  carries the whole session. Nothing is written while a session runs. A stop whose host has nothing to give writes an empty block, so a restore that
+  finds the column empty means the stop was not graceful: what ran before it is lost and the block carries `partial = true`, which later restores keep.
+- [done] R10. A close of a session whose character was not placed in this JVM MUST carry the block the last graceful stop
+  stored, and `result = null` when nothing was carried: a stop or a login before the restore, an `APP_TIME_UP` without
+  placement, a refused placement. The host's answer is dropped there. The reason does not decide it: a
   restore that placed the character and failed in `startAction` ends with `APP_RESTORE_FAILED` and has a block.
 - [done] R11. The `CharacterPresenceEvent` constructor MUST allow `activity` with `source = CLIENT`, for the native
   offline store ([Native offline store](#native-offline-store)). `activity` stays required with `APP`.
@@ -66,7 +67,12 @@ from that data on the platform.
 - **Host without a recorder:** `takeSessionResult` answers `null` and its client ends carry no `result`.
 - **The same item both gained and lost under one key:** `delta` is the net, `events` the operations. A net of `0` is a
   valid row: it records that the operations happened.
-- **`takeSessionResult` throws:** logged, `result = null`, the end continues.
+- **`takeSessionResult` throws:** logged, `result = null` or the carried block, the end continues.
+- **A restore that placed and failed in `startAction`, with a host that seeds there:** the carried block stands in for the
+  host's empty answer.
+- **A failed read or clear of the column:** logged and counted, the session goes on. A failed read means `partial`; a
+  failed clear only risks a stale block. `APP_RESTORE_FAILED` never depends on the column.
+- **A graceful stop:** the seconds between the take and the exit of the JVM are not in the block.
 - **A stored `result` a later version cannot parse:** one ERROR, the end goes out with `result = null`, on every
   republish alike.
 - **A close the table refused:** the retry queue keeps the same `result` text, so the retry writes what the event
@@ -335,9 +341,10 @@ default @Nullable SessionResult takeSessionResult(OfflineSession session) {
 - It reads what `removeFromWorld` left: the character is out of the world by then, so the host takes the recorder of the
   session when it settles the character and keeps it by `sessionId` for this call. No world state is needed here, and the
   method neither hops to the game thread nor waits.
-- The engine does not call it when `placeInWorld` did not place the character in this JVM (R10); the phase cannot tell,
-  because a restore that fails after its placement closes from the same path, so the slot keeps a "placed" mark. A
-  start that rolls back has no end to carry it.
+- The engine calls it after every `removeFromWorld`, so a host never leaks a parked recorder, and drops the answer when
+  `placeInWorld` did not place the character in this JVM (R10) and on a start that rolls back, which has no end to carry
+  it. The phase cannot tell, because a restore that fails after its placement closes from the same path, so the slot
+  keeps a "placed" mark.
 - A throw is logged and gives `result = null`; the end continues.
 
 ### Close and republish
@@ -418,7 +425,8 @@ exists.
   second event would need its own ordering against the end, and a lost one would leave an end with no result.
 - **Stored in the row.** R24 of `038` republishes an end from the row until Kafka acknowledges it, with a fixed
   `eventId`. A `result` held only in memory would make the republished end differ from the first send, or lose it.
-- **One write at the graceful stop, none while running.** A periodic write of a hot structure would cost every session for
+- **One batched write at the graceful stop, none while running.** The wait is 5 s plus
+  `app.shutdown.result-millis-per-session` per open session, and a slot stuck in the host costs only its own block. A periodic write of a hot structure would cost every session for
   the rare crash. The stop is the only moment the block must leave memory; a crash loses it, as it does for `CLIENT`, and
   `partial` says so.
 - **The same column.** An open row holds the carried block, a closed row the final one; a restore clears it, so a crash

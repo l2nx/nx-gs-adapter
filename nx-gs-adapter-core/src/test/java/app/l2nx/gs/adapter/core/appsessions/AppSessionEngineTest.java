@@ -1092,7 +1092,7 @@ class AppSessionEngineTest {
             hostReady();
 
             assertEquals(LogoutReason.APP_STOPPED_BEFORE_RESTORE, actual.get().getEndReason());
-            assertEquals(Arrays.asList("remove:" + row.getId() + ":false"), host.calls);
+            assertEquals(Arrays.asList("remove:" + row.getId() + ":false", "takeResult:" + row.getId()), host.calls);
             assertEquals(
                     LogoutReason.APP_STOPPED_BEFORE_RESTORE,
                     store.row(row.getId()).getEndReason());
@@ -1131,7 +1131,7 @@ class AppSessionEngineTest {
             assertEquals(LogoutReason.APP_LOGIN, actual.getSession().getEndReason());
             assertFalse(host.called("place:"));
             assertFalse(host.called("stopAction:"));
-            assertEquals(Arrays.asList("remove:" + row.getId() + ":true"), host.calls);
+            assertEquals(Arrays.asList("remove:" + row.getId() + ":true", "takeResult:" + row.getId()), host.calls);
         }
 
         @Test
@@ -2083,33 +2083,55 @@ class AppSessionEngineTest {
         }
 
         @Test
-        void close_shouldNotAskTheHost_whenTheStopCameBeforeTheRestore() {
-            host.sessionResult = s -> block;
+        void close_shouldCarryTheStoredBlock_whenTheStopCameBeforeTheRestore() {
+            SessionResult dropped = SessionResult.builder().overflow(9L).build();
+            host.sessionResult = s -> dropped;
             OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
             store.results.put(row.getId(), json(block));
             bootWith(row);
 
             engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
 
-            assertFalse(host.called("takeResult:"));
-            assertNull(events.last().getResult());
-            assertNull(store.results.get(row.getId()), "a republish must not pick up the carried block");
+            assertTrue(host.called("takeResult:"), "the host may have parked a recorder");
+            assertEquals(block, events.last().getResult());
+            assertEquals(json(block), store.results.get(row.getId()));
         }
 
         @Test
-        void close_shouldNotAskTheHost_whenTimeRanOutBeforeThePlacement() {
+        void close_shouldDropTheHostsAnswer_whenTimeRanOutBeforeThePlacementAndNothingIsCarried() {
             host.sessionResult = s -> block;
             OfflineSession row = openRow(CHAR_ID, 5, 60L * MINUTE);
 
             restartWith(row);
 
             assertEquals(LogoutReason.APP_TIME_UP, store.row(row.getId()).getEndReason());
-            assertFalse(host.called("takeResult:"));
+            assertTrue(host.called("takeResult:"));
             assertNull(events.last().getResult());
         }
 
         @Test
-        void close_shouldNotAskTheHost_whenTheRestorePlacementIsRefused() {
+        void close_shouldCarryTheStoredBlock_whenTimeRanOutBeforeThePlacement() {
+            OfflineSession row = openRow(CHAR_ID, 5, 60L * MINUTE);
+            store.results.put(row.getId(), json(block));
+
+            restartWith(row);
+
+            assertEquals(block, events.last().getResult());
+        }
+
+        @Test
+        void close_shouldHaveNoResult_whenTheCarriedBlockIsEmpty() {
+            OfflineSession row = openRow(CHAR_ID, 5, 60L * MINUTE);
+            store.results.put(row.getId(), json(SessionResult.builder().build()));
+
+            restartWith(row);
+
+            assertNull(events.last().getResult());
+            assertNull(store.results.get(row.getId()));
+        }
+
+        @Test
+        void close_shouldDropTheHostsAnswer_whenTheRestorePlacementIsRefused() {
             host.sessionResult = s -> block;
             host.placement = s -> OfflineSessionPlacement.refused(AppSessionRefusalReason.NO_FREE_SPOT, null);
             OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
@@ -2117,8 +2139,34 @@ class AppSessionEngineTest {
             restartWith(row);
 
             assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
-            assertFalse(host.called("takeResult:"));
+            assertTrue(host.called("takeResult:"));
             assertNull(events.last().getResult());
+        }
+
+        @Test
+        void close_shouldCarryTheStoredBlock_whenTheHostSeedsInAStartActionThatThrew() {
+            host.failStartAction = true;
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+
+            restartWith(row);
+
+            assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
+            assertEquals(block, events.last().getResult());
+            assertEquals(json(block), store.results.get(row.getId()));
+        }
+
+        @Test
+        void rollBack_shouldLetTheHostGiveUpItsRecorderAndDropTheAnswer() {
+            host.sessionResult = s -> block;
+            host.failStartAction = true;
+
+            AppSessionStartOutcome actual = engine.start(request().build()).join();
+
+            assertEquals(Status.UNAVAILABLE, actual.getStatus());
+            assertTrue(host.called("takeResult:"));
+            assertTrue(store.results.isEmpty());
+            assertTrue(events.events.isEmpty());
         }
 
         @Test
@@ -2169,6 +2217,80 @@ class AppSessionEngineTest {
 
             assertNull(store.results.get(session.getId()));
             assertTrue(store.row(session.getId()).isOpen());
+            assertEquals(1L, engine.resultColumnFailures());
+        }
+
+        @Test
+        void shutdown_shouldWriteEveryBlockInOneBatch() {
+            host.sessionResult = s -> block;
+            OfflineSession first = started(request().build());
+            OfflineSession second =
+                    started(request().characterId(CHAR_ID + 1).spotId(6).build());
+
+            engine.shutdown();
+
+            assertEquals(1, store.resultWriteBatches);
+            assertEquals(json(block), store.results.get(first.getId()));
+            assertEquals(json(block), store.results.get(second.getId()));
+        }
+
+        @Test
+        void shutdown_shouldWriteAnEmptyBlock_whenTheHostHasNothing_soTheRestoreSeesNoCrash() {
+            OfflineSession session = started(request().build());
+            engine.shutdown();
+            assertEquals(json(SessionResult.builder().build()), store.results.get(session.getId()));
+            host.sessionResult = s -> block;
+            time = new ManualScheduler();
+
+            restartWith(store.row(session.getId()));
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertFalse(events.last().getResult().isPartial());
+        }
+
+        @Test
+        void shutdown_shouldWriteNothing_whenTheHostThrew_soTheRestoreSaysPartial() {
+            host.sessionResult = s -> {
+                throw new IllegalStateException("recorder failed");
+            };
+            OfflineSession session = started(request().build());
+            engine.shutdown();
+            assertNull(store.results.get(session.getId()));
+            host.sessionResult = s -> block;
+            time = new ManualScheduler();
+
+            restartWith(store.row(session.getId()));
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertTrue(events.last().getResult().isPartial());
+        }
+
+        @Test
+        void shutdown_shouldStoreTheOtherBlocks_whenASlotIsStuckInPlaceInWorld() throws Exception {
+            ExecutorService pool = Executors.newFixedThreadPool(4);
+            try {
+                engine = new AppSessionEngine(
+                        store, host, () -> rules, () -> rulesFromFile, pool, 4, time, time, 1_000L);
+                engine.bindEvents(events);
+                host.sessionResult = s -> block;
+                OfflineSession stuck = openRow(CHAR_ID + 1, 6, MINUTE);
+                bootWith(stuck);
+                OfflineSession running = started(request().build());
+                CountDownLatch entered = new CountDownLatch(1);
+                CountDownLatch gate = new CountDownLatch(1);
+                host.placeEntered = entered;
+                host.placeGate = gate;
+                hostReady();
+                assertTrue(entered.await(5, TimeUnit.SECONDS));
+
+                engine.shutdown();
+                gate.countDown();
+
+                assertEquals(json(block), store.results.get(running.getId()));
+                assertNull(store.results.get(stuck.getId()));
+            } finally {
+                pool.shutdownNow();
+            }
         }
 
         @Test
@@ -2273,7 +2395,7 @@ class AppSessionEngineTest {
         }
 
         @Test
-        void restore_shouldRetryAndNotCallItACrash_whenTheColumnCannotBeRead() {
+        void restore_shouldGoOnAndSayPartial_whenTheColumnCannotBeRead() {
             host.sessionResult = s -> block;
             OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
             store.results.put(row.getId(), json(block));
@@ -2281,24 +2403,26 @@ class AppSessionEngineTest {
 
             restartWith(row);
 
-            assertFalse(host.called("place:"));
-            time.advance(rules.restoreBatchPauseMillis());
+            assertTrue(host.called("startAction:"));
+            assertTrue(store.row(row.getId()).isOpen());
+            assertEquals(1L, engine.resultColumnFailures());
+            assertNull(store.results.get(row.getId()), "the stale block must not pass for a graceful stop");
             engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
-
-            assertEquals(block, host.placedSessions.get(0).getCarriedResult());
-            assertFalse(events.last().getResult().isPartial());
+            assertTrue(events.last().getResult().isPartial());
         }
 
         @Test
-        void restore_shouldEndTheSession_whenTheColumnCannotBeCleared() {
+        void restore_shouldKeepTheSession_whenTheColumnCannotBeCleared() {
             OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
             store.results.put(row.getId(), json(block));
             store.failResultWrites = 1;
 
             restartWith(row);
 
-            assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
-            assertFalse(host.called("startAction:"));
+            assertTrue(store.row(row.getId()).isOpen());
+            assertTrue(host.called("startAction:"));
+            assertEquals(block, host.startedSessions.get(0).getCarriedResult());
+            assertEquals(1L, engine.resultColumnFailures());
         }
 
         @Test

@@ -1,5 +1,7 @@
 package app.l2nx.gs.adapter.core.events;
 
+import app.l2nx.gs.adapter.api.domain.Attribute;
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResultDeath;
 import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResultExperience;
@@ -12,6 +14,7 @@ import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import com.google.gson.Gson;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
@@ -53,8 +56,9 @@ public final class SessionResultJson {
     }
 
     /**
-     * Gson bypasses the constructors and reads an unknown enum constant as {@code null}, so every row is rebuilt through
-     * its checks: a block a newer adapter wrote fails here instead of reaching the wire with a {@code null} source.
+     * Gson bypasses the constructors and reads an unknown enum constant as {@code null}, a map key included, so every
+     * row and snapshot is rebuilt through its checks: a block a newer adapter wrote fails here instead of reaching the
+     * wire with a {@code null} source.
      *
      * @throws RuntimeException when the text is not a block this adapter version can carry
      */
@@ -68,6 +72,7 @@ public final class SessionResultJson {
         }
         for (SessionResultUnique row : result.getUniques()) {
             row.toBuilder().build();
+            recheck(row.getItem());
         }
         for (SessionResultExperience row : result.getExperience()) {
             row.toBuilder().build();
@@ -82,5 +87,13 @@ public final class SessionResultJson {
             row.toBuilder().build();
         }
         return result.toBuilder().build();
+    }
+
+    private static void recheck(ItemSnapshot item) {
+        ItemSnapshot rebuilt = item.toBuilder().build();
+        Map<Attribute, Integer> attributes = rebuilt.getAttributes();
+        if (attributes != null && attributes.containsKey(null)) {
+            throw new IllegalArgumentException("an item attribute is unknown to this adapter version");
+        }
     }
 }

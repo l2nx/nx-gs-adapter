@@ -129,7 +129,9 @@ public class SessionResultJsonTest {
                     "null",
                     "{\"items\":[{\"itemTemplateId\":57,\"source\":\"FROM_THE_FUTURE\",\"delta\":1,\"events\":1}]}",
                     "{\"kills\":[{\"count\":1}]}",
-                    "{\"overflow\":-1}"
+                    "{\"overflow\":-1}",
+                    "{\"uniques\":[{\"item\":{\"itemId\":0,\"itemTemplateId\":1},\"source\":\"TRADE\",\"delta\":1}]}",
+                    "{\"uniques\":[{\"item\":{\"itemId\":1,\"itemTemplateId\":1,\"attributes\":{\"FROM_THE_FUTURE\":1}},\"source\":\"TRADE\",\"delta\":1}]}"
                 })
         void parse_shouldThrow_whenThisVersionCannotCarryTheBlock(String json) {
             assertThrows(RuntimeException.class, () -> SessionResultJson.parse(json));

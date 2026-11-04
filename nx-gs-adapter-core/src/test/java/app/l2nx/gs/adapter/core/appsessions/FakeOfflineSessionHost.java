@@ -27,9 +27,26 @@ final class FakeOfflineSessionHost implements OfflineSessionHost {
     Function<OfflineSession, SessionResult> sessionResult = s -> null;
 
     final List<OfflineSession> placedSessions = new ArrayList<OfflineSession>();
+    /** When set, {@code placeInWorld} reports through {@link #placeEntered} and blocks until this opens. */
+    volatile CountDownLatch placeGate;
+
+    volatile CountDownLatch placeEntered;
 
     @Override
-    public synchronized OfflineSessionPlacement placeInWorld(OfflineSession session) {
+    public OfflineSessionPlacement placeInWorld(OfflineSession session) {
+        CountDownLatch gate = placeGate;
+        if (gate != null) {
+            placeEntered.countDown();
+            try {
+                gate.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        return place(session);
+    }
+
+    private synchronized OfflineSessionPlacement place(OfflineSession session) {
         calls.add("place:" + session.getId());
         placedSessions.add(session);
         return placement.apply(session);

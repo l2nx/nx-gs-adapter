@@ -146,7 +146,8 @@ adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged 
   `OfflineSessionHost.takeSessionResult`. The close writes it into the row's `result` column and every send of the end
   builds it from there, so a republish stays identical (R24). A close of a character not placed in this JVM has
   `result = null`, and so has a thrown call: the end never waits on or fails with the result. Contract in
-  [`043-session-results`](043-session-results.md).
+  [`043-session-results`](043-session-results.md). A failed read or clear of the column is logged and counted and never
+  ends a session.
 - [done] R28. **Capacity ends.** An action that stops because the character has no free slot ends with
   `APP_INVENTORY_FULL`; one that stops because of weight ends with the new `APP_OVERWEIGHT`, which
   `onActionEnded` accepts. `APP_INVENTORY_FULL` no longer covers weight.
@@ -251,8 +252,8 @@ default @Nullable SessionResult takeSessionResult(OfflineSession session) { retu
 - `removeFromWorld` covers three cases: the app-loaded character in the world (move to the origin when asked, store, take
   out); a character that is not in the world (restore failed or never happened, login before the restore: only the
   stored location changes, to the origin when asked); a character played with a client is never touched.
-- `takeSessionResult` runs after `removeFromWorld`, once per close of a session placed in this JVM, and once per session
-  left open by a graceful stop
+- `takeSessionResult` runs once after every `removeFromWorld`, a rolled-back start included, and once per session left
+  open by a graceful stop; the answer is dropped where the character was not placed in this JVM
   ([`043`](043-session-results.md#spi)). A throw is logged and the end goes on with `result = null`.
 - The SPI carries no settings: the engine reads its return threshold, restore pace and retention from the live
   `AppRules` (R20) on every use, so an applied file change takes effect without a restart.

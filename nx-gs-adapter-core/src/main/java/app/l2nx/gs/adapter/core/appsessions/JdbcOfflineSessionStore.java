@@ -255,13 +255,19 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
-    public void writeOpenResult(UUID id, @Nullable String resultJson) {
-        run("write open session result", c -> {
+    public void writeOpenResults(Map<UUID, @Nullable String> resultJsonById) {
+        if (resultJsonById.isEmpty()) {
+            return;
+        }
+        run("write open session results", c -> {
             try (PreparedStatement ps =
                     c.prepareStatement("UPDATE " + TABLE + " SET result = ? WHERE id = ? AND ended_at IS NULL")) {
-                JdbcValues.setNullableString(ps, 1, resultJson);
-                setUuid(ps, 2, id);
-                ps.executeUpdate();
+                for (Map.Entry<UUID, String> e : resultJsonById.entrySet()) {
+                    JdbcValues.setNullableString(ps, 1, e.getValue());
+                    setUuid(ps, 2, e.getKey());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
             }
         });
     }

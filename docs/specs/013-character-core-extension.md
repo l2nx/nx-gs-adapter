@@ -45,7 +45,7 @@ online / offline mark, that drags in no build-specific extras (lock flags, block
 - [done] R12. The discrete `CharacterPresenceEvent` (`events.character` family, a single-event family) MUST carry
   `eventId: UUIDv7` (REQUIRED, `occurredAt` is derived from it), `online: boolean` (REQUIRED, `true` = login, `false` =
   logout) and the optional `accountName`, `ip`, `hwid`. The character is `charId: long` (REQUIRED, also the partition
-  key), [planned] renamed to `characterId` by [`043`](043-session-results.md) R2. The host emits it from the standard
+  key), renamed to `characterId` by [`043`](043-session-results.md) R2. The host emits it from the standard
   packet path (enter-world for a login, player delete for a logout) through its presence publisher, bound in `onConnect`
   of the host's events module. Cheat or custom clients bypass the packet path, so no event comes; the runtime tombstones
   and the CDC `online` are the fallback.
@@ -79,10 +79,10 @@ online / offline mark, that drags in no build-specific extras (lock flags, block
     `APP` only);
   - `logoutReason` (`LogoutReason`, closed enum, constant name on the wire), REQUIRED on every `online = false` event,
     a plain logout included. Client values: `LOGOUT`, `DISCONNECT` (involuntary connection loss: network drop, client
-    crash, DDoS), `OFFLINE_PRIVATE_STORE`, `SERVER_STOP`, [planned] `SOLD_OUT` (a native offline store sold everything,
+    crash, DDoS), `OFFLINE_PRIVATE_STORE`, `SERVER_STOP`, `SOLD_OUT` (a native offline store sold everything,
     R17). Common to client and app sessions: `BANNED`, `KICKED` (a client session reports a kick or a ban with them, not
     as `DISCONNECT`). App-only values: `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`,
-    `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL` (no free slot for the catch), [planned] `APP_OVERWEIGHT`
+    `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL` (no free slot for the catch), `APP_OVERWEIGHT`
     (the catch would overload the character), `APP_SOLD_OUT`, `APP_INTERRUPTED` (the game stopped the placed character's
     action: a teleport, the tool or consumable vanished, the action failed to restart; not `KICKED`, not `APP_STOPPED`),
     `APP_RESTORE_FAILED`. A new value lands in order: adapter enum (api release), then the platform enum and its CHECK,
@@ -102,14 +102,14 @@ online / offline mark, that drags in no build-specific extras (lock flags, block
   [planned] with no `activity`: a native store session is not the player in the game. The session log shows every kind
   with its mark.
 
-- [todo] R16. **Session result.** An `online = false` event MAY carry `result` (`SessionResult`), on `CLIENT` and `APP`
+- [done] R16. **Session result.** An `online = false` event MAY carry `result` (`SessionResult`), on `CLIENT` and `APP`
   sessions alike, and never on `online = true`. `null` when the host has none or the character was not placed in this JVM.
   Shapes, enums and the byte budget are in [`043-session-results`](043-session-results.md).
 
-- [todo] R17. **Native offline store.** The client command that leaves a character as an offline trader ends the game
+- [wip] R17. **Native offline store.** The client command that leaves a character as an offline trader ends the game
   session with `OFFLINE_PRIVATE_STORE` and opens a separate session under a new `sessionId`, `source = CLIENT`,
   `activity = OFFLINE_PRIVATE_STORE`, which ends when the trader leaves the world (`SOLD_OUT`, `KICKED`, `BANNED`,
-  `SERVER_STOP`). The constructor stops refusing `CLIENT` with an `activity`; `activity` stays required with `APP`, and
+  `SERVER_STOP`). The constructor allows `CLIENT` with `OFFLINE_PRIVATE_STORE` and no other `activity`; `activity` stays required with `APP`, and
   `resumed` stays `APP`-only, so a restore after a restart is a new session. Details in
   [`043`](043-session-results.md#native-offline-store).
 

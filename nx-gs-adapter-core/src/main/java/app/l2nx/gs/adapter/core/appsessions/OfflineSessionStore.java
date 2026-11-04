@@ -73,10 +73,10 @@ interface OfflineSessionStore {
     String readResult(UUID id);
 
     /**
-     * Sets {@code result} of an open row: the running block at a graceful stop, {@code null} once a restore placed the
-     * character. A closed row is left as it is.
+     * Sets {@code result} of open rows in one batch: the running blocks at a graceful stop, {@code null} once a restore
+     * placed the character. Closed rows are left as they are.
      */
-    void writeOpenResult(UUID id, @Nullable String resultJson);
+    void writeOpenResults(Map<UUID, @Nullable String> resultJsonById);
 
     /**
      * The next at most {@code limit} closed sessions whose end Kafka has not acknowledged, in {@code (ended_at, id)}

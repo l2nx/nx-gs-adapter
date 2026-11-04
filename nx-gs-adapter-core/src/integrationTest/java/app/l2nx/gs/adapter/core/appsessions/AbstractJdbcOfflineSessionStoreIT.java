@@ -24,7 +24,9 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
@@ -379,7 +381,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
         void close_shouldReplaceACarriedBlock_whenTheEndHasNoResult() {
             OfflineSession row = session(7, 1).build();
             store.insert(row);
-            store.writeOpenResult(row.getId(), BLOCK);
+            store.writeOpenResults(Collections.singletonMap(row.getId(), BLOCK));
 
             store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED_BEFORE_RESTORE, null);
 
@@ -387,24 +389,40 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
         }
 
         @Test
-        void writeOpenResult_shouldStoreAndClearOnAnOpenRow() {
+        void writeOpenResults_shouldStoreAndClearOnAnOpenRow() {
             OfflineSession row = session(7, 1).build();
             store.insert(row);
 
-            store.writeOpenResult(row.getId(), BLOCK);
+            store.writeOpenResults(Collections.singletonMap(row.getId(), BLOCK));
             assertEquals(BLOCK, store.readResult(row.getId()));
 
-            store.writeOpenResult(row.getId(), null);
+            store.writeOpenResults(Collections.<UUID, String>singletonMap(row.getId(), null));
             assertNull(store.readResult(row.getId()));
         }
 
         @Test
-        void writeOpenResult_shouldLeaveAClosedRowAsItIs() {
+        void writeOpenResults_shouldStoreEveryBlockOfTheBatch() {
+            OfflineSession first = session(7, 1).build();
+            OfflineSession second = session(8, 2).build();
+            store.insert(first);
+            store.insert(second);
+            Map<UUID, String> batch = new LinkedHashMap<UUID, String>();
+            batch.put(first.getId(), BLOCK);
+            batch.put(second.getId(), BLOCK);
+
+            store.writeOpenResults(batch);
+
+            assertEquals(BLOCK, store.readResult(first.getId()));
+            assertEquals(BLOCK, store.readResult(second.getId()));
+        }
+
+        @Test
+        void writeOpenResults_shouldLeaveAClosedRowAsItIs() {
             OfflineSession row = session(7, 1).build();
             store.insert(row);
             store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED, BLOCK);
 
-            store.writeOpenResult(row.getId(), null);
+            store.writeOpenResults(Collections.<UUID, String>singletonMap(row.getId(), null));
 
             assertEquals(BLOCK, store.readResult(row.getId()));
         }

@@ -56,7 +56,7 @@ The session mechanics (table, lifecycle, events, restart) are in
 - [done] R6. Every refusal MUST carry a stable `reason` from the shared enum below in `CommandProblem.extensions`;
   the host never sends player-facing text. `RECENTLY_LOGGED_OUT` and `COOLDOWN` also carry `retryAt` (`Instant`);
   `DAILY_LIMIT` carries it as the moment the daily allowance resets, when the host knows that moment.
-  `ALREADY_ACTIVE` carries a `scope`. [planned] `INVENTORY_FULL` carries `requiredSlots` and `freeSlots`, `OVERWEIGHT`
+  `ALREADY_ACTIVE` carries a `scope`. `INVENTORY_FULL` carries `requiredSlots` and `freeSlots`, `OVERWEIGHT`
   carries `requiredWeight` and `freeWeight` (R14).
 - [host rule] R7. A duration longer than what the character may still fish today (the daily stop) is not a refusal: the session
   runs shorter and the result shows the effective plan. Rod and bait are the player's choice: the host checks that the
@@ -134,10 +134,10 @@ Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 | `NO_BAIT`                     | The chosen bait is missing or its count is zero                                                                                                                                                                           |                                |
 | `INVALID_ROD`                 | The chosen item is not a rod of this character                                                                                                                                                                            |                                |
 | `INVALID_BAIT`                | The chosen item is not an allowed bait for this character                                                                                                                                                                 |                                |
-| `NO_FISHING_EXPERTISE`        | [planned] The character does not have the fishing skill (R13)                                                                                                                                                             |                                |
-| `BAIT_LEVEL_MISMATCH`         | [planned] The character's level is outside the chosen bait's level range (R13)                                                                                                                                            |                                |
-| `INVENTORY_FULL`              | [planned] No free slot for the first catch (R14)                                                                                                                                                                          | `requiredSlots`, `freeSlots`   |
-| `OVERWEIGHT`                  | [planned] The first catch would overload the character (R14)                                                                                                                                                              | `requiredWeight`, `freeWeight` |
+| `NO_FISHING_EXPERTISE`        | The character does not have the fishing skill (R13)                                                                                                                                                                       |                                |
+| `BAIT_LEVEL_MISMATCH`         | The character's level is outside the chosen bait's level range (R13)                                                                                                                                                      |                                |
+| `INVENTORY_FULL`              | No free slot for the first catch (R14)                                                                                                                                                                                    | `requiredSlots`, `freeSlots`   |
+| `OVERWEIGHT`                  | The first catch would overload the character (R14)                                                                                                                                                                        | `requiredWeight`, `freeWeight` |
 | `NO_FISHING_SHOT`             | The chosen fishing shot is missing or its count is zero                                                                                                                                                                   |                                |
 | `INVALID_FISHING_SHOT`        | The chosen item is not a fishing shot                                                                                                                                                                                     |                                |
 | `FISHING_SHOT_GRADE_MISMATCH` | The chosen fishing shot's grade does not fit the chosen rod                                                                                                                                                               |                                |
@@ -212,7 +212,7 @@ the same account keeps the session, and that character's own live fishing is the
 There is no dedicated end event. On every end the adapter emits the existing `CharacterPresenceEvent` with
 `online = false`, `source = APP`, `activity = OFFLINE_FISHING` and the end reason in the required `logoutReason`
 (`APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL`,
-[planned] `APP_OVERWEIGHT`, `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`). A new reason goes out in order:
+`APP_OVERWEIGHT`, `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`). A new reason goes out in order:
 adapter enum, then the platform enum and its CHECK, then the host. [planned] The event carries the session's catch,
 consumption and experience in `result` ([`043-session-results`](../043-session-results.md)). Fishing notifications are a deferred, separate task: the platform can later derive "fishing ended" from the
 activity usage (the `FISHING` row's `activeSince` clears, for live and offline fishing alike).
@@ -253,8 +253,8 @@ private store start. The start stores the initiator's IP in the session; the ses
 character's hwid snapshot as `hwid`, both marked as coming from the app. A check runs the same handler steps
 in check mode and maps the first refusal into `AppSessionCheckResult` instead of a `CommandProblem`.
 
-[planned] `AppSessionRefusal` gains `REQUIRED_SLOTS`, `FREE_SLOTS`, `REQUIRED_WEIGHT` and `FREE_WEIGHT` with the values of
-`WellKnownAcceptMailReasons`, and `AppSessionCheckResult` gains `requiredSlots`, `freeSlots` (`Integer?`), `requiredWeight`,
+`AppSessionRefusal` has `REQUIRED_SLOTS`, `FREE_SLOTS`, `REQUIRED_WEIGHT` and `FREE_WEIGHT` with the values of
+`WellKnownAcceptMailReasons`, and `AppSessionCheckResult` has `requiredSlots`, `freeSlots` (`Integer?`), `requiredWeight`,
 `freeWeight` (`Long?`). Its constructor requires each pair exactly with its reason, as it does `scope` with
 `ALREADY_ACTIVE`, so these two refusals need the builder, not `refused(reason)`.
 
@@ -273,7 +273,7 @@ R9 (fishing shot), R10 (check), R11 (session state in the activity usage) and R1
 initiator that replaced `masterAccountId` / `initiatorIp`, shipped in api 0.120.0 / core 0.51.0; the reference host runs
 them since bohpts-core #3153, the platform since nx-gameservers 0.212.0.
 
-[planned] R13-R15 ship in the adapter release of [`043`](../043-session-results.md): the four refusals, the numbers and
+R13-R15 ship in the adapter release of [`043`](../043-session-results.md): the four refusals, the numbers and
 `APP_OVERWEIGHT`. Order (new vocabulary values): this api release, then the platform's enums, `close_reason` CHECKs and
 frontend changelog, then the host.
 

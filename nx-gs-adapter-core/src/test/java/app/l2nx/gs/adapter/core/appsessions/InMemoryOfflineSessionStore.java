@@ -29,6 +29,7 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
     int resultReads;
     int failResultReads;
     int failResultWrites;
+    int resultWriteBatches;
     int flushes;
     int failCloses;
     int failDeletes;
@@ -261,14 +262,17 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
-    public synchronized void writeOpenResult(UUID id, @Nullable String resultJson) {
+    public synchronized void writeOpenResults(Map<UUID, @Nullable String> resultJsonById) {
         if (failResultWrites > 0) {
             failResultWrites--;
             throw new OfflineSessionStoreException("simulated result write failure", new RuntimeException());
         }
-        OfflineSession row = rows.get(id);
-        if (row != null && row.isOpen()) {
-            setResult(id, resultJson);
+        resultWriteBatches++;
+        for (Map.Entry<UUID, String> e : resultJsonById.entrySet()) {
+            OfflineSession row = rows.get(e.getKey());
+            if (row != null && row.isOpen()) {
+                setResult(e.getKey(), e.getValue());
+            }
         }
     }
 

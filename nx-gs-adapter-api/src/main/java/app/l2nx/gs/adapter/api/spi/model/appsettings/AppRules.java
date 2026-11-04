@@ -34,6 +34,7 @@ public final class AppRules {
     public static final Range FISHING_FLOAT_DISTANCE = Range.between(90, 250);
     public static final Range RESTORE_BATCH_SIZE = Range.atLeast(1);
     public static final Range RESTORE_BATCH_PAUSE_MILLIS = Range.atLeast(0);
+    public static final Range SHUTDOWN_RESULT_MILLIS_PER_SESSION = Range.atLeast(1);
     /** The session-history read relies on it: no rule window may exceed the minimum retention. */
     public static final Range HISTORY_RETENTION_DAYS = Range.atLeast(7);
 
@@ -66,6 +67,7 @@ public final class AppRules {
     private final Set<ChatChannel> chatOfflineSendChannels;
     private final int restoreBatchSize;
     private final int restoreBatchPauseMillis;
+    private final int shutdownResultMillisPerSession;
     private final int historyRetentionDays;
 
     private AppRules(Builder b) {
@@ -95,6 +97,7 @@ public final class AppRules {
         this.chatOfflineSendChannels = frozen(b.chatOfflineSendChannels);
         this.restoreBatchSize = b.restoreBatchSize;
         this.restoreBatchPauseMillis = b.restoreBatchPauseMillis;
+        this.shutdownResultMillisPerSession = b.shutdownResultMillisPerSession;
         this.historyRetentionDays = b.historyRetentionDays;
     }
 
@@ -152,6 +155,7 @@ public final class AppRules {
         requireChannels("chatOfflineSendChannels", b.chatOfflineSendChannels, true);
         RESTORE_BATCH_SIZE.check("restoreBatchSize", b.restoreBatchSize);
         RESTORE_BATCH_PAUSE_MILLIS.check("restoreBatchPauseMillis", b.restoreBatchPauseMillis);
+        SHUTDOWN_RESULT_MILLIS_PER_SESSION.check("shutdownResultMillisPerSession", b.shutdownResultMillisPerSession);
         HISTORY_RETENTION_DAYS.check("historyRetentionDays", b.historyRetentionDays);
     }
 
@@ -327,6 +331,11 @@ public final class AppRules {
         return restoreBatchPauseMillis;
     }
 
+    /** What a graceful stop adds per open session to its wait for the sessions' results, on top of a fixed 5 s. */
+    public int shutdownResultMillisPerSession() {
+        return shutdownResultMillisPerSession;
+    }
+
     /** Closed sessions older than this are deleted from the adapter's table at server start. */
     public int historyRetentionDays() {
         return historyRetentionDays;
@@ -354,6 +363,7 @@ public final class AppRules {
                 .chatOfflineSendChannels(chatOfflineSendChannels)
                 .restoreBatchSize(restoreBatchSize)
                 .restoreBatchPauseMillis(restoreBatchPauseMillis)
+                .shutdownResultMillisPerSession(shutdownResultMillisPerSession)
                 .historyRetentionDays(historyRetentionDays);
         b.enabledSessionTypes.addAll(enabledSessionTypes);
         return b;
@@ -379,6 +389,7 @@ public final class AppRules {
                 && fishingFloatDistance == that.fishingFloatDistance
                 && restoreBatchSize == that.restoreBatchSize
                 && restoreBatchPauseMillis == that.restoreBatchPauseMillis
+                && shutdownResultMillisPerSession == that.shutdownResultMillisPerSession
                 && historyRetentionDays == that.historyRetentionDays
                 && reviveEnabled == that.reviveEnabled
                 && chatEnabled == that.chatEnabled
@@ -416,6 +427,7 @@ public final class AppRules {
                 chatOfflineSendChannels,
                 restoreBatchSize,
                 restoreBatchPauseMillis,
+                shutdownResultMillisPerSession,
                 historyRetentionDays);
     }
 
@@ -442,6 +454,7 @@ public final class AppRules {
                 + ", chatOfflineSendChannels=" + chatOfflineSendChannels
                 + ", restoreBatchSize=" + restoreBatchSize
                 + ", restoreBatchPauseMillis=" + restoreBatchPauseMillis
+                + ", shutdownResultMillisPerSession=" + shutdownResultMillisPerSession
                 + ", historyRetentionDays=" + historyRetentionDays + "]";
     }
 
@@ -467,6 +480,7 @@ public final class AppRules {
         private Set<ChatChannel> chatOfflineSendChannels = sendable(true);
         private int restoreBatchSize = 10;
         private int restoreBatchPauseMillis = 1000;
+        private int shutdownResultMillisPerSession = 20;
         private int historyRetentionDays = 90;
 
         private Builder() {}
@@ -581,6 +595,11 @@ public final class AppRules {
 
         public Builder restoreBatchSize(int restoreBatchSize) {
             this.restoreBatchSize = restoreBatchSize;
+            return this;
+        }
+
+        public Builder shutdownResultMillisPerSession(int shutdownResultMillisPerSession) {
+            this.shutdownResultMillisPerSession = shutdownResultMillisPerSession;
             return this;
         }
 
