@@ -10,14 +10,14 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Recipient-side counterpart of {@link SendPlayerMailCommand}: accepts one mail's attachments and pays its COD;
- * all-or-nothing, idempotent per {@code idempotencyKey}, routed by {@code receiverCharId}. A live mail not matching the
+ * all-or-nothing, idempotent per {@code idempotencyKey}, routed by {@code receiverCharacterId}. A live mail not matching the
  * {@code expected*} fields is {@code MAIL_NOT_FOUND}; Gson bypasses the constructor, so the handler re-validates.
  */
 public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptMailResult> {
 
-    private final Long receiverCharId;
+    private final Long receiverCharacterId;
     private final Long mailId;
-    private final Long expectedSenderCharId;
+    private final Long expectedSenderCharacterId;
     private final Long expectedCodAdena;
     private final @Nullable Long acceptedFeeAdena;
     private final boolean ownerVerified;
@@ -26,23 +26,23 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
     private final CommandInitiator initiator;
 
     public AcceptMailCommand(
-            Long receiverCharId,
+            Long receiverCharacterId,
             Long mailId,
-            Long expectedSenderCharId,
+            Long expectedSenderCharacterId,
             Long expectedCodAdena,
             @Nullable Long acceptedFeeAdena,
             boolean ownerVerified,
             UUID idempotencyKey,
             Instant deadline,
             CommandInitiator initiator) {
-        if (receiverCharId == null) {
-            throw new IllegalArgumentException("receiverCharId is required");
+        if (receiverCharacterId == null) {
+            throw new IllegalArgumentException("receiverCharacterId is required");
         }
         if (mailId == null) {
             throw new IllegalArgumentException("mailId is required");
         }
-        if (expectedSenderCharId == null) {
-            throw new IllegalArgumentException("expectedSenderCharId is required");
+        if (expectedSenderCharacterId == null) {
+            throw new IllegalArgumentException("expectedSenderCharacterId is required");
         }
         if (expectedCodAdena == null) {
             throw new IllegalArgumentException("expectedCodAdena is required");
@@ -54,9 +54,9 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
             throw new IllegalArgumentException(
                     "acceptedFeeAdena must not be negative when present (got " + acceptedFeeAdena + ")");
         }
-        this.receiverCharId = receiverCharId;
+        this.receiverCharacterId = receiverCharacterId;
         this.mailId = mailId;
-        this.expectedSenderCharId = expectedSenderCharId;
+        this.expectedSenderCharacterId = expectedSenderCharacterId;
         this.expectedCodAdena = expectedCodAdena;
         this.acceptedFeeAdena = acceptedFeeAdena;
         this.ownerVerified = ownerVerified;
@@ -66,16 +66,16 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
     }
 
     /** Items and adena move to and from this character; it need not be online. */
-    public Long getReceiverCharId() {
-        return receiverCharId;
+    public Long getReceiverCharacterId() {
+        return receiverCharacterId;
     }
 
     public Long getMailId() {
         return mailId;
     }
 
-    public Long getExpectedSenderCharId() {
-        return expectedSenderCharId;
+    public Long getExpectedSenderCharacterId() {
+        return expectedSenderCharacterId;
     }
 
     public Long getExpectedCodAdena() {
@@ -112,9 +112,9 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
 
     public Builder toBuilder() {
         return new Builder()
-                .receiverCharId(receiverCharId)
+                .receiverCharacterId(receiverCharacterId)
                 .mailId(mailId)
-                .expectedSenderCharId(expectedSenderCharId)
+                .expectedSenderCharacterId(expectedSenderCharacterId)
                 .expectedCodAdena(expectedCodAdena)
                 .acceptedFeeAdena(acceptedFeeAdena)
                 .ownerVerified(ownerVerified)
@@ -133,9 +133,9 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
         if (!(o instanceof AcceptMailCommand)) return false;
         AcceptMailCommand that = (AcceptMailCommand) o;
         return ownerVerified == that.ownerVerified
-                && Objects.equals(receiverCharId, that.receiverCharId)
+                && Objects.equals(receiverCharacterId, that.receiverCharacterId)
                 && Objects.equals(mailId, that.mailId)
-                && Objects.equals(expectedSenderCharId, that.expectedSenderCharId)
+                && Objects.equals(expectedSenderCharacterId, that.expectedSenderCharacterId)
                 && Objects.equals(expectedCodAdena, that.expectedCodAdena)
                 && Objects.equals(acceptedFeeAdena, that.acceptedFeeAdena)
                 && Objects.equals(idempotencyKey, that.idempotencyKey)
@@ -146,9 +146,9 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
     @Override
     public int hashCode() {
         return Objects.hash(
-                receiverCharId,
+                receiverCharacterId,
                 mailId,
-                expectedSenderCharId,
+                expectedSenderCharacterId,
                 expectedCodAdena,
                 acceptedFeeAdena,
                 ownerVerified,
@@ -159,9 +159,9 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
 
     @Override
     public String toString() {
-        return "AcceptMailCommand[receiverCharId=" + receiverCharId
+        return "AcceptMailCommand[receiverCharacterId=" + receiverCharacterId
                 + ", mailId=" + mailId
-                + ", expectedSenderCharId=" + expectedSenderCharId
+                + ", expectedSenderCharacterId=" + expectedSenderCharacterId
                 + ", expectedCodAdena=" + expectedCodAdena
                 + ", acceptedFeeAdena=" + acceptedFeeAdena
                 + ", ownerVerified=" + ownerVerified
@@ -170,9 +170,9 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
     }
 
     public static final class Builder {
-        private Long receiverCharId;
+        private Long receiverCharacterId;
         private Long mailId;
-        private Long expectedSenderCharId;
+        private Long expectedSenderCharacterId;
         private Long expectedCodAdena;
         private @Nullable Long acceptedFeeAdena;
         private boolean ownerVerified;
@@ -180,8 +180,8 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
         private Instant deadline;
         private CommandInitiator initiator;
 
-        public Builder receiverCharId(Long receiverCharId) {
-            this.receiverCharId = receiverCharId;
+        public Builder receiverCharacterId(Long receiverCharacterId) {
+            this.receiverCharacterId = receiverCharacterId;
             return this;
         }
 
@@ -190,8 +190,8 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
             return this;
         }
 
-        public Builder expectedSenderCharId(Long expectedSenderCharId) {
-            this.expectedSenderCharId = expectedSenderCharId;
+        public Builder expectedSenderCharacterId(Long expectedSenderCharacterId) {
+            this.expectedSenderCharacterId = expectedSenderCharacterId;
             return this;
         }
 
@@ -227,9 +227,9 @@ public final class AcceptMailCommand implements OwnerVerified, NxCommand<AcceptM
 
         public AcceptMailCommand build() {
             return new AcceptMailCommand(
-                    receiverCharId,
+                    receiverCharacterId,
                     mailId,
-                    expectedSenderCharId,
+                    expectedSenderCharacterId,
                     expectedCodAdena,
                     acceptedFeeAdena,
                     ownerVerified,

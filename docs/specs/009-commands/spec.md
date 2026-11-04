@@ -64,7 +64,7 @@ who consume reply events.
   `Nx-Message-Type` header, never by topic name. The adapter does not read the record key —
   partition-key choice is the platform producer's contract, and the adapter neither enforces nor
   depends on it. What the producer actually does (`nx-gameservers` `CommandsSender.publish`): a
-  nullable `Long` key, `charId` for character-scoped commands so cross-domain ordering per character
+  nullable `Long` key, `characterId` for character-scoped commands so cross-domain ordering per character
   is preserved, `null` for commands with no natural character. Ordering guarantees therefore hold
   only as far as the producer's keying does.
 
@@ -707,7 +707,7 @@ NxCommand<Void>` is the sanctioned exception, and payload-less `CommandResult.ok
   `KafkaProducer.close(timeout)` in `NxKafka.doShutdown` already waits out in-flight reply sends
   (the consumer stops before the producer closes). Config-surface change → core takes a minor bump.]
 - [resolved: inbound partition key is the producer's call and both docs were half right —
-  `nx-gameservers` `CommandsSender.publish` passes a nullable `Long`: `charId` for character-scoped
+  `nx-gameservers` `CommandsSender.publish` passes a nullable `Long`: `characterId` for character-scoped
   commands, `null` otherwise. `MessagingTopics` Javadoc and `guide.md` now both say that.]
 - [resolved: single Kafka topic; cross-character cross-domain ordering beats per-domain isolation.]
 - [resolved: sync handler + explicit `ctx.host().sync(...)` hop. Auto-hop was rejected because it

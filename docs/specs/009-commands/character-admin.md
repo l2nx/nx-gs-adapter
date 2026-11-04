@@ -34,9 +34,9 @@ shows it to the player.
 
 - [done] R1. `nx-gs-adapter-api.kafka.commands.character.SetCharacterAccessLevelCommand` MUST ship
   as `NxCommand<SetCharacterAccessLevelResult>`. Final Java-8 POJO + builder; constructor enforces
-  non-null `charId` / `accessLevel` (wire-path Gson bypasses the constructor → the handler
+  non-null `characterId` / `accessLevel` (wire-path Gson bypasses the constructor → the handler
   re-validates and emits `VALIDATION_FAILED`). Fields:
-  - `Long charId` — REQUIRED. Target character's primary key.
+  - `Long characterId` — REQUIRED. Target character's primary key.
   - `String accessLevel` — REQUIRED. Opaque, build-agnostic: the same vocabulary as
     `CharacterDbDto.accessLevel` — numeric text on int-based builds (`"0"`, `"7"`), a role name on
     string-role builds. The host converts to its own model; the platform never interprets it.
@@ -45,7 +45,7 @@ shows it to the player.
   Idempotent: writes an absolute value, so re-delivery converges on the same state.
 
 - [done] R2. `SetCharacterAccessLevelResult` MUST ship as the success payload:
-  - `Long charId` — echo.
+  - `Long characterId` — echo.
   - `String accessLevel` — the level as the host stored it, in the same vocabulary (an int build
     echoes the canonical numeric text).
   - `@Nullable String previousAccessLevel` — the level before the write, `null` when the host
@@ -56,8 +56,8 @@ shows it to the player.
 ### Kick
 
 - [done] R3. `nx-gs-adapter-api.kafka.commands.character.KickCharacterCommand` MUST ship as
-  `NxCommand<KickCharacterResult>`. Constructor enforces non-null `charId`. Fields:
-  - `Long charId` — REQUIRED.
+  `NxCommand<KickCharacterResult>`. Constructor enforces non-null `characterId`. Fields:
+  - `Long characterId` — REQUIRED.
   - `boolean closeClient` — REQUIRED. `true` closes the game client; `false` drops the player to
     the login screen.
   - `@Nullable String staffNotes` — see R5.
@@ -66,7 +66,7 @@ shows it to the player.
   hosts dedupe on the correlation id.
 
 - [done] R4. `KickCharacterResult` MUST ship as the success payload:
-  - `Long charId` — echo.
+  - `Long characterId` — echo.
   - `boolean offlineTrader` — `true` when the target was an offline trader: the store was ended
     and `closeClient` had no effect because there was no client to close.
 
@@ -82,7 +82,7 @@ shows it to the player.
 ### Host (host)
 
 - [done] R6. `SetCharacterAccessLevelHandler`, registered through the dedup decorator:
-  - `VALIDATION_FAILED` when `charId` is missing / out of int range, when `accessLevel` is not
+  - `VALIDATION_FAILED` when `characterId` is missing / out of int range, when `accessLevel` is not
     an integer, when it is negative (a ban goes through `BanCommand`, never through the access
     level), or when the level is not registered in the host's access-level registry.
   - `FORBIDDEN` when the level is above the host's platform-grantable ceiling (e.g. `5`, the
@@ -95,11 +95,11 @@ shows it to the player.
     `characters.accesslevel`, drop `accessLvlExpires` (the timed-grant marker), refresh the
     host's in-memory access-level cache; a login racing the write yields `INVALID_STATE` so the
     caller retries against the online path. DB failure → `UNAVAILABLE`.
-  - On success, `requestResync("character", [charId])` so `CharacterDbDto.accessLevel` catches up
+  - On success, `requestResync("character", [characterId])` so `CharacterDbDto.accessLevel` catches up
     without waiting for the next CDC cycle.
 
 - [done] R7. `KickCharacterHandler`, registered through the dedup decorator:
-  - `VALIDATION_FAILED` when `charId` is missing / out of int range.
+  - `VALIDATION_FAILED` when `characterId` is missing / out of int range.
   - Target not in the world: `NOT_FOUND` when no such character exists, `INVALID_STATE` when it
     exists but is offline — the platform asked to disconnect a session that is not there.
   - Target in the world: on the game thread, `closeClient ? player.kick() : player.logout()`.

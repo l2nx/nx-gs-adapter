@@ -8,21 +8,21 @@ import java.util.Objects;
  */
 public final class TelegramCharLinkResult {
 
-    private final Long charId;
+    private final Long characterId;
 
-    public TelegramCharLinkResult(Long charId) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+    public TelegramCharLinkResult(Long characterId) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
-        this.charId = charId;
+        this.characterId = characterId;
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     public Builder toBuilder() {
-        return new Builder().charId(charId);
+        return new Builder().characterId(characterId);
     }
 
     public static Builder builder() {
@@ -34,29 +34,29 @@ public final class TelegramCharLinkResult {
         if (this == o) return true;
         if (!(o instanceof TelegramCharLinkResult)) return false;
         TelegramCharLinkResult that = (TelegramCharLinkResult) o;
-        return Objects.equals(charId, that.charId);
+        return Objects.equals(characterId, that.characterId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId);
+        return Objects.hash(characterId);
     }
 
     @Override
     public String toString() {
-        return "TelegramCharLinkResult[charId=" + charId + "]";
+        return "TelegramCharLinkResult[characterId=" + characterId + "]";
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
         public TelegramCharLinkResult build() {
-            return new TelegramCharLinkResult(charId);
+            return new TelegramCharLinkResult(characterId);
         }
     }
 }

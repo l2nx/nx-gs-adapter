@@ -24,19 +24,19 @@ Audience: platform market and trader-list authors; host authors wiring the publi
 
 - [todo] R1. `nx-gs-adapter-api.kafka.events.privatestore.PrivateStoreStateEvent` MUST ship next to
   `PrivateStorePurchaseEvent`, on the `privatestore` family topic, routed by the simple name
-  `PrivateStoreStateEvent`, with the trader's `charId` as the Kafka key (8-byte big-endian). Events of one trader are
+  `PrivateStoreStateEvent`, with the trader's `characterId` as the Kafka key (8-byte big-endian). Events of one trader are
   therefore ordered.
 - [todo] R2. The event is the **full state** of one trader's store, never a delta. The consumer replaces everything it
-  holds for `charId` with `store.sellLines` / `store.buyLines`.
+  holds for `characterId` with `store.sellLines` / `store.buyLines`.
 - [todo] R3. `store == null` is a **tombstone**: the trader has no market store any more (closed, sold out, logged out,
-  switched to a non-market state). The consumer drops everything it holds for `charId`. A tombstone is sent once per
+  switched to a non-market state). The consumer drops everything it holds for `characterId`. A tombstone is sent once per
   close and MAY be repeated on the next full resend (R6); consumers treat a repeated tombstone as a no-op.
 - [todo] R4. Payload:
 
   | Field      | Type                  | Notes                                                                |
   | ---------- | --------------------- | -------------------------------------------------------------------- |
   | `eventId`  | `UUID`                | UUIDv7; the occurrence time derives from it; consumers dedupe on it  |
-  | `charId`   | `long`                | Trader character id; the partition key                               |
+  | `characterId`   | `long`                | Trader character id; the partition key                               |
   | `store`    | `StoreState?`         | `null` = tombstone                                                   |
   | `metadata` | `Map<String,String>?` | Open, like the other privatestore events; unknown keys are tolerated |
 

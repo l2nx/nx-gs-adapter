@@ -10,7 +10,7 @@ import org.jspecify.annotations.Nullable;
  * <ul>
  *   <li>{@code lastHit} - final-blow character; does NOT confer drop rights.</li>
  *   <li>{@code dropOwner} - group-first: when {@code partyId} is non-null the party owns the drop and
- *   {@code charId} is only its representative (do NOT aggregate by it).</li>
+ *   {@code characterId} is only its representative (do NOT aggregate by it).</li>
  *   <li>{@code participants} - aggro-list characters plus party / command-channel teammates of any contributor;
  *   producers SHOULD sort by {@code damageDealt} desc.</li>
  * </ul>

@@ -15,32 +15,32 @@ import org.jspecify.annotations.Nullable;
  * {@code null}, so the handler must null-check), {@code FORBIDDEN}.</p>
  *
  * <p>{@code value} drives set-vs-clear: non-blank sets / replaces, {@code null} or blank clears (host writes the
- * {@code "0"} sentinel). Only {@code charId} and {@code lockType} are required. Routed by {@code charId}; writes an
+ * {@code "0"} sentinel). Only {@code characterId} and {@code lockType} are required. Routed by {@code characterId}; writes an
  * absolute value, so redelivery converges on the same state.</p>
  */
 public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharacterLockResult> {
 
-    private final Long charId;
+    private final Long characterId;
     private final String lockType;
     private final @Nullable String value;
     private final CommandInitiator initiator;
 
     public UpsertCharacterLockCommand(
-            Long charId, String lockType, @Nullable String value, CommandInitiator initiator) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+            Long characterId, String lockType, @Nullable String value, CommandInitiator initiator) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
         if (lockType == null) {
             throw new IllegalArgumentException("lockType is required");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.lockType = lockType;
         this.value = value;
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     /** A {@link app.l2nx.gs.adapter.api.kafka.sync.db.character.WellKnownCharacterLockTypes} value; handler emits {@code VALIDATION_FAILED} when missing or unrecognized. */
@@ -59,7 +59,7 @@ public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharact
     }
 
     public Builder toBuilder() {
-        return new Builder().charId(charId).lockType(lockType).value(value).initiator(initiator);
+        return new Builder().characterId(characterId).lockType(lockType).value(value).initiator(initiator);
     }
 
     public static Builder builder() {
@@ -71,7 +71,7 @@ public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharact
         if (this == o) return true;
         if (!(o instanceof UpsertCharacterLockCommand)) return false;
         UpsertCharacterLockCommand that = (UpsertCharacterLockCommand) o;
-        return Objects.equals(charId, that.charId)
+        return Objects.equals(characterId, that.characterId)
                 && Objects.equals(lockType, that.lockType)
                 && Objects.equals(value, that.value)
                 && Objects.equals(initiator, that.initiator);
@@ -79,23 +79,23 @@ public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharact
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, lockType, value, initiator);
+        return Objects.hash(characterId, lockType, value, initiator);
     }
 
     @Override
     public String toString() {
-        return "UpsertCharacterLockCommand[charId=" + charId + ", lockType=" + lockType + ", value=" + value
+        return "UpsertCharacterLockCommand[characterId=" + characterId + ", lockType=" + lockType + ", value=" + value
                 + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private String lockType;
         private @Nullable String value;
         private CommandInitiator initiator;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -115,7 +115,7 @@ public final class UpsertCharacterLockCommand implements NxCommand<UpsertCharact
         }
 
         public UpsertCharacterLockCommand build() {
-            return new UpsertCharacterLockCommand(charId, lockType, value, initiator);
+            return new UpsertCharacterLockCommand(characterId, lockType, value, initiator);
         }
     }
 }

@@ -4,19 +4,19 @@ import java.util.Objects;
 
 public final class KickCharacterResult {
 
-    private final Long charId;
+    private final Long characterId;
     private final boolean offlineTrader;
 
-    public KickCharacterResult(Long charId, boolean offlineTrader) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+    public KickCharacterResult(Long characterId, boolean offlineTrader) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.offlineTrader = offlineTrader;
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     /** {@code true} when the target was an offline trader: store ended, {@code closeClient} had no client to act on. */
@@ -25,7 +25,7 @@ public final class KickCharacterResult {
     }
 
     public Builder toBuilder() {
-        return new Builder().charId(charId).offlineTrader(offlineTrader);
+        return new Builder().characterId(characterId).offlineTrader(offlineTrader);
     }
 
     public static Builder builder() {
@@ -37,25 +37,25 @@ public final class KickCharacterResult {
         if (this == o) return true;
         if (!(o instanceof KickCharacterResult)) return false;
         KickCharacterResult that = (KickCharacterResult) o;
-        return offlineTrader == that.offlineTrader && Objects.equals(charId, that.charId);
+        return offlineTrader == that.offlineTrader && Objects.equals(characterId, that.characterId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, offlineTrader);
+        return Objects.hash(characterId, offlineTrader);
     }
 
     @Override
     public String toString() {
-        return "KickCharacterResult[charId=" + charId + ", offlineTrader=" + offlineTrader + "]";
+        return "KickCharacterResult[characterId=" + characterId + ", offlineTrader=" + offlineTrader + "]";
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private boolean offlineTrader;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -65,7 +65,7 @@ public final class KickCharacterResult {
         }
 
         public KickCharacterResult build() {
-            return new KickCharacterResult(charId, offlineTrader);
+            return new KickCharacterResult(characterId, offlineTrader);
         }
     }
 }

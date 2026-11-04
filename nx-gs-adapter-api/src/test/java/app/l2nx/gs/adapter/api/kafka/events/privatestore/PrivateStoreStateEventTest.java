@@ -157,7 +157,7 @@ class PrivateStoreStateEventTest {
     void toBuilder_shouldRoundtripAllFields() {
         PrivateStoreStateEvent original = PrivateStoreStateEvent.builder()
                 .eventId(ID)
-                .charId(7L)
+                .characterId(7L)
                 .store(store())
                 .metadata(Collections.singletonMap("k", "v"))
                 .build();
@@ -170,11 +170,11 @@ class PrivateStoreStateEventTest {
     }
 
     @Test
-    void equals_shouldDistinguishCharId() {
+    void equals_shouldDistinguishCharacterId() {
         PrivateStoreStateEvent a =
-                PrivateStoreStateEvent.builder().eventId(ID).charId(1L).build();
+                PrivateStoreStateEvent.builder().eventId(ID).characterId(1L).build();
         PrivateStoreStateEvent b =
-                PrivateStoreStateEvent.builder().eventId(ID).charId(2L).build();
+                PrivateStoreStateEvent.builder().eventId(ID).characterId(2L).build();
 
         assertNotEquals(a, b);
     }
@@ -184,11 +184,11 @@ class PrivateStoreStateEventTest {
         Gson gson = new Gson();
         PrivateStoreStateEvent full = PrivateStoreStateEvent.builder()
                 .eventId(ID)
-                .charId(7L)
+                .characterId(7L)
                 .store(store())
                 .build();
         PrivateStoreStateEvent tombstone =
-                PrivateStoreStateEvent.builder().eventId(ID).charId(7L).build();
+                PrivateStoreStateEvent.builder().eventId(ID).characterId(7L).build();
 
         assertEquals(full, gson.fromJson(gson.toJson(full), PrivateStoreStateEvent.class));
         PrivateStoreStateEvent tombstoneCopy = gson.fromJson(gson.toJson(tombstone), PrivateStoreStateEvent.class);

@@ -36,7 +36,7 @@ uses it.
 - [done] R1. `nx-gs-adapter-api.kafka.commands.captcha.SendCaptchaCommand` MUST ship as
   `NxCommand<SendCaptchaResult>`. Final Java-8 POJO + builder; constructor enforces non-null
   `characterId` (the handler re-validates, Gson bypasses the constructor). Fields:
-  - `Long characterId` — REQUIRED. Target character (platform canon `characterId`; the legacy `charId` of older commands is not reused).
+  - `Long characterId` — REQUIRED. Target character (platform canon `characterId`; the legacy `characterId` of older commands is not reused).
   - `@Nullable String issuedBy` — who asked for the check: a staff login, or a service label such
     as `sac-sentinel`. Echoed in the result so a consumer can attribute checks it did not start.
   - `@Nullable String staffNotes` — staff-only note, never shown to the player (same convention as

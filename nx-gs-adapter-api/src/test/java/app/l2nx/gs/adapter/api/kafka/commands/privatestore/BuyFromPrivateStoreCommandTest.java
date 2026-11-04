@@ -37,8 +37,8 @@ class BuyFromPrivateStoreCommandTest {
 
     private static BuyFromPrivateStoreCommand.Builder valid() {
         return BuyFromPrivateStoreCommand.builder()
-                .buyerCharId(1)
-                .sellerCharId(2)
+                .buyerCharacterId(1)
+                .sellerCharacterId(2)
                 .lines(Collections.singletonList(line(1)))
                 .buyerFeePercent(5)
                 .deadline(DEADLINE)
@@ -48,23 +48,23 @@ class BuyFromPrivateStoreCommandTest {
                 .initiator(TestInitiators.USER);
     }
 
-    @ParameterizedTest(name = "buyerCharId={0}")
+    @ParameterizedTest(name = "buyerCharacterId={0}")
     @CsvSource({"0", "-1"})
-    void constructor_shouldReject_whenBuyerCharIdNotPositive(int buyerCharId) {
-        BuyFromPrivateStoreCommand.Builder builder = valid().buyerCharId(buyerCharId);
+    void constructor_shouldReject_whenBuyerCharacterIdNotPositive(int buyerCharacterId) {
+        BuyFromPrivateStoreCommand.Builder builder = valid().buyerCharacterId(buyerCharacterId);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @ParameterizedTest(name = "sellerCharId={0}")
+    @ParameterizedTest(name = "sellerCharacterId={0}")
     @CsvSource({"0", "-1"})
-    void constructor_shouldReject_whenSellerCharIdNotPositive(int sellerCharId) {
-        BuyFromPrivateStoreCommand.Builder builder = valid().sellerCharId(sellerCharId);
+    void constructor_shouldReject_whenSellerCharacterIdNotPositive(int sellerCharacterId) {
+        BuyFromPrivateStoreCommand.Builder builder = valid().sellerCharacterId(sellerCharacterId);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @Test
     void constructor_shouldReject_whenBuyerEqualsSeller() {
-        BuyFromPrivateStoreCommand.Builder builder = valid().buyerCharId(5).sellerCharId(5);
+        BuyFromPrivateStoreCommand.Builder builder = valid().buyerCharacterId(5).sellerCharacterId(5);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 

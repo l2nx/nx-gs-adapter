@@ -13,19 +13,19 @@ import org.jspecify.annotations.Nullable;
  * kind without a synchronised release of this API and every consumer.</p>
  *
  * <p>{@code eventId} is a UUIDv7 — the idempotency key, and the source of {@code occurredAt}, which
- * is why no timestamp is carried. {@code charId} is also the partition key. Metadata values are
+ * is why no timestamp is carried. {@code characterId} is also the partition key. Metadata values are
  * decimal strings, as everywhere else in this API.</p>
  */
 public final class CharacterLogEvent {
 
     private final UUID eventId;
-    private final long charId;
+    private final long characterId;
     private final String type;
     private final @Nullable Map<String, String> metadata;
 
-    public CharacterLogEvent(UUID eventId, long charId, String type, @Nullable Map<String, String> metadata) {
+    public CharacterLogEvent(UUID eventId, long characterId, String type, @Nullable Map<String, String> metadata) {
         this.eventId = Objects.requireNonNull(eventId, "CharacterLogEvent.eventId is required");
-        this.charId = charId;
+        this.characterId = characterId;
         this.type = Objects.requireNonNull(type, "CharacterLogEvent.type is required");
         this.metadata =
                 metadata == null ? null : Collections.unmodifiableMap(new LinkedHashMap<String, String>(metadata));
@@ -35,8 +35,8 @@ public final class CharacterLogEvent {
         return eventId;
     }
 
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
     public String getType() {
@@ -48,7 +48,7 @@ public final class CharacterLogEvent {
     }
 
     public Builder toBuilder() {
-        return new Builder().eventId(eventId).charId(charId).type(type).metadata(metadata);
+        return new Builder().eventId(eventId).characterId(characterId).type(type).metadata(metadata);
     }
 
     public static Builder builder() {
@@ -60,7 +60,7 @@ public final class CharacterLogEvent {
         if (this == o) return true;
         if (!(o instanceof CharacterLogEvent)) return false;
         CharacterLogEvent that = (CharacterLogEvent) o;
-        return charId == that.charId
+        return characterId == that.characterId
                 && eventId.equals(that.eventId)
                 && type.equals(that.type)
                 && Objects.equals(metadata, that.metadata);
@@ -68,18 +68,18 @@ public final class CharacterLogEvent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventId, charId, type, metadata);
+        return Objects.hash(eventId, characterId, type, metadata);
     }
 
     @Override
     public String toString() {
-        return "CharacterLogEvent[eventId=" + eventId + ", charId=" + charId + ", type=" + type + ", metadata="
+        return "CharacterLogEvent[eventId=" + eventId + ", characterId=" + characterId + ", type=" + type + ", metadata="
                 + metadata + "]";
     }
 
     public static final class Builder {
         private @Nullable UUID eventId;
-        private long charId;
+        private long characterId;
         private @Nullable String type;
         private @Nullable Map<String, String> metadata;
 
@@ -88,8 +88,8 @@ public final class CharacterLogEvent {
             return this;
         }
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -104,7 +104,7 @@ public final class CharacterLogEvent {
         }
 
         public CharacterLogEvent build() {
-            return new CharacterLogEvent(eventId, charId, type, metadata);
+            return new CharacterLogEvent(eventId, characterId, type, metadata);
         }
     }
 }

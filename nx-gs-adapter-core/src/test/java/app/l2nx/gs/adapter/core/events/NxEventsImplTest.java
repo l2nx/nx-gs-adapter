@@ -234,7 +234,7 @@ class NxEventsImplTest {
     }
 
     @Test
-    void publish_shouldEnqueuePrivateStoreStatePartitionedByCharId() throws InterruptedException {
+    void publish_shouldEnqueuePrivateStoreStatePartitionedByCharacterId() throws InterruptedException {
         ConcurrentLinkedQueue<Object> sentValues = new ConcurrentLinkedQueue<Object>();
         ConcurrentLinkedQueue<byte[]> sentKeys = new ConcurrentLinkedQueue<byte[]>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -255,7 +255,7 @@ class NxEventsImplTest {
         NxEventsImpl events = new NxEventsImpl(publisher, registry);
         PrivateStoreStateEvent event = PrivateStoreStateEvent.builder()
                 .eventId(UUIDv7.generate())
-                .charId(0xCAFEBABEL)
+                .characterId(0xCAFEBABEL)
                 .build();
 
         events.publish(event);
@@ -266,7 +266,7 @@ class NxEventsImplTest {
         assertArrayEquals(
                 LongBytes.bigEndian(0xCAFEBABEL),
                 sentKeys.peek(),
-                "state event must be keyed by charId as 8 big-endian bytes");
+                "state event must be keyed by characterId as 8 big-endian bytes");
     }
 
     @Test

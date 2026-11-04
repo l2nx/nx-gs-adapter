@@ -6,7 +6,7 @@ import java.util.Objects;
 
 /**
  * Telegram-to-character linking handshake: the game-server resolves the character, mails the verification code to its
- * in-game mailbox and replies with the resolved {@code charId}.
+ * in-game mailbox and replies with the resolved {@code characterId}.
  * Errors: {@code NOT_FOUND} (no such char on the account), {@code FORBIDDEN} (host policy refuses, e.g. banned),
  * {@code RATE_LIMITED} (too many attempts for this character), {@code VALIDATION_FAILED} (missing field),
  * {@code INTERNAL_ERROR} (mail composition/delivery failed).
@@ -52,7 +52,7 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
         return accountName;
     }
 
-    /** Handler resolves {@code (accountName, charName)} to a {@code charId}, else {@code NOT_FOUND}. */
+    /** Handler resolves {@code (accountName, charName)} to a {@code characterId}, else {@code NOT_FOUND}. */
     public String getCharName() {
         return charName;
     }

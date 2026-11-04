@@ -170,7 +170,7 @@ class OwnerVerifiedTest {
     @Test
     void builder_shouldDefaultToNotVerified() {
         assertFalse(StopPrivateStoreCommand.builder()
-                .charId(1)
+                .characterId(1)
                 .initiator(TestInitiators.USER)
                 .build()
                 .isOwnerVerified());

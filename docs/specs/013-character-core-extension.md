@@ -44,7 +44,7 @@ online / offline mark, that drags in no build-specific extras (lock flags, block
 
 - [done] R12. The discrete `CharacterPresenceEvent` (`events.character` family, a single-event family) MUST carry
   `eventId: UUIDv7` (REQUIRED, `occurredAt` is derived from it), `online: boolean` (REQUIRED, `true` = login, `false` =
-  logout) and the optional `accountName`, `ip`, `hwid`. The character is `charId: long` (REQUIRED, also the partition
+  logout) and the optional `accountName`, `ip`, `hwid`. The character is `characterId: long` (REQUIRED, also the partition
   key), renamed to `characterId` by [`043`](043-session-results.md) R2. The host emits it from the standard
   packet path (enter-world for a login, player delete for a logout) through its presence publisher, bound in `onConnect`
   of the host's events module. Cheat or custom clients bypass the packet path, so no event comes; the runtime tombstones

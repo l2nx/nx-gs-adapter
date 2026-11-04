@@ -207,7 +207,7 @@ entity '<name>'"`), entity transitions to `DEGRADED`, no publishes for that
   mechanic) leave the field unset, Gson omits it on the wire (`serializeNulls=false`).
   Field set:
   - `long id` — `NOT NULL`, primary key (matches `db-sync` `CharacterDbDto.id`,
-    same `charId` / `objectId`)
+    same `characterId` / `objectId`)
   - `@Nullable Integer curHp`, `@Nullable Integer maxHp`
   - `@Nullable Integer curMp`, `@Nullable Integer maxMp`
   - `@Nullable Integer curCp`, `@Nullable Integer maxCp`

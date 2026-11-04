@@ -61,7 +61,7 @@ established this convention.
                ▼
 ┌──────────────────────────────────────┐
 │ Kafka topic <tenant>.gs.commands     │
-│   key:    charId for character-      │
+│   key:    characterId for character-      │
 │           scoped commands, null      │
 │           (round-robin) otherwise    │
 │   headers:                           │
@@ -149,15 +149,15 @@ public final class HostCommandHandlers {
 
     static CommandResult<KickCharacterResult> handleKick(KickCharacterCommand cmd, CommandContext ctx) {
         boolean wasOnline = ctx.host().sync(() -> {
-            Player p = GameObjectsStorage.getPlayer(cmd.getCharId().intValue());
+            Player p = GameObjectsStorage.getPlayer(cmd.getCharacterId().intValue());
             if (p == null) return false;
             p.kick();
             return true;
         });
         if (!wasOnline) {
-            return CommandResult.notFound("Character not online", "charId", cmd.getCharId());
+            return CommandResult.notFound("Character not online", "characterId", cmd.getCharacterId());
         }
-        return CommandResult.ok(KickCharacterResult.builder().charId(cmd.getCharId()).build());
+        return CommandResult.ok(KickCharacterResult.builder().characterId(cmd.getCharacterId()).build());
     }
 }
 ```
@@ -195,7 +195,7 @@ public final class TransferCharToAccountCommand implements NxCommand<TransferCha
 commands.on(TransferCharToAccountCommand.class, (cmd, ctx) -> {
     boolean wasLoggedOut = doRebind(cmd);
     return CommandResult.ok(new TransferCharToAccountResult(
-            cmd.getCharId(), cmd.getAccountTo(), wasLoggedOut));
+            cmd.getCharacterId(), cmd.getAccountTo(), wasLoggedOut));
 });
 ```
 
@@ -317,8 +317,8 @@ Rules:
 ```java
 static CommandResult<SendMailResult> handleSendMail(SendMailCommand cmd, CommandContext ctx) {
     // cheap wire checks stay on the consumer thread
-    if (cmd.getCharId() == null) {
-        return CommandResult.validationFailed("charId is required", "charId");
+    if (cmd.getCharacterId() == null) {
+        return CommandResult.validationFailed("characterId is required", "characterId");
     }
 
     // recipient lookup, receipt claim and the mail insert are blocking JDBC: the whole send
@@ -337,13 +337,13 @@ The reference `DeleteItemHandler` and `TransferItemToCharacterHandler` are the c
 patterns. Detect online state on the consumer thread, then dispatch:
 
 ```java
-final Player online = GameObjectsStorage.getPlayer(charId);
+final Player online = GameObjectsStorage.getPlayer(characterId);
 if (online != null) {
     return ctx.host().sync(() -> doOnline(online, ...));
 }
 try {
     return CompletableFuture
-            .supplyAsync(() -> doOffline(charId, ...), ctx.io())
+            .supplyAsync(() -> doOffline(characterId, ...), ctx.io())
             .join();
 } catch (CompletionException ce) {
     ...
@@ -418,7 +418,7 @@ The contract:
 ### Flow
 
 ```
-ctx.sync().requestNow("character", charId)
+ctx.sync().requestNow("character", characterId)
         │
         ▼
 NxSyncImpl  (session-scoped façade in adapter-core)
@@ -537,7 +537,7 @@ Every command has a `{X}Result` class; populate it with confirmation data:
 
 ```java
 return CommandResult.ok(new DeleteItemResult(itemBefore, deletedCount, fullyDeleted));
-return CommandResult.ok(new TransferCharToAccountResult(charId, newAccount, wasLoggedOut));
+return CommandResult.ok(new TransferCharToAccountResult(characterId, newAccount, wasLoggedOut));
 return CommandResult.ok(new SendMailResult(createdMailIds, itemErrors));
 ```
 
@@ -577,7 +577,7 @@ return CommandResult.error(CommandStatus.VALIDATION_FAILED,
 | Status                | Tier         | Meaning                                 | Example                                                    |
 | --------------------- | ------------ | --------------------------------------- | ---------------------------------------------------------- |
 | `OK`                  | OK           | Handler executed; payload non-null      | Transfer succeeded; mail created                           |
-| `NOT_FOUND`           | CLIENT_ERROR | Subject doesn't exist                   | `getPlayer(charId)` returned null                          |
+| `NOT_FOUND`           | CLIENT_ERROR | Subject doesn't exist                   | `getPlayer(characterId)` returned null                          |
 | `INVALID_STATE`       | CLIENT_ERROR | Subject exists but cannot accept op now | Player in jail; capacity exceeded                          |
 | `FORBIDDEN`           | CLIENT_ERROR | Operation rejected by policy            | Cannot punish self; cannot kick admin                      |
 | `VALIDATION_FAILED`   | CLIENT_ERROR | Request payload malformed               | Null wire field; negative quantity                         |

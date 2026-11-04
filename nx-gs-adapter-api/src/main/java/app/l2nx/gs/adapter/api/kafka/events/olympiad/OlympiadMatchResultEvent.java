@@ -20,12 +20,12 @@ public final class OlympiadMatchResultEvent {
     private final int olympiadCycle;
     private final OlympiadGameType gameType;
 
-    private final long charId;
+    private final long characterId;
     private final int classId;
     private final @Nullable CharacterClass clazz;
     private final @Nullable Long clanId;
 
-    private final long opponentCharId;
+    private final long opponentCharacterId;
     private final int opponentClassId;
     private final @Nullable CharacterClass opponentClazz;
     private final @Nullable Long opponentClanId;
@@ -47,11 +47,11 @@ public final class OlympiadMatchResultEvent {
             UUID matchId,
             int olympiadCycle,
             OlympiadGameType gameType,
-            long charId,
+            long characterId,
             int classId,
             @Nullable CharacterClass clazz,
             @Nullable Long clanId,
-            long opponentCharId,
+            long opponentCharacterId,
             int opponentClassId,
             @Nullable CharacterClass opponentClazz,
             @Nullable Long opponentClanId,
@@ -68,11 +68,11 @@ public final class OlympiadMatchResultEvent {
         this.matchId = matchId;
         this.olympiadCycle = olympiadCycle;
         this.gameType = gameType;
-        this.charId = charId;
+        this.characterId = characterId;
         this.classId = classId;
         this.clazz = clazz;
         this.clanId = clanId;
-        this.opponentCharId = opponentCharId;
+        this.opponentCharacterId = opponentCharacterId;
         this.opponentClassId = opponentClassId;
         this.opponentClazz = opponentClazz;
         this.opponentClanId = opponentClanId;
@@ -105,8 +105,8 @@ public final class OlympiadMatchResultEvent {
     }
 
     /** Self-perspective character; partition key (8-byte BE). */
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
     /** Legacy host-numbered class id; consumers MUST prefer {@link #getClazz() clazz} when non-null. */
@@ -124,8 +124,8 @@ public final class OlympiadMatchResultEvent {
         return clanId;
     }
 
-    public long getOpponentCharId() {
-        return opponentCharId;
+    public long getOpponentCharacterId() {
+        return opponentCharacterId;
     }
 
     /** Legacy host-numbered opponent class id; consumers MUST prefer {@link #getOpponentClazz() opponentClazz} when non-null. */
@@ -184,11 +184,11 @@ public final class OlympiadMatchResultEvent {
                 .matchId(matchId)
                 .olympiadCycle(olympiadCycle)
                 .gameType(gameType)
-                .charId(charId)
+                .characterId(characterId)
                 .classId(classId)
                 .clazz(clazz)
                 .clanId(clanId)
-                .opponentCharId(opponentCharId)
+                .opponentCharacterId(opponentCharacterId)
                 .opponentClassId(opponentClassId)
                 .opponentClazz(opponentClazz)
                 .opponentClanId(opponentClanId)
@@ -213,10 +213,10 @@ public final class OlympiadMatchResultEvent {
         if (!(o instanceof OlympiadMatchResultEvent)) return false;
         OlympiadMatchResultEvent that = (OlympiadMatchResultEvent) o;
         return olympiadCycle == that.olympiadCycle
-                && charId == that.charId
+                && characterId == that.characterId
                 && classId == that.classId
                 && clazz == that.clazz
-                && opponentCharId == that.opponentCharId
+                && opponentCharacterId == that.opponentCharacterId
                 && opponentClassId == that.opponentClassId
                 && opponentClazz == that.opponentClazz
                 && pointsBefore == that.pointsBefore
@@ -242,11 +242,11 @@ public final class OlympiadMatchResultEvent {
                 matchId,
                 olympiadCycle,
                 gameType,
-                charId,
+                characterId,
                 classId,
                 clazz,
                 clanId,
-                opponentCharId,
+                opponentCharacterId,
                 opponentClassId,
                 opponentClazz,
                 opponentClanId,
@@ -267,11 +267,11 @@ public final class OlympiadMatchResultEvent {
                 + ", matchId=" + matchId
                 + ", olympiadCycle=" + olympiadCycle
                 + ", gameType=" + gameType
-                + ", charId=" + charId
+                + ", characterId=" + characterId
                 + ", classId=" + classId
                 + ", clazz=" + clazz
                 + ", clanId=" + clanId
-                + ", opponentCharId=" + opponentCharId
+                + ", opponentCharacterId=" + opponentCharacterId
                 + ", opponentClassId=" + opponentClassId
                 + ", opponentClazz=" + opponentClazz
                 + ", opponentClanId=" + opponentClanId
@@ -291,11 +291,11 @@ public final class OlympiadMatchResultEvent {
         private UUID matchId;
         private int olympiadCycle;
         private OlympiadGameType gameType;
-        private long charId;
+        private long characterId;
         private int classId;
         private @Nullable CharacterClass clazz;
         private @Nullable Long clanId;
-        private long opponentCharId;
+        private long opponentCharacterId;
         private int opponentClassId;
         private @Nullable CharacterClass opponentClazz;
         private @Nullable Long opponentClanId;
@@ -329,8 +329,8 @@ public final class OlympiadMatchResultEvent {
             return this;
         }
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -349,8 +349,8 @@ public final class OlympiadMatchResultEvent {
             return this;
         }
 
-        public Builder opponentCharId(long opponentCharId) {
-            this.opponentCharId = opponentCharId;
+        public Builder opponentCharacterId(long opponentCharacterId) {
+            this.opponentCharacterId = opponentCharacterId;
             return this;
         }
 
@@ -420,11 +420,11 @@ public final class OlympiadMatchResultEvent {
                     matchId,
                     olympiadCycle,
                     gameType,
-                    charId,
+                    characterId,
                     classId,
                     clazz,
                     clanId,
-                    opponentCharId,
+                    opponentCharacterId,
                     opponentClassId,
                     opponentClazz,
                     opponentClanId,

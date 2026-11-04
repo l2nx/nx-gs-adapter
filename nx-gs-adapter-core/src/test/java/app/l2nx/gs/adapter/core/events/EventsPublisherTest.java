@@ -308,10 +308,10 @@ class EventsPublisherTest {
         assertEquals(LogoutReason.LOGOUT, actual.getLogoutReason());
     }
 
-    private static EventEnvelope envelope(long charId, EventTypeBinding binding) {
+    private static EventEnvelope envelope(long characterId, EventTypeBinding binding) {
         PremiumPurchaseEvent event = PremiumPurchaseEvent.builder()
                 .eventId(UUIDv7.generate())
-                .characterId(charId)
+                .characterId(characterId)
                 .build();
         return new EventEnvelope(event, binding);
     }

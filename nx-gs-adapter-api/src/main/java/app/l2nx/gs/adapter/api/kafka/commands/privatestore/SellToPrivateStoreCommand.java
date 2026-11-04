@@ -17,8 +17,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand<SellToPrivateStoreResult> {
 
-    private final int sellerCharId;
-    private final int buyerCharId;
+    private final int sellerCharacterId;
+    private final int buyerCharacterId;
     private final List<SellLine> lines;
     private final @Nullable Integer sellerFeePercent;
     private final Instant deadline;
@@ -29,8 +29,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
     private final CommandInitiator initiator;
 
     public SellToPrivateStoreCommand(
-            int sellerCharId,
-            int buyerCharId,
+            int sellerCharacterId,
+            int buyerCharacterId,
             List<SellLine> lines,
             @Nullable Integer sellerFeePercent,
             Instant deadline,
@@ -39,14 +39,14 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
             String mailBody,
             boolean ownerVerified,
             CommandInitiator initiator) {
-        if (sellerCharId <= 0) {
-            throw new IllegalArgumentException("sellerCharId must be positive (got " + sellerCharId + ")");
+        if (sellerCharacterId <= 0) {
+            throw new IllegalArgumentException("sellerCharacterId must be positive (got " + sellerCharacterId + ")");
         }
-        if (buyerCharId <= 0) {
-            throw new IllegalArgumentException("buyerCharId must be positive (got " + buyerCharId + ")");
+        if (buyerCharacterId <= 0) {
+            throw new IllegalArgumentException("buyerCharacterId must be positive (got " + buyerCharacterId + ")");
         }
-        if (sellerCharId == buyerCharId) {
-            throw new IllegalArgumentException("sellerCharId must differ from buyerCharId (got " + sellerCharId + ")");
+        if (sellerCharacterId == buyerCharacterId) {
+            throw new IllegalArgumentException("sellerCharacterId must differ from buyerCharacterId (got " + sellerCharacterId + ")");
         }
         if (lines == null || lines.isEmpty()) {
             throw new IllegalArgumentException("lines is required and must be non-empty");
@@ -70,8 +70,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
             throw new IllegalArgumentException("sellerFeePercent must not exceed "
                     + PrivateStoreFee.MAX_SELLER_FEE_PERCENT + " (got " + sellerFeePercent + ")");
         }
-        this.sellerCharId = sellerCharId;
-        this.buyerCharId = buyerCharId;
+        this.sellerCharacterId = sellerCharacterId;
+        this.buyerCharacterId = buyerCharacterId;
         this.lines = PrivateStoreLists.freeze(lines);
         this.sellerFeePercent = sellerFeePercent;
         this.deadline = Objects.requireNonNull(deadline, "deadline");
@@ -90,13 +90,13 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
     }
 
     /** Acts from the app; need not be online, in range or in the store owner's instance, the host loads an offline character. */
-    public int getSellerCharId() {
-        return sellerCharId;
+    public int getSellerCharacterId() {
+        return sellerCharacterId;
     }
 
     /** Owner of the buy-store; must be in the world (online or offline-trading) with a buy-store open. */
-    public int getBuyerCharId() {
-        return buyerCharId;
+    public int getBuyerCharacterId() {
+        return buyerCharacterId;
     }
 
     /**
@@ -147,8 +147,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
 
     public Builder toBuilder() {
         return new Builder()
-                .sellerCharId(sellerCharId)
-                .buyerCharId(buyerCharId)
+                .sellerCharacterId(sellerCharacterId)
+                .buyerCharacterId(buyerCharacterId)
                 .lines(lines)
                 .sellerFeePercent(sellerFeePercent)
                 .deadline(deadline)
@@ -168,8 +168,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
         if (this == o) return true;
         if (!(o instanceof SellToPrivateStoreCommand)) return false;
         SellToPrivateStoreCommand that = (SellToPrivateStoreCommand) o;
-        return sellerCharId == that.sellerCharId
-                && buyerCharId == that.buyerCharId
+        return sellerCharacterId == that.sellerCharacterId
+                && buyerCharacterId == that.buyerCharacterId
                 && Objects.equals(sellerFeePercent, that.sellerFeePercent)
                 && Objects.equals(lines, that.lines)
                 && Objects.equals(deadline, that.deadline)
@@ -183,8 +183,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
     @Override
     public int hashCode() {
         return Objects.hash(
-                sellerCharId,
-                buyerCharId,
+                sellerCharacterId,
+                buyerCharacterId,
                 lines,
                 sellerFeePercent,
                 deadline,
@@ -197,8 +197,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
 
     @Override
     public String toString() {
-        return "SellToPrivateStoreCommand[sellerCharId=" + sellerCharId
-                + ", buyerCharId=" + buyerCharId
+        return "SellToPrivateStoreCommand[sellerCharacterId=" + sellerCharacterId
+                + ", buyerCharacterId=" + buyerCharacterId
                 + ", lines=" + lines
                 + ", sellerFeePercent=" + sellerFeePercent
                 + ", deadline=" + deadline
@@ -209,8 +209,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
     }
 
     public static final class Builder {
-        private int sellerCharId;
-        private int buyerCharId;
+        private int sellerCharacterId;
+        private int buyerCharacterId;
         private List<SellLine> lines;
         private @Nullable Integer sellerFeePercent;
         private Instant deadline;
@@ -220,13 +220,13 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
         private boolean ownerVerified;
         private CommandInitiator initiator;
 
-        public Builder sellerCharId(int sellerCharId) {
-            this.sellerCharId = sellerCharId;
+        public Builder sellerCharacterId(int sellerCharacterId) {
+            this.sellerCharacterId = sellerCharacterId;
             return this;
         }
 
-        public Builder buyerCharId(int buyerCharId) {
-            this.buyerCharId = buyerCharId;
+        public Builder buyerCharacterId(int buyerCharacterId) {
+            this.buyerCharacterId = buyerCharacterId;
             return this;
         }
 
@@ -272,8 +272,8 @@ public final class SellToPrivateStoreCommand implements OwnerVerified, NxCommand
 
         public SellToPrivateStoreCommand build() {
             return new SellToPrivateStoreCommand(
-                    sellerCharId,
-                    buyerCharId,
+                    sellerCharacterId,
+                    buyerCharacterId,
                     lines,
                     sellerFeePercent,
                     deadline,

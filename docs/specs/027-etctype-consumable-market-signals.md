@@ -55,7 +55,7 @@ New package `kafka.commands.privatestore`, mirroring the existing `commands.<gro
 - `SellLine { int itemId /* inventory instance object-id, NOT item-template id */, long count,
 long priceAdena }` — **`priceAdena` is per-unit**; the host charges `count * priceAdena` for the
   whole stack. `count > 0` and `priceAdena >= 0` constructor-enforced.
-- `StopPrivateStoreCommand implements NxCommand<StopPrivateStoreResult>` — `{ int charId }`.
+- `StopPrivateStoreCommand implements NxCommand<StopPrivateStoreResult>` — `{ int characterId }`.
 - `StartPrivateStoreResult { String storeType, int acceptedCount, ... }` —
   `storeType` is an open host-defined token (not a closed adapter enum). A store opens only when every
   line is accepted; there is no `dropped` list on the result.

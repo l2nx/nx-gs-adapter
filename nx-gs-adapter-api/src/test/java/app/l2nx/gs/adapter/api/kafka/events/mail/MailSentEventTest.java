@@ -14,8 +14,8 @@ class MailSentEventTest {
         MailSentEvent event = MailSentEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .senderCharId(0L)
-                .receiverCharId(268437521L)
+                .senderCharacterId(0L)
+                .receiverCharacterId(268437521L)
                 .subject("Reward")
                 .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
                 .build();
@@ -28,8 +28,8 @@ class MailSentEventTest {
         MailSentEvent event = MailSentEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .senderCharId(0L)
-                .receiverCharId(268437521L)
+                .senderCharacterId(0L)
+                .receiverCharacterId(268437521L)
                 .subject("Reward")
                 .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
                 .attachments(null)
@@ -43,8 +43,8 @@ class MailSentEventTest {
         MailSentEvent event = MailSentEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .senderCharId(268437520L)
-                .receiverCharId(268437521L)
+                .senderCharacterId(268437520L)
+                .receiverCharacterId(268437521L)
                 .subject("Hi")
                 .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
                 .build();
@@ -57,9 +57,9 @@ class MailSentEventTest {
         MailSentEvent event = MailSentEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .senderCharId(0L)
+                .senderCharacterId(0L)
                 .senderName("System")
-                .receiverCharId(268437521L)
+                .receiverCharacterId(268437521L)
                 .subject("Reward")
                 .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
                 .build();
@@ -72,8 +72,8 @@ class MailSentEventTest {
         MailSentEvent event = MailSentEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .senderCharId(268437520L)
-                .receiverCharId(268437521L)
+                .senderCharacterId(268437520L)
+                .receiverCharacterId(268437521L)
                 .subject("Trade")
                 .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
                 .build();
@@ -86,8 +86,8 @@ class MailSentEventTest {
         MailSentEvent event = MailSentEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .senderCharId(0L)
-                .receiverCharId(268437521L)
+                .senderCharacterId(0L)
+                .receiverCharacterId(268437521L)
                 .subject("Reward")
                 .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
                 .attachments(Collections.singletonList(stub()))
@@ -106,8 +106,8 @@ class MailSentEventTest {
         MailSentEvent event = MailSentEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .senderCharId(0L)
-                .receiverCharId(268437521L)
+                .senderCharacterId(0L)
+                .receiverCharacterId(268437521L)
                 .subject("Reward")
                 .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
                 .attachments(source)
@@ -123,9 +123,9 @@ class MailSentEventTest {
         MailSentEvent original = MailSentEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .senderCharId(268437520L)
+                .senderCharacterId(268437520L)
                 .senderName("Olya")
-                .receiverCharId(268437521L)
+                .receiverCharacterId(268437521L)
                 .subject("Subject")
                 .body("Body")
                 .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
@@ -142,8 +142,8 @@ class MailSentEventTest {
         MailSentEvent a = MailSentEvent.builder()
                 .eventId(id)
                 .mailId(1L)
-                .senderCharId(0L)
-                .receiverCharId(2L)
+                .senderCharacterId(0L)
+                .receiverCharacterId(2L)
                 .subject("s")
                 .expiresAt(Instant.EPOCH)
                 .codAmount(0L)
@@ -151,8 +151,8 @@ class MailSentEventTest {
         MailSentEvent b = MailSentEvent.builder()
                 .eventId(id)
                 .mailId(1L)
-                .senderCharId(0L)
-                .receiverCharId(2L)
+                .senderCharacterId(0L)
+                .receiverCharacterId(2L)
                 .subject("s")
                 .expiresAt(Instant.EPOCH)
                 .codAmount(100L)
@@ -167,16 +167,16 @@ class MailSentEventTest {
         MailSentEvent event = MailSentEvent.builder()
                 .eventId(id)
                 .mailId(99L)
-                .senderCharId(11L)
-                .receiverCharId(22L)
+                .senderCharacterId(11L)
+                .receiverCharacterId(22L)
                 .subject("s")
                 .expiresAt(Instant.EPOCH)
                 .build();
 
         String s = event.toString();
         assertTrue(s.contains("mailId=99"));
-        assertTrue(s.contains("senderCharId=11"));
-        assertTrue(s.contains("receiverCharId=22"));
+        assertTrue(s.contains("senderCharacterId=11"));
+        assertTrue(s.contains("receiverCharacterId=22"));
     }
 
     private static MailItemMovement stub() {

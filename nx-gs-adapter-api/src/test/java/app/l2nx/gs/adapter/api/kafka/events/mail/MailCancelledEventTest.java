@@ -13,7 +13,7 @@ class MailCancelledEventTest {
         MailCancelledEvent event = MailCancelledEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .cancelledByCharId(268437521L)
+                .cancelledByCharacterId(268437521L)
                 .build();
 
         assertTrue(event.getAttachments().isEmpty());
@@ -24,7 +24,7 @@ class MailCancelledEventTest {
         MailCancelledEvent event = MailCancelledEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .cancelledByCharId(268437521L)
+                .cancelledByCharacterId(268437521L)
                 .attachments(null)
                 .build();
 
@@ -36,7 +36,7 @@ class MailCancelledEventTest {
         MailCancelledEvent event = MailCancelledEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .cancelledByCharId(268437521L)
+                .cancelledByCharacterId(268437521L)
                 .attachments(Collections.singletonList(stub(1L, 2L)))
                 .build();
 
@@ -53,7 +53,7 @@ class MailCancelledEventTest {
         MailCancelledEvent event = MailCancelledEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .cancelledByCharId(268437521L)
+                .cancelledByCharacterId(268437521L)
                 .attachments(source)
                 .build();
 
@@ -67,7 +67,7 @@ class MailCancelledEventTest {
         MailCancelledEvent original = MailCancelledEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .cancelledByCharId(268437521L)
+                .cancelledByCharacterId(268437521L)
                 .attachments(Arrays.asList(stub(1L, 2L), stub(3L, 4L)))
                 .build();
 
@@ -75,17 +75,17 @@ class MailCancelledEventTest {
     }
 
     @Test
-    void equals_shouldDistinguishCancelledByCharId() {
+    void equals_shouldDistinguishCancelledByCharacterId() {
         UUID id = UUID.randomUUID();
         MailCancelledEvent a = MailCancelledEvent.builder()
                 .eventId(id)
                 .mailId(1L)
-                .cancelledByCharId(10L)
+                .cancelledByCharacterId(10L)
                 .build();
         MailCancelledEvent b = MailCancelledEvent.builder()
                 .eventId(id)
                 .mailId(1L)
-                .cancelledByCharId(11L)
+                .cancelledByCharacterId(11L)
                 .build();
 
         assertNotEquals(a, b);

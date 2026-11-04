@@ -13,7 +13,7 @@ class MailAcceptedEventTest {
         MailAcceptedEvent event = MailAcceptedEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .claimedByCharId(268437521L)
+                .claimedByCharacterId(268437521L)
                 .build();
 
         assertTrue(event.getAttachments().isEmpty());
@@ -24,7 +24,7 @@ class MailAcceptedEventTest {
         MailAcceptedEvent event = MailAcceptedEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .claimedByCharId(268437521L)
+                .claimedByCharacterId(268437521L)
                 .attachments(null)
                 .build();
 
@@ -36,7 +36,7 @@ class MailAcceptedEventTest {
         MailAcceptedEvent event = MailAcceptedEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .claimedByCharId(268437521L)
+                .claimedByCharacterId(268437521L)
                 .attachments(Collections.singletonList(stub(1L, 2L)))
                 .build();
 
@@ -53,7 +53,7 @@ class MailAcceptedEventTest {
         MailAcceptedEvent event = MailAcceptedEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .claimedByCharId(268437521L)
+                .claimedByCharacterId(268437521L)
                 .attachments(source)
                 .build();
 
@@ -67,7 +67,7 @@ class MailAcceptedEventTest {
         MailAcceptedEvent original = MailAcceptedEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .claimedByCharId(268437521L)
+                .claimedByCharacterId(268437521L)
                 .attachments(Arrays.asList(stub(1L, 2L), stub(3L, 4L)))
                 .build();
 
@@ -75,17 +75,17 @@ class MailAcceptedEventTest {
     }
 
     @Test
-    void equals_shouldDistinguishClaimedByCharId() {
+    void equals_shouldDistinguishClaimedByCharacterId() {
         UUID id = UUID.randomUUID();
         MailAcceptedEvent a = MailAcceptedEvent.builder()
                 .eventId(id)
                 .mailId(1L)
-                .claimedByCharId(10L)
+                .claimedByCharacterId(10L)
                 .build();
         MailAcceptedEvent b = MailAcceptedEvent.builder()
                 .eventId(id)
                 .mailId(1L)
-                .claimedByCharId(11L)
+                .claimedByCharacterId(11L)
                 .build();
 
         assertNotEquals(a, b);

@@ -30,7 +30,7 @@ Source data is complete — the gap is in what the adapter reads and how it shap
 
 - `characters.level` / `.exp` / `.sp` — base class (`getStat().getBaseLevel/BaseExp/BaseSp`).
 - `characters.classid` — active class; `characters.base_class` — base class.
-- `character_subclasses (charId, class_id, exp, sp, level, class_index)` — one row per subclass.
+- `character_subclasses (characterId, class_id, exp, sp, level, class_index)` — one row per subclass.
 
 ## Wire shape: one roster, not "base + subclasses"
 

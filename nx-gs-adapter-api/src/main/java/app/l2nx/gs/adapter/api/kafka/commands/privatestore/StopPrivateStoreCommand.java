@@ -13,21 +13,21 @@ import org.jspecify.annotations.Nullable;
  */
 public final class StopPrivateStoreCommand implements OwnerVerified, NxCommand<StopPrivateStoreResult> {
 
-    private final int charId;
+    private final int characterId;
     private final boolean ownerVerified;
     private final @Nullable Instant deadline;
     private final CommandInitiator initiator;
 
     public StopPrivateStoreCommand(
-            int charId, boolean ownerVerified, @Nullable Instant deadline, CommandInitiator initiator) {
-        this.charId = charId;
+            int characterId, boolean ownerVerified, @Nullable Instant deadline, CommandInitiator initiator) {
+        this.characterId = characterId;
         this.ownerVerified = ownerVerified;
         this.deadline = deadline;
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
-    public int getCharId() {
-        return charId;
+    public int getCharacterId() {
+        return characterId;
     }
 
     @Override
@@ -47,7 +47,7 @@ public final class StopPrivateStoreCommand implements OwnerVerified, NxCommand<S
 
     public Builder toBuilder() {
         return new Builder()
-                .charId(charId)
+                .characterId(characterId)
                 .ownerVerified(ownerVerified)
                 .deadline(deadline)
                 .initiator(initiator);
@@ -62,7 +62,7 @@ public final class StopPrivateStoreCommand implements OwnerVerified, NxCommand<S
         if (this == o) return true;
         if (!(o instanceof StopPrivateStoreCommand)) return false;
         StopPrivateStoreCommand that = (StopPrivateStoreCommand) o;
-        return charId == that.charId
+        return characterId == that.characterId
                 && ownerVerified == that.ownerVerified
                 && Objects.equals(deadline, that.deadline)
                 && Objects.equals(initiator, that.initiator);
@@ -70,23 +70,23 @@ public final class StopPrivateStoreCommand implements OwnerVerified, NxCommand<S
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, ownerVerified, deadline, initiator);
+        return Objects.hash(characterId, ownerVerified, deadline, initiator);
     }
 
     @Override
     public String toString() {
-        return "StopPrivateStoreCommand[charId=" + charId + ", ownerVerified=" + ownerVerified + ", deadline="
+        return "StopPrivateStoreCommand[characterId=" + characterId + ", ownerVerified=" + ownerVerified + ", deadline="
                 + deadline + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
-        private int charId;
+        private int characterId;
         private boolean ownerVerified;
         private @Nullable Instant deadline;
         private CommandInitiator initiator;
 
-        public Builder charId(int charId) {
-            this.charId = charId;
+        public Builder characterId(int characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -106,7 +106,7 @@ public final class StopPrivateStoreCommand implements OwnerVerified, NxCommand<S
         }
 
         public StopPrivateStoreCommand build() {
-            return new StopPrivateStoreCommand(charId, ownerVerified, deadline, initiator);
+            return new StopPrivateStoreCommand(characterId, ownerVerified, deadline, initiator);
         }
     }
 }

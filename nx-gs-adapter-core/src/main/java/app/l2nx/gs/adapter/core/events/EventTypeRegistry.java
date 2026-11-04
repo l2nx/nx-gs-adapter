@@ -67,7 +67,7 @@ final class EventTypeRegistry {
                 families,
                 PrivateStoreStateEvent.class,
                 "privatestore",
-                evt -> LongBytes.bigEndian(((PrivateStoreStateEvent) evt).getCharId()));
+                evt -> LongBytes.bigEndian(((PrivateStoreStateEvent) evt).getCharacterId()));
         register(
                 map,
                 families,
@@ -81,7 +81,7 @@ final class EventTypeRegistry {
                 families,
                 CharacterDeathEvent.class,
                 "character",
-                evt -> LongBytes.bigEndian(((CharacterDeathEvent) evt).getCharId()));
+                evt -> LongBytes.bigEndian(((CharacterDeathEvent) evt).getCharacterId()));
         if (perServerTypes) {
             // the platform reads the snapshots of one server in order, and an unkeyed one could overtake its successor
             byte[] serverKey = NxHeaders.encodeUuid(serverId);
@@ -92,7 +92,7 @@ final class EventTypeRegistry {
                 families,
                 CharacterLogEvent.class,
                 "characterlog",
-                evt -> LongBytes.bigEndian(((CharacterLogEvent) evt).getCharId()));
+                evt -> LongBytes.bigEndian(((CharacterLogEvent) evt).getCharacterId()));
         register(
                 map,
                 families,
@@ -149,13 +149,13 @@ final class EventTypeRegistry {
                 families,
                 OlympiadMatchResultEvent.class,
                 "olympiad",
-                evt -> LongBytes.bigEndian(((OlympiadMatchResultEvent) evt).getCharId()));
+                evt -> LongBytes.bigEndian(((OlympiadMatchResultEvent) evt).getCharacterId()));
         register(
                 map,
                 families,
                 HeroGrantedEvent.class,
                 "olympiad",
-                evt -> LongBytes.bigEndian(((HeroGrantedEvent) evt).getCharId()));
+                evt -> LongBytes.bigEndian(((HeroGrantedEvent) evt).getCharacterId()));
         register(map, families, ResyncCompletedEvent.class, "sync", evt -> null);
         register(
                 map,

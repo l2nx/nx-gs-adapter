@@ -16,7 +16,7 @@ Expose two consumer-side capabilities on the platform side:
    disconnects, timeout penalties).
 
 Snapshot fields are NOT carried when the platform's CDC streams already cover
-them (character / clan names, hero status) — consumers join by `charId` /
+them (character / clan names, hero status) — consumers join by `characterId` /
 `clanId` on the corresponding CDC stream.
 
 ## Scope
@@ -44,7 +44,7 @@ them (character / clan names, hero status) — consumers join by `charId` /
 
 **Family:** `events.olympiad` → `<tenant>.gs.events.olympiad`
 **Event type (single):** `OlympiadMatchResultEvent`
-**Partition key:** `charId` (8-byte big-endian) — all of one character's
+**Partition key:** `characterId` (8-byte big-endian) — all of one character's
 Olympiad history lands on one partition in occurrence order.
 
 Per-participant model — every `validateWinner` invocation that progresses past
@@ -61,12 +61,12 @@ olympiadCycle: int             REQUIRED — Olympiad.getCurrentCycle()
 gameType: OlympiadGameType     REQUIRED — CLASSED | NONCLASSED
 
 // Self (partition key)
-charId: long                   REQUIRED
+characterId: long                   REQUIRED
 classId: int                   REQUIRED — base class at match time
 clanId: @Nullable Long         snapshot — clan affiliation can change mid-cycle
 
 // Opponent
-opponentCharId: long           REQUIRED
+opponentCharacterId: long           REQUIRED
 opponentClassId: int           REQUIRED
 opponentClanId: @Nullable Long snapshot
 
@@ -150,7 +150,7 @@ captures (result, reason) into local variables per branch, single
 
 `EventTypeRegistry`: one `register(...)` line —
 `OlympiadMatchResultEvent.class → "olympiad"`, partition extractor
-`LongBytes.bigEndian(event.getCharId())`. Family auto-flows through
+`LongBytes.bigEndian(event.getCharacterId())`. Family auto-flows through
 heartbeat / disabled-families reporting.
 
 ## Idempotency / ordering

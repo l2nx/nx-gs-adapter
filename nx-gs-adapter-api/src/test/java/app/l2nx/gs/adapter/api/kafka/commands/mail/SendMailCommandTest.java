@@ -18,7 +18,7 @@ class SendMailCommandTest {
         MailItem item = MailItem.builder().itemTemplateId(57L).count(1_000L).build();
 
         SendMailCommand cmd = SendMailCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .author("admin")
                 .title("Reward")
                 .body("here is your loot")
@@ -26,7 +26,7 @@ class SendMailCommandTest {
                 .initiator(TestInitiators.USER)
                 .build();
 
-        assertEquals(42L, cmd.getCharId().longValue());
+        assertEquals(42L, cmd.getCharacterId().longValue());
         assertEquals("admin", cmd.getAuthor());
         assertEquals("Reward", cmd.getTitle());
         assertEquals("here is your loot", cmd.getBody());
@@ -34,17 +34,17 @@ class SendMailCommandTest {
     }
 
     @Test
-    void constructor_shouldRejectNullCharId() {
+    void constructor_shouldRejectNullCharacterId() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
                 () -> new SendMailCommand(null, "a", "t", "b", null, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("charId"));
+        assertTrue(ex.getMessage().contains("characterId"));
     }
 
     @Test
     void builder_shouldCarryAdena() {
         SendMailCommand cmd = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .adena(250L)
                 .initiator(TestInitiators.USER)
@@ -59,7 +59,7 @@ class SendMailCommandTest {
         UUID key = UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001");
 
         SendMailCommand cmd = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .idempotencyKey(key)
                 .initiator(TestInitiators.USER)
@@ -74,7 +74,7 @@ class SendMailCommandTest {
     void constructor_shouldDefaultIdempotencyKeyToNull_whenOlderConstructors() {
         assertNull(new SendMailCommand(1L, "a", "t", "b", null, TestInitiators.USER).getIdempotencyKey());
         assertNull(SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .author("a")
                 .title("t")
                 .body("b")
@@ -88,7 +88,7 @@ class SendMailCommandTest {
     void gsonRoundTrip_shouldKeepIdempotencyKey() {
         Gson gson = new Gson();
         SendMailCommand cmd = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .adena(5L)
                 .idempotencyKey(UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001"))
@@ -101,7 +101,7 @@ class SendMailCommandTest {
     @Test
     void gson_shouldReadIdempotencyKeyAsNull_whenOldPayload() {
         SendMailCommand cmd =
-                new Gson().fromJson("{\"charId\":1,\"title\":\"t\",\"items\":[],\"adena\":5}", SendMailCommand.class);
+                new Gson().fromJson("{\"characterId\":1,\"title\":\"t\",\"items\":[],\"adena\":5}", SendMailCommand.class);
 
         assertNull(cmd.getIdempotencyKey());
         assertEquals(5L, cmd.getAdena().longValue());
@@ -112,7 +112,7 @@ class SendMailCommandTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> SendMailCommand.builder()
-                        .charId(1L)
+                        .characterId(1L)
                         .author("a")
                         .title("t")
                         .body("b")
@@ -122,7 +122,7 @@ class SendMailCommandTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> SendMailCommand.builder()
-                        .charId(1L)
+                        .characterId(1L)
                         .author("a")
                         .title("t")
                         .body("b")
@@ -169,7 +169,7 @@ class SendMailCommandTest {
     void getItems_shouldBeUnmodifiable() {
         MailItem item = MailItem.builder().itemTemplateId(57L).build();
         SendMailCommand cmd = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .items(Collections.singletonList(item))
                 .initiator(TestInitiators.USER)
@@ -192,7 +192,7 @@ class SendMailCommandTest {
     @Test
     void toBuilder_shouldRoundtrip() {
         SendMailCommand original = SendMailCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .author("admin")
                 .title("Reward")
                 .body("body")
@@ -208,14 +208,14 @@ class SendMailCommandTest {
     }
 
     @Test
-    void equals_shouldDistinguishOnCharId() {
+    void equals_shouldDistinguishOnCharacterId() {
         SendMailCommand a = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .initiator(TestInitiators.USER)
                 .build();
         SendMailCommand b = SendMailCommand.builder()
-                .charId(2L)
+                .characterId(2L)
                 .title("t")
                 .initiator(TestInitiators.USER)
                 .build();
@@ -226,12 +226,12 @@ class SendMailCommandTest {
     @Test
     void equals_shouldDistinguishOnTitle() {
         SendMailCommand a = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("a")
                 .initiator(TestInitiators.USER)
                 .build();
         SendMailCommand b = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("b")
                 .initiator(TestInitiators.USER)
                 .build();
@@ -242,13 +242,13 @@ class SendMailCommandTest {
     @Test
     void equals_shouldDistinguishOnAuthor() {
         SendMailCommand a = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .author("x")
                 .initiator(TestInitiators.USER)
                 .build();
         SendMailCommand b = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .author("y")
                 .initiator(TestInitiators.USER)
@@ -260,14 +260,14 @@ class SendMailCommandTest {
     @Test
     void equals_shouldDistinguishOnItems() {
         SendMailCommand a = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .items(Collections.singletonList(
                         MailItem.builder().itemTemplateId(57L).build()))
                 .initiator(TestInitiators.USER)
                 .build();
         SendMailCommand b = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .items(Collections.singletonList(
                         MailItem.builder().itemTemplateId(58L).build()))
@@ -280,14 +280,14 @@ class SendMailCommandTest {
     @Test
     void hashCode_shouldMatchEquals() {
         SendMailCommand a = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .author("x")
                 .title("t")
                 .body("b")
                 .initiator(TestInitiators.USER)
                 .build();
         SendMailCommand b = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .author("x")
                 .title("t")
                 .body("b")
@@ -300,7 +300,7 @@ class SendMailCommandTest {
     @Test
     void toString_shouldExposeAllFields() {
         SendMailCommand cmd = SendMailCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .author("admin")
                 .title("Reward")
                 .body("body")
@@ -318,7 +318,7 @@ class SendMailCommandTest {
     @Test
     void implementsNxCommandMarker() {
         SendMailCommand cmd = SendMailCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .title("t")
                 .initiator(TestInitiators.USER)
                 .build();

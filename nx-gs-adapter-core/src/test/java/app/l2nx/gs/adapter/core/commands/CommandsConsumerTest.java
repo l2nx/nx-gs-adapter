@@ -38,20 +38,20 @@ class CommandsConsumerTest {
     static final String USER_INITIATOR_JSON =
             "{\"source\":\"user\",\"userId\":\"019a0000-0000-7000-8000-0000000000aa\"}";
 
-    static byte[] payload(long charId) {
-        return payload(charId, USER_INITIATOR_JSON);
+    static byte[] payload(long characterId) {
+        return payload(characterId, USER_INITIATOR_JSON);
     }
 
-    static byte[] payload(long charId, String initiatorJson) {
-        return ("{\"charId\":" + charId + ",\"initiator\":" + initiatorJson + "}").getBytes(StandardCharsets.UTF_8);
+    static byte[] payload(long characterId, String initiatorJson) {
+        return ("{\"characterId\":" + characterId + ",\"initiator\":" + initiatorJson + "}").getBytes(StandardCharsets.UTF_8);
     }
 
     static final class FakeCommand implements NxCommand<Void> {
-        Long charId;
+        Long characterId;
         CommandInitiator initiator;
 
-        public Long getCharId() {
-            return charId;
+        public Long getCharacterId() {
+            return characterId;
         }
 
         @Override
@@ -155,7 +155,7 @@ class CommandsConsumerTest {
         AtomicBoolean handlerCalled = new AtomicBoolean(false);
         CommandHandler<FakeCommand, Void> handler = (cmd, ctx) -> {
             handlerCalled.set(true);
-            assertEquals(123L, cmd.getCharId().longValue());
+            assertEquals(123L, cmd.getCharacterId().longValue());
             return CommandResult.ok();
         };
         registry.register(FakeCommand.class, handler);
@@ -294,7 +294,7 @@ class CommandsConsumerTest {
         AtomicInteger calls = new AtomicInteger();
         registry.register(FakeCommand.class, (cmd, ctx) -> {
             calls.incrementAndGet();
-            assertEquals(42L, cmd.getCharId().longValue());
+            assertEquals(42L, cmd.getCharacterId().longValue());
             return CommandResult.ok();
         });
         CommandsConsumer consumer = build("out");
@@ -444,15 +444,15 @@ class CommandsConsumerTest {
         @ParameterizedTest(name = "{0}")
         @ValueSource(
                 strings = {
-                    "{\"charId\":1}",
-                    "{\"charId\":1,\"initiator\":null}",
-                    "{\"charId\":1,\"initiator\":\"user\"}",
-                    "{\"charId\":1,\"initiator\":{\"source\":\"user\"}}",
-                    "{\"charId\":1,\"initiator\":{\"source\":\"nx-social\",\"userId\":\"019a0000-0000-7000-8000-0000000000aa\"}}",
-                    "{\"charId\":1,\"initiator\":{\"source\":\"  \"}}",
-                    "{\"charId\":1,\"initiator\":{\"source\":7}}",
-                    "{\"charId\":1,\"initiator\":{\"source\":\"user\",\"userId\":\"not-a-uuid\"}}",
-                    "{\"charId\":1,\"initiator\":{\"source\":\"a-service-name-longer-than-32-chars\"}}"
+                    "{\"characterId\":1}",
+                    "{\"characterId\":1,\"initiator\":null}",
+                    "{\"characterId\":1,\"initiator\":\"user\"}",
+                    "{\"characterId\":1,\"initiator\":{\"source\":\"user\"}}",
+                    "{\"characterId\":1,\"initiator\":{\"source\":\"nx-social\",\"userId\":\"019a0000-0000-7000-8000-0000000000aa\"}}",
+                    "{\"characterId\":1,\"initiator\":{\"source\":\"  \"}}",
+                    "{\"characterId\":1,\"initiator\":{\"source\":7}}",
+                    "{\"characterId\":1,\"initiator\":{\"source\":\"user\",\"userId\":\"not-a-uuid\"}}",
+                    "{\"characterId\":1,\"initiator\":{\"source\":\"a-service-name-longer-than-32-chars\"}}"
                 })
         void processRecord_shouldReplyInvalidInitiator_whenMissingOrMalformed(String json) {
             AtomicBoolean handlerCalled = registerFake();

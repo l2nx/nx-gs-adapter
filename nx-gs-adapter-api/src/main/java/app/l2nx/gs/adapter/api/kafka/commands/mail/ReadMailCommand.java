@@ -9,28 +9,28 @@ import java.util.Objects;
  * read mail answers {@code OK}. Gson bypasses the constructor, so the handler re-validates.
  *
  * <p>Reply {@code CommandResult<Void>}; {@code NOT_FOUND} / {@code MAIL_NOT_FOUND} when the mail is absent or
- * {@code charId} is not its receiver.</p>
+ * {@code characterId} is not its receiver.</p>
  */
 public final class ReadMailCommand implements NxCommand<Void> {
 
-    private final Long charId;
+    private final Long characterId;
     private final Long mailId;
     private final CommandInitiator initiator;
 
-    public ReadMailCommand(Long charId, Long mailId, CommandInitiator initiator) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+    public ReadMailCommand(Long characterId, Long mailId, CommandInitiator initiator) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
         if (mailId == null) {
             throw new IllegalArgumentException("mailId is required");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.mailId = mailId;
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     /** Host mail id (an {@code int} in the core); the same value {@code MailReadEvent} carries. */
@@ -44,7 +44,7 @@ public final class ReadMailCommand implements NxCommand<Void> {
     }
 
     public Builder toBuilder() {
-        return new Builder().charId(charId).mailId(mailId).initiator(initiator);
+        return new Builder().characterId(characterId).mailId(mailId).initiator(initiator);
     }
 
     public static Builder builder() {
@@ -56,28 +56,28 @@ public final class ReadMailCommand implements NxCommand<Void> {
         if (this == o) return true;
         if (!(o instanceof ReadMailCommand)) return false;
         ReadMailCommand that = (ReadMailCommand) o;
-        return Objects.equals(charId, that.charId)
+        return Objects.equals(characterId, that.characterId)
                 && Objects.equals(mailId, that.mailId)
                 && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, mailId, initiator);
+        return Objects.hash(characterId, mailId, initiator);
     }
 
     @Override
     public String toString() {
-        return "ReadMailCommand[charId=" + charId + ", mailId=" + mailId + ", initiator=" + initiator + "]";
+        return "ReadMailCommand[characterId=" + characterId + ", mailId=" + mailId + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private Long mailId;
         private CommandInitiator initiator;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -92,7 +92,7 @@ public final class ReadMailCommand implements NxCommand<Void> {
         }
 
         public ReadMailCommand build() {
-            return new ReadMailCommand(charId, mailId, initiator);
+            return new ReadMailCommand(characterId, mailId, initiator);
         }
     }
 }

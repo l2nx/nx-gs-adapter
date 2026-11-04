@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Death of a character the host chooses to report; a host may report only unattended deaths (autofarm or auto-macro,
  * mode in the {@code farm_mode} metadata key). Shares the {@code character} topic with {@link CharacterPresenceEvent}
- * (dispatched by {@code Nx-Message-Type}) and the {@code charId} partition key.
+ * (dispatched by {@code Nx-Message-Type}) and the {@code characterId} partition key.
  * {@code eventId} is a UUIDv7 idempotency key (at-least-once). {@code metadata} is an open map; canonical keys in
  * {@link WellKnownDeathMetadata}: {@code killer_type} ({@link WellKnownKillerTypes}), {@code killer_id} (character
  * object-id for {@code player}, NPC template-id for {@code monster}/{@code boss}), {@code farm_mode}
@@ -18,12 +18,12 @@ import org.jspecify.annotations.Nullable;
 public final class CharacterDeathEvent {
 
     private final UUID eventId;
-    private final long charId;
+    private final long characterId;
     private final @Nullable Map<String, String> metadata;
 
-    public CharacterDeathEvent(UUID eventId, long charId, @Nullable Map<String, String> metadata) {
+    public CharacterDeathEvent(UUID eventId, long characterId, @Nullable Map<String, String> metadata) {
         this.eventId = Objects.requireNonNull(eventId, "CharacterDeathEvent.eventId is required");
-        this.charId = charId;
+        this.characterId = characterId;
         this.metadata =
                 metadata == null ? null : Collections.unmodifiableMap(new LinkedHashMap<String, String>(metadata));
     }
@@ -32,8 +32,8 @@ public final class CharacterDeathEvent {
         return eventId;
     }
 
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
     public @Nullable Map<String, String> getMetadata() {
@@ -41,7 +41,7 @@ public final class CharacterDeathEvent {
     }
 
     public Builder toBuilder() {
-        return new Builder().eventId(eventId).charId(charId).metadata(metadata);
+        return new Builder().eventId(eventId).characterId(characterId).metadata(metadata);
     }
 
     public static Builder builder() {
@@ -53,22 +53,22 @@ public final class CharacterDeathEvent {
         if (this == o) return true;
         if (!(o instanceof CharacterDeathEvent)) return false;
         CharacterDeathEvent that = (CharacterDeathEvent) o;
-        return charId == that.charId && eventId.equals(that.eventId) && Objects.equals(metadata, that.metadata);
+        return characterId == that.characterId && eventId.equals(that.eventId) && Objects.equals(metadata, that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventId, charId, metadata);
+        return Objects.hash(eventId, characterId, metadata);
     }
 
     @Override
     public String toString() {
-        return "CharacterDeathEvent[eventId=" + eventId + ", charId=" + charId + ", metadata=" + metadata + "]";
+        return "CharacterDeathEvent[eventId=" + eventId + ", characterId=" + characterId + ", metadata=" + metadata + "]";
     }
 
     public static final class Builder {
         private @Nullable UUID eventId;
-        private long charId;
+        private long characterId;
         private @Nullable Map<String, String> metadata;
 
         public Builder eventId(UUID eventId) {
@@ -76,8 +76,8 @@ public final class CharacterDeathEvent {
             return this;
         }
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -87,7 +87,7 @@ public final class CharacterDeathEvent {
         }
 
         public CharacterDeathEvent build() {
-            return new CharacterDeathEvent(eventId, charId, metadata);
+            return new CharacterDeathEvent(eventId, characterId, metadata);
         }
     }
 }

@@ -9,32 +9,32 @@ import org.jspecify.annotations.Nullable;
  * Disconnects an online character, either dropping it to the login screen or closing the client.
  *
  * <p>Reply: {@code CommandResult<KickCharacterResult>}. Errors: {@code NOT_FOUND} (no such character),
- * {@code INVALID_STATE} (not online), {@code VALIDATION_FAILED} ({@code charId} missing / out of range),
+ * {@code INVALID_STATE} (not online), {@code VALIDATION_FAILED} ({@code characterId} missing / out of range),
  * {@code INTERNAL_ERROR}.</p>
  *
- * <p>Routed by {@code charId}. Not idempotent (a re-delivery after the player relogged kicks again), so hosts
+ * <p>Routed by {@code characterId}. Not idempotent (a re-delivery after the player relogged kicks again), so hosts
  * dedupe on the correlation id.</p>
  */
 public final class KickCharacterCommand implements NxCommand<KickCharacterResult> {
 
-    private final Long charId;
+    private final Long characterId;
     private final boolean closeClient;
     private final @Nullable String staffNotes;
     private final CommandInitiator initiator;
 
     public KickCharacterCommand(
-            Long charId, boolean closeClient, @Nullable String staffNotes, CommandInitiator initiator) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+            Long characterId, boolean closeClient, @Nullable String staffNotes, CommandInitiator initiator) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.closeClient = closeClient;
         this.staffNotes = staffNotes;
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     /** {@code true} closes the game client; {@code false} drops the player to the login screen. */
@@ -54,7 +54,7 @@ public final class KickCharacterCommand implements NxCommand<KickCharacterResult
 
     public Builder toBuilder() {
         return new Builder()
-                .charId(charId)
+                .characterId(characterId)
                 .closeClient(closeClient)
                 .staffNotes(staffNotes)
                 .initiator(initiator);
@@ -70,30 +70,30 @@ public final class KickCharacterCommand implements NxCommand<KickCharacterResult
         if (!(o instanceof KickCharacterCommand)) return false;
         KickCharacterCommand that = (KickCharacterCommand) o;
         return closeClient == that.closeClient
-                && Objects.equals(charId, that.charId)
+                && Objects.equals(characterId, that.characterId)
                 && Objects.equals(staffNotes, that.staffNotes)
                 && Objects.equals(initiator, that.initiator);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, closeClient, staffNotes, initiator);
+        return Objects.hash(characterId, closeClient, staffNotes, initiator);
     }
 
     @Override
     public String toString() {
-        return "KickCharacterCommand[charId=" + charId + ", closeClient=" + closeClient + ", staffNotes=" + staffNotes
+        return "KickCharacterCommand[characterId=" + characterId + ", closeClient=" + closeClient + ", staffNotes=" + staffNotes
                 + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private boolean closeClient;
         private @Nullable String staffNotes;
         private CommandInitiator initiator;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -113,7 +113,7 @@ public final class KickCharacterCommand implements NxCommand<KickCharacterResult
         }
 
         public KickCharacterCommand build() {
-            return new KickCharacterCommand(charId, closeClient, staffNotes, initiator);
+            return new KickCharacterCommand(characterId, closeClient, staffNotes, initiator);
         }
     }
 }

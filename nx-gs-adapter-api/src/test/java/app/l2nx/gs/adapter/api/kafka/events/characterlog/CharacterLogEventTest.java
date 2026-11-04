@@ -10,7 +10,7 @@ class CharacterLogEventTest {
     private static CharacterLogEvent.Builder valid() {
         return CharacterLogEvent.builder()
                 .eventId(UUID.randomUUID())
-                .charId(268476304L)
+                .characterId(268476304L)
                 .type(WellKnownCharacterLogTypes.SECOND_CLASS);
     }
 
@@ -19,7 +19,7 @@ class CharacterLogEventTest {
         assertThrows(
                 NullPointerException.class,
                 () -> CharacterLogEvent.builder()
-                        .charId(1L)
+                        .characterId(1L)
                         .type(WellKnownCharacterLogTypes.NOBLESSE)
                         .build());
     }
@@ -30,7 +30,7 @@ class CharacterLogEventTest {
                 NullPointerException.class,
                 () -> CharacterLogEvent.builder()
                         .eventId(UUID.randomUUID())
-                        .charId(1L)
+                        .characterId(1L)
                         .build());
     }
 

@@ -18,7 +18,7 @@ class HeroGrantedEventTest {
     @Test
     void build_shouldThrowNpe_whenEventIdIsNull() {
         HeroGrantedEvent.Builder b =
-                HeroGrantedEvent.builder().charId(268437521L).classId(88).olympiadCycle(7);
+                HeroGrantedEvent.builder().characterId(268437521L).classId(88).olympiadCycle(7);
 
         assertThrows(NullPointerException.class, b::build);
     }
@@ -27,7 +27,7 @@ class HeroGrantedEventTest {
     void toBuilder_shouldRoundtripAllFields() {
         HeroGrantedEvent original = HeroGrantedEvent.builder()
                 .eventId(UUID.randomUUID())
-                .charId(268437521L)
+                .characterId(268437521L)
                 .classId(88)
                 .clazz(CharacterClass.DUELIST)
                 .clanId(101L)
@@ -67,18 +67,18 @@ class HeroGrantedEventTest {
     }
 
     @Test
-    void toString_shouldRenderCharIdAndClassId() {
-        HeroGrantedEvent event = newBuilder().charId(268437521L).classId(88).build();
+    void toString_shouldRenderCharacterIdAndClassId() {
+        HeroGrantedEvent event = newBuilder().characterId(268437521L).classId(88).build();
 
         String s = event.toString();
-        assertTrue(s.contains("charId=268437521"));
+        assertTrue(s.contains("characterId=268437521"));
         assertTrue(s.contains("classId=88"));
     }
 
     private static HeroGrantedEvent.Builder newBuilder() {
         return HeroGrantedEvent.builder()
                 .eventId(UUID.randomUUID())
-                .charId(268437521L)
+                .characterId(268437521L)
                 .classId(88)
                 .clanId(101L)
                 .olympiadCycle(7);
