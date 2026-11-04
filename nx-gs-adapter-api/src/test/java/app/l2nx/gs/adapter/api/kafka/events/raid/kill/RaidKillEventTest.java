@@ -71,7 +71,7 @@ class RaidKillEventTest {
                 .eventId(UUID.randomUUID())
                 .bossNpcId(29028)
                 .drops(Collections.singletonList(
-                        RaidDropItem.builder().itemId(57).count(1L).build()))
+                        RaidDropItem.builder().itemTemplateId(57L).count(1L).build()))
                 .build();
 
         assertThrows(UnsupportedOperationException.class, () -> event.getDrops().add(null));
@@ -96,7 +96,7 @@ class RaidKillEventTest {
     @Test
     void constructor_shouldDefensivelyCopyDropsList() {
         List<RaidDropItem> source = new ArrayList<>();
-        source.add(RaidDropItem.builder().itemId(57).count(1L).build());
+        source.add(RaidDropItem.builder().itemTemplateId(57L).count(1L).build());
 
         RaidKillEvent event = RaidKillEvent.builder()
                 .eventId(UUID.randomUUID())
@@ -104,7 +104,7 @@ class RaidKillEventTest {
                 .drops(source)
                 .build();
 
-        source.add(RaidDropItem.builder().itemId(6660).count(1L).build());
+        source.add(RaidDropItem.builder().itemTemplateId(6660L).count(1L).build());
 
         assertEquals(1, event.getDrops().size());
     }
@@ -129,7 +129,7 @@ class RaidKillEventTest {
                 .dropOwner(killer)
                 .participants(Collections.singletonList(killer))
                 .drops(Collections.singletonList(
-                        RaidDropItem.builder().itemId(6660).count(1L).build()))
+                        RaidDropItem.builder().itemTemplateId(6660L).count(1L).build()))
                 .build();
 
         assertEquals(original, original.toBuilder().build());

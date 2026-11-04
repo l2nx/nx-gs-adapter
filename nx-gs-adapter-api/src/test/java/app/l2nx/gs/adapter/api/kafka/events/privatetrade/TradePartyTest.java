@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.events.privatetrade;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -80,8 +81,7 @@ class TradePartyTest {
 
     private static TradeItemMovement stub(long itemId) {
         return TradeItemMovement.builder()
-                .itemTemplateId(57L)
-                .itemId(itemId)
+                .item(ItemSnapshot.builder().itemId(itemId).itemTemplateId(57L).build())
                 .newItemId(itemId)
                 .count(1L)
                 .build();

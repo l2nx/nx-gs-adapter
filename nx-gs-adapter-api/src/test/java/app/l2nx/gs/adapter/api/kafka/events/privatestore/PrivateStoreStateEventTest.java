@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.Attribute;
 import app.l2nx.gs.adapter.api.domain.character.CharacterPrivateStore;
-import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.StoreLine;
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
+import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.BuyStoreLine;
+import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.SellStoreLine;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.StoreState;
 import com.google.gson.Gson;
 import java.util.*;
@@ -18,12 +20,23 @@ class PrivateStoreStateEventTest {
 
     private static final UUID ID = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000000");
 
-    private static StoreLine line(long itemTemplateId, long count) {
-        return StoreLine.builder()
-                .itemId(555L)
+    private static SellStoreLine sellLine(long itemTemplateId, long count) {
+        return SellStoreLine.builder()
+                .item(ItemSnapshot.builder()
+                        .itemId(555L)
+                        .itemTemplateId(itemTemplateId)
+                        .enchantLevel(3)
+                        .attributes(Collections.singletonMap(Attribute.FIRE, 20))
+                        .build())
+                .count(count)
+                .unitPrice(1000L)
+                .currencyItemTemplateId(57L)
+                .build();
+    }
+
+    private static BuyStoreLine buyLine(long itemTemplateId, long count) {
+        return BuyStoreLine.builder()
                 .itemTemplateId(itemTemplateId)
-                .enchantLevel(3)
-                .attributes(Collections.singletonMap(Attribute.FIRE, 20))
                 .count(count)
                 .unitPrice(1000L)
                 .currencyItemTemplateId(57L)
@@ -35,7 +48,7 @@ class PrivateStoreStateEventTest {
                 .type(CharacterPrivateStore.SELL)
                 .title("selling")
                 .offline(true)
-                .lines(Arrays.asList(line(10L, 2L), line(11L, 1L)))
+                .sellLines(Arrays.asList(sellLine(10L, 2L), sellLine(11L, 1L)))
                 .build();
     }
 
@@ -63,9 +76,45 @@ class PrivateStoreStateEventTest {
             StoreState state =
                     StoreState.builder().type(CharacterPrivateStore.BUY).build();
 
-            assertTrue(state.getLines().isEmpty());
+            assertTrue(state.getSellLines().isEmpty());
+            assertTrue(state.getBuyLines().isEmpty());
             assertThrows(
-                    UnsupportedOperationException.class, () -> state.getLines().add(line(1L, 1L)));
+                    UnsupportedOperationException.class,
+                    () -> state.getSellLines().add(sellLine(1L, 1L)));
+            assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> state.getBuyLines().add(buyLine(1L, 1L)));
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = CharacterPrivateStore.class,
+                names = {"SELL", "PACKAGE_SELL"})
+        void constructor_shouldReject_whenBuyLinesInASellStore(CharacterPrivateStore type) {
+            StoreState.Builder builder =
+                    StoreState.builder().type(type).buyLines(Collections.singletonList(buyLine(1L, 1L)));
+
+            assertThrows(IllegalArgumentException.class, builder::build);
+        }
+
+        @Test
+        void constructor_shouldReject_whenSellLinesInABuyStore() {
+            StoreState.Builder builder = StoreState.builder()
+                    .type(CharacterPrivateStore.BUY)
+                    .sellLines(Collections.singletonList(sellLine(1L, 1L)));
+
+            assertThrows(IllegalArgumentException.class, builder::build);
+        }
+
+        @Test
+        void getBuyLines_shouldCarryTheLines_whenBuyStore() {
+            StoreState state = StoreState.builder()
+                    .type(CharacterPrivateStore.BUY)
+                    .buyLines(Collections.singletonList(buyLine(1L, 1L)))
+                    .build();
+
+            assertEquals(Collections.singletonList(buyLine(1L, 1L)), state.getBuyLines());
+            assertTrue(state.getSellLines().isEmpty());
         }
 
         @ParameterizedTest
@@ -83,22 +132,24 @@ class PrivateStoreStateEventTest {
         void getLines_shouldBeEmpty_whenLinesKeyAbsentInGson() {
             StoreState state = new Gson().fromJson("{\"type\":\"SELL\",\"offline\":false}", StoreState.class);
 
-            assertNotNull(state.getLines());
-            assertTrue(state.getLines().isEmpty());
+            assertNotNull(state.getSellLines());
+            assertTrue(state.getSellLines().isEmpty());
+            assertNotNull(state.getBuyLines());
+            assertTrue(state.getBuyLines().isEmpty());
         }
 
         @Test
         void constructor_shouldDefensivelyCopyLines() {
-            List<StoreLine> source = new ArrayList<StoreLine>();
-            source.add(line(1L, 1L));
+            List<SellStoreLine> source = new ArrayList<SellStoreLine>();
+            source.add(sellLine(1L, 1L));
 
             StoreState state = StoreState.builder()
                     .type(CharacterPrivateStore.SELL)
-                    .lines(source)
+                    .sellLines(source)
                     .build();
-            source.add(line(2L, 1L));
+            source.add(sellLine(2L, 1L));
 
-            assertEquals(1, state.getLines().size());
+            assertEquals(1, state.getSellLines().size());
         }
     }
 

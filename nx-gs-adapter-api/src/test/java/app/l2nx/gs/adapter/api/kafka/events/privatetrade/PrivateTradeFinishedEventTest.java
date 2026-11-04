@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.events.privatetrade;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.Collections;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -112,8 +113,10 @@ class PrivateTradeFinishedEventTest {
 
     private static TradeItemMovement stub(long template, long itemId, long newItemId, long count) {
         return TradeItemMovement.builder()
-                .itemTemplateId(template)
-                .itemId(itemId)
+                .item(ItemSnapshot.builder()
+                        .itemId(itemId)
+                        .itemTemplateId(template)
+                        .build())
                 .newItemId(newItemId)
                 .count(count)
                 .build();

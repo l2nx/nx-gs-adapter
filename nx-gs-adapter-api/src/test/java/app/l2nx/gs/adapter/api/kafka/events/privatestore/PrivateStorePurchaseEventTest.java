@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.events.privatestore;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.PrivateStoreSide;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.TradeLine;
 import java.util.*;
@@ -149,7 +150,10 @@ class PrivateStorePurchaseEventTest {
 
     private static TradeLine stubLine(long itemId, long unitPrice) {
         return TradeLine.builder()
-                .itemTemplateId(itemId)
+                .item(ItemSnapshot.builder()
+                        .itemId(itemId)
+                        .itemTemplateId(6364L)
+                        .build())
                 .count(1L)
                 .unitPrice(unitPrice)
                 .currencyItemTemplateId(57L)

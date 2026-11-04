@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.events.mail;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
@@ -92,8 +93,7 @@ class MailAcceptedEventTest {
 
     private static MailItemMovement stub(long itemId, long newItemId) {
         return MailItemMovement.builder()
-                .itemTemplateId(57L)
-                .itemId(itemId)
+                .item(ItemSnapshot.builder().itemId(itemId).itemTemplateId(57L).build())
                 .newItemId(newItemId)
                 .count(1L)
                 .build();

@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.item;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import org.junit.jupiter.api.Test;
 
@@ -10,13 +11,13 @@ class DeleteItemCommandTest {
     @Test
     void builder_shouldRoundtripFields() {
         DeleteItemCommand cmd = DeleteItemCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .itemId(1234567L)
                 .count(7L)
                 .initiator(TestInitiators.USER)
                 .build();
 
-        assertEquals(42L, cmd.getCharId().longValue());
+        assertEquals(42L, cmd.getCharacterId().longValue());
         assertEquals(1234567L, cmd.getItemId().longValue());
         assertEquals(7L, cmd.getCount().longValue());
     }
@@ -24,7 +25,7 @@ class DeleteItemCommandTest {
     @Test
     void builder_shouldDefaultCountToOne_whenNotSet() {
         DeleteItemCommand cmd = DeleteItemCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .itemId(1234567L)
                 .initiator(TestInitiators.USER)
                 .build();
@@ -33,10 +34,10 @@ class DeleteItemCommandTest {
     }
 
     @Test
-    void constructor_shouldRejectNullCharId() {
+    void constructor_shouldRejectNullCharacterId() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class, () -> new DeleteItemCommand(null, 1L, 1L, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("charId"));
+        assertTrue(ex.getMessage().contains("characterId"));
     }
 
     @Test
@@ -76,7 +77,7 @@ class DeleteItemCommandTest {
     @Test
     void toBuilder_shouldRoundtrip() {
         DeleteItemCommand original = DeleteItemCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .itemId(1234567L)
                 .count(3L)
                 .initiator(TestInitiators.USER)
@@ -88,14 +89,14 @@ class DeleteItemCommandTest {
     }
 
     @Test
-    void equals_shouldDistinguishOnCharId() {
+    void equals_shouldDistinguishOnCharacterId() {
         DeleteItemCommand a = DeleteItemCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .itemId(99L)
                 .initiator(TestInitiators.USER)
                 .build();
         DeleteItemCommand b = DeleteItemCommand.builder()
-                .charId(2L)
+                .characterId(2L)
                 .itemId(99L)
                 .initiator(TestInitiators.USER)
                 .build();
@@ -106,12 +107,12 @@ class DeleteItemCommandTest {
     @Test
     void equals_shouldDistinguishOnItemId() {
         DeleteItemCommand a = DeleteItemCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .itemId(99L)
                 .initiator(TestInitiators.USER)
                 .build();
         DeleteItemCommand b = DeleteItemCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .itemId(100L)
                 .initiator(TestInitiators.USER)
                 .build();
@@ -122,13 +123,13 @@ class DeleteItemCommandTest {
     @Test
     void equals_shouldDistinguishOnCount() {
         DeleteItemCommand a = DeleteItemCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .itemId(99L)
                 .count(1L)
                 .initiator(TestInitiators.USER)
                 .build();
         DeleteItemCommand b = DeleteItemCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .itemId(99L)
                 .count(5L)
                 .initiator(TestInitiators.USER)
@@ -140,13 +141,13 @@ class DeleteItemCommandTest {
     @Test
     void hashCode_shouldMatchEquals() {
         DeleteItemCommand a = DeleteItemCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .itemId(99L)
                 .count(3L)
                 .initiator(TestInitiators.USER)
                 .build();
         DeleteItemCommand b = DeleteItemCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .itemId(99L)
                 .count(3L)
                 .initiator(TestInitiators.USER)
@@ -158,7 +159,7 @@ class DeleteItemCommandTest {
     @Test
     void toString_shouldExposeAllFields() {
         DeleteItemCommand cmd = DeleteItemCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .itemId(1234567L)
                 .count(7L)
                 .initiator(TestInitiators.USER)
@@ -174,11 +175,11 @@ class DeleteItemCommandTest {
     @Test
     void implementsNxCommandMarker() {
         DeleteItemCommand cmd = DeleteItemCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .itemId(2L)
                 .initiator(TestInitiators.USER)
                 .build();
 
-        assertInstanceOf(app.l2nx.gs.adapter.api.kafka.commands.NxCommand.class, cmd);
+        assertInstanceOf(NxCommand.class, cmd);
     }
 }

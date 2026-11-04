@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.BuyLine;
 import java.time.Instant;
@@ -26,10 +27,9 @@ class BuyFromPrivateStoreCommandTest {
     private static final String MAIL_SUBJECT = "You've got a delivery!";
     private static final String MAIL_BODY = "Your purchase from the private store has arrived.";
 
-    private static BuyLine line(int itemId) {
+    private static BuyLine line(long itemId) {
         return BuyLine.builder()
-                .itemId(itemId)
-                .itemTemplateId(57L)
+                .item(ItemSnapshot.builder().itemId(itemId).itemTemplateId(57L).build())
                 .count(1L)
                 .unitPriceAdena(100L)
                 .build();

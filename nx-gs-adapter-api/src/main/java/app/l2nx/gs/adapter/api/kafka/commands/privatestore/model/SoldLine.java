@@ -1,40 +1,31 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.SellToPrivateStoreCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.SellToPrivateStoreResult;
 import java.util.Objects;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Echo of an executed {@link SellToPrivateStoreCommand} line. Sales are all-or-nothing, so count and price always
- * equal the request; {@code itemId} is the seller's instance.
+ * equal the request; {@code item} is the seller's instance.
  */
 public final class SoldLine {
 
-    private final int itemId;
-    private final long itemTemplateId;
-    private final @Nullable Integer enchantLevel;
+    private final ItemSnapshot item;
     private final long count;
     private final long unitPriceAdena;
 
-    public SoldLine(int itemId, long itemTemplateId, @Nullable Integer enchantLevel, long count, long unitPriceAdena) {
-        this.itemId = itemId;
-        this.itemTemplateId = itemTemplateId;
-        this.enchantLevel = enchantLevel;
+    public SoldLine(ItemSnapshot item, long count, long unitPriceAdena) {
+        if (item == null) {
+            throw new IllegalArgumentException("item is required");
+        }
+        this.item = item;
         this.count = count;
         this.unitPriceAdena = unitPriceAdena;
     }
 
-    public int getItemId() {
-        return itemId;
-    }
-
-    public long getItemTemplateId() {
-        return itemTemplateId;
-    }
-
-    public @Nullable Integer getEnchantLevel() {
-        return enchantLevel;
+    public ItemSnapshot getItem() {
+        return item;
     }
 
     public long getCount() {
@@ -47,12 +38,7 @@ public final class SoldLine {
     }
 
     public Builder toBuilder() {
-        return new Builder()
-                .itemId(itemId)
-                .itemTemplateId(itemTemplateId)
-                .enchantLevel(enchantLevel)
-                .count(count)
-                .unitPriceAdena(unitPriceAdena);
+        return new Builder().item(item).count(count).unitPriceAdena(unitPriceAdena);
     }
 
     public static Builder builder() {
@@ -64,46 +50,26 @@ public final class SoldLine {
         if (this == o) return true;
         if (!(o instanceof SoldLine)) return false;
         SoldLine that = (SoldLine) o;
-        return itemId == that.itemId
-                && itemTemplateId == that.itemTemplateId
-                && count == that.count
-                && unitPriceAdena == that.unitPriceAdena
-                && Objects.equals(enchantLevel, that.enchantLevel);
+        return count == that.count && unitPriceAdena == that.unitPriceAdena && Objects.equals(item, that.item);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemId, itemTemplateId, enchantLevel, count, unitPriceAdena);
+        return Objects.hash(item, count, unitPriceAdena);
     }
 
     @Override
     public String toString() {
-        return "SoldLine[itemId=" + itemId
-                + ", itemTemplateId=" + itemTemplateId
-                + ", enchantLevel=" + enchantLevel
-                + ", count=" + count
-                + ", unitPriceAdena=" + unitPriceAdena + "]";
+        return "SoldLine[item=" + item + ", count=" + count + ", unitPriceAdena=" + unitPriceAdena + "]";
     }
 
     public static final class Builder {
-        private int itemId;
-        private long itemTemplateId;
-        private @Nullable Integer enchantLevel;
+        private ItemSnapshot item;
         private long count;
         private long unitPriceAdena;
 
-        public Builder itemId(int itemId) {
-            this.itemId = itemId;
-            return this;
-        }
-
-        public Builder itemTemplateId(long itemTemplateId) {
-            this.itemTemplateId = itemTemplateId;
-            return this;
-        }
-
-        public Builder enchantLevel(@Nullable Integer enchantLevel) {
-            this.enchantLevel = enchantLevel;
+        public Builder item(ItemSnapshot item) {
+            this.item = item;
             return this;
         }
 
@@ -118,7 +84,7 @@ public final class SoldLine {
         }
 
         public SoldLine build() {
-            return new SoldLine(itemId, itemTemplateId, enchantLevel, count, unitPriceAdena);
+            return new SoldLine(item, count, unitPriceAdena);
         }
     }
 }

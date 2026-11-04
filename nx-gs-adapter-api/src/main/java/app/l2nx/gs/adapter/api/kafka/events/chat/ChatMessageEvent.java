@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.events.chat;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,7 +28,7 @@ public final class ChatMessageEvent {
     private final @Nullable Map<String, String> metadata;
     private final @Nullable String senderDisplayName;
     private final @Nullable List<Long> recipientCharacterIds;
-    private final @Nullable List<ChatItemSnapshot> items;
+    private final @Nullable List<ItemSnapshot> items;
     private final @Nullable Long clanId;
     private final @Nullable Long allianceId;
 
@@ -42,7 +43,7 @@ public final class ChatMessageEvent {
             @Nullable Map<String, String> metadata,
             @Nullable String senderDisplayName,
             @Nullable List<Long> recipientCharacterIds,
-            @Nullable List<ChatItemSnapshot> items,
+            @Nullable List<ItemSnapshot> items,
             @Nullable Long clanId,
             @Nullable Long allianceId) {
         this.eventId = Objects.requireNonNull(eventId, "eventId");
@@ -58,7 +59,7 @@ public final class ChatMessageEvent {
         this.recipientCharacterIds = recipientCharacterIds == null
                 ? null
                 : Collections.unmodifiableList(new ArrayList<Long>(recipientCharacterIds));
-        this.items = items == null ? null : Collections.unmodifiableList(new ArrayList<ChatItemSnapshot>(items));
+        this.items = items == null ? null : Collections.unmodifiableList(new ArrayList<ItemSnapshot>(items));
         this.clanId = clanId;
         this.allianceId = allianceId;
     }
@@ -109,7 +110,7 @@ public final class ChatMessageEvent {
         return recipientCharacterIds;
     }
 
-    public @Nullable List<ChatItemSnapshot> getItems() {
+    public @Nullable List<ItemSnapshot> getItems() {
         return items;
     }
 
@@ -208,7 +209,7 @@ public final class ChatMessageEvent {
         private @Nullable Map<String, String> metadata;
         private @Nullable String senderDisplayName;
         private @Nullable List<Long> recipientCharacterIds;
-        private @Nullable List<ChatItemSnapshot> items;
+        private @Nullable List<ItemSnapshot> items;
         private @Nullable Long clanId;
         private @Nullable Long allianceId;
 
@@ -267,7 +268,7 @@ public final class ChatMessageEvent {
             return this;
         }
 
-        public Builder items(@Nullable List<ChatItemSnapshot> items) {
+        public Builder items(@Nullable List<ItemSnapshot> items) {
             this.items = items;
             return this;
         }

@@ -2,15 +2,15 @@ package app.l2nx.gs.adapter.api.kafka.events.chat;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.domain.Attribute;
+import app.l2nx.gs.adapter.api.domain.item.ItemAugmentation;
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
-import app.l2nx.gs.adapter.api.kafka.sync.db.item.ItemAugmentationDbDto;
 import com.google.gson.Gson;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -19,15 +19,13 @@ class ChatMessageEventTest {
 
     private static final Gson GSON = new Gson();
 
-    private static ChatItemSnapshot snapshot() {
-        Map<String, Integer> attributes = new LinkedHashMap<String, Integer>();
-        attributes.put("FIRE", 150);
-        return ChatItemSnapshot.builder()
-                .itemObjectId(268500001L)
-                .itemTemplateId(6577)
+    private static ItemSnapshot snapshot() {
+        return ItemSnapshot.builder()
+                .itemId(268500001L)
+                .itemTemplateId(6577L)
                 .enchantLevel(7)
-                .attributes(attributes)
-                .augmentation(new ItemAugmentationDbDto(16341, 18000))
+                .attributes(Collections.singletonMap(Attribute.FIRE, 150))
+                .augmentation(new ItemAugmentation(16341, 18000))
                 .count(1L)
                 .build();
     }
@@ -69,7 +67,7 @@ class ChatMessageEventTest {
         void lists_shouldBeDefensivelyCopiedAndUnmodifiable() {
             List<Long> recipients = new ArrayList<Long>(Arrays.asList(1L, 2L));
             ChatMessageEvent event = base().recipientCharacterIds(recipients)
-                    .items(new ArrayList<ChatItemSnapshot>(Collections.singletonList(snapshot())))
+                    .items(new ArrayList<ItemSnapshot>(Collections.singletonList(snapshot())))
                     .build();
 
             recipients.add(3L);
@@ -168,60 +166,6 @@ class ChatMessageEventTest {
             assertNull(parsed.getSenderDisplayName());
             assertNull(parsed.getRecipientCharacterIds());
             assertNull(parsed.getItems());
-        }
-    }
-
-    @Nested
-    class ItemSnapshot {
-
-        @Test
-        void attributes_shouldBeEmpty_whenNullPassed() {
-            ChatItemSnapshot item = ChatItemSnapshot.builder().itemObjectId(1L).build();
-
-            assertTrue(item.getAttributes().isEmpty());
-            assertNull(item.getAugmentation());
-        }
-
-        @Test
-        void count_shouldBeNull_whenHostDoesNotReportIt() {
-            assertNull(ChatItemSnapshot.builder().itemObjectId(1L).build().getCount());
-        }
-
-        @Test
-        void equals_shouldDiffer_whenCountDiffers() {
-            assertNotEquals(snapshot(), snapshot().toBuilder().count(2L).build());
-        }
-
-        @Test
-        void attributes_shouldBeUnmodifiableCopy() {
-            Map<String, Integer> source = new LinkedHashMap<String, Integer>();
-            source.put("WATER", 100);
-            ChatItemSnapshot item =
-                    ChatItemSnapshot.builder().attributes(source).build();
-
-            source.put("FIRE", 50);
-
-            assertEquals(1, item.getAttributes().size());
-            assertThrows(
-                    UnsupportedOperationException.class,
-                    () -> item.getAttributes().put("DARK", 1));
-        }
-
-        @Test
-        void augmentation_shouldAllowNullOption2() {
-            ItemAugmentationDbDto augmentation = new ItemAugmentationDbDto(10, null);
-
-            assertEquals(10, augmentation.getOption1Id());
-            assertNull(augmentation.getOption2Id());
-            assertEquals(augmentation, augmentation.toBuilder().build());
-        }
-
-        @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            ChatItemSnapshot original = snapshot();
-
-            assertEquals(original, original.toBuilder().build());
-            assertEquals(original.hashCode(), original.toBuilder().build().hashCode());
         }
     }
 }

@@ -50,13 +50,14 @@ public final class BuyFromPrivateStoreCommand implements OwnerVerified, NxComman
         if (lines == null || lines.isEmpty()) {
             throw new IllegalArgumentException("lines is required and must be non-empty");
         }
-        Set<Integer> seenItemIds = new HashSet<>();
+        Set<Long> seenItemIds = new HashSet<>();
         for (BuyLine line : lines) {
             if (line == null) {
                 throw new IllegalArgumentException("lines must not contain null elements");
             }
-            if (!seenItemIds.add(line.getItemId())) {
-                throw new IllegalArgumentException("lines must not repeat itemId (duplicate " + line.getItemId() + ")");
+            long itemId = line.getItem().getItemId();
+            if (!seenItemIds.add(itemId)) {
+                throw new IllegalArgumentException("lines must not repeat itemId (duplicate " + itemId + ")");
             }
         }
         if (buyerFeePercent == null) {

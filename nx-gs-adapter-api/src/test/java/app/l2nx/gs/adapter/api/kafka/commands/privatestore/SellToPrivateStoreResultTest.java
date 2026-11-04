@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.SoldLine;
 import java.util.Collections;
 import java.util.List;
@@ -16,8 +17,7 @@ class SellToPrivateStoreResultTest {
 
     private static SoldLine soldLine() {
         return SoldLine.builder()
-                .itemId(1)
-                .itemTemplateId(57L)
+                .item(ItemSnapshot.builder().itemId(1L).itemTemplateId(57L).build())
                 .count(1L)
                 .unitPriceAdena(100L)
                 .build();
