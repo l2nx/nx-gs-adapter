@@ -6,11 +6,11 @@ import java.util.Objects;
  * Resolved character's primary key. The platform persists a tentative binding immediately, before the user types the
  * code back into the bot.
  */
-public final class TelegramCharLinkResult {
+public final class TelegramCharacterLinkResult {
 
     private final Long characterId;
 
-    public TelegramCharLinkResult(Long characterId) {
+    public TelegramCharacterLinkResult(Long characterId) {
         if (characterId == null) {
             throw new IllegalArgumentException("characterId is required");
         }
@@ -32,8 +32,8 @@ public final class TelegramCharLinkResult {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TelegramCharLinkResult)) return false;
-        TelegramCharLinkResult that = (TelegramCharLinkResult) o;
+        if (!(o instanceof TelegramCharacterLinkResult)) return false;
+        TelegramCharacterLinkResult that = (TelegramCharacterLinkResult) o;
         return Objects.equals(characterId, that.characterId);
     }
 
@@ -44,7 +44,7 @@ public final class TelegramCharLinkResult {
 
     @Override
     public String toString() {
-        return "TelegramCharLinkResult[characterId=" + characterId + "]";
+        return "TelegramCharacterLinkResult[characterId=" + characterId + "]";
     }
 
     public static final class Builder {
@@ -55,8 +55,8 @@ public final class TelegramCharLinkResult {
             return this;
         }
 
-        public TelegramCharLinkResult build() {
-            return new TelegramCharLinkResult(characterId);
+        public TelegramCharacterLinkResult build() {
+            return new TelegramCharacterLinkResult(characterId);
         }
     }
 }

@@ -34,7 +34,7 @@ class ChatMessageEventTest {
         return ChatMessageEvent.builder()
                 .eventId(UUID.randomUUID())
                 .characterId(268437521L)
-                .charName("Vasya")
+                .characterName("Vasya")
                 .channel(ChatChannel.GENERAL)
                 .text("hi");
     }
@@ -131,7 +131,7 @@ class ChatMessageEventTest {
         @Test
         void fromJson_shouldReadClanFieldsAsNull_whenAbsent() {
             String old = "{\"eventId\":\"" + UUID.randomUUID()
-                    + "\",\"characterId\":5,\"charName\":\"Vasya\",\"channel\":\"CLAN\",\"text\":\"hi\"}";
+                    + "\",\"characterId\":5,\"characterName\":\"Vasya\",\"channel\":\"CLAN\",\"text\":\"hi\"}";
 
             ChatMessageEvent parsed = GSON.fromJson(old, ChatMessageEvent.class);
 
@@ -158,7 +158,7 @@ class ChatMessageEventTest {
         @Test
         void fromJson_shouldReadNewFieldsAsNull_whenOldPayload() {
             String old = "{\"eventId\":\"" + UUID.randomUUID()
-                    + "\",\"characterId\":5,\"charName\":\"Vasya\",\"channel\":\"CLAN\",\"text\":\"hi\"}";
+                    + "\",\"characterId\":5,\"characterName\":\"Vasya\",\"channel\":\"CLAN\",\"text\":\"hi\"}";
 
             ChatMessageEvent parsed = GSON.fromJson(old, ChatMessageEvent.class);
 

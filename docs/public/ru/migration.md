@@ -26,7 +26,12 @@ description: Шаги обновления адаптера через breaking 
 - `CharacterPresenceEvent.charId` теперь `characterId`, и в билдере, и на проводе.
 - Все `charId` и `*CharId` в api теперь `characterId` и `*CharacterId` (`buyerCharId` стал `buyerCharacterId`,
   `targetCharId` стал `targetCharacterId`): команды, результаты, события и `RatingDbDto`. Меняются и билдер, и провод.
-  Поля `charName` остаются.
+- `charName` и `targetCharName` теперь `characterName` и `targetCharacterName`, в `ChatMessageEvent` и
+  `TelegramCharacterLinkCommand`. Меняются и билдер, и провод.
+- `TransferCharToAccountCommand` теперь `TransferCharacterToAccountCommand`, `TelegramCharLinkCommand` теперь
+  `TelegramCharacterLinkCommand`, вместе с классами `*Result`. Команды маршрутизируются по простому имени класса, поэтому
+  меняется и `Nx-Message-Type`: зарегистрируйте обработчик на новый класс, отправитель старого имени получит
+  `UNSUPPORTED_COMMAND`.
 - `CharacterPresenceEvent` принимает `result` (`SessionResult`), только при `online = false`. Клиентская сессия задаёт его
   через билдер, app-сессия получает от движка. `activity` при `source = CLIENT` разрешён только как
   `OFFLINE_PRIVATE_STORE`, сессия нативного офлайн-магазина.

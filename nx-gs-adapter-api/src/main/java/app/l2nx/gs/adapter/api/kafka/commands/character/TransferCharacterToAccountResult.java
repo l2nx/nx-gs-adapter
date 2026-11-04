@@ -2,13 +2,13 @@ package app.l2nx.gs.adapter.api.kafka.commands.character;
 
 import java.util.Objects;
 
-public final class TransferCharToAccountResult {
+public final class TransferCharacterToAccountResult {
 
     private final Long characterId;
     private final String newAccountName;
     private final boolean wasLoggedOut;
 
-    public TransferCharToAccountResult(Long characterId, String newAccountName, boolean wasLoggedOut) {
+    public TransferCharacterToAccountResult(Long characterId, String newAccountName, boolean wasLoggedOut) {
         if (characterId == null) {
             throw new IllegalArgumentException("characterId is required");
         }
@@ -44,8 +44,8 @@ public final class TransferCharToAccountResult {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TransferCharToAccountResult)) return false;
-        TransferCharToAccountResult that = (TransferCharToAccountResult) o;
+        if (!(o instanceof TransferCharacterToAccountResult)) return false;
+        TransferCharacterToAccountResult that = (TransferCharacterToAccountResult) o;
         return wasLoggedOut == that.wasLoggedOut
                 && Objects.equals(characterId, that.characterId)
                 && Objects.equals(newAccountName, that.newAccountName);
@@ -58,7 +58,7 @@ public final class TransferCharToAccountResult {
 
     @Override
     public String toString() {
-        return "TransferCharToAccountResult[characterId=" + characterId
+        return "TransferCharacterToAccountResult[characterId=" + characterId
                 + ", newAccountName=" + newAccountName
                 + ", wasLoggedOut=" + wasLoggedOut + "]";
     }
@@ -83,8 +83,8 @@ public final class TransferCharToAccountResult {
             return this;
         }
 
-        public TransferCharToAccountResult build() {
-            return new TransferCharToAccountResult(characterId, newAccountName, wasLoggedOut);
+        public TransferCharacterToAccountResult build() {
+            return new TransferCharacterToAccountResult(characterId, newAccountName, wasLoggedOut);
         }
     }
 }

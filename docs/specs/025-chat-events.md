@@ -41,7 +41,7 @@ path.
   - `long characterId` — REQUIRED. Sender object id; also the partition key (8-byte big-endian) so one
     sender's messages stay in occurrence order on a single partition.
 
-  - `@Nullable String charName` — clean sender character name (no offline postfix); OPTIONAL.
+  - `@Nullable String characterName` — clean sender character name (no offline postfix); OPTIONAL.
   - `@Nullable String senderDisplayName` — name as the game client renders it, e.g.
     `Vasya*`; see R16.
   - `String channel` — REQUIRED. A `ChatChannel` name, or the raw string `UNKNOWN_<int>`
@@ -51,10 +51,10 @@ path.
     constructor.
   - `@Nullable Long clanId` / `@Nullable Long allianceId` — the speaker's clan and its alliance at the moment of
     speaking, on every channel; see R7, R21.
-  - `@Nullable Long targetCharacterId` / `@Nullable String targetCharName` — whisper recipient.
+  - `@Nullable Long targetCharacterId` / `@Nullable String targetCharacterName` — whisper recipient.
     Populated ONLY on the `WHISPER` channel; both `null` on every other channel. `targetCharacterId` is
     `null` only when the recipient cannot be resolved at all; an offline addressee is resolved by
-    name (R20), and `targetCharName` carries the typed recipient name.
+    name (R20), and `targetCharacterName` carries the typed recipient name.
   - `@Nullable Map<String, String> metadata` — OPTIONAL open string→string map of build-agnostic
     attributes. Hosts MAY add arbitrary keys without an api release; consumers ignore unknown keys.
     `null` when absent; normalized to an unmodifiable copy when present.
@@ -88,7 +88,7 @@ path.
 - [done] R6. The host MUST hook its chat-handler path and publish one
   `ChatMessageEvent` per player-typed message via the cached `NxEvents` facade — and (R19) only after the channel handler actually delivered it. Sanitize `text`
   host-side; map the build's numeric chat type to a `ChatChannel` constant (or
-  `UNKNOWN_<int>`); set `targetCharacterId` / `targetCharName` only for whispers. Any uncaught `Throwable`
+  `UNKNOWN_<int>`); set `targetCharacterId` / `targetCharacterName` only for whispers. Any uncaught `Throwable`
   in the publish path is caught and logged, never propagated to the game thread.
 
 - [done] R5. The platform MUST run a consumer over `<tenant>.gs.events.chat`. Partition key is the
@@ -108,10 +108,10 @@ path.
 
 - [done] R16. `ChatMessageEvent.senderDisplayName` MUST carry the name exactly as the game client
   renders it. The host appends `*` (no space) when the speaking character is not in game (offline or
-  offline-trader mode); `charName` stays the clean character name. The postfix format is owned by the
+  offline-trader mode); `characterName` stays the clean character name. The postfix format is owned by the
   host, not the platform: it is also a player-facing protocol (an in-game whisper to `Vasya*` routes
   to the offline character, R20), so it must not depend on a platform deploy. `null` from hosts that
-  predate the field; consumers fall back to `charName`.
+  predate the field; consumers fall back to `characterName`.
 
 - [done] R17. `ChatMessageEvent.recipientCharacterIds` MUST be filled only for `GENERAL`, `PARTY` and
   regional `SHOUT` (R28) (`null` elsewhere): the characters that actually received the packet, plus
@@ -154,8 +154,7 @@ path.
 - [done] R21. `ChatMessageEvent.allianceId` MUST carry the alliance of the speaker's clan at the moment of speaking, on
   every channel; `null` when the clan has no alliance or the speaker has no clan. Same rationale as R7; a field of its
   own, not derived from the clan on the read side, because the clan may change alliance after the message. Naming follows the
-  platform canon (full words: alliance, character); the shipped `charName` /
-  `targetCharName` are NOT renamed.
+  platform canon (full words: alliance, character).
 
 - [done] R21a. `ChatMetadataKey.SHADOWED` (key `"shadowed"`, value `"true"`) MUST mark a message the host
   delivered only to the speaker (shadow-ban, broadcast filter). Such a message is still published

@@ -190,11 +190,11 @@ beyond the status — which is what `CommandResult.ok()` (payload-less) exists
 for.
 
 ```java
-public final class TransferCharToAccountCommand implements NxCommand<TransferCharToAccountResult> { ... }
+public final class TransferCharacterToAccountCommand implements NxCommand<TransferCharacterToAccountResult> { ... }
 
-commands.on(TransferCharToAccountCommand.class, (cmd, ctx) -> {
+commands.on(TransferCharacterToAccountCommand.class, (cmd, ctx) -> {
     boolean wasLoggedOut = doRebind(cmd);
-    return CommandResult.ok(new TransferCharToAccountResult(
+    return CommandResult.ok(new TransferCharacterToAccountResult(
             cmd.getCharacterId(), cmd.getAccountTo(), wasLoggedOut));
 });
 ```
@@ -537,7 +537,7 @@ Every command has a `{X}Result` class; populate it with confirmation data:
 
 ```java
 return CommandResult.ok(new DeleteItemResult(itemBefore, deletedCount, fullyDeleted));
-return CommandResult.ok(new TransferCharToAccountResult(characterId, newAccount, wasLoggedOut));
+return CommandResult.ok(new TransferCharacterToAccountResult(characterId, newAccount, wasLoggedOut));
 return CommandResult.ok(new SendMailResult(createdMailIds, itemErrors));
 ```
 
@@ -610,9 +610,9 @@ public final class HostCommandsModule implements AdapterModule {
         NxCommands commands = ctx.commands();
         commands.on(DeleteItemCommand.class, new DeleteItemHandler());
         commands.on(TransferItemToCharacterCommand.class, new TransferItemToCharacterHandler());
-        commands.on(TransferCharToAccountCommand.class, new TransferCharToAccountHandler());
+        commands.on(TransferCharacterToAccountCommand.class, new TransferCharacterToAccountHandler());
         commands.on(SendMailCommand.class, new SendMailHandler());
-        commands.on(TelegramCharLinkCommand.class, new TelegramCharLinkHandler());
+        commands.on(TelegramCharacterLinkCommand.class, new TelegramCharacterLinkHandler());
     }
 
     @Override public void start() {}
@@ -623,8 +623,8 @@ public final class HostCommandsModule implements AdapterModule {
 
 The handler `Class` is matched against the inbound `Nx-Message-Type`
 header by **simple class name**. So
-`app.l2nx.gs.adapter.api.kafka.commands.character.TransferCharToAccountCommand`
-matches header value `TransferCharToAccountCommand`. Two distinct classes with
+`app.l2nx.gs.adapter.api.kafka.commands.character.TransferCharacterToAccountCommand`
+matches header value `TransferCharacterToAccountCommand`. Two distinct classes with
 the same simple name would collide — keep simple names unique within
 the catalog.
 
@@ -720,9 +720,9 @@ commands runtime exposes:
       "registered-types": [
         "DeleteItemCommand",
         "TransferItemToCharacterCommand",
-        "TransferCharToAccountCommand",
+        "TransferCharacterToAccountCommand",
         "SendMailCommand",
-        "TelegramCharLinkCommand"
+        "TelegramCharacterLinkCommand"
       ],
       "commit-failures-total": 0
     }

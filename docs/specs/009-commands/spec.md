@@ -698,8 +698,8 @@ NxCommand<Void>` is the sanctioned exception, and payload-less `CommandResult.ok
 - [resolved: `CommandHandler`'s Javadoc described the pre-R11 world ("at-least-once", "handlers MUST
   be idempotent", "the record is redelivered", `errorDetails`) and was rewritten to at-most-once. The
   same stale idempotency advice was removed from the five command DTOs that carried it —
-  `TransferCharToAccountCommand`, `DeleteItemCommand`, `TransferItemToCharacterCommand`,
-  `SendMailCommand`, `TelegramCharLinkCommand`. A correlation-id dedup cache was never useful anyway:
+  `TransferCharacterToAccountCommand`, `DeleteItemCommand`, `TransferItemToCharacterCommand`,
+  `SendMailCommand`, `TelegramCharacterLinkCommand`. A correlation-id dedup cache was never useful anyway:
   the platform mints a fresh id per dispatch, so a re-issue after a reply timeout does not match it.]
 - [resolved: the dead reply-drain machinery is gone — `awaitRepliesDrain()`, `replyFlushTimeoutsTotal`,
   the `pendingReplies` / `replyDrainLock` bookkeeping, and the `l2nx.commands.reply-flush-timeout-ms`

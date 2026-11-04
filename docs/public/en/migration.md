@@ -26,7 +26,12 @@ and no fallback: a host that never calls it gets no ticks. Call `NxAppSessions.h
 - `CharacterPresenceEvent.charId` is now `characterId`, in the builder and on the wire.
 - Every `charId` and `*CharId` of the api is now `characterId` and `*CharacterId` (`buyerCharId` to `buyerCharacterId`,
   `targetCharId` to `targetCharacterId`): commands, results, events and `RatingDbDto`. Builder and wire both change.
-  `charName` fields keep their names.
+- `charName` and `targetCharName` are now `characterName` and `targetCharacterName`, in `ChatMessageEvent` and
+  `TelegramCharacterLinkCommand`. Builder and wire both change.
+- `TransferCharToAccountCommand` is now `TransferCharacterToAccountCommand` and `TelegramCharLinkCommand` is now
+  `TelegramCharacterLinkCommand`, with their `*Result` classes. Commands route by simple class name, so
+  `Nx-Message-Type` changes too: register the handler under the new class, and a sender of the old name gets
+  `UNSUPPORTED_COMMAND`.
 - `CharacterPresenceEvent` takes `result` (`SessionResult`), on `online = false` only. A client session sets it through
   the builder; an app session gets it from the engine. `activity` is allowed with `source = CLIENT` for
   `OFFLINE_PRIVATE_STORE` only, the native offline store session.

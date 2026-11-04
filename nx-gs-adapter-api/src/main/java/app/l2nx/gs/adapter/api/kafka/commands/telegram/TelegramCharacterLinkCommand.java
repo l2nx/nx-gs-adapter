@@ -14,25 +14,25 @@ import java.util.Objects;
  * per user (the adapter never reads it).
  * Delivery is at-most-once, but a caller re-issuing after a reply timeout sends the mail twice (duplicate mails).
  */
-public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLinkResult> {
+public final class TelegramCharacterLinkCommand implements NxCommand<TelegramCharacterLinkResult> {
 
     private final String accountName;
-    private final String charName;
+    private final String characterName;
     private final String confirmationCode;
     private final Long telegramUserId;
     private final CommandInitiator initiator;
 
-    public TelegramCharLinkCommand(
+    public TelegramCharacterLinkCommand(
             String accountName,
-            String charName,
+            String characterName,
             String confirmationCode,
             Long telegramUserId,
             CommandInitiator initiator) {
         if (accountName == null) {
             throw new IllegalArgumentException("accountName is required");
         }
-        if (charName == null) {
-            throw new IllegalArgumentException("charName is required");
+        if (characterName == null) {
+            throw new IllegalArgumentException("characterName is required");
         }
         if (confirmationCode == null) {
             throw new IllegalArgumentException("confirmationCode is required");
@@ -41,7 +41,7 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
             throw new IllegalArgumentException("telegramUserId is required");
         }
         this.accountName = accountName;
-        this.charName = charName;
+        this.characterName = characterName;
         this.confirmationCode = confirmationCode;
         this.telegramUserId = telegramUserId;
         this.initiator = Objects.requireNonNull(initiator, "initiator");
@@ -52,9 +52,9 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
         return accountName;
     }
 
-    /** Handler resolves {@code (accountName, charName)} to a {@code characterId}, else {@code NOT_FOUND}. */
-    public String getCharName() {
-        return charName;
+    /** Handler resolves {@code (accountName, characterName)} to a {@code characterId}, else {@code NOT_FOUND}. */
+    public String getCharacterName() {
+        return characterName;
     }
 
     /** Free-form; the handler does NOT validate format. */
@@ -75,7 +75,7 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
     public Builder toBuilder() {
         return new Builder()
                 .accountName(accountName)
-                .charName(charName)
+                .characterName(characterName)
                 .confirmationCode(confirmationCode)
                 .telegramUserId(telegramUserId)
                 .initiator(initiator);
@@ -88,10 +88,10 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TelegramCharLinkCommand)) return false;
-        TelegramCharLinkCommand that = (TelegramCharLinkCommand) o;
+        if (!(o instanceof TelegramCharacterLinkCommand)) return false;
+        TelegramCharacterLinkCommand that = (TelegramCharacterLinkCommand) o;
         return Objects.equals(accountName, that.accountName)
-                && Objects.equals(charName, that.charName)
+                && Objects.equals(characterName, that.characterName)
                 && Objects.equals(confirmationCode, that.confirmationCode)
                 && Objects.equals(telegramUserId, that.telegramUserId)
                 && Objects.equals(initiator, that.initiator);
@@ -99,20 +99,20 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
 
     @Override
     public int hashCode() {
-        return Objects.hash(accountName, charName, confirmationCode, telegramUserId, initiator);
+        return Objects.hash(accountName, characterName, confirmationCode, telegramUserId, initiator);
     }
 
     @Override
     public String toString() {
-        return "TelegramCharLinkCommand[accountName=" + accountName
-                + ", charName=" + charName
+        return "TelegramCharacterLinkCommand[accountName=" + accountName
+                + ", characterName=" + characterName
                 + ", confirmationCode=" + confirmationCode
                 + ", telegramUserId=" + telegramUserId + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
         private String accountName;
-        private String charName;
+        private String characterName;
         private String confirmationCode;
         private Long telegramUserId;
         private CommandInitiator initiator;
@@ -122,8 +122,8 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
             return this;
         }
 
-        public Builder charName(String charName) {
-            this.charName = charName;
+        public Builder characterName(String characterName) {
+            this.characterName = characterName;
             return this;
         }
 
@@ -142,8 +142,8 @@ public final class TelegramCharLinkCommand implements NxCommand<TelegramCharLink
             return this;
         }
 
-        public TelegramCharLinkCommand build() {
-            return new TelegramCharLinkCommand(accountName, charName, confirmationCode, telegramUserId, initiator);
+        public TelegramCharacterLinkCommand build() {
+            return new TelegramCharacterLinkCommand(accountName, characterName, confirmationCode, telegramUserId, initiator);
         }
     }
 }

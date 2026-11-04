@@ -20,13 +20,13 @@ import java.util.Objects;
  * re-issue after a reply timeout when the transfer already landed; if {@code account_name} already matches
  * {@code accountTo}, the handler should reply no-op success instead of re-running the UPDATE.</p>
  */
-public final class TransferCharToAccountCommand implements NxCommand<TransferCharToAccountResult> {
+public final class TransferCharacterToAccountCommand implements NxCommand<TransferCharacterToAccountResult> {
 
     private final Long characterId;
     private final String accountTo;
     private final CommandInitiator initiator;
 
-    public TransferCharToAccountCommand(Long characterId, String accountTo, CommandInitiator initiator) {
+    public TransferCharacterToAccountCommand(Long characterId, String accountTo, CommandInitiator initiator) {
         if (characterId == null) {
             throw new IllegalArgumentException("characterId is required");
         }
@@ -63,8 +63,8 @@ public final class TransferCharToAccountCommand implements NxCommand<TransferCha
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TransferCharToAccountCommand)) return false;
-        TransferCharToAccountCommand that = (TransferCharToAccountCommand) o;
+        if (!(o instanceof TransferCharacterToAccountCommand)) return false;
+        TransferCharacterToAccountCommand that = (TransferCharacterToAccountCommand) o;
         return Objects.equals(characterId, that.characterId)
                 && Objects.equals(accountTo, that.accountTo)
                 && Objects.equals(initiator, that.initiator);
@@ -77,7 +77,7 @@ public final class TransferCharToAccountCommand implements NxCommand<TransferCha
 
     @Override
     public String toString() {
-        return "TransferCharToAccountCommand[characterId=" + characterId + ", accountTo=" + accountTo + ", initiator=" + initiator
+        return "TransferCharacterToAccountCommand[characterId=" + characterId + ", accountTo=" + accountTo + ", initiator=" + initiator
                 + "]";
     }
 
@@ -101,8 +101,8 @@ public final class TransferCharToAccountCommand implements NxCommand<TransferCha
             return this;
         }
 
-        public TransferCharToAccountCommand build() {
-            return new TransferCharToAccountCommand(characterId, accountTo, initiator);
+        public TransferCharacterToAccountCommand build() {
+            return new TransferCharacterToAccountCommand(characterId, accountTo, initiator);
         }
     }
 }

@@ -221,7 +221,7 @@ List.of("char_name", "account_name", "level", "sex", "race",
 - `nobless` (tinyint) via `JdbcNulls.nullableInt`, mapped to `Boolean` via `code != 0`
 - `deletetime` (bigint epoch ms) via `JdbcNulls.nullableLong`, mapped to `Instant.ofEpochMilli` with `0` → `null`
 
-UPDATE storm risk: `account_name` (changes only on the `TransferCharToAccount` command, rare), `nobless` (a one-time
+UPDATE storm risk: `account_name` (changes only on the `TransferCharacterToAccount` command, rare), `nobless` (a one-time
 quest), `deletetime` (the mark-for-delete flow, rare). All are safe as hashed columns.
 
 #### Host CharacterRuntimeMapping

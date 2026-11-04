@@ -230,7 +230,7 @@ not deduped: one open check per character, a second command is `INVALID_STATE`. 
 
 ## Character commands
 
-### `TransferCharToAccountCommand`
+### `TransferCharacterToAccountCommand`
 
 **Purpose.** Re-bind a character to a different account (account migration,
 re-sale support). Forces logout if the source player is online so the
@@ -243,7 +243,7 @@ target account picks the character up cleanly on next login.
 | `characterId`    | `Long`   | yes      | Character to re-bind           |
 | `accountTo` | `String` | yes      | Destination login (must exist) |
 
-**Result** (`TransferCharToAccountResult`)
+**Result** (`TransferCharacterToAccountResult`)
 
 | Field            | Type      | Notes                                          |
 | ---------------- | --------- | ---------------------------------------------- |
@@ -1292,7 +1292,7 @@ asynchronously via `ResyncCompletedEvent`.
 
 ## Telegram commands
 
-### `TelegramCharLinkCommand`
+### `TelegramCharacterLinkCommand`
 
 **Purpose.** Issue a Telegram-to-character link verification code. Sends
 the code as an in-game system message to the resolved character; user
@@ -1303,11 +1303,11 @@ enters it back into the Telegram bot to confirm ownership.
 | Field              | Type     | Required | Notes                                                      |
 | ------------------ | -------- | -------- | ---------------------------------------------------------- |
 | `accountName`      | `String` | yes      | Account login owning the character                         |
-| `charName`         | `String` | yes      | Character name (case-insensitive match within the account) |
+| `characterName`    | `String` | yes      | Character name (case-insensitive match within the account) |
 | `confirmationCode` | `String` | yes      | Caller-generated short code (e.g. 6 alphanumerics)         |
 | `telegramUserId`   | `Long`   | yes      | Telegram user-id for audit and uniqueness                  |
 
-**Result** (`TelegramCharLinkResult`)
+**Result** (`TelegramCharacterLinkResult`)
 
 | Field    | Type   | Notes                                                                      |
 | -------- | ------ | -------------------------------------------------------------------------- |
@@ -1369,12 +1369,12 @@ Mapping:
 | `CreateItemCommand`              | `item` (created stack), `character` (owner)               |
 | `DeleteItemCommand`              | `item` (decremented/destroyed stack), `character`         |
 | `TransferItemToCharacterCommand` | `item` (moved stack), `character` (from + to)             |
-| `TransferCharToAccountCommand`   | `character` (re-bound)                                    |
+| `TransferCharacterToAccountCommand`   | `character` (re-bound)                                    |
 | `SendMailCommand`                | `character` (recipient)                                   |
 | `SendPlayerMailCommand`          | `character` (sender + recipient)                          |
 | `AcceptMailCommand`              | `character` (receiver, and sender when COD paid)          |
 | `ReadMailCommand`                | none: no `requestNow`, the `MailRead` event is the signal |
-| `TelegramCharLinkCommand`        | none                                                      |
+| `TelegramCharacterLinkCommand`        | none                                                      |
 
 > The remaining commands added to this catalog (`announcement`, `ban`,
 > `UpsertCharacterLockCommand`, `gd`, `privatestore`, `sync`) do not state
