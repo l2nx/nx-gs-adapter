@@ -383,14 +383,13 @@ exists.
 3. That session ends when the trader leaves the world, with `activity = OFFLINE_PRIVATE_STORE` and a `result` carrying
    the sales.
 
-| The trader leaves because | `logoutReason` |
-
-| The player logs in with that character        | `LOGOUT`      |
-| --------------------------------------------- | ------------- |
-| Everything is sold or bought                  | `SOLD_OUT`    |
-| The paid time ran out, or a stop from the app | `KICKED`      |
-| Banned                                        | `BANNED`      |
-| The server stops                              | `SERVER_STOP` |
+| The trader leaves because                     | `logoutReason` |
+| --------------------------------------------- | -------------- |
+| The player logs in with that character        | `LOGOUT`       |
+| Everything is sold or bought                  | `SOLD_OUT`     |
+| The paid time ran out, or a stop from the app | `KICKED`       |
+| Banned                                        | `BANNED`       |
+| The server stops                              | `SERVER_STOP`  |
 
 - Every exit goes through one host method that publishes the end, so no path leaves a trader with an open session.
 - A restart ends the session: the server stop reports `SERVER_STOP` with its result and the host restores the trader
