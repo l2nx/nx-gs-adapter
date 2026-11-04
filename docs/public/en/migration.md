@@ -24,6 +24,8 @@ publish `ServerStartedEvent`, whether that event went out or is held until the e
 and no fallback: a host that never calls it gets no ticks. Call `NxAppSessions.hostReady()` before it.
 
 - `CharacterPresenceEvent.charId` is now `characterId`, in the builder and on the wire.
+- `ChatMessageEvent.charId` and `targetCharId` are now `characterId` and `targetCharacterId`; `StartPrivateStore*Command.charId`
+  is now `characterId`. Builder and wire both change.
 - `CharacterPresenceEvent` takes `result` (`SessionResult`), on `online = false` only. A client session sets it through
   the builder; an app session gets it from the engine. `activity` is allowed with `source = CLIENT` for
   `OFFLINE_PRIVATE_STORE` only, the native offline store session.

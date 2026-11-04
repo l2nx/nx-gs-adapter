@@ -142,10 +142,15 @@ Only the names change; these commands keep their shape and take no snapshot.
 | `CreateItemCommand`              | `charId`                 | `characterId`                      |
 | `DeleteItemCommand`              | `charId`                 | `characterId`                      |
 | `TransferItemToCharacterCommand` | `charIdFrom`, `charIdTo` | `fromCharacterId`, `toCharacterId` |
+| `StartPrivateStore*Command`      | `charId`                 | `characterId`                      |
+| `ChatMessageEvent`               | `charId`, `targetCharId` | `characterId`, `targetCharacterId` |
 
 `TransferItemToCharacterCommand` stays routed by the source character. `CharacterPresenceEvent.charId` becomes
 `characterId` in the same release ([`043`](043-session-results.md)). Other commands and events keep `charId` until
 their family is touched.
+
+A chat reader of the old form renames both fields before it binds the event: `characterId` is a primitive, so a missing
+key would read as `0`, the system sender, and no error would show it.
 
 ### Wire compatibility
 
@@ -158,7 +163,7 @@ as `nx-gameservers/docs/specs/093-item-snapshot-migration.md` describes.
 | core to platform, events  | chat, mail, private trade, store state, store purchase, raid kill, `CharacterPresenceEvent.characterId` | The platform, and nx-social for presence, read old and new form with their own private legacy mapping                                                                                                      |
 | core to platform, sync    | `ItemDbDto.attributes` (array of `{type, value}`, then an object keyed by element)                      | The platform reads both forms                                                                                                                                                                              |
 | core to platform, replies | `SoldLine`, `BoughtLine`, `CreateItemResult`, `DeleteItemResult`, `TransferItemToCharacterResult`       | The platform reads both forms                                                                                                                                                                              |
-| platform to core          | item commands, `BuyLine`                                                                                | The platform sends both forms from a private wire DTO: `charId` with `characterId`, the source / target pair likewise, the flat `BuyLine` fields with `item`. Each core reads its own and ignores the rest |
+| platform to core          | item commands, `StartPrivateStore*Command`, `BuyLine`                                                                                | The platform sends both forms from a private wire DTO: `charId` with `characterId`, the source / target pair likewise, the flat `BuyLine` fields with `item`. Each core reads its own and ignores the rest |
 
 - The adapter keeps no `@Deprecated` copy and no alias: the host switches in one release.
 - The numeric changes (`int` to `long`) are invisible on the wire.

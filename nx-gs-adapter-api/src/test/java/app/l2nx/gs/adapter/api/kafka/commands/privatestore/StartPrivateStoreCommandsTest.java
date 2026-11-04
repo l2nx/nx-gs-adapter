@@ -116,7 +116,7 @@ class StartPrivateStoreCommandsTest {
     @Nested
     class Wire {
 
-        private static final String SELL_JSON = "{\"charId\":1,\"title\":\"t\","
+        private static final String SELL_JSON = "{\"characterId\":1,\"title\":\"t\","
                 + "\"lines\":[{\"itemId\":1,\"count\":1,\"priceAdena\":100}],\"sellerFeePercent\":5,"
                 + "\"offlineAllowed\":true,\"ownerVerified\":true,\"deadline\":\"2026-08-11T12:00:00Z\","
                 + "\"idempotencyKey\":\"5b1f3c2e-0000-4000-8000-000000000001\",\"initiator\":"

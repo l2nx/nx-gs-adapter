@@ -24,6 +24,8 @@ description: Шаги обновления адаптера через breaking 
 хост, который не вызвал метод, тиков не получит. `NxAppSessions.hostReady()` вызывается раньше него.
 
 - `CharacterPresenceEvent.charId` теперь `characterId`, и в билдере, и на проводе.
+- `ChatMessageEvent.charId` и `targetCharId` теперь `characterId` и `targetCharacterId`; `StartPrivateStore*Command.charId`
+  теперь `characterId`. Меняются и билдер, и провод.
 - `CharacterPresenceEvent` принимает `result` (`SessionResult`), только при `online = false`. Клиентская сессия задаёт его
   через билдер, app-сессия получает от движка. `activity` при `source = CLIENT` разрешён только как
   `OFFLINE_PRIVATE_STORE`, сессия нативного офлайн-магазина.

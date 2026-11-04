@@ -47,7 +47,7 @@ New package `kafka.commands.privatestore`, mirroring the existing `commands.<gro
 (see [`009-commands/spec.md`](009-commands/spec.md) for the rail infrastructure — unchanged):
 
 - `StartPrivateStoreSellCommand implements NxCommand<StartPrivateStoreResult>` —
-  `{ int charId, @Nullable String title, List<SellLine> lines }` (REQUIRED `charId` + non-empty
+  `{ int characterId, @Nullable String title, List<SellLine> lines }` (REQUIRED `characterId` + non-empty
   `lines`; constructor-enforced for programmatic construction, wire-path re-validated by the handler
   → `VALIDATION_FAILED`).
 - `StartPrivateStorePackageSellCommand` — identical shape, `packaged=true` semantics on the host

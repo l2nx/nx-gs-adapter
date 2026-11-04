@@ -162,7 +162,7 @@ final class EventTypeRegistry {
                 families,
                 ChatMessageEvent.class,
                 "chat",
-                evt -> LongBytes.bigEndian(((ChatMessageEvent) evt).getCharId()));
+                evt -> LongBytes.bigEndian(((ChatMessageEvent) evt).getCharacterId()));
         register(
                 map,
                 families,

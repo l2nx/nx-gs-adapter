@@ -38,13 +38,8 @@ path.
   - `UUID eventId` — REQUIRED. UUIDv7; the upper 48 bits encode the message occurrence timestamp —
     consumers extract `occurredAt` via `UUIDv7.extractCreatedAt(eventId)` and dedupe on the id
     (at-least-once delivery). No separate `occurredAt` field. Null-checked in the constructor.
-  - `long charId` — REQUIRED. Sender object id; also the partition key (8-byte big-endian) so one
+  - `long characterId` — REQUIRED. Sender object id; also the partition key (8-byte big-endian) so one
     sender's messages stay in occurrence order on a single partition.
-
-    > Naming: the platform canon is `characterId`, spelled out. This field keeps `charId` because
-    > it is already released and in production — renaming a wire field breaks the rail for no
-    > functional gain. New fields on this family follow the canon; the platform maps names at its
-    > consumer boundary.
 
   - `@Nullable String charName` — clean sender character name (no offline postfix); OPTIONAL.
   - `@Nullable String senderDisplayName` — name as the game client renders it, e.g.
@@ -56,8 +51,8 @@ path.
     constructor.
   - `@Nullable Long clanId` / `@Nullable Long allianceId` — the speaker's clan and its alliance at the moment of
     speaking, on every channel; see R7, R21.
-  - `@Nullable Long targetCharId` / `@Nullable String targetCharName` — whisper recipient.
-    Populated ONLY on the `WHISPER` channel; both `null` on every other channel. `targetCharId` is
+  - `@Nullable Long targetCharacterId` / `@Nullable String targetCharName` — whisper recipient.
+    Populated ONLY on the `WHISPER` channel; both `null` on every other channel. `targetCharacterId` is
     `null` only when the recipient cannot be resolved at all; an offline addressee is resolved by
     name (R20), and `targetCharName` carries the typed recipient name.
   - `@Nullable Map<String, String> metadata` — OPTIONAL open string→string map of build-agnostic
@@ -84,7 +79,7 @@ path.
   `COMMAND_CHANNEL_COMMANDER`, `NPC_GENERAL`, `NPC_SHOUT`, `NPC_WHISPER`.
 
 - [done] R3. `nx-gs-adapter-core.events.EventTypeRegistry` MUST register `ChatMessageEvent`: family
-  `"chat"`, message-type `"ChatMessageEvent"`, partition-key extractor returning `charId` (8-byte
+  `"chat"`, message-type `"ChatMessageEvent"`, partition-key extractor returning `characterId` (8-byte
   big-endian). Dispatched through the existing generic `NxEvents.publish(Object)` path.
 
 - [done] R4. The platform `/connect` response MUST advertise the chat topic: a `"chat"` entry in
@@ -93,7 +88,7 @@ path.
 - [done] R6. The host MUST hook its chat-handler path and publish one
   `ChatMessageEvent` per player-typed message via the cached `NxEvents` facade — and (R19) only after the channel handler actually delivered it. Sanitize `text`
   host-side; map the build's numeric chat type to a `ChatChannel` constant (or
-  `UNKNOWN_<int>`); set `targetCharId` / `targetCharName` only for whispers. Any uncaught `Throwable`
+  `UNKNOWN_<int>`); set `targetCharacterId` / `targetCharName` only for whispers. Any uncaught `Throwable`
   in the publish path is caught and logged, never propagated to the game thread.
 
 - [done] R5. The platform MUST run a consumer over `<tenant>.gs.events.chat`. Partition key is the
@@ -153,13 +148,13 @@ path.
   produces no event. A contract, not an implementation detail: the stored corpus then equals what
   players could have read.
 
-- [done] R20. `WHISPER`: `targetCharId` MUST be set also when the addressee is offline; the host
+- [done] R20. `WHISPER`: `targetCharacterId` MUST be set also when the addressee is offline; the host
   resolves by name, including the `Name*` form (R16).
 
 - [done] R21. `ChatMessageEvent.allianceId` MUST carry the alliance of the speaker's clan at the moment of speaking, on
   every channel; `null` when the clan has no alliance or the speaker has no clan. Same rationale as R7; a field of its
   own, not derived from the clan on the read side, because the clan may change alliance after the message. Naming follows the
-  platform canon (full words: alliance, character); the shipped `charId` / `targetCharId` /
+  platform canon (full words: alliance, character); the shipped `charName` /
   `targetCharName` are NOT renamed.
 
 - [done] R21a. `ChatMetadataKey.SHADOWED` (key `"shadowed"`, value `"true"`) MUST mark a message the host
@@ -202,7 +197,7 @@ path.
 | Family            | `chat`                                     |
 | Event topic       | `<tenant>.gs.events.chat`                  |
 | `Nx-Message-Type` | `ChatMessageEvent`                         |
-| Partition key     | `charId` (8-byte big-endian)               |
+| Partition key     | `characterId` (8-byte big-endian)          |
 | Idempotency       | `eventId` (UUIDv7), at-least-once delivery |
 
 ## Compatibility
