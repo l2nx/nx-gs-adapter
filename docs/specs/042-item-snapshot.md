@@ -1,7 +1,7 @@
 # Item snapshot
 
 > Owner: @n1rmata
-> Status: designed 2026-11-04, not implemented.
+> Status: adapter side implemented 2026-11-04, not yet released.
 > Counterparts: `nx-gameservers/docs/specs/093-item-snapshot-migration.md` (legacy mapping, table moves, rollout),
 > `nx-gameservers/docs/specs/043-sessions/results.md` (session results storage).
 
@@ -26,22 +26,22 @@ says where the item went and how much of it moved.
 
 **Must:**
 
-- [todo] R1. The api MUST ship `domain.item.ItemSnapshot`: immutable, Java 8, with a builder, carrying `itemId`,
+- [done] R1. The api MUST ship `domain.item.ItemSnapshot`: immutable, Java 8, with a builder, carrying `itemId`,
   `itemTemplateId`, `count`, `enchantLevel`, `attributes` and `augmentation` ([ItemSnapshot](#itemsnapshot)).
-- [todo] R2. `ItemAugmentationDbDto` MUST become `domain.item.ItemAugmentation` with the same wire shape.
-- [todo] R3. Location, owner and the quantity an event moved MUST stay in the event's own context (the movement, the
+- [done] R2. `ItemAugmentationDbDto` MUST become `domain.item.ItemAugmentation` with the same wire shape.
+- [done] R3. Location, owner and the quantity an event moved MUST stay in the event's own context (the movement, the
   line, the result), never in the snapshot.
-- [todo] R4. Every form under [Migrated forms](#migrated-forms) MUST carry a snapshot in field `item` in place of its
+- [done] R4. Every form under [Migrated forms](#migrated-forms) MUST carry a snapshot in field `item` in place of its
   loose item fields, in one api release that removes the old shapes.
-- [todo] R5. `ChatItemSnapshot` and `ItemAttributeDbDto` MUST be removed from the api.
-- [todo] R6. `StoreLine` MUST split into one class per side: a sell line carries a snapshot, a buy line carries a
+- [done] R5. `ChatItemSnapshot` and `ItemAttributeDbDto` MUST be removed from the api.
+- [done] R6. `StoreLine` MUST split into one class per side: a sell line carries a snapshot, a buy line carries a
   template with no instance.
-- [todo] R7. `RaidDropItem` MUST stay a template reference and name it `itemTemplateId`: the raid rolled a template,
+- [done] R7. `RaidDropItem` MUST stay a template reference and name it `itemTemplateId`: the raid rolled a template,
   and no instance is known when the drop is recorded.
-- [todo] R8. `ItemDbDto.attributes` MUST become `Map<Attribute, Integer>`, the form the other item DTOs already use.
-- [todo] R9. `charId` MUST become `characterId` on every item command and result
+- [done] R8. `ItemDbDto.attributes` MUST become `Map<Attribute, Integer>`, the form the other item DTOs already use.
+- [done] R9. `charId` MUST become `characterId` on every item command and result
   ([Item commands](#item-commands)).
-- [todo] R10. An instance id MUST be `long` and an enchant level `Integer` wherever a snapshot replaces them.
+- [done] R10. An instance id MUST be `long` and an enchant level `Integer` wherever a snapshot replaces them.
 
 **Non-goals:**
 
@@ -120,7 +120,8 @@ Field lists are the current DTOs. `item` is an `ItemSnapshot`.
 - `DeleteItemResult.item` and `TransferItemToCharacterResult.item` are the item before the operation.
 - `BuyLine` is a command input and an optimistic lock: `item.itemId` finds the instance, `item.itemTemplateId`,
   `item.enchantLevel` and `item.attributes` with `unitPriceAdena` are re-verified, `null` keeps its meaning of "the
-  offer carried none", and any mismatch still fails with `OFFER_CHANGED`. `item.count` is not part of the match; the
+  offer carried none", an empty `item.attributes` map counts as `null` (the host compares
+  `BuyLine.attributesForMatch()`), and any mismatch still fails with `OFFER_CHANGED`. `item.count` is not part of the match; the
   lot size is `count`. The line keeps its own checks (positive `count`, non-negative price, no overflow of their
   product, enchant in `0..127`); `BuyFromPrivateStoreCommand` compares `item.itemId` for repeats.
 
@@ -179,10 +180,10 @@ as `nx-gameservers/docs/specs/093-item-snapshot-migration.md` describes.
 
 ### Structure
 
-- `nx-gs-adapter-api` `domain.item`: `ItemSnapshot`, `ItemAugmentation` [planned].
-- `nx-gs-adapter-api` `kafka.events.privatestore.model`: `SellStoreLine`, `BuyStoreLine` replace `StoreLine` [planned].
+- `nx-gs-adapter-api` `domain.item`: `ItemSnapshot`, `ItemAugmentation`.
+- `nx-gs-adapter-api` `kafka.events.privatestore.model`: `SellStoreLine`, `BuyStoreLine` replace `StoreLine`.
 - Removed: `kafka.events.chat.ChatItemSnapshot`, `kafka.sync.db.item.ItemAttributeDbDto`,
-  `kafka.sync.db.item.ItemAugmentationDbDto`, `kafka.events.privatestore.model.StoreLine` [planned].
+  `kafka.sync.db.item.ItemAugmentationDbDto`, `kafka.events.privatestore.model.StoreLine`.
 
 Living specs of the migrated forms change in the same commit as the code: `009-commands/catalog.md`,
 `009-commands/accept-mail.md`, `014-events-raid.md`, `025-chat-events.md` (R18), `026-item-augmentation-sync.md`,

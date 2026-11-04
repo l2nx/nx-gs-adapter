@@ -19,4 +19,16 @@ public final class AppSessionRefusal {
 
     /** An {@link AlreadyActiveScope} constant name; set for {@code ALREADY_ACTIVE}. */
     public static final String SCOPE = "scope";
+
+    /** Slots the first result of the action needs; set for {@code INVENTORY_FULL}. */
+    public static final String REQUIRED_SLOTS = "requiredSlots";
+
+    /** Free slots the character has, never below {@code 0}; set for {@code INVENTORY_FULL}. */
+    public static final String FREE_SLOTS = "freeSlots";
+
+    /** Weight the first result of the action needs; set for {@code OVERWEIGHT}. */
+    public static final String REQUIRED_WEIGHT = "requiredWeight";
+
+    /** Weight the character can still take, never below {@code 0}; set for {@code OVERWEIGHT}. */
+    public static final String FREE_WEIGHT = "freeWeight";
 }

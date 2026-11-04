@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.core.appsessions;
 
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.model.session.OfflineSessionPlacement;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
@@ -22,10 +23,15 @@ final class FakeOfflineSessionHost implements OfflineSessionHost {
     Consumer<OfflineSession> onStartAction = s -> {};
     /** When set, {@code removeFromWorld} blocks until it opens (at most 10 s), like a busy game thread. */
     volatile CountDownLatch removeGate;
+    /** What {@code takeSessionResult} answers; a throwing function simulates a failing recorder. */
+    Function<OfflineSession, SessionResult> sessionResult = s -> null;
+
+    final List<OfflineSession> placedSessions = new ArrayList<OfflineSession>();
 
     @Override
     public synchronized OfflineSessionPlacement placeInWorld(OfflineSession session) {
         calls.add("place:" + session.getId());
+        placedSessions.add(session);
         return placement.apply(session);
     }
 
@@ -55,6 +61,12 @@ final class FakeOfflineSessionHost implements OfflineSessionHost {
             }
         }
         record(session, returnToOrigin);
+    }
+
+    @Override
+    public synchronized SessionResult takeSessionResult(OfflineSession session) {
+        calls.add("takeResult:" + session.getId());
+        return sessionResult.apply(session);
     }
 
     private synchronized void record(OfflineSession session, boolean returnToOrigin) {

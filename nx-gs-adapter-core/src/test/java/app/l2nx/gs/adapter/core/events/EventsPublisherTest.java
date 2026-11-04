@@ -3,6 +3,9 @@ package app.l2nx.gs.adapter.core.events;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.NxHeaders;
+import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
+import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
+import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
 import app.l2nx.gs.adapter.api.kafka.events.premiumpurchase.PremiumPurchaseEvent;
 import app.l2nx.gs.adapter.api.kafka.ops.model.EventsStats;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStatus;
@@ -276,6 +279,33 @@ class EventsPublisherTest {
 
     private static EventsConfig cfg(int capacity, EventsPublisher.DropPolicy policy, long shutdownDrainMs) {
         return new EventsConfig(capacity, policy, shutdownDrainMs);
+    }
+
+    @Test
+    void flush_shouldSendThePresenceEndWithoutItsResult_whenTheResultIsOverTheBudget() {
+        List<ProducerRecord<byte[], Object>> sent = new ArrayList<ProducerRecord<byte[], Object>>();
+        EventTypeRegistry registry = new EventTypeRegistry();
+        EventsPublisher publisher = new EventsPublisher(
+                Collections.singletonMap("character", "t.character"),
+                (record, callback) -> sent.add(record),
+                cfg(100, EventsPublisher.DropPolicy.NEWEST, 500L),
+                registry);
+        CharacterPresenceEvent end = CharacterPresenceEvent.builder()
+                .eventId(UUIDv7.generate())
+                .characterId(7L)
+                .online(false)
+                .source(SessionSource.CLIENT)
+                .logoutReason(LogoutReason.LOGOUT)
+                .result(SessionResultJsonTest.overBudget())
+                .build();
+
+        publisher.enqueue(new EventEnvelope(end, registry.lookup(CharacterPresenceEvent.class)));
+        publisher.flush(0L);
+
+        assertEquals(1, sent.size());
+        CharacterPresenceEvent actual = (CharacterPresenceEvent) sent.get(0).value();
+        assertNull(actual.getResult());
+        assertEquals(LogoutReason.LOGOUT, actual.getLogoutReason());
     }
 
     private static EventEnvelope envelope(long charId, EventTypeBinding binding) {

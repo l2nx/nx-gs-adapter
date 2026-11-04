@@ -166,7 +166,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
         void insert_shouldSucceed_whenCharacterAndSpotWereFreedByAClose() {
             OfflineSession first = session(7, 1).build();
             store.insert(first);
-            store.close(first.getId(), 1_000L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
+            store.close(first.getId(), 1_000L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED, null);
 
             assertEquals(InsertResult.INSERTED, store.insert(session(7, 1).build()));
         }
@@ -201,7 +201,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
         void probeInsert_shouldReportInserted_whenTheHolderClosed() {
             OfflineSession first = session(7, 1).build();
             store.insert(first);
-            store.close(first.getId(), 1_000L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
+            store.close(first.getId(), 1_000L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED, null);
 
             assertEquals(InsertResult.INSERTED, store.probeInsert(7, "harbor", 1));
         }
@@ -249,7 +249,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
         void place_shouldReturnNotOpen_whenTheSessionIsClosed() {
             OfflineSession row = session(7, 1).build();
             store.insert(row);
-            store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
+            store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED, null);
 
             assertEquals(PlaceResult.NOT_OPEN, store.place(row.getId(), "harbor", 4, null, null));
         }
@@ -273,7 +273,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
         void flushActiveMs_shouldLeaveAClosedRow() {
             OfflineSession row = session(7, 1).build();
             store.insert(row);
-            store.close(row.getId(), 60_000L, STARTED.plusSeconds(60), LogoutReason.APP_TIME_UP);
+            store.close(row.getId(), 60_000L, STARTED.plusSeconds(60), LogoutReason.APP_TIME_UP, null);
 
             store.flushActiveMs(Collections.singletonMap(row.getId(), 90_000L));
 
@@ -292,7 +292,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.insert(row);
             Instant ended = STARTED.plusSeconds(1_800);
 
-            store.close(row.getId(), 1_800_000L, ended, LogoutReason.APP_LOGIN);
+            store.close(row.getId(), 1_800_000L, ended, LogoutReason.APP_LOGIN, null);
 
             OfflineSession actual =
                     store.findByIdempotencyKey(row.getIdempotencyKey()).get();
@@ -312,7 +312,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             OfflineSession closed = session(8, 2).build();
             store.insert(open);
             store.insert(closed);
-            store.close(closed.getId(), 0L, STARTED, LogoutReason.APP_STOPPED);
+            store.close(closed.getId(), 0L, STARTED, LogoutReason.APP_STOPPED, null);
 
             List<OfflineSession> actual = store.loadOpen();
 
@@ -327,8 +327,8 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.insert(old);
             store.insert(recent);
             store.insert(open);
-            store.close(old.getId(), 0L, STARTED.minusSeconds(40L * 86_400L), LogoutReason.APP_STOPPED);
-            store.close(recent.getId(), 0L, STARTED.minusSeconds(86_400L), LogoutReason.APP_STOPPED);
+            store.close(old.getId(), 0L, STARTED.minusSeconds(40L * 86_400L), LogoutReason.APP_STOPPED, null);
+            store.close(recent.getId(), 0L, STARTED.minusSeconds(86_400L), LogoutReason.APP_STOPPED, null);
 
             int actual = store.deleteClosedBefore(STARTED.minusSeconds(30L * 86_400L));
 
@@ -345,7 +345,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
 
             assertTrue(store.updateTypeState(row.getId(), "{\"fee\":3}"));
             assertEquals("{\"fee\":3}", store.findOpenByCharacterId(7).get().getTypeState());
-            store.close(row.getId(), 0L, STARTED, LogoutReason.APP_STOPPED);
+            store.close(row.getId(), 0L, STARTED, LogoutReason.APP_STOPPED, null);
             assertFalse(store.updateTypeState(row.getId(), "{}"));
         }
 
@@ -361,6 +361,61 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
     }
 
     @Nested
+    class Result {
+
+        private static final String BLOCK = "{\"partial\":true,\"overflow\":0}";
+
+        @Test
+        void close_shouldStoreTheResultAndReadResultReturnIt() {
+            OfflineSession row = session(7, 1).build();
+            store.insert(row);
+
+            store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED, BLOCK);
+
+            assertEquals(BLOCK, store.readResult(row.getId()));
+        }
+
+        @Test
+        void close_shouldReplaceACarriedBlock_whenTheEndHasNoResult() {
+            OfflineSession row = session(7, 1).build();
+            store.insert(row);
+            store.writeOpenResult(row.getId(), BLOCK);
+
+            store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED_BEFORE_RESTORE, null);
+
+            assertNull(store.readResult(row.getId()));
+        }
+
+        @Test
+        void writeOpenResult_shouldStoreAndClearOnAnOpenRow() {
+            OfflineSession row = session(7, 1).build();
+            store.insert(row);
+
+            store.writeOpenResult(row.getId(), BLOCK);
+            assertEquals(BLOCK, store.readResult(row.getId()));
+
+            store.writeOpenResult(row.getId(), null);
+            assertNull(store.readResult(row.getId()));
+        }
+
+        @Test
+        void writeOpenResult_shouldLeaveAClosedRowAsItIs() {
+            OfflineSession row = session(7, 1).build();
+            store.insert(row);
+            store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED, BLOCK);
+
+            store.writeOpenResult(row.getId(), null);
+
+            assertEquals(BLOCK, store.readResult(row.getId()));
+        }
+
+        @Test
+        void readResult_shouldBeNull_whenTheRowIsUnknown() {
+            assertNull(store.readResult(UUID.randomUUID()));
+        }
+    }
+
+    @Nested
     class EndPublished {
 
         @Test
@@ -372,9 +427,9 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             for (OfflineSession row : new OfflineSession[] {open, endedLater, endedFirst, acknowledged}) {
                 store.insert(row);
             }
-            store.close(endedLater.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED);
-            store.close(endedFirst.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_TIME_UP);
-            store.close(acknowledged.getId(), 0L, STARTED.plusSeconds(30), LogoutReason.APP_STOPPED);
+            store.close(endedLater.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED, null);
+            store.close(endedFirst.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_TIME_UP, null);
+            store.close(acknowledged.getId(), 0L, STARTED.plusSeconds(30), LogoutReason.APP_STOPPED, null);
             store.markEndsPublished(Collections.singletonList(acknowledged.getId()), STARTED.plusSeconds(31));
 
             UnpublishedEnds actual = store.findUnpublishedEnds(null, 10);
@@ -394,9 +449,9 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             for (OfflineSession row : new OfflineSession[] {first, sameEnd, later}) {
                 store.insert(row);
             }
-            store.close(first.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
-            store.close(sameEnd.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED);
-            store.close(later.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED);
+            store.close(first.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED, null);
+            store.close(sameEnd.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_STOPPED, null);
+            store.close(later.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED, null);
 
             UnpublishedEnds page1 = store.findUnpublishedEnds(null, 1);
             UnpublishedEnds page2 = store.findUnpublishedEnds(page1.last, 1);
@@ -421,8 +476,8 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             OfflineSession b = session(8, 2).build();
             store.insert(a);
             store.insert(b);
-            store.close(a.getId(), 0L, STARTED, LogoutReason.APP_STOPPED);
-            store.close(b.getId(), 0L, STARTED, LogoutReason.APP_STOPPED);
+            store.close(a.getId(), 0L, STARTED, LogoutReason.APP_STOPPED, null);
+            store.close(b.getId(), 0L, STARTED, LogoutReason.APP_STOPPED, null);
 
             store.markEndsPublished(Arrays.asList(a.getId(), b.getId()), STARTED.plusSeconds(5));
 
@@ -435,7 +490,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.insert(row);
 
             store.markEndsPublished(Collections.singletonList(row.getId()), STARTED);
-            store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_LOGIN);
+            store.close(row.getId(), 0L, STARTED.plusSeconds(60), LogoutReason.APP_LOGIN, null);
 
             assertEquals(
                     row.getId(), store.findUnpublishedEnds(null, 10).rows.get(0).getId());
@@ -445,7 +500,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
         void markEndPublished_shouldKeepTheFirstAcknowledgement() throws SQLException {
             OfflineSession row = session(7, 1).build();
             store.insert(row);
-            store.close(row.getId(), 0L, STARTED, LogoutReason.APP_STOPPED);
+            store.close(row.getId(), 0L, STARTED, LogoutReason.APP_STOPPED, null);
 
             store.markEndsPublished(Collections.singletonList(row.getId()), STARTED.plusSeconds(5));
             store.markEndsPublished(Collections.singletonList(row.getId()), STARTED.plusSeconds(600));
@@ -480,7 +535,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
             store.insert(older);
             store.insert(tieLow);
             store.insert(tieHigh);
-            store.close(tieHigh.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED);
+            store.close(tieHigh.getId(), 0L, STARTED.plusSeconds(120), LogoutReason.APP_STOPPED, null);
 
             List<OfflineSession> actual =
                     store.findLatestStartedByMasterAccount(master, ActivityType.OFFLINE_FISHING, 3);
@@ -528,7 +583,7 @@ abstract class AbstractJdbcOfflineSessionStoreIT {
                     .startedAt(startedAt)
                     .build();
             store.insert(row);
-            store.close(id, 0L, startedAt.plusSeconds(30), LogoutReason.APP_STOPPED);
+            store.close(id, 0L, startedAt.plusSeconds(30), LogoutReason.APP_STOPPED, null);
             return row;
         }
 

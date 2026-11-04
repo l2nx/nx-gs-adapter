@@ -2,6 +2,8 @@ package app.l2nx.gs.adapter.api.spi.model.session;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
+import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -34,6 +36,7 @@ public final class OfflineSession {
     private final @Nullable String typeState;
     private final @Nullable Instant endedAt;
     private final @Nullable LogoutReason endReason;
+    private final @Nullable SessionResult carriedResult;
 
     public OfflineSession(
             UUID id,
@@ -56,7 +59,8 @@ public final class OfflineSession {
             @Nullable Long returnThresholdMs,
             @Nullable String typeState,
             @Nullable Instant endedAt,
-            @Nullable LogoutReason endReason) {
+            @Nullable LogoutReason endReason,
+            @Nullable SessionResult carriedResult) {
         this.id = Objects.requireNonNull(id, "OfflineSession.id is required");
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "OfflineSession.idempotencyKey is required");
         this.characterId = characterId;
@@ -81,6 +85,7 @@ public final class OfflineSession {
         }
         this.endedAt = endedAt;
         this.endReason = endReason;
+        this.carriedResult = carriedResult;
     }
 
     /** UUIDv7; also the {@code sessionId} of the session's presence events. */
@@ -180,6 +185,15 @@ public final class OfflineSession {
         return endReason;
     }
 
+    /**
+     * The session's running block as the last graceful stop stored it. Set only on the views a restore hands to
+     * {@link OfflineSessionHost#placeInWorld} and {@link OfflineSessionHost#startAction}, for the host to seed its
+     * recorder with; {@code null} everywhere else and when no block survived the restart.
+     */
+    public @Nullable SessionResult getCarriedResult() {
+        return carriedResult;
+    }
+
     public boolean isOpen() {
         return endedAt == null;
     }
@@ -211,7 +225,8 @@ public final class OfflineSession {
                 .returnThresholdMs(returnThresholdMs)
                 .typeState(typeState)
                 .endedAt(endedAt)
-                .endReason(endReason);
+                .endReason(endReason)
+                .carriedResult(carriedResult);
     }
 
     public static Builder builder() {
@@ -243,7 +258,8 @@ public final class OfflineSession {
                 && Objects.equals(returnThresholdMs, that.returnThresholdMs)
                 && Objects.equals(typeState, that.typeState)
                 && Objects.equals(endedAt, that.endedAt)
-                && endReason == that.endReason;
+                && endReason == that.endReason
+                && Objects.equals(carriedResult, that.carriedResult);
     }
 
     @Override
@@ -269,7 +285,8 @@ public final class OfflineSession {
                 returnThresholdMs,
                 typeState,
                 endedAt,
-                endReason);
+                endReason,
+                carriedResult);
     }
 
     @Override
@@ -282,7 +299,8 @@ public final class OfflineSession {
                 + ", plannedMs=" + plannedMs
                 + ", activeMs=" + activeMs
                 + ", endedAt=" + endedAt
-                + ", endReason=" + endReason + "]";
+                + ", endReason=" + endReason
+                + ", carriedResult=" + carriedResult + "]";
     }
 
     public static final class Builder {
@@ -307,6 +325,7 @@ public final class OfflineSession {
         private @Nullable String typeState;
         private @Nullable Instant endedAt;
         private @Nullable LogoutReason endReason;
+        private @Nullable SessionResult carriedResult;
 
         public Builder id(UUID id) {
             this.id = id;
@@ -413,6 +432,11 @@ public final class OfflineSession {
             return this;
         }
 
+        public Builder carriedResult(@Nullable SessionResult carriedResult) {
+            this.carriedResult = carriedResult;
+            return this;
+        }
+
         public OfflineSession build() {
             return new OfflineSession(
                     id,
@@ -435,7 +459,8 @@ public final class OfflineSession {
                     returnThresholdMs,
                     typeState,
                     endedAt,
-                    endReason);
+                    endReason,
+                    carriedResult);
         }
     }
 }

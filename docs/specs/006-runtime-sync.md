@@ -230,7 +230,7 @@ entity '<name>'"`), entity transitions to `DEGRADED`, no publishes for that
   - `nx-gs-db-sync-core` and `nx-gs-kafka` carry no contract change in this slice —
     versions stay where they are unless touched independently.
 
-- [todo] R14. Ticks MUST start only when both hold: the module has started and the host has declared
+- [done] R14. Ticks MUST start only when both hold: the module has started and the host has declared
   its start through `NxAdapter.runtimeSync().hostStarted()`
   ([#53](https://github.com/l2nx/nx-gs-adapter/issues/53)). No runtime event of a server generation
   may carry a time before that generation's `started_at`, or the platform's generation sweep reads the
@@ -430,7 +430,7 @@ Host-side (in the reference host integration, not this monorepo):
   swap in only the acked subset of the new snapshot. `CycleResult.degraded`
   is returned on any publish failure / timeout so the heartbeat reflects
   Kafka tail-health.
-- **NxRuntimeSync** [planned] (implements R14) — capability in `spi.capability`, modelled on
+- **NxRuntimeSync** (implements R14) — capability in `spi.capability`, modelled on
   `NxAppSessions.hostReady()`. `hostStarted()` is the host side; `onHostStarted(Runnable)` is the module
   side, last registration wins, and runs at once when the start was already declared. Reached through
   `NxAdapter.runtimeSync()` and `ConnectContext.runtimeSync()`, one instance, usable from JVM start; a
@@ -498,7 +498,7 @@ End-to-end per tick (one entity, e.g. `character`):
    `failedAcks`, `timedOutAcks`. `CycleResult` is `DEGRADED` if either ack
    counter is non-zero, otherwise `HEALTHY`.
 
-Start gate (R14) [planned]: `RuntimeSyncModule.start()` builds the engine and registers
+Start gate (R14): `RuntimeSyncModule.start()` builds the engine and registers
 `onHostStarted`; the callback starts the engine. The flag "host started" is a one-way JVM-wide fact on
 the core's facade, so it is safe from any thread, early and repeated calls included, and it outlives a
 reconnect: the `start()` after a reconnect finds it set and ticks at once. A `stop()` or `onDisconnect`

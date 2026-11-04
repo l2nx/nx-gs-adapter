@@ -2,12 +2,15 @@ package app.l2nx.gs.adapter.core.events;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.NxHeaders;
 import app.l2nx.gs.adapter.api.kafka.events.account.AccountAuthAttemptEvent;
 import app.l2nx.gs.adapter.api.kafka.events.account.AuthOutcomes;
 import app.l2nx.gs.adapter.api.kafka.events.character.AppSessionsSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
+import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailAcceptedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailCancelledEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailReturnedEvent;
@@ -164,12 +167,63 @@ class EventTypeRegistryTest {
         assertEquals("CharacterPresenceEvent", binding.messageType());
     }
 
+    @Nested
+    class Presence {
+
+        private final EventTypeBinding binding = new EventTypeRegistry().lookup(CharacterPresenceEvent.class);
+
+        private CharacterPresenceEvent.Builder storeEnd() {
+            return CharacterPresenceEvent.builder()
+                    .eventId(UUIDv7.generate())
+                    .characterId(7L)
+                    .online(false)
+                    .source(SessionSource.CLIENT)
+                    .activity(ActivityType.OFFLINE_PRIVATE_STORE)
+                    .logoutReason(LogoutReason.SOLD_OUT)
+                    .result(SessionResult.builder().overflow(3L).build());
+        }
+
+        @Test
+        void wireNormalizer_shouldKeepResultAndActivity_whenItRebuildsTheEvent() {
+            CharacterPresenceEvent event = storeEnd().ip("N/A").hwid("0").build();
+
+            CharacterPresenceEvent actual =
+                    (CharacterPresenceEvent) binding.wireNormalizer().apply(event);
+
+            assertNotSame(event, actual);
+            assertNull(actual.getIp());
+            assertNull(actual.getHwid());
+            assertEquals(event.getResult(), actual.getResult());
+            assertEquals(ActivityType.OFFLINE_PRIVATE_STORE, actual.getActivity());
+        }
+
+        @Test
+        void sendGuard_shouldKeepTheEvent_whenTheResultFits() {
+            CharacterPresenceEvent event = storeEnd().build();
+
+            assertSame(event, binding.sendGuard().apply(event));
+        }
+
+        @Test
+        void sendGuard_shouldDropOnlyTheResult_whenItIsOverTheBudget() {
+            CharacterPresenceEvent event =
+                    storeEnd().result(SessionResultJsonTest.overBudget()).build();
+
+            CharacterPresenceEvent actual =
+                    (CharacterPresenceEvent) binding.sendGuard().apply(event);
+
+            assertNull(actual.getResult());
+            assertEquals(LogoutReason.SOLD_OUT, actual.getLogoutReason());
+            assertEquals(event.getEventId(), actual.getEventId());
+        }
+    }
+
     @Test
     void partitionKey_shouldEncodeCharId_forCharacterPresenceEvent() {
         EventTypeBinding binding = new EventTypeRegistry().lookup(CharacterPresenceEvent.class);
         CharacterPresenceEvent event = CharacterPresenceEvent.builder()
                 .eventId(UUIDv7.generate())
-                .charId(0xCAFEBABEL)
+                .characterId(0xCAFEBABEL)
                 .online(true)
                 .source(SessionSource.CLIENT)
                 .build();
@@ -559,7 +613,7 @@ class EventTypeRegistryTest {
         private CharacterPresenceEvent.Builder presence() {
             return CharacterPresenceEvent.builder()
                     .eventId(UUIDv7.generate())
-                    .charId(7L)
+                    .characterId(7L)
                     .online(true)
                     .source(SessionSource.CLIENT);
         }

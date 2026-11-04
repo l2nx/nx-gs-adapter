@@ -390,10 +390,10 @@ new state immediately rather than wait for the next scheduled CDC tick
 static CommandResult<Void> handleTransferItem(TransferItemToCharacterCommand cmd, CommandContext ctx) {
     // ... do the transfer (online or offline)
     if (success) {
-        ctx.sync().requestNow("item", cmd.getItemObjectId());
+        ctx.sync().requestNow("item", cmd.getItemId());
         ctx.sync().requestNow("character", Arrays.asList(fromId, toId));
         return CommandResult.ok(new TransferItemToCharacterResult(
-                cmd.getItemObjectId(), countTransferred, fromId, toId));
+                itemBefore, countTransferred, fromId, toId));
     }
     // ...
 }
@@ -536,7 +536,7 @@ guaranteed `source = user`.
 Every command has a `{X}Result` class; populate it with confirmation data:
 
 ```java
-return CommandResult.ok(new DeleteItemResult(itemObjectId, deletedCount, fullyDeleted));
+return CommandResult.ok(new DeleteItemResult(itemBefore, deletedCount, fullyDeleted));
 return CommandResult.ok(new TransferCharToAccountResult(charId, newAccount, wasLoggedOut));
 return CommandResult.ok(new SendMailResult(createdMailIds, itemErrors));
 ```
@@ -550,7 +550,7 @@ target); host-side `R` types may be records when the host JVM is Java 14+.
 ```java
 // Common 1-liner patterns:
 return CommandResult.notFound("Character not found");
-return CommandResult.notFound("Item not found", "itemObjectId", 12345L);
+return CommandResult.notFound("Item not found", "itemId", 12345L);
 return CommandResult.invalidState("Capacity exceeded");
 return CommandResult.forbidden("Cannot punish self");
 return CommandResult.validationFailed("count must be positive", "count");

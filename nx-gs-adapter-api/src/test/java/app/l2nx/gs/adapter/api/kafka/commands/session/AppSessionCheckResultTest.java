@@ -56,7 +56,21 @@ class AppSessionCheckResultTest {
                                 .build()),
                 Arguments.of(
                         "daily limit without a known reset",
-                        AppSessionCheckResult.refused(AppSessionRefusalReason.DAILY_LIMIT)));
+                        AppSessionCheckResult.refused(AppSessionRefusalReason.DAILY_LIMIT)),
+                Arguments.of(
+                        "inventory full with its numbers",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.INVENTORY_FULL)
+                                .requiredSlots(2)
+                                .freeSlots(0)
+                                .build()),
+                Arguments.of(
+                        "overweight with its numbers",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.OVERWEIGHT)
+                                .requiredWeight(120L)
+                                .freeWeight(0L)
+                                .build()));
     }
 
     static Stream<Arguments> invalidResults() {
@@ -94,7 +108,50 @@ class AppSessionCheckResultTest {
                                 .effectiveDurationMs(1_000L)),
                 Arguments.of(
                         "non-positive duration",
-                        AppSessionCheckResult.builder().allowed(true).effectiveDurationMs(0L)));
+                        AppSessionCheckResult.builder().allowed(true).effectiveDurationMs(0L)),
+                Arguments.of(
+                        "INVENTORY_FULL without numbers",
+                        AppSessionCheckResult.builder().reason(AppSessionRefusalReason.INVENTORY_FULL)),
+                Arguments.of(
+                        "INVENTORY_FULL without freeSlots",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.INVENTORY_FULL)
+                                .requiredSlots(1)),
+                Arguments.of(
+                        "INVENTORY_FULL with a negative free side",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.INVENTORY_FULL)
+                                .requiredSlots(1)
+                                .freeSlots(-1)),
+                Arguments.of(
+                        "INVENTORY_FULL with nothing required",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.INVENTORY_FULL)
+                                .requiredSlots(0)
+                                .freeSlots(0)),
+                Arguments.of(
+                        "OVERWEIGHT without numbers",
+                        AppSessionCheckResult.builder().reason(AppSessionRefusalReason.OVERWEIGHT)),
+                Arguments.of(
+                        "OVERWEIGHT with a negative free side",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.OVERWEIGHT)
+                                .requiredWeight(10L)
+                                .freeWeight(-1L)),
+                Arguments.of(
+                        "slot numbers with OVERWEIGHT",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.OVERWEIGHT)
+                                .requiredWeight(10L)
+                                .freeWeight(0L)
+                                .requiredSlots(1)
+                                .freeSlots(0)),
+                Arguments.of(
+                        "numbers on an allowed check",
+                        AppSessionCheckResult.builder()
+                                .allowed(true)
+                                .requiredSlots(1)
+                                .freeSlots(0)));
     }
 
     @Nested

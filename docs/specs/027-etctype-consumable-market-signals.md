@@ -38,7 +38,7 @@ New `@Nullable Boolean consumable` field on the gd-sync item-template wire DTO �
 "is this a consumable" predicate (`EtcItem.isConsumable()` on this build), a more precise signal
 than deriving "supply" from a curated `etcItemType` list. `null` = the producer didn't report it
 (no signal, not "false"). Field + getter + builder + `toBuilder`/`equals`/`hashCode` added per the
-module's hand-written-POJO pattern (see `ItemDbDto` / `ItemAugmentationDbDto` for the template this
+module's hand-written-POJO pattern (see `ItemDbDto` / `ItemAugmentation` for the template this
 follows — [`026-item-augmentation-sync.md`](026-item-augmentation-sync.md)). Additive.
 
 ## 3. `commands.privatestore` — start/stop command family

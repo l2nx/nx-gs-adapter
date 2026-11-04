@@ -42,7 +42,7 @@ adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged 
 - [done] R2. The adapter MUST define an SPI `OfflineSessionHost`, implemented by the host: `placeInWorld` (put the
   character on a spot of the session type), `removeFromWorld` (take it out and, if the session lasted less than the return
   threshold, return it to its origin), `startAction` / `stopAction` (run or stop the typed action, fishing for
-  `OFFLINE_FISHING`), and [planned] `takeSessionResult` (the session's result at its end, R27). The engine receives host
+  `OFFLINE_FISHING`), and `takeSessionResult` (the session's result at its end, R27). The engine receives host
   callbacks through the capability `NxAppSessions`: the action ended with a reason, and the character entered the game
   from a client. The engine's own parameters (return threshold, restore
   pace, retention) come from the adapter's app settings file (R20), not from the SPI. Shapes in
@@ -76,11 +76,11 @@ adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged 
 - [done] R11. A session survives a restart as open: the engine restores it on the schedule below with the same `id`.
   Restore that cannot happen ends the session with `APP_RESTORE_FAILED`. The platform's server-generation close does not
   touch `APP` sessions, and `SUPERSEDED` for an `APP` session has no generation boundary (a session lives across
-  restarts). [planned] Its running result survives a graceful stop in the row's `result` column and a restore hands it
+  restarts). Its running result survives a graceful stop in the row's `result` column and a restore hands it
   back to the host; a crash loses it and the end carries `partial = true` (R27). [planned] The platform reconciles `APP` sessions left open by mistake against the open-sessions snapshot
   (R25), not by guessing ([nx-gameservers#85](https://github.com/l2nx/nx-gameservers/issues/85)).
 - [done] R12. There are no dedicated session events. The existing `CharacterPresenceEvent` is the session event: the end
-  of a session is `online = false` with the required `logoutReason` (R15) and [planned] the session's `result` (R27); a
+  of a session is `online = false` with the required `logoutReason` (R15) and the session's `result` (R27); a
   session restored after a restart is `online = true` with the same `sessionId` and `resumed = true` (R15).
 - [done] R13. Closed sessions older than the retention MUST be deleted at server start. The retention is the key
   `app.history.retention-days` of the app settings file (R20).
@@ -142,12 +142,12 @@ adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged 
   (`AppSessionStartRequest.normalizeSpotPool`, `requireValidSpotId`), so a check never accepts a spot a start would
   reject. A busy character is reported as `ALREADY_ACTIVE` with `scope = CHARACTER` in `AppSessionCheckResult`, as a
   refused start reports it.
-- [todo] R27. **Session result.** The end of a session whose character was placed in this JVM MUST carry the result the host gives through
+- [done] R27. **Session result.** The end of a session whose character was placed in this JVM MUST carry the result the host gives through
   `OfflineSessionHost.takeSessionResult`. The close writes it into the row's `result` column and every send of the end
   builds it from there, so a republish stays identical (R24). A close of a character not placed in this JVM has
   `result = null`, and so has a thrown call: the end never waits on or fails with the result. Contract in
   [`043-session-results`](043-session-results.md).
-- [todo] R28. **Capacity ends.** An action that stops because the character has no free slot ends with
+- [done] R28. **Capacity ends.** An action that stops because the character has no free slot ends with
   `APP_INVENTORY_FULL`; one that stops because of weight ends with the new `APP_OVERWEIGHT`, which
   `onActionEnded` accepts. `APP_INVENTORY_FULL` no longer covers weight.
 
@@ -232,7 +232,7 @@ OfflineSessionPlacement placeInWorld(OfflineSession session); // placed(spotId[,
 void startAction(OfflineSession session);                      // throw = the action could not start
 void stopAction(OfflineSession session);                       // every end of a started action; must be idempotent
 void removeFromWorld(OfflineSession session, boolean returnToOrigin);
-default @Nullable SessionResult takeSessionResult(OfflineSession session) { return null; } // [planned] R27
+default @Nullable SessionResult takeSessionResult(OfflineSession session) { return null; } // R27
 ```
 
 - The engine calls every method from an adapter IO thread and waits; the host hops to its game thread itself and runs
@@ -251,7 +251,8 @@ default @Nullable SessionResult takeSessionResult(OfflineSession session) { retu
 - `removeFromWorld` covers three cases: the app-loaded character in the world (move to the origin when asked, store, take
   out); a character that is not in the world (restore failed or never happened, login before the restore: only the
   stored location changes, to the origin when asked); a character played with a client is never touched.
-- [planned] `takeSessionResult` runs after `removeFromWorld`, once per close, and not for a close in `PENDING_RESTORE`
+- `takeSessionResult` runs after `removeFromWorld`, once per close of a session placed in this JVM, and once per session
+  left open by a graceful stop
   ([`043`](043-session-results.md#spi)). A throw is logged and the end goes on with `result = null`.
 - The SPI carries no settings: the engine reads its return threshold, restore pace and retention from the live
   `AppRules` (R20) on every use, so an applied file change takes effect without a restart.
@@ -267,7 +268,7 @@ one instance, usable from JVM start; a context built without it gets a no-op. No
 ```java
 CompletableFuture<AppSessionStartOutcome> start(AppSessionStartRequest request);
 CompletableFuture<Optional<OfflineSession>> stop(int characterId, ActivityType activity);
-void onActionEnded(UUID sessionId, LogoutReason reason);   // async; APP_OUT_OF_BAIT, APP_DAILY_LIMIT, APP_INVENTORY_FULL, APP_OVERWEIGHT [planned], APP_SOLD_OUT, APP_INTERRUPTED, BANNED, KICKED
+void onActionEnded(UUID sessionId, LogoutReason reason);   // async; APP_OUT_OF_BAIT, APP_DAILY_LIMIT, APP_INVENTORY_FULL, APP_OVERWEIGHT, APP_SOLD_OUT, APP_INTERRUPTED, BANNED, KICKED
 void hostReady();                                          // the world is loaded; releases the restore, idempotent
 ClientLoginOutcome onClientLogin(int characterId);         // synchronous, bounded wait: CLOSED(session) | NONE | PENDING
 Optional<OfflineSession> findActive(int characterId);      // in-memory, game-thread safe
@@ -318,7 +319,7 @@ restore of many sessions or a mass end never takes the whole pool. The file's `a
 limit.
 
 A close or a rolled-back start whose write the table refuses is kept in a retry queue (with the original `ended_at`,
-`end_reason`, `active_ms` and [planned] `result`) and retried on every flush tick, before each restore batch and once at shutdown, until it
+`end_reason`, `active_ms` and `result`) and retried on every flush tick, before each restore batch and once at shutdown, until it
 succeeds. While it is queued the character counts as busy: `start` answers `CHARACTER_BUSY` (or `EXISTING` for the same
 `idempotencyKey` of an ended session) and `findActive` returns it. A restore never runs for a character with a queued
 end. If the JVM stops before the retry succeeds, the row is still open in the table and the next start restores it; the
@@ -387,7 +388,7 @@ Table `l2nx_offline_sessions`, owned by the adapter and created by the changelog
 | `ended_at`             | `datetime` NULL               | `NULL` means active                                                                                                                                                                                                                                                                                              |
 | `end_reason`           | `varchar(32)` NULL            | end reason: the `LogoutReason` constant name                                                                                                                                                                                                                                                                     |
 | `end_published_at`     | `datetime` NULL               | when Kafka acknowledged the end event (R24); `NULL` on a closed row means the end still has to reach the platform; the flush tick republishes it                                                                                                                                                                 |
-| `result`               | `clob` NULL                   | [planned] the session's result as JSON, written by the close (R27, changeset `0014-offline-sessions-result`); `NULL` when there is none. Read only to publish the end                                                                                                                                            |
+| `result`               | `clob` NULL                   | the session's result as JSON, written by the close (R27, changeset `0014-offline-sessions-result`); `NULL` when there is none. On an open row the running block, from a graceful stop until a restore placed the character. Read only to publish the end and by a restore                                                                                                                                            |
 
 Indexes: `UNIQUE(active_character_id)`, `UNIQUE(active_spot_key)`, `UNIQUE(idempotency_key)`,
 `(account_name, ended_at)`, `(hwid, ended_at)`, `(master_account_id, ended_at)`,
@@ -439,7 +440,7 @@ activity, sessionId, ip = initiator.ip, hwid, accountName`.
    (`planned_ms` null: no time limit).
 3. End: by time (`APP_TIME_UP`), by stop command (`APP_STOPPED`), by `APP_LOGIN`, or by a host callback (action ended). The engine
    calls `stopAction` (when the action ran), `removeFromWorld(returnToOrigin = active_ms < return_threshold_ms)` and
-   [planned] `takeSessionResult`, fills `ended_at`, `end_reason` and `result`, clears `active_character_id` and `active_spot_key`, publishes `online = false, source = APP,
+   `takeSessionResult`, fills `ended_at`, `end_reason` and `result`, clears `active_character_id` and `active_spot_key`, publishes `online = false, source = APP,
 logoutReason`. A failed close in the table is logged and retried until the table takes it (the character stays busy
    meanwhile); the event goes out at once. Only if the JVM stops before a retry succeeds is the row, still open, restored
    at the next start (see Engine). The end event is acknowledged into `end_published_at`; an end that Kafka
@@ -461,7 +462,7 @@ resumed = true` with the same `sessionId`. A placement refused for now goes back
 End reasons (the `LogoutReason` values of app sessions; the set is closed):
 
 - `OFFLINE_FISHING`: `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`,
-  `APP_INVENTORY_FULL`, [planned] `APP_OVERWEIGHT`, `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`.
+  `APP_INVENTORY_FULL`, `APP_OVERWEIGHT`, `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`.
 - `OFFLINE_PRIVATE_STORE` (app store): `APP_SOLD_OUT`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `BANNED`, `KICKED`,
   `APP_RESTORE_FAILED`.
 
@@ -496,15 +497,15 @@ lives on the platform, in its own private legacy mapping (see Rollout).
     game server restarted), REQUIRED on every presence event; the host sets `CLIENT` for a client session, there
     is no "null reads as CLIENT" in this contract;
   - `activity` (`ActivityType`), required with `source = APP`: `OFFLINE_FISHING` or `OFFLINE_PRIVATE_STORE`; with
-    `source = CLIENT` absent, except [planned] `OFFLINE_PRIVATE_STORE` on a native store session
+    `source = CLIENT` absent, except `OFFLINE_PRIVATE_STORE` on a native store session
     ([`013`](013-character-core-extension.md) R17);
   - `sessionId` (with `source = APP` the app session's id);
   - `resumed` (`true` only on the `online = true` event of a session restored after a restart, same `sessionId`);
   - `logoutReason` (`LogoutReason`), REQUIRED on every `online = false` event, a plain logout included:
-    - client: `LOGOUT`, `DISCONNECT` (involuntary connection loss: network drop, client crash, DDoS), `OFFLINE_PRIVATE_STORE`, `SERVER_STOP`, [planned] `SOLD_OUT`;
+    - client: `LOGOUT`, `DISCONNECT` (involuntary connection loss: network drop, client crash, DDoS), `OFFLINE_PRIVATE_STORE`, `SERVER_STOP`, `SOLD_OUT`;
     - common to client and app sessions: `BANNED`, `KICKED` (a client session reports a kick or a ban with them, not as `DISCONNECT`);
     - app-only: `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`,
-      `APP_INVENTORY_FULL`, [planned] `APP_OVERWEIGHT`, `APP_SOLD_OUT`, `APP_INTERRUPTED`, `APP_RESTORE_FAILED`.
+      `APP_INVENTORY_FULL`, `APP_OVERWEIGHT`, `APP_SOLD_OUT`, `APP_INTERRUPTED`, `APP_RESTORE_FAILED`.
 
   `metadata.logout_reason` and its lower_snake tokens are gone. For an `APP` event `ip` is the `initiator.ip` of the
   start command (the app request IP) and `hwid` is the session's hwid snapshot (`null` when empty, never `""`);

@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.core.appsessions;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
@@ -15,6 +16,7 @@ import app.l2nx.gs.adapter.api.spi.model.session.OfflineSessionPlacement;
 import app.l2nx.gs.adapter.api.spi.provider.OfflineSessionHost;
 import app.l2nx.gs.adapter.core.appsessions.OfflineSessionStore.EndCursor;
 import app.l2nx.gs.adapter.core.appsessions.OfflineSessionStore.UnpublishedEnds;
+import app.l2nx.gs.adapter.core.events.SessionResultJson;
 import app.l2nx.gs.adapter.core.events.UndeliverableEventException;
 import app.l2nx.gs.commons.UUIDv7;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
@@ -74,6 +76,7 @@ final class AppSessionEngine {
             LogoutReason.APP_OUT_OF_BAIT,
             LogoutReason.APP_DAILY_LIMIT,
             LogoutReason.APP_INVENTORY_FULL,
+            LogoutReason.APP_OVERWEIGHT,
             LogoutReason.APP_SOLD_OUT,
             LogoutReason.APP_INTERRUPTED,
             LogoutReason.BANNED,
@@ -116,6 +119,8 @@ final class AppSessionEngine {
     private final AtomicBoolean republishing = new AtomicBoolean();
     /** Closed rows whose end event cannot be built; logged once and skipped from then on. */
     private final Set<UUID> unbuildableEnds = ConcurrentHashMap.newKeySet();
+    /** Closed rows whose stored result this version cannot read; logged once, their ends go out without it. */
+    private final Set<UUID> unreadableResults = ConcurrentHashMap.newKeySet();
 
     private final ConcurrentLinkedQueue<Slot> restoreQueue = new ConcurrentLinkedQueue<Slot>();
     private final AtomicBoolean scheduled = new AtomicBoolean();
@@ -236,33 +241,67 @@ final class AppSessionEngine {
         }
         scheduler.shutdownNow();
         Map<UUID, Long> snapshot = activeSnapshot();
+        List<CompletableFuture<Void>> writes = new ArrayList<CompletableFuture<Void>>();
+        if (!snapshot.isEmpty() || !pendingWrites.isEmpty() || !acknowledgedEnds.isEmpty()) {
+            CompletableFuture<Void> flushed = new CompletableFuture<Void>();
+            writes.add(flushed);
+            work.execute(() -> {
+                try {
+                    markAcknowledgedEnds();
+                    if (!snapshot.isEmpty()) {
+                        store.flushActiveMs(snapshot);
+                        log.info(
+                                "App sessions: active_ms of {} running session(s) stored at shutdown", snapshot.size());
+                    }
+                    flushed.complete(null);
+                } catch (Throwable t) {
+                    flushed.completeExceptionally(t);
+                } finally {
+                    retryPendingWrites();
+                }
+            });
+        }
         for (Slot slot : byId.values()) {
             slot.cancelEndTimer();
-        }
-        if (snapshot.isEmpty() && pendingWrites.isEmpty() && acknowledgedEnds.isEmpty()) {
-            return;
-        }
-        CompletableFuture<Void> flushed = new CompletableFuture<Void>();
-        work.execute(() -> {
-            try {
-                markAcknowledgedEnds();
-                if (!snapshot.isEmpty()) {
-                    store.flushActiveMs(snapshot);
-                    log.info("App sessions: active_ms of {} running session(s) stored at shutdown", snapshot.size());
+            CompletableFuture<Void> kept = new CompletableFuture<Void>();
+            writes.add(kept);
+            slot.ops.execute(() -> {
+                try {
+                    keepRunningResult(slot);
+                } finally {
+                    kept.complete(null);
                 }
-                flushed.complete(null);
-            } catch (Throwable t) {
-                flushed.completeExceptionally(t);
-            } finally {
-                retryPendingWrites();
-            }
-        });
+            });
+        }
         try {
-            flushed.get(SHUTDOWN_FLUSH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            CompletableFuture.allOf(writes.toArray(new CompletableFuture<?>[0]))
+                    .get(SHUTDOWN_FLUSH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException | TimeoutException e) {
-            log.error("App sessions: storing active_ms at shutdown failed: {}", String.valueOf(e.getMessage()), e);
+            log.error(
+                    "App sessions: storing running sessions at shutdown failed: {}", String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Queued on every open session, not only the running ones: a restore in flight settles first and may leave one
+     * running. A block that misses the column reads as a crash at the next restore, so the end says {@code partial}.
+     */
+    private void keepRunningResult(Slot slot) {
+        if (slot.phase != Phase.RUNNING) {
+            return;
+        }
+        String resultJson = takeResultJson(slot, slot.view(clock.monotonicMs()));
+        slot.resultKept = true;
+        slot.keptResultJson = resultJson;
+        if (resultJson == null) {
+            return;
+        }
+        try {
+            store.writeOpenResult(slot.id, resultJson);
+        } catch (RuntimeException e) {
+            log.error("App sessions: storing the running result of {} failed: {}", slot.id, e.getMessage(), e);
         }
     }
 
@@ -663,6 +702,7 @@ final class AppSessionEngine {
                     ? AppSessionStartOutcome.unavailable("placeInWorld threw")
                     : AppSessionStartOutcome.placementRefused(placement.getRefusal(), placement.getDetail());
         }
+        slot.placed = true;
         // re-read: an inline updateTypeState from inside placeInWorld changed it
         row = slot.row;
         Instant startedAt = nowSeconds();
@@ -773,7 +813,15 @@ final class AppSessionEngine {
             close(slot, LogoutReason.APP_TIME_UP);
             return;
         }
-        OfflineSessionPlacement placement = placeQuietly(row);
+        if (!slot.carriedRead && !readCarriedResult(slot)) {
+            if (++slot.restoreAttempts < RESTORE_ATTEMPTS) {
+                restoreLater(slot);
+            } else {
+                close(slot, LogoutReason.APP_RESTORE_FAILED);
+            }
+            return;
+        }
+        OfflineSessionPlacement placement = placeQuietly(carrying(row, slot));
         if (placement != null
                 && !placement.isPlaced()
                 && placement.isTransientRefusal()
@@ -784,8 +832,7 @@ final class AppSessionEngine {
                     placement,
                     slot.restoreAttempts,
                     RESTORE_ATTEMPTS);
-            restoreQueue.add(slot);
-            scheduleRestoreBatch(rules.current().restoreBatchPauseMillis());
+            restoreLater(slot);
             return;
         }
         if (placement == null || !placement.isPlaced()) {
@@ -796,6 +843,7 @@ final class AppSessionEngine {
             close(slot, LogoutReason.APP_RESTORE_FAILED);
             return;
         }
+        slot.placed = true;
         row = slot.row;
         String typeState = placement.getTypeState();
         boolean typeStateChanged = typeState != null && !typeState.equals(row.getTypeState());
@@ -827,8 +875,12 @@ final class AppSessionEngine {
             }
             row = moved;
         }
+        if (!clearCarriedColumn(slot)) {
+            close(slot, LogoutReason.APP_RESTORE_FAILED);
+            return;
+        }
         try {
-            host.startAction(row);
+            host.startAction(carrying(row, slot));
         } catch (Throwable t) {
             log.error(
                     "App sessions: startAction on restore of {} threw {}",
@@ -838,10 +890,64 @@ final class AppSessionEngine {
             close(slot, LogoutReason.APP_RESTORE_FAILED);
             return;
         }
+        slot.carried = null;
         run(slot);
         OfflineSession view = slot.view(clock.monotonicMs());
         presence.online(view, true);
         log.info("App sessions: restored {}", view);
+    }
+
+    private void restoreLater(Slot slot) {
+        restoreQueue.add(slot);
+        scheduleRestoreBatch(rules.current().restoreBatchPauseMillis());
+    }
+
+    /**
+     * Read once per restore; the block stays in the column until the character is placed, so a stop between two
+     * attempts loses nothing. {@code false} when the table did not answer: that is not an empty column, which would
+     * read as a crash.
+     */
+    private boolean readCarriedResult(Slot slot) {
+        String json;
+        try {
+            json = store.readResult(slot.id);
+        } catch (RuntimeException e) {
+            log.warn("App sessions: reading the carried result of {} failed: {}", slot.id, e.getMessage());
+            return false;
+        }
+        slot.carriedRead = true;
+        slot.carriedInColumn = json != null;
+        if (json != null) {
+            try {
+                slot.carried = SessionResultJson.parse(json);
+            } catch (RuntimeException e) {
+                log.error("App sessions: the carried result of {} cannot be read: {}", slot.id, e.getMessage(), e);
+            }
+        }
+        SessionResult carried = slot.carried;
+        slot.partial = carried == null || carried.isPartial();
+        return true;
+    }
+
+    /** A block left in an open row would make a crash after this restore look like a graceful stop. */
+    private boolean clearCarriedColumn(Slot slot) {
+        if (!slot.carriedInColumn) {
+            return true;
+        }
+        try {
+            store.writeOpenResult(slot.id, null);
+            slot.carriedInColumn = false;
+            return true;
+        } catch (RuntimeException e) {
+            log.error("App sessions: clearing the carried result of {} failed: {}", slot.id, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private static OfflineSession carrying(OfflineSession row, Slot slot) {
+        return slot.carried == null
+                ? row
+                : row.toBuilder().carriedResult(slot.carried).build();
     }
 
     /** Runs on the session's executor; empty when the session was not open. */
@@ -865,13 +971,14 @@ final class AppSessionEngine {
             }
         }
         removeQuietly(row, activeMs < returnThresholdMs(row));
+        String resultJson = slot.resultKept ? slot.keptResultJson : takeResultJson(slot, row);
         Instant endedAt = nowSeconds();
         OfflineSession closed =
                 row.toBuilder().endedAt(endedAt).endReason(reason).build();
         // before the row commits as closed, so a flush tick reading it finds the end claimed and does not send it too
         boolean claimed = endsInFlight.add(closed.getId());
         try {
-            store.close(row.getId(), activeMs, endedAt, reason);
+            store.close(row.getId(), activeMs, endedAt, reason, resultJson);
         } catch (RuntimeException e) {
             log.error(
                     "App sessions: closing session {} with {} failed in the database, retried until the table takes"
@@ -881,17 +988,43 @@ final class AppSessionEngine {
                     e.getMessage(),
                     e);
             // before forget() frees the character, so a start in between sees it busy
-            pendingWrites.put(row.getCharacterId(), PendingWrite.close(closed));
+            pendingWrites.put(row.getCharacterId(), PendingWrite.close(closed, resultJson));
         }
         slot.row = closed;
         forget(slot);
         if (claimed) {
-            sendEnd(closed);
+            sendEnd(closed, resultJson);
         } else {
             log.warn("App sessions: the end of session {} is already being sent, not sent again", closed.getId());
         }
         log.info("App sessions: ended {}", closed);
         return Optional.of(closed);
+    }
+
+    /**
+     * The text the row and every send of the end share. {@code null} for a character not placed in this JVM: the phase
+     * cannot tell, a restore that failed after its placement closes from the same path as one that never placed.
+     */
+    private @Nullable String takeResultJson(Slot slot, OfflineSession row) {
+        if (!slot.placed) {
+            return null;
+        }
+        SessionResult result;
+        try {
+            result = host.takeSessionResult(row);
+        } catch (Throwable t) {
+            log.error(
+                    "App sessions: takeSessionResult of {} threw {}",
+                    row.getId(),
+                    t.getClass().getName(),
+                    t);
+            return null;
+        }
+        if (result == null) {
+            return null;
+        }
+        return SessionResultJson.toJson(
+                slot.partial ? result.toBuilder().partial(true).build() : result, row.getId());
     }
 
     private void run(Slot slot) {
@@ -971,7 +1104,7 @@ final class AppSessionEngine {
                         break;
                     }
                     UUID id = closed.getId();
-                    if (!unbuildableEnds.contains(id) && endsInFlight.add(id) && sendEnd(closed)) {
+                    if (!unbuildableEnds.contains(id) && endsInFlight.add(id) && resendEnd(closed)) {
                         sent++;
                     }
                 }
@@ -989,13 +1122,51 @@ final class AppSessionEngine {
     }
 
     /**
+     * Reads the column here, not with the page, so a page of ends holds one block at a time. An end sent without the
+     * table's answer would differ from its first send, so a failed read waits for the next tick.
+     */
+    private boolean resendEnd(OfflineSession closed) {
+        String resultJson;
+        try {
+            resultJson = store.readResult(closed.getId());
+        } catch (RuntimeException e) {
+            endsInFlight.remove(closed.getId());
+            log.warn(
+                    "App sessions: reading the result of session {} failed, its end is sent next minute: {}",
+                    closed.getId(),
+                    e.getMessage());
+            return false;
+        }
+        return sendEnd(closed, resultJson);
+    }
+
+    /** A stored text a later version cannot parse gives {@code null} on every send alike. */
+    private @Nullable SessionResult storedResult(UUID sessionId, @Nullable String resultJson) {
+        if (resultJson == null) {
+            return null;
+        }
+        try {
+            return SessionResultJson.parse(resultJson);
+        } catch (RuntimeException e) {
+            if (unreadableResults.add(sessionId)) {
+                log.error(
+                        "App sessions: the stored result of session {} cannot be read, its end goes out without it: {}",
+                        sessionId,
+                        e.getMessage(),
+                        e);
+            }
+            return null;
+        }
+    }
+
+    /**
      * Sends an end its caller claimed; {@code false} releases the claim.
      */
-    private boolean sendEnd(OfflineSession closed) {
+    private boolean sendEnd(OfflineSession closed, @Nullable String resultJson) {
         UUID id = closed.getId();
         CharacterPresenceEvent end;
         try {
-            end = PresencePublisher.endEvent(closed);
+            end = PresencePublisher.endEvent(closed, storedResult(id, resultJson));
         } catch (RuntimeException e) {
             endsInFlight.remove(id);
             if (unbuildableEnds.add(id)) {
@@ -1109,7 +1280,11 @@ final class AppSessionEngine {
                         settledStarts.incrementAndGet();
                     } else {
                         store.close(
-                                session.getId(), session.getActiveMs(), session.getEndedAt(), session.getEndReason());
+                                session.getId(),
+                                session.getActiveMs(),
+                                session.getEndedAt(),
+                                session.getEndReason(),
+                                pending.resultJson);
                     }
                     pendingWrites.remove(entry.getKey(), pending);
                     log.info("App sessions: {} of session {} reached the table on retry", what, session.getId());
@@ -1207,22 +1382,25 @@ final class AppSessionEngine {
     static final class PendingWrite {
         final OfflineSession session;
         final boolean delete;
+        /** The text the end already carried, so the retry stores what went out. */
+        final @Nullable String resultJson;
 
-        private PendingWrite(OfflineSession session, boolean delete) {
+        private PendingWrite(OfflineSession session, boolean delete, @Nullable String resultJson) {
             this.session = session;
             this.delete = delete;
+            this.resultJson = resultJson;
         }
 
-        static PendingWrite close(OfflineSession closed) {
-            return new PendingWrite(closed, false);
+        static PendingWrite close(OfflineSession closed, @Nullable String resultJson) {
+            return new PendingWrite(closed, false, resultJson);
         }
 
         static PendingWrite delete(OfflineSession row) {
-            return new PendingWrite(row, true);
+            return new PendingWrite(row, true, null);
         }
     }
 
-    /** {@link #row}, {@link #phase} and {@link #restoreAttempts} change only on {@link #ops}. */
+    /** {@link #row}, {@link #phase}, {@link #restoreAttempts} and the result state change only on {@link #ops}. */
     static final class Slot {
         final UUID id;
         final SerialExecutor ops;
@@ -1232,6 +1410,23 @@ final class AppSessionEngine {
         volatile boolean stored;
 
         int restoreAttempts;
+
+        /** {@code placeInWorld} put the character in the world of this JVM, so an end has a result to ask for. */
+        boolean placed;
+        /** The block of this session lost something to a crash; a later restore finds that in the block it carries. */
+        boolean partial;
+
+        boolean carriedRead;
+        boolean carriedInColumn;
+        /** Held only until the action started: from there the host's recorder owns it. */
+        @Nullable
+        SessionResult carried;
+
+        /** A graceful stop took the block already; an end racing it uses this text, the host has nothing left. */
+        boolean resultKept;
+
+        @Nullable
+        String keptResultJson;
 
         private long activeBaseMs;
         private long countingSinceMs = -1L;

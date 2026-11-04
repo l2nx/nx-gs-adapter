@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.core.appsessions;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import app.l2nx.gs.adapter.core.events.EventsPublisher.AcknowledgedEvents;
@@ -38,7 +39,7 @@ final class PresencePublisher {
     }
 
     void online(OfflineSession session, boolean resumed) {
-        publish(event(session, true, resumed, null, UUIDv7.generate()), null);
+        publish(event(session, true, resumed, null, UUIDv7.generate(), null), null);
     }
 
     /**
@@ -46,8 +47,8 @@ final class PresencePublisher {
      *
      * @throws RuntimeException when the row cannot make a valid event
      */
-    static CharacterPresenceEvent endEvent(OfflineSession closed) {
-        return event(closed, false, false, closed.getEndReason(), endEventId(closed));
+    static CharacterPresenceEvent endEvent(OfflineSession closed, @Nullable SessionResult result) {
+        return event(closed, false, false, closed.getEndReason(), endEventId(closed), result);
     }
 
     /**
@@ -94,10 +95,15 @@ final class PresencePublisher {
     }
 
     private static CharacterPresenceEvent event(
-            OfflineSession session, boolean online, boolean resumed, @Nullable LogoutReason reason, UUID eventId) {
+            OfflineSession session,
+            boolean online,
+            boolean resumed,
+            @Nullable LogoutReason reason,
+            UUID eventId,
+            @Nullable SessionResult result) {
         return CharacterPresenceEvent.builder()
                 .eventId(eventId)
-                .charId(session.getCharacterId())
+                .characterId(session.getCharacterId())
                 .online(online)
                 .source(SessionSource.APP)
                 .activity(session.getActivity())
@@ -107,6 +113,7 @@ final class PresencePublisher {
                 .accountName(session.getAccountName())
                 .ip(session.getInitiatorIp())
                 .hwid(session.getHwid())
+                .result(result)
                 .build();
     }
 

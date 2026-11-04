@@ -1,9 +1,11 @@
 package app.l2nx.gs.adapter.api.spi.provider;
 
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.model.session.OfflineSessionPlacement;
 import java.util.ServiceLoader;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The game side of app sessions, discovered via {@link ServiceLoader}. Exactly one implementation may be registered:
@@ -28,6 +30,10 @@ public interface OfflineSessionHost {
      * closes the session with {@code APP_RESTORE_FAILED}, or tries again later on
      * {@link OfflineSessionPlacement#refusedForNow}. A type state the placement changed goes back in the answer, not
      * through {@link NxAppSessions#updateTypeState}.</p>
+     *
+     * <p>On a restore {@link OfflineSession#getCarriedResult()} holds the running block of the session as the graceful
+     * stop left it, for the host to seed its recorder with, so the end carries the whole session. The same view reaches
+     * {@link #startAction}. {@code null} means no block survived, and what ran before the restart is lost.</p>
      */
     OfflineSessionPlacement placeInWorld(OfflineSession session);
 
@@ -64,4 +70,20 @@ public interface OfflineSessionHost {
      * <p>A throw is logged and the end continues: the row closes and the end event is published.</p>
      */
     void removeFromWorld(OfflineSession session, boolean returnToOrigin);
+
+    /**
+     * The result of a session, or {@code null} when there is none. Called after {@link #removeFromWorld} of a closing
+     * session placed in this JVM, and on a graceful stop for a session left open. The answer is the host's to give up:
+     * the engine owns it from here.
+     *
+     * <p>The character is out of the world by then, so the host takes the recorder of the session when it settles the
+     * character and keeps it by session id for this call: no world state is needed here, and the method neither hops
+     * to the game thread nor waits. Not called when {@link #placeInWorld} did not place the character in this JVM.</p>
+     *
+     * <p>A throw is logged and the end goes on with {@code result = null}. A block over
+     * {@link SessionResult#MAX_JSON_BYTES} is dropped the same way, so the host folds past it first.</p>
+     */
+    default @Nullable SessionResult takeSessionResult(OfflineSession session) {
+        return null;
+    }
 }

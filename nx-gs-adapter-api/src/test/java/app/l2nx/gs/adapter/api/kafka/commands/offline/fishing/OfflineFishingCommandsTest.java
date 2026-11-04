@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandProblem;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
+import app.l2nx.gs.adapter.api.kafka.commands.mail.model.WellKnownAcceptMailReasons;
 import app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionRefusal;
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AlreadyActiveScope;
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AppSessionRefusalReason;
@@ -312,7 +313,11 @@ class OfflineFishingCommandsTest {
                     "INVALID_DURATION",
                     "FEATURE_DISABLED",
                     "NO_FREE_SPOT",
-                    "ALREADY_ACTIVE"));
+                    "ALREADY_ACTIVE",
+                    "NO_FISHING_EXPERTISE",
+                    "BAIT_LEVEL_MISMATCH",
+                    "INVENTORY_FULL",
+                    "OVERWEIGHT"));
             Set<String> actual = new HashSet<String>();
             for (AppSessionRefusalReason reason : AppSessionRefusalReason.values()) {
                 actual.add(reason.name());
@@ -326,6 +331,10 @@ class OfflineFishingCommandsTest {
             assertEquals("reason", AppSessionRefusal.REASON);
             assertEquals("retryAt", AppSessionRefusal.RETRY_AT);
             assertEquals("scope", AppSessionRefusal.SCOPE);
+            assertEquals(WellKnownAcceptMailReasons.EXT_REQUIRED_SLOTS, AppSessionRefusal.REQUIRED_SLOTS);
+            assertEquals(WellKnownAcceptMailReasons.EXT_FREE_SLOTS, AppSessionRefusal.FREE_SLOTS);
+            assertEquals(WellKnownAcceptMailReasons.EXT_REQUIRED_WEIGHT, AppSessionRefusal.REQUIRED_WEIGHT);
+            assertEquals(WellKnownAcceptMailReasons.EXT_FREE_WEIGHT, AppSessionRefusal.FREE_WEIGHT);
         }
 
         @Test

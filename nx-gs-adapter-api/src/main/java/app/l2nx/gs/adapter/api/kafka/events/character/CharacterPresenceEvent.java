@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.events.character;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import java.util.*;
 import org.jspecify.annotations.Nullable;
 
@@ -10,16 +11,21 @@ import org.jspecify.annotations.Nullable;
  * One event per session start ({@code online=true}) or end, emitted from the standard packet path of a client session
  * or by the app-session engine. Cheat/custom clients bypassing it are covered by the CDC and runtime channels, the
  * other two sources reconciled into {@code gs_characters.online} with timestamp-based last-writer-wins; {@code eventId}
- * is a UUIDv7 so {@code occurredAt} is extracted from its prefix. {@code charId} is also the partition key.
+ * is a UUIDv7 so {@code occurredAt} is extracted from its prefix. {@code characterId} is also the partition key.
  *
  * <p>{@code source} is required. With {@link SessionSource#APP}, {@code activity} is required, {@code sessionId} is
- * the app session id, {@code ip} is that of the app request and {@code hwid} is the character's snapshot; with
- * {@link SessionSource#CLIENT} {@code activity} must be absent.</p>
+ * the app session id, {@code ip} is that of the app request and {@code hwid} is the character's snapshot. With
+ * {@link SessionSource#CLIENT} {@code activity} is absent on a session played in the client and
+ * {@code OFFLINE_PRIVATE_STORE} on a native offline store session: source says who started a session, activity what
+ * it does.</p>
  *
  * <p>{@code resumed} is {@code true} only on an {@code online=true} APP event that restores a session after a host
  * restart.</p>
  *
  * <p>{@code logoutReason} is required on every {@code online=false} event and forbidden on {@code online=true}.</p>
+ *
+ * <p>{@code result} is allowed only on {@code online=false}, on client and app sessions alike: what the session
+ * changed, {@code null} when the host has none or the character was not placed in this JVM.</p>
  *
  * <p>{@code sessionId}: a start and its matching end carry the SAME id, fresh per session; {@code null} on builds that
  * do not emit it, in which case the platform leaves the session's end time unset. {@code hwid} only on cores with HWID
@@ -30,7 +36,7 @@ import org.jspecify.annotations.Nullable;
 public final class CharacterPresenceEvent {
 
     private final UUID eventId;
-    private final long charId;
+    private final long characterId;
     private final boolean online;
     private final SessionSource source;
     private final @Nullable ActivityType activity;
@@ -41,10 +47,11 @@ public final class CharacterPresenceEvent {
     private final @Nullable String ip;
     private final @Nullable String hwid;
     private final @Nullable Map<String, String> metadata;
+    private final @Nullable SessionResult result;
 
     public CharacterPresenceEvent(
             UUID eventId,
-            long charId,
+            long characterId,
             boolean online,
             SessionSource source,
             @Nullable ActivityType activity,
@@ -54,14 +61,12 @@ public final class CharacterPresenceEvent {
             @Nullable String accountName,
             @Nullable String ip,
             @Nullable String hwid,
-            @Nullable Map<String, String> metadata) {
+            @Nullable Map<String, String> metadata,
+            @Nullable SessionResult result) {
         this.eventId = Objects.requireNonNull(eventId, "CharacterPresenceEvent.eventId is required");
         this.source = Objects.requireNonNull(source, "CharacterPresenceEvent.source is required");
         if (source == SessionSource.APP && activity == null) {
             throw new IllegalArgumentException("CharacterPresenceEvent.activity is required when source is APP");
-        }
-        if (source == SessionSource.CLIENT && activity != null) {
-            throw new IllegalArgumentException("CharacterPresenceEvent.activity is only allowed when source is APP");
         }
         if (resumed && !(online && source == SessionSource.APP)) {
             throw new IllegalArgumentException(
@@ -74,7 +79,10 @@ public final class CharacterPresenceEvent {
             throw new IllegalArgumentException(
                     "CharacterPresenceEvent.logoutReason is only allowed when online is false");
         }
-        this.charId = charId;
+        if (online && result != null) {
+            throw new IllegalArgumentException("CharacterPresenceEvent.result is only allowed when online is false");
+        }
+        this.characterId = characterId;
         this.online = online;
         this.activity = activity;
         this.resumed = resumed;
@@ -85,14 +93,15 @@ public final class CharacterPresenceEvent {
         this.hwid = hwid;
         this.metadata =
                 metadata == null ? null : Collections.unmodifiableMap(new LinkedHashMap<String, String>(metadata));
+        this.result = result;
     }
 
     public UUID getEventId() {
         return eventId;
     }
 
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
     public boolean isOnline() {
@@ -135,10 +144,14 @@ public final class CharacterPresenceEvent {
         return metadata;
     }
 
+    public @Nullable SessionResult getResult() {
+        return result;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .eventId(eventId)
-                .charId(charId)
+                .characterId(characterId)
                 .online(online)
                 .source(source)
                 .activity(activity)
@@ -148,7 +161,8 @@ public final class CharacterPresenceEvent {
                 .accountName(accountName)
                 .ip(ip)
                 .hwid(hwid)
-                .metadata(metadata);
+                .metadata(metadata)
+                .result(result);
     }
 
     public static Builder builder() {
@@ -160,7 +174,7 @@ public final class CharacterPresenceEvent {
         if (this == o) return true;
         if (!(o instanceof CharacterPresenceEvent)) return false;
         CharacterPresenceEvent that = (CharacterPresenceEvent) o;
-        return charId == that.charId
+        return characterId == that.characterId
                 && online == that.online
                 && resumed == that.resumed
                 && eventId.equals(that.eventId)
@@ -171,14 +185,15 @@ public final class CharacterPresenceEvent {
                 && Objects.equals(accountName, that.accountName)
                 && Objects.equals(ip, that.ip)
                 && Objects.equals(hwid, that.hwid)
-                && Objects.equals(metadata, that.metadata);
+                && Objects.equals(metadata, that.metadata)
+                && Objects.equals(result, that.result);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
                 eventId,
-                charId,
+                characterId,
                 online,
                 source,
                 activity,
@@ -188,13 +203,14 @@ public final class CharacterPresenceEvent {
                 accountName,
                 ip,
                 hwid,
-                metadata);
+                metadata,
+                result);
     }
 
     @Override
     public String toString() {
         return "CharacterPresenceEvent[eventId=" + eventId
-                + ", charId=" + charId
+                + ", characterId=" + characterId
                 + ", online=" + online
                 + ", source=" + source
                 + ", activity=" + activity
@@ -204,12 +220,13 @@ public final class CharacterPresenceEvent {
                 + ", accountName=" + accountName
                 + ", ip=" + ip
                 + ", hwid=" + hwid
-                + ", metadata=" + metadata + "]";
+                + ", metadata=" + metadata
+                + ", result=" + result + "]";
     }
 
     public static final class Builder {
         private @Nullable UUID eventId;
-        private long charId;
+        private long characterId;
         private boolean online;
         private @Nullable SessionSource source;
         private @Nullable ActivityType activity;
@@ -220,14 +237,15 @@ public final class CharacterPresenceEvent {
         private @Nullable String ip;
         private @Nullable String hwid;
         private @Nullable Map<String, String> metadata;
+        private @Nullable SessionResult result;
 
         public Builder eventId(UUID eventId) {
             this.eventId = eventId;
             return this;
         }
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -281,10 +299,15 @@ public final class CharacterPresenceEvent {
             return this;
         }
 
+        public Builder result(@Nullable SessionResult result) {
+            this.result = result;
+            return this;
+        }
+
         public CharacterPresenceEvent build() {
             return new CharacterPresenceEvent(
                     eventId,
-                    charId,
+                    characterId,
                     online,
                     source,
                     activity,
@@ -294,7 +317,8 @@ public final class CharacterPresenceEvent {
                     accountName,
                     ip,
                     hwid,
-                    metadata);
+                    metadata,
+                    result);
         }
     }
 }

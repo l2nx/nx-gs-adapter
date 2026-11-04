@@ -454,7 +454,7 @@ replies-published == 0}` is visible as a failure rather than as silence
   its check command is incomplete.
   - The check takes the start's payload minus the dedup fields (no `idempotencyKey`), with every player choice
     optional: a choice that is absent is not checked, so the platform can check before the player has chosen.
-  - Its result is the shared `AppSessionCheckResult {allowed, reason, scope, retryAt, effectiveDurationMs}`, [planned] plus
+  - Its result is the shared `AppSessionCheckResult {allowed, reason, scope, retryAt, effectiveDurationMs}`, plus
     `requiredSlots`, `freeSlots`, `requiredWeight`, `freeWeight` (`scope` only with `ALREADY_ACTIVE`, the numbers only
     with `INVENTORY_FULL` and `OVERWEIGHT`): `reason` is
     the first refusal in the order the start would hit it, `retryAt` is set where the start would set it, and

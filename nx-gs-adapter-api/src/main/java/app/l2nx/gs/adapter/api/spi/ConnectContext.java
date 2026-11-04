@@ -6,6 +6,7 @@ import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.capability.NxCommands;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxGameData;
+import app.l2nx.gs.adapter.api.spi.capability.NxRuntimeSync;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
 import app.l2nx.gs.adapter.api.spi.capability.NxSyncTrigger;
 import java.util.Objects;
@@ -33,6 +34,7 @@ public final class ConnectContext {
     private final NxGameData gameData;
     private final NxAppSessions appSessions;
     private final NxAppRules appRules;
+    private final NxRuntimeSync runtimeSync;
 
     public ConnectContext(
             UUID tenantId,
@@ -48,7 +50,8 @@ public final class ConnectContext {
             @Nullable NxSync sync,
             @Nullable NxGameData gameData,
             @Nullable NxAppSessions appSessions,
-            @Nullable NxAppRules appRules) {
+            @Nullable NxAppRules appRules,
+            @Nullable NxRuntimeSync runtimeSync) {
         this.tenantId = tenantId;
         this.tenantSlug = tenantSlug;
         this.serverId = serverId;
@@ -63,6 +66,7 @@ public final class ConnectContext {
         this.gameData = gameData == null ? NoOpGameData.INSTANCE : gameData;
         this.appSessions = appSessions == null ? NoOpAppSessions.INSTANCE : appSessions;
         this.appRules = appRules == null ? NoOpAppRules.INSTANCE : appRules;
+        this.runtimeSync = runtimeSync == null ? NoOpRuntimeSync.INSTANCE : runtimeSync;
     }
 
     public UUID getTenantId() {
@@ -127,6 +131,10 @@ public final class ConnectContext {
         return appRules;
     }
 
+    public NxRuntimeSync runtimeSync() {
+        return runtimeSync;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .tenantId(tenantId)
@@ -142,7 +150,8 @@ public final class ConnectContext {
                 .sync(sync)
                 .gameData(gameData)
                 .appSessions(appSessions)
-                .appRules(appRules);
+                .appRules(appRules)
+                .runtimeSync(runtimeSync);
     }
 
     public static Builder builder() {
@@ -194,6 +203,7 @@ public final class ConnectContext {
         private @Nullable NxGameData gameData;
         private @Nullable NxAppSessions appSessions;
         private @Nullable NxAppRules appRules;
+        private @Nullable NxRuntimeSync runtimeSync;
 
         public Builder tenantId(UUID tenantId) {
             this.tenantId = tenantId;
@@ -265,6 +275,11 @@ public final class ConnectContext {
             return this;
         }
 
+        public Builder runtimeSync(@Nullable NxRuntimeSync runtimeSync) {
+            this.runtimeSync = runtimeSync;
+            return this;
+        }
+
         public ConnectContext build() {
             return new ConnectContext(
                     tenantId,
@@ -280,7 +295,8 @@ public final class ConnectContext {
                     sync,
                     gameData,
                     appSessions,
-                    appRules);
+                    appRules,
+                    runtimeSync);
         }
     }
 }

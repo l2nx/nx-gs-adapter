@@ -190,15 +190,21 @@ Same rail as other commands: key `longBytesBe(receiverCharId)` is the producer's
 `Nx-Message-Type = AcceptMailCommand`, `Nx-Correlation-Id` (stable per logical accept),
 `Nx-Target-Server-Id`. Reply type header is derived per rail R26: `AcceptMailResult`.
 
-Example reply value (success; the `items` element is a `MailItemMovement`, its keys here are
-illustrative):
+Example reply value (success; the `items` element is a `MailItemMovement`, which carries the moved item as an
+`ItemSnapshot` in `item`, [`042`](../042-item-snapshot.md)):
 
 ```json
 {
   "status": "OK",
   "payload": {
     "mailId": 10243,
-    "items": [{ "itemId": 268451233, "itemTemplateId": 57, "count": 5000 }],
+    "items": [
+      {
+        "item": { "itemId": 268451233, "itemTemplateId": 57, "count": 5000 },
+        "newItemId": 268451290,
+        "count": 5000
+      }
+    ],
     "codPaidAdena": 1000,
     "receiveFeeAdena": 500
   }

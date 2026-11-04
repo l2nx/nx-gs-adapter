@@ -1,7 +1,7 @@
 # Session results
 
 > Owner: @n1rmata
-> Status: designed 2026-11-04, not implemented.
+> Status: adapter side implemented 2026-11-04, not yet released.
 > Counterparts: `nx-gameservers/docs/specs/043-sessions/results.md` (storage and reads); the host counterpart holds the
 > recorder and its write points.
 
@@ -24,31 +24,31 @@ from that data on the platform.
 
 **Must:**
 
-- [todo] R1. `CharacterPresenceEvent` MUST gain a nullable `result` (`SessionResult`), allowed only with
+- [done] R1. `CharacterPresenceEvent` MUST gain a nullable `result` (`SessionResult`), allowed only with
   `online = false`, on `CLIENT` and `APP` sessions alike.
-- [todo] R2. `CharacterPresenceEvent.charId` MUST become `characterId` in the same release, partition key included.
-- [todo] R3. The block MUST carry the sections `items`, `uniques`, `experience`, `kills`, `deaths`, `untracked` and the
+- [done] R2. `CharacterPresenceEvent.charId` MUST become `characterId` in the same release, partition key included.
+- [done] R3. The block MUST carry the sections `items`, `uniques`, `experience`, `kills`, `deaths`, `untracked` and the
   fields `partial`, `overflow` ([Shapes](#shapes)).
-- [todo] R4. The api MUST ship the closed enums `domain.item.ItemSource` and `domain.character.ExperienceSource`.
-- [todo] R5. A host change that no source maps to MUST reach `untracked` with the raw token in `process`.
-- [todo] R6. Serialized, `result` MUST fit `SessionResult.MAX_JSON_BYTES` (800,000 UTF-8 bytes). Past it a host folds
+- [done] R4. The api MUST ship the closed enums `domain.item.ItemSource` and `domain.character.ExperienceSource`.
+- [done] R5. A host change that no source maps to MUST reach `untracked` with the raw token in `process`.
+- [done] R6. Serialized, `result` MUST fit `SessionResult.MAX_JSON_BYTES` (800,000 UTF-8 bytes). Past it a host folds
   `uniques` into `items` and counts them in `overflow`. A `result` still over it MUST be dropped, not the end: the end of
   a session never depends on its result ([Byte budget](#byte-budget)).
-- [todo] R7. `OfflineSessionHost` MUST gain `takeSessionResult`, called by the engine once per close of a session that
+- [done] R7. `OfflineSessionHost` MUST gain `takeSessionResult`, called by the engine once per close of a session that
   was placed in this JVM and once per session left open by a graceful stop ([SPI](#spi)).
-- [todo] R8. An `APP` end MUST be identical on its first send and on every republish, `result` included, so the
+- [done] R8. An `APP` end MUST be identical on its first send and on every republish, `result` included, so the
   result is stored in the JSON column `result` of `l2nx_offline_sessions`, written by the close.
-- [todo] R9. `result` MUST survive a graceful restart of an `APP` session. The graceful stop takes the running block of every
+- [done] R9. `result` MUST survive a graceful restart of an `APP` session. The graceful stop takes the running block of every
   session left open and writes it into the same column `result`. A restore reads and clears the column and hands the
   block to the host as `OfflineSession.getCarriedResult()`; the host seeds the session's recorder with it, so the end
   carries the whole session. Nothing is written while a session runs. A restore that finds the column empty means the
   stop was not graceful: what ran before it is lost and the block carries `partial = true`, which later restores keep.
-- [todo] R10. A close of a session whose character was not placed in this JVM MUST have `result = null`: a stop or a
+- [done] R10. A close of a session whose character was not placed in this JVM MUST have `result = null`: a stop or a
   login before the restore, an `APP_TIME_UP` without placement, a refused placement. The reason does not decide it: a
   restore that placed the character and failed in `startAction` ends with `APP_RESTORE_FAILED` and has a block.
-- [todo] R11. The `CharacterPresenceEvent` constructor MUST allow `activity` with `source = CLIENT`, for the native
+- [done] R11. The `CharacterPresenceEvent` constructor MUST allow `activity` with `source = CLIENT`, for the native
   offline store ([Native offline store](#native-offline-store)). `activity` stays required with `APP`.
-- [todo] R12. `LogoutReason` MUST gain `SOLD_OUT`, the end of a native offline store that sold out. `APP_SOLD_OUT`
+- [done] R12. `LogoutReason` MUST gain `SOLD_OUT`, the end of a native offline store that sold out. `APP_SOLD_OUT`
   stays with `APP`.
 
 **Non-goals:**
@@ -85,12 +85,12 @@ closing row and builds the end from that row, so a republish reproduces the same
 ### Structure
 
 - `nx-gs-adapter-api` `kafka.events.character.result`: `SessionResult`, `SessionResultItem`, `SessionResultUnique`,
-  `SessionResultExperience`, `SessionResultKill`, `SessionResultDeath`, `SessionResultUntracked` [planned].
-- `nx-gs-adapter-api` `domain.item.ItemSource`, `domain.character.ExperienceSource` [planned].
-- `nx-gs-adapter-api` `spi.provider.OfflineSessionHost.takeSessionResult` [planned].
-- `nx-gs-adapter-core` `core.appsessions`: the close, the store and `PresencePublisher` [planned]; `core.events`: the
-  size backstop [planned].
-- `nx-gs-db-migrations`: changeset `0014-offline-sessions-result` [planned].
+  `SessionResultExperience`, `SessionResultKill`, `SessionResultDeath`, `SessionResultUntracked`.
+- `nx-gs-adapter-api` `domain.item.ItemSource`, `domain.character.ExperienceSource`.
+- `nx-gs-adapter-api` `spi.provider.OfflineSessionHost.takeSessionResult`.
+- `nx-gs-adapter-core` `core.appsessions`: the close, the store and `PresencePublisher`; `core.events`: the
+  size backstop.
+- `nx-gs-db-migrations`: changeset `0014-offline-sessions-result`.
 
 ### Shapes
 
@@ -354,9 +354,10 @@ Order of the close ([`038`](038-app-offline-sessions.md) Lifecycle):
 The first send and every republish build `result` from the same stored text, with the same `eventId` as before, so
 identical means identical (R8). The retry queue carries the text too.
 
-Only the republish reads the column. `JdbcOfflineSessionStore.COLUMNS` stays without it, so reads of open rows and the
-R21 reads never load a `result`, and `OfflineSession` gets no such field: the host has no use for a closed session's
-block. A republish page reads each `result` when its end is sent, not with the page, so a page of 500 ends holds one
+Only the republish and a restore read the column. `JdbcOfflineSessionStore.COLUMNS` stays without it, so reads of open
+rows and the R21 reads never load a `result`, and `OfflineSession` carries only `getCarriedResult()`, set on the views a
+restore hands over: the host has no use for a closed session's block. A restore reads the column before the placement
+and clears it once the character is placed, so a stop between two attempts loses nothing. A republish page reads each `result` when its end is sent, not with the page, so a page of 500 ends holds one
 block at a time. Queues stay bounded by event count, not bytes: a typical block is a few KB.
 
 ### Data model
@@ -365,7 +366,7 @@ block at a time. Queues stay bounded by event count, not bytes: a typical block 
 
 | Column   | Type        | Purpose                                                                                                                                   |
 | -------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `result` | `clob` NULL | The `SessionResult` of a closed session as JSON, written by the close; `NULL` when there is none. Never written while the session is open |
+| `result` | `clob` NULL | The `SessionResult` of a closed session as JSON, written by the close; `NULL` when there is none. On an open row: the running block, from a graceful stop until a restore placed the character (R9). Never written while the session runs |
 
 Nullable, no backfill: an older row has none and its end was published long ago. An older adapter names its columns and
 ignores this one. The row leaves with the retention, as every closed row does.

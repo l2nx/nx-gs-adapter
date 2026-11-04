@@ -38,7 +38,7 @@ is untouched. No display.
 | Decision                          | Choice                                                                                                              |
 |-----------------------------------|---------------------------------------------------------------------------------------------------------------------|
 | Where the packed int is decoded   | At source — host `ItemMapping` (platform never sees L2 bit-packing)                                                 |
-| Wire model                        | Singular `@Nullable ItemAugmentationDbDto augmentation` on `ItemDbDto` (one augment per item)                       |
+| Wire model                        | Singular `@Nullable ItemAugmentation augmentation` on `ItemDbDto` (one augment per item)                            |
 | Option id representation          | Two explicit ids: `option1Id` (required) + `option2Id` (nullable — absent when the high slot is 0)                  |
 | Platform storage                  | New sparse satellite `gs_item_augmentations` (row only for augmented items) — mirrors `gs_item_attributes`          |
 | Storage vs. columns on `gs_items` | Satellite, not columns — `gs_items` is the 3.86M-row hot UPSERT table; augment is sparse                            |
@@ -66,19 +66,20 @@ Platform-side naming is `augmentation` throughout (DTO field, table, columns).
 
 ## Wire contract change — `nx-gs-adapter-api` (additive)
 
-New POJO `app.l2nx.gs.adapter.api.kafka.sync.db.item.ItemAugmentationDbDto`,
-built to the module's hand-written pattern (Java 8, `final` fields + public
-constructor + static `builder()` + `toBuilder()` + `equals`/`hashCode`/
-`toString`; no Lombok, no records) — a structural copy of `ItemAttributeDbDto`:
+New POJO `app.l2nx.gs.adapter.api.domain.item.ItemAugmentation` (born as
+`kafka.sync.db.item.ItemAugmentationDbDto`, moved by [`042`](042-item-snapshot.md)
+with the same wire shape), built to the module's hand-written pattern (Java 8,
+`final` fields + public constructor + static `builder()` + `toBuilder()` +
+`equals`/`hashCode`/`toString`; no Lombok, no records):
 
 ```
-ItemAugmentationDbDto {
+ItemAugmentation {
     int     option1Id;   // low-slot option, always present when augmented
     Integer option2Id;   // high-slot option; null when the item carries only one
 }
 ```
 
-`ItemDbDto` gains one nullable field `@Nullable ItemAugmentationDbDto
+`ItemDbDto` gains one nullable field `@Nullable ItemAugmentation
 augmentation` (`null` = not augmented). Because the DTO is a hand-written POJO,
 "adding a field" means touching every member in lockstep: the `final` field +
 its `@Nullable` JSpecify getter with Javadoc + the constructor param + the
@@ -93,8 +94,7 @@ so no transient dual-emit is needed.
 
 Reference existing shape: `ItemDbDto`
 (`nx-gs-adapter-api/.../kafka/sync/db/item/ItemDbDto.java` — field + getter +
-ctor + `Builder` + `toBuilder` + value semantics), `ItemAttributeDbDto`
-(`.../item/ItemAttributeDbDto.java` — the exact template to copy).
+ctor + `Builder` + `toBuilder` + value semantics).
 
 > Related contract context (not a change here): the gd-sync gear-score ruleset
 > already carries an `AUGMENT` category (`GearScoreRuleGroup.category`), i.e.
@@ -129,7 +129,7 @@ Changes (mirror `ItemElementalsChildSource` exactly — it is the template):
       `high = (augAttributes >>> 16) & 0xFFFF` — and take the **non-zero** ids in
       slot order: `option1Id` = first non-zero, `option2Id` = second non-zero (or
       `null` if only one). Robust to a single-option augment landing in either
-      slot. Build `ItemAugmentationDbDto` and pass it to `.augmentation(...)`.
+      slot. Build `ItemAugmentation` and pass it to `.augmentation(...)`.
 
 The decode is the same low/high split the engine itself uses
 (in its augmentation model and client item packets), so there is no ambiguity
@@ -194,7 +194,7 @@ replace:
 The wire change is additive, but the producer and consumer must both understand
 the new field for data to flow, so deploy in order:
 
-1. `nx-gs-adapter-api` — add `ItemAugmentationDbDto` + the `ItemDbDto.augmentation`
+1. `nx-gs-adapter-api` — add `ItemAugmentation` + the `ItemDbDto.augmentation`
    field; release `api/vX.Y.Z` (minor). Wait for Maven Central propagation
    before dependents build.
 2. Host integration — bump adapter-api dep, add the `item_attributes` child source +

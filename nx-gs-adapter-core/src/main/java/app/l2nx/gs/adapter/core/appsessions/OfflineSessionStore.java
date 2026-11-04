@@ -62,8 +62,21 @@ interface OfflineSessionStore {
     /** Never lowers a stored value and never touches a closed row. */
     void flushActiveMs(Map<UUID, Long> activeMsById);
 
-    /** A closed row is left as it is. */
-    void close(UUID id, long activeMs, Instant endedAt, LogoutReason reason);
+    /**
+     * A closed row is left as it is. {@code resultJson} replaces the column, {@code null} included: an open row may
+     * still hold a carried block the end must not pick up.
+     */
+    void close(UUID id, long activeMs, Instant endedAt, LogoutReason reason, @Nullable String resultJson);
+
+    /** The {@code result} of one row, open or closed; no other read loads the column, so a page never holds blocks. */
+    @Nullable
+    String readResult(UUID id);
+
+    /**
+     * Sets {@code result} of an open row: the running block at a graceful stop, {@code null} once a restore placed the
+     * character. A closed row is left as it is.
+     */
+    void writeOpenResult(UUID id, @Nullable String resultJson);
 
     /**
      * The next at most {@code limit} closed sessions whose end Kafka has not acknowledged, in {@code (ended_at, id)}

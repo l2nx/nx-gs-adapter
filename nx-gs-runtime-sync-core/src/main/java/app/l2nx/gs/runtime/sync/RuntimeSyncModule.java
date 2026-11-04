@@ -22,8 +22,14 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.kafka.clients.producer.Callback;
+import org.jspecify.annotations.Nullable;
 
-/** {@code ctx.syncTopics().runtime()} empty -> DISABLED; 0 {@link RuntimeStateProvider} -> DISABLED, more than 1 -> FAILED. */
+/**
+ * {@code ctx.syncTopics().runtime()} empty -> DISABLED; 0 {@link RuntimeStateProvider} -> DISABLED, more than 1 -> FAILED.
+ *
+ * <p>Ticks start only once the module has started and the host has declared its start, so no runtime event of a server
+ * generation carries a time before its {@code started_at}. While it waits the module stays ACTIVE with no entity stats.</p>
+ */
 public final class RuntimeSyncModule implements AdapterModule {
 
     private static final NxLog log = NxLogFactory.getLogger(RuntimeSyncModule.class);
@@ -39,12 +45,16 @@ public final class RuntimeSyncModule implements AdapterModule {
     private final Function<String, String> configSource;
     private final KafkaSender kafkaSender;
 
+    private final Object startLock = new Object();
+
     private volatile String state = STATE_INIT;
     private volatile RuntimeStateProvider provider;
     private volatile ConnectContext context;
     private volatile EntityStatsTracker statsTracker;
     private volatile RuntimeSyncEngine engine;
     private volatile List<RuntimeEntityMapping<?>> cachedMappings;
+    /** The start waiting for the host; {@code stop} and {@code onDisconnect} drop it, so a stale callback builds nothing. */
+    private @Nullable Object pendingStart;
 
     public RuntimeSyncModule() {
         this(RuntimeSyncModule::loadProviders, EngineConfig.productionChain(), RuntimeSyncModule::sendViaNxKafka);
@@ -119,27 +129,51 @@ public final class RuntimeSyncModule implements AdapterModule {
             state = STATE_DISABLED;
             return;
         }
-        EngineConfig config = EngineConfig.from(configSource);
-        TopicResolver resolver = TopicResolver.fromContext(ctx);
-        SyncEventPublisher publisher = new SyncEventPublisher(kafkaSender);
+        Object start = new Object();
+        synchronized (startLock) {
+            pendingStart = start;
+        }
+        ctx.runtimeSync().onHostStarted(() -> startEngine(start, ctx, tracker, mappings));
+        synchronized (startLock) {
+            if (pendingStart == start) {
+                log.info("runtime-sync: no ticks until the host declares its start through hostStarted()");
+            }
+        }
+    }
 
-        RuntimeSyncEngine built = new RuntimeSyncEngine(mappings, resolver, publisher, tracker, config);
-        this.engine = built;
-        try {
-            built.start();
-        } catch (Throwable t) {
-            log.error(
-                    "RuntimeSyncEngine.start threw {}: {} — runtime-sync FAILED",
-                    t.getClass().getName(),
-                    t.getMessage());
-            state = STATE_FAILED;
-            this.engine = null;
+    private void startEngine(
+            Object start, ConnectContext ctx, EntityStatsTracker tracker, List<RuntimeEntityMapping<?>> mappings) {
+        synchronized (startLock) {
+            if (pendingStart != start) {
+                return;
+            }
+            pendingStart = null;
+            EngineConfig config = EngineConfig.from(configSource);
+            TopicResolver resolver = TopicResolver.fromContext(ctx);
+            SyncEventPublisher publisher = new SyncEventPublisher(kafkaSender);
+
+            RuntimeSyncEngine built = new RuntimeSyncEngine(mappings, resolver, publisher, tracker, config);
+            this.engine = built;
+            try {
+                built.start();
+            } catch (Throwable t) {
+                log.error(
+                        "RuntimeSyncEngine.start threw {}: {} — runtime-sync FAILED",
+                        t.getClass().getName(),
+                        t.getMessage());
+                state = STATE_FAILED;
+                this.engine = null;
+            }
         }
     }
 
     @Override
     public void stop() {
-        RuntimeSyncEngine running = engine;
+        RuntimeSyncEngine running;
+        synchronized (startLock) {
+            pendingStart = null;
+            running = engine;
+        }
         if (running != null) {
             try {
                 running.stop();
@@ -152,10 +186,13 @@ public final class RuntimeSyncModule implements AdapterModule {
 
     @Override
     public void onDisconnect() {
+        synchronized (startLock) {
+            pendingStart = null;
+            engine = null;
+        }
         provider = null;
         context = null;
         statsTracker = null;
-        engine = null;
         cachedMappings = null;
     }
 
@@ -218,6 +255,10 @@ public final class RuntimeSyncModule implements AdapterModule {
                 log.warn("KafkaSender callback threw {}", t.getClass().getName());
             }
         }
+    }
+
+    boolean engineStartedForTesting() {
+        return engine != null;
     }
 
     String stateForTesting() {

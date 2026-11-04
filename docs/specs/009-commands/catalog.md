@@ -449,7 +449,7 @@ event reward, support compensation.
 
 | Field            | Type            | Required | Notes                                                                             |
 | ---------------- | --------------- | -------- | --------------------------------------------------------------------------------- |
-| `charId`         | `Long`          | yes      | Target character primary key                                                      |
+| `characterId`    | `Long`          | yes      | Target character primary key                                                      |
 | `itemTemplateId` | `Long`          | yes      | Catalog template id (e.g. `57` = adena). NOT a stack object-id                    |
 | `count`          | `Long`          | yes      | Quantity to grant. Must be positive                                               |
 | `enchantLevel`   | `Long?`         | no       | Default `0`. Applied to non-stackable templates only; ignored for stackable       |
@@ -459,9 +459,8 @@ event reward, support compensation.
 
 | Field          | Type           | Notes                                                                                  |
 | -------------- | -------------- | -------------------------------------------------------------------------------------- |
-| `itemId`       | `Long`         | Object-id of the resulting stack. For stackable + existing stack → existing stack's id |
+| `item`         | `ItemSnapshot` | The stack after the grant. For stackable + existing stack → the stack that absorbed it |
 | `countCreated` | `Long`         | Echo of `count` (host may clamp on stack-size limits — typically equal to input)       |
-| `enchantLevel` | `Long`         | Actually applied enchant (0 for stackable templates regardless of request)             |
 | `location`     | `ItemLocation` | Echo of `location` for caller confirmation                                             |
 
 **Errors**
@@ -490,7 +489,7 @@ stack size, never errors on excess.
 
 | Field    | Type   | Required | Notes                                                          |
 | -------- | ------ | -------- | -------------------------------------------------------------- |
-| `charId` | `Long` | yes      | Owner character primary key                                    |
+| `characterId` | `Long` | yes      | Owner character primary key                                    |
 | `itemId` | `Long` | yes      | Object-id of the specific stack (NOT template id)              |
 | `count`  | `Long` | yes      | Quantity to remove. Must be positive. Clamped to current stack |
 
@@ -498,7 +497,7 @@ stack size, never errors on excess.
 
 | Field          | Type      | Notes                                                                                          |
 | -------------- | --------- | ---------------------------------------------------------------------------------------------- |
-| `itemId`       | `Long`    | Echo of the stack that was decremented / destroyed                                             |
+| `item`         | `ItemSnapshot` | The stack as it was before the operation                                                  |
 | `countDeleted` | `Long`    | Actual count removed — MAY be less than requested when the live stack was smaller              |
 | `fullyDeleted` | `boolean` | `true` if the stack is gone (object destroyed); `false` if it was decremented and still exists |
 
@@ -526,8 +525,8 @@ handles all four online/offline source-target combinations.
 
 | Field        | Type   | Required | Notes                                            |
 | ------------ | ------ | -------- | ------------------------------------------------ |
-| `charIdFrom` | `Long` | yes      | Source character                                 |
-| `charIdTo`   | `Long` | yes      | Target character (must differ from `charIdFrom`) |
+| `fromCharacterId` | `Long` | yes      | Source character                                      |
+| `toCharacterId`   | `Long` | yes      | Target character (must differ from `fromCharacterId`) |
 | `itemId`     | `Long` | yes      | Object-id of the source stack                    |
 | `count`      | `Long` | yes      | Quantity to move. Clamped to source stack size   |
 
@@ -535,10 +534,10 @@ handles all four online/offline source-target combinations.
 
 | Field              | Type   | Notes                                           |
 | ------------------ | ------ | ----------------------------------------------- |
-| `itemId`           | `Long` | Echo of the moved stack's id                    |
+| `item`             | `ItemSnapshot` | The stack as it was before the operation        |
 | `countTransferred` | `Long` | Actual count moved (may be less than requested) |
-| `fromCharId`       | `Long` | Echo                                            |
-| `toCharId`         | `Long` | Echo                                            |
+| `fromCharacterId`  | `Long` | Echo                                            |
+| `toCharacterId`    | `Long` | Echo                                            |
 
 **Errors**
 
@@ -774,7 +773,7 @@ bait. The host decides every rule; the reply carries a reason code from the shar
 `NO_ROD`, `NO_BAIT`, `INVALID_ROD`, `INVALID_BAIT`, `INVALID_DURATION`, `FEATURE_DISABLED`, `DAILY_LIMIT` (with `retryAt` = the
 moment the daily allowance resets, when the host knows it), `RESTART_SOON`,
 `NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope` `CHARACTER` / `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`, `IP`), `COMMAND_EXPIRED`;
-`NO_FISHING_SHOT`, `INVALID_FISHING_SHOT`, `FISHING_SHOT_GRADE_MISMATCH`; [planned] `NO_FISHING_EXPERTISE`,
+`NO_FISHING_SHOT`, `INVALID_FISHING_SHOT`, `FISHING_SHOT_GRADE_MISMATCH`; `NO_FISHING_EXPERTISE`,
 `BAIT_LEVEL_MISMATCH`, `INVENTORY_FULL` (with `requiredSlots`, `freeSlots`), `OVERWEIGHT` (with `requiredWeight`,
 `freeWeight`). Status per reason: `NO_ROD` / `NO_BAIT` / `NO_FISHING_SHOT` / `NO_FISHING_EXPERTISE` / `INVENTORY_FULL` /
 `OVERWEIGHT` and every other state refusal are `INVALID_STATE`; `INVALID_ROD` / `INVALID_BAIT` / `BAIT_LEVEL_MISMATCH` /
@@ -810,10 +809,10 @@ idempotency key, nothing stored.
 | `scope`               | `AlreadyActiveScope?`      | Non-null only with `reason = ALREADY_ACTIVE`: the limit hit, as a refused start carries it       |
 | `retryAt`             | `Instant?`                 | Set for `RECENTLY_LOGGED_OUT`, `COOLDOWN` and `DAILY_LIMIT` (the reset moment), as on start      |
 | `effectiveDurationMs` | `Long?`                    | What a start would run now (the daily stop applied); `null` without `durationMs` or when refused |
-| `requiredSlots`       | `Integer?`                 | [planned] Set with `INVENTORY_FULL`, as on start                                                 |
-| `freeSlots`           | `Integer?`                 | [planned] Set with `INVENTORY_FULL`, as on start                                                 |
-| `requiredWeight`      | `Long?`                    | [planned] Set with `OVERWEIGHT`, as on start                                                     |
-| `freeWeight`          | `Long?`                    | [planned] Set with `OVERWEIGHT`, as on start                                                     |
+| `requiredSlots`       | `Integer?`                 | Set with `INVENTORY_FULL`, as on start                                                           |
+| `freeSlots`           | `Integer?`                 | Set with `INVENTORY_FULL`, as on start                                                           |
+| `requiredWeight`      | `Long?`                    | Set with `OVERWEIGHT`, as on start                                                               |
+| `freeWeight`          | `Long?`                    | Set with `OVERWEIGHT`, as on start                                                               |
 
 **Errors.** A refusal is `OK` with `allowed = false`, its `reason` and, for `ALREADY_ACTIVE`, its `scope`. A `CommandProblem` means the check itself failed: `COMMAND_EXPIRED`, an invalid
 initiator (`VALIDATION_FAILED`), a host timeout (`UNAVAILABLE`). A core without the check handler answers
@@ -1108,7 +1107,7 @@ verbatim — it composes no text of its own.
 | ----------------- | --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `buyerCharId`     | `int`           | yes      | Character paying for the goods. Need not be online — the host loads an offline character for the duration of the deal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `sellerCharId`    | `int`           | yes      | Character whose open sell-store is being bought from. MUST be in the world (online or offline-trading) with a sell-store open. MUST differ from `buyerCharId`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `lines`           | `List<BuyLine>` | yes      | Lots to buy, non-empty, no duplicate `itemId`; more lines than the host's own delivery-mail attachment limit are refused with `TOO_MANY_LINES`. Each `BuyLine`: `itemId` (`int`, the instance object-id the buyer saw — primary identity key), `itemTemplateId` (`long`), `enchantLevel` (`Integer?`, `0..127`, `null` if the offer carried none), `attributes` (`Map<Attribute,Integer>`, empty if the offer carried none), `count` (`long`, positive — host buys exactly this many or fails, never silently shrinks), `unitPriceAdena` (`long`, non-negative). Fields beyond `itemId` are an optimistic lock, not a search filter — a mismatch against the live lot fails the whole command rather than buying something else |
+| `lines`           | `List<BuyLine>` | yes      | Lots to buy, non-empty, no duplicate `item.itemId`; more lines than the host's own delivery-mail attachment limit are refused with `TOO_MANY_LINES`. Each `BuyLine`: `item` (`ItemSnapshot`: `itemId` is the instance the buyer saw and the primary identity key, then `itemTemplateId`, `enchantLevel` (`0..127`, `null` if the offer carried none) and `attributes` (`null` or empty if the offer carried none: the two count as one, the host compares `attributesForMatch()`)), `count` (`long`, positive — host buys exactly this many or fails, never silently shrinks), `unitPriceAdena` (`long`, non-negative). Fields beyond `item.itemId` are an optimistic lock, not a search filter — a mismatch against the live lot fails the whole command rather than buying something else |
 | `buyerFeePercent` | `Integer`       | yes      | Buyer-side fee in whole percent (`5` = 5%) charged on top of the lot price and burned: `ceilDiv(itemsTotal * pct, 100)`. A negative value is rejected with `VALIDATION_FAILED`, never clamped; the platform decides the rate. Fractional rates unsupported; `0` means no fee. `null` is `VALIDATION_FAILED` (absence is never read as `0`)                                                                                                                                                                                                                                                                                                                                                                                      |
 | `deadline`        | `Instant`       | yes      | Moment after which the host MUST refuse to execute this command instead of running it — checked before resolving the seller or touching the seller's trade list. Guards against a command sitting in the Kafka backlog while the game-server was down                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `mailSender`      | `String`        | yes      | Author shown on the delivery mail, non-blank. Platform-authored, player-facing, already localized; written verbatim                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -1124,7 +1123,7 @@ verbatim — it composes no text of its own.
 | `buyerFeeAdena`   | `long`             | Buyer fee burned: debited from the buyer on top of the lots, credited to nobody                                                                                                                                                      |
 | `sellerFeeAdena`  | `long`             | Seller fee burned: withheld from `itemsTotalAdena` before the seller is credited; `0` when the store carries none. The seller receives `itemsTotalAdena - sellerFeeAdena`                                                            |
 | `paidTotalAdena`  | `long`             | Total debited from the buyer; always `itemsTotalAdena + buyerFeeAdena` (the seller fee is not paid by the buyer)                                                                                                                     |
-| `bought`          | `List<BoughtLine>` | The executed lots. Each `BoughtLine`: `itemId`, `itemTemplateId`, `enchantLevel` (`Integer?`), `count`, `unitPriceAdena` (seller price only — the burned surcharge is not included per-line, it is reported once on `buyerFeeAdena`) |
+| `bought`          | `List<BoughtLine>` | The executed lots. Each `BoughtLine`: `item` (`ItemSnapshot`), `count`, `unitPriceAdena` (seller price only — the burned surcharge is not included per-line, it is reported once on `buyerFeeAdena`) |
 | `storeClosed`     | `boolean`          | `true` when this deal emptied the seller's store and the host closed it — the caller drops the whole store from its order book instead of decrementing the bought lots                                                               |
 | `mailId`          | `long`             | Id of the delivery mail carrying the bought items; eventual-consistent — resolving it via the mail-read API immediately after this reply may still 404 until mail-ingest catches up                                                  |
 
@@ -1193,7 +1192,7 @@ fees are burned.
 | `sellerFeeAdena`     | `long`           | Seller fee burned: withheld from `itemsTotalAdena` before the seller is credited; `0` at rate `0`. In `0..itemsTotalAdena`                                                        |
 | `receivedTotalAdena` | `long`           | Credited to the seller by mail; always `itemsTotalAdena - sellerFeeAdena`                                                                                                         |
 | `buyerFeeAdena`      | `long`           | The store owner's fee burned: debited from the owner on top of the lots; `0` for a store opened in the game. The owner pays `itemsTotalAdena + buyerFeeAdena`                     |
-| `sold`               | `List<SoldLine>` | The executed lots. Each `SoldLine`: `itemId` (the seller's instance), `itemTemplateId`, `enchantLevel` (`Integer?`), `count`, `unitPriceAdena` (the store price, no fee included) |
+| `sold`               | `List<SoldLine>` | The executed lots. Each `SoldLine`: `item` (`ItemSnapshot`, the seller's instance), `count`, `unitPriceAdena` (the store price, no fee included) |
 | `storeClosed`        | `boolean`        | `true` when this deal emptied the buy-store and the host closed it                                                                                                                |
 | `mailId`             | `long`           | Id of the mail carrying the proceeds; eventual-consistent, as on `BuyFromPrivateStoreResult`                                                                                      |
 

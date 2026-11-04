@@ -3,10 +3,12 @@ package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import app.l2nx.gs.adapter.api.domain.Attribute;
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
+import com.google.gson.Gson;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -59,6 +61,38 @@ class BuyLineTest {
     void constructor_shouldAccept_whenEnchantLevelAtBounds(int enchantLevel) {
         BuyLine line = valid().item(item().enchantLevel(enchantLevel).build()).build();
         assertEquals(Integer.valueOf(enchantLevel), line.getItem().getEnchantLevel());
+    }
+
+    @Test
+    void attributesForMatch_shouldBeNull_whenTheMapIsEmpty() {
+        BuyLine line = valid().item(item().attributes(Collections.<Attribute, Integer>emptyMap())
+                        .build())
+                .build();
+
+        assertNull(line.attributesForMatch());
+    }
+
+    @Test
+    void attributesForMatch_shouldBeNull_whenTheOfferCarriedNone() {
+        assertNull(valid().build().attributesForMatch());
+    }
+
+    @Test
+    void attributesForMatch_shouldBeTheMap_whenTheItemHasAttributes() {
+        BuyLine line = valid().item(item().attributes(Collections.singletonMap(Attribute.FIRE, 120))
+                        .build())
+                .build();
+
+        assertEquals(Collections.singletonMap(Attribute.FIRE, 120), line.attributesForMatch());
+    }
+
+    @Test
+    void attributesForMatch_shouldTreatEmptyAsNull_whenGsonBypassedTheConstructor() {
+        BuyLine line = new Gson()
+                .fromJson(
+                        "{\"item\":{\"itemId\":1,\"itemTemplateId\":57,\"attributes\":{}},\"count\":1}", BuyLine.class);
+
+        assertNull(line.attributesForMatch());
     }
 
     @Test

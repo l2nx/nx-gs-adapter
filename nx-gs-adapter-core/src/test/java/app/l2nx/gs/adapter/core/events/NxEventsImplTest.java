@@ -89,7 +89,7 @@ class NxEventsImplTest {
         NxEventsImpl events = new NxEventsImpl(publisher, registry);
         CharacterPresenceEvent event = CharacterPresenceEvent.builder()
                 .eventId(UUIDv7.generate())
-                .charId(42L)
+                .characterId(42L)
                 .online(true)
                 .source(SessionSource.CLIENT)
                 .ip("N/A")

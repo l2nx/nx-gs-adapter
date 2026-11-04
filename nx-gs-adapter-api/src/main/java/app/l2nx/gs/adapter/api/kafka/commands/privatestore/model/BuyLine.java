@@ -1,15 +1,20 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 
+import app.l2nx.gs.adapter.api.domain.Attribute;
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.BuyFromPrivateStoreCommand;
+import java.util.Map;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One lot of a {@link BuyFromPrivateStoreCommand}. The host resolves it by {@code item.itemId}, then re-verifies
  * {@code item.itemTemplateId}, {@code item.enchantLevel}, {@code item.attributes} and {@code unitPriceAdena} - the same
  * instance may have been re-enchanted in place. Those fields are an optimistic lock: any mismatch fails the whole
  * command with {@code OFFER_CHANGED}; there are no partial fills. {@code null} enchant/attributes means "offer carried
- * none" and is part of the match. {@code item.count} is not part of the match: the lot size is {@code count}.
+ * none" and is part of the match, and an empty {@code item.attributes} map counts as {@code null} there: the host
+ * compares {@link #attributesForMatch()}, not the raw map. {@code item.count} is not part of the match: the lot size
+ * is {@code count}.
  */
 public final class BuyLine {
 
@@ -46,6 +51,16 @@ public final class BuyLine {
 
     public ItemSnapshot getItem() {
         return item;
+    }
+
+    /**
+     * The attributes the optimistic lock compares: {@code item.attributes}, with an empty map as {@code null}. Both
+     * forms mean the offer carried none, and a sender may use either. Derived on every call because Gson bypasses the
+     * constructor, and not a getter so a getter-based serializer keeps it off the wire.
+     */
+    public @Nullable Map<Attribute, Integer> attributesForMatch() {
+        Map<Attribute, Integer> attributes = item.getAttributes();
+        return attributes == null || attributes.isEmpty() ? null : attributes;
     }
 
     /** The host buys exactly this many or fails; it never shrinks the count. */

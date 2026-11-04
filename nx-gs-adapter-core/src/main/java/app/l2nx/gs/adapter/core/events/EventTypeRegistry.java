@@ -7,6 +7,7 @@ import app.l2nx.gs.adapter.api.kafka.events.castle.SiegeFinishedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.AppSessionsSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterDeathEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import app.l2nx.gs.adapter.api.kafka.events.characterlog.CharacterLogEvent;
 import app.l2nx.gs.adapter.api.kafka.events.chat.ChatMessageEvent;
 import app.l2nx.gs.adapter.api.kafka.events.gameevents.GameEventSnapshotEvent;
@@ -72,8 +73,9 @@ final class EventTypeRegistry {
                 families,
                 CharacterPresenceEvent.class,
                 "character",
-                evt -> LongBytes.bigEndian(((CharacterPresenceEvent) evt).getCharId()),
-                EventTypeRegistry::normalizePresence);
+                evt -> LongBytes.bigEndian(((CharacterPresenceEvent) evt).getCharacterId()),
+                EventTypeRegistry::normalizePresence,
+                EventTypeRegistry::dropOversizedResult);
         register(
                 map,
                 families,
@@ -201,7 +203,21 @@ final class EventTypeRegistry {
             String familyKey,
             Function<Object, byte[]> partitionKeyExtractor,
             UnaryOperator<Object> wireNormalizer) {
-        map.put(type, new EventTypeBinding(familyKey, type.getSimpleName(), partitionKeyExtractor, wireNormalizer));
+        register(map, families, type, familyKey, partitionKeyExtractor, wireNormalizer, UnaryOperator.identity());
+    }
+
+    private static void register(
+            Map<Class<?>, EventTypeBinding> map,
+            Set<String> families,
+            Class<?> type,
+            String familyKey,
+            Function<Object, byte[]> partitionKeyExtractor,
+            UnaryOperator<Object> wireNormalizer,
+            UnaryOperator<Object> sendGuard) {
+        map.put(
+                type,
+                new EventTypeBinding(
+                        familyKey, type.getSimpleName(), partitionKeyExtractor, wireNormalizer, sendGuard));
         families.add(familyKey);
     }
 
@@ -213,6 +229,16 @@ final class EventTypeRegistry {
             return event;
         }
         return event.toBuilder().ip(ip).hwid(hwid).build();
+    }
+
+    /** The end of a session never depends on its result: a record over the producer's limit could not be sent at all. */
+    private static Object dropOversizedResult(Object evt) {
+        CharacterPresenceEvent event = (CharacterPresenceEvent) evt;
+        SessionResult result = event.getResult();
+        if (result == null || SessionResultJson.toJson(result, event.getSessionId()) != null) {
+            return event;
+        }
+        return event.toBuilder().result(null).build();
     }
 
     private static Object normalizeAuthAttempt(Object evt) {

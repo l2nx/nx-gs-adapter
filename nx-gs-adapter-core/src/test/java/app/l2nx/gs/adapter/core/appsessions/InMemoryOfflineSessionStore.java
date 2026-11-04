@@ -23,6 +23,12 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
 
     final Map<UUID, OfflineSession> rows = new LinkedHashMap<UUID, OfflineSession>();
     final Map<UUID, Instant> endPublishedAt = new HashMap<UUID, Instant>();
+    /** The {@code result} column; absent means {@code NULL}. */
+    final Map<UUID, String> results = new HashMap<UUID, String>();
+
+    int resultReads;
+    int failResultReads;
+    int failResultWrites;
     int flushes;
     int failCloses;
     int failDeletes;
@@ -212,12 +218,13 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
     volatile @Nullable Runnable afterUnpublishedRead;
 
     @Override
-    public void close(UUID id, long activeMs, Instant endedAt, LogoutReason reason) {
-        closeLocked(id, activeMs, endedAt, reason);
+    public void close(UUID id, long activeMs, Instant endedAt, LogoutReason reason, @Nullable String resultJson) {
+        closeLocked(id, activeMs, endedAt, reason, resultJson);
         runHook(afterClose);
     }
 
-    private synchronized void closeLocked(UUID id, long activeMs, Instant endedAt, LogoutReason reason) {
+    private synchronized void closeLocked(
+            UUID id, long activeMs, Instant endedAt, LogoutReason reason, @Nullable String resultJson) {
         if (failCloses > 0) {
             failCloses--;
             throw new OfflineSessionStoreException("simulated close failure", new RuntimeException());
@@ -231,6 +238,37 @@ final class InMemoryOfflineSessionStore implements OfflineSessionStore {
                             .endedAt(endedAt)
                             .endReason(reason)
                             .build());
+            setResult(id, resultJson);
+        }
+    }
+
+    private void setResult(UUID id, @Nullable String resultJson) {
+        if (resultJson == null) {
+            results.remove(id);
+        } else {
+            results.put(id, resultJson);
+        }
+    }
+
+    @Override
+    public synchronized @Nullable String readResult(UUID id) {
+        resultReads++;
+        if (failResultReads > 0) {
+            failResultReads--;
+            throw new OfflineSessionStoreException("simulated result read failure", new RuntimeException());
+        }
+        return results.get(id);
+    }
+
+    @Override
+    public synchronized void writeOpenResult(UUID id, @Nullable String resultJson) {
+        if (failResultWrites > 0) {
+            failResultWrites--;
+            throw new OfflineSessionStoreException("simulated result write failure", new RuntimeException());
+        }
+        OfflineSession row = rows.get(id);
+        if (row != null && row.isOpen()) {
+            setResult(id, resultJson);
         }
     }
 

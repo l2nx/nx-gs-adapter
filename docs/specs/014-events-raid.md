@@ -109,7 +109,9 @@ host-side authors hooking raid-death paths.
 
 - [todo] R3. `nx-gs-adapter-api.kafka.events.raid.RaidDropItem` MUST ship as
   the per-drop record with:
-    - `int itemId` — REQUIRED. L2 item template id.
+    - `long itemTemplateId` — REQUIRED. L2 item template id. A template reference, not an
+      `ItemSnapshot`: the raid rolled a template and no instance is known when the drop is recorded
+      ([`042`](042-item-snapshot.md)).
     - `long count` — REQUIRED, `>= 1`. Stack quantity.
     - `@Nullable Integer enchantLevel` — only populated when the drop is an
       enchantable type (weapon / armor). `null` for adena, materials, etc.

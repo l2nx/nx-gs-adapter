@@ -8,11 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
+import app.l2nx.gs.adapter.api.domain.item.ItemSource;
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AppSessionRefusalReason;
 import app.l2nx.gs.adapter.api.kafka.events.character.AppSessionsSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResultItem;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.adapter.api.spi.model.session.AppSessionCheckOutcome;
@@ -24,11 +27,14 @@ import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.model.session.OfflineSessionPlacement;
 import app.l2nx.gs.adapter.core.events.EventsPublisher.AcknowledgedEvents;
 import app.l2nx.gs.adapter.core.events.EventsPublisher.SendCallback;
+import app.l2nx.gs.adapter.core.events.SessionResultJson;
+import app.l2nx.gs.adapter.core.events.SessionResultJsonTest;
 import app.l2nx.gs.commons.UUIDv7;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -1043,7 +1049,8 @@ class AppSessionEngineTest {
                             "place:" + session.getId(),
                             "startAction:" + session.getId(),
                             "stopAction:" + session.getId(),
-                            "remove:" + session.getId() + ":true"),
+                            "remove:" + session.getId() + ":true",
+                            "takeResult:" + session.getId()),
                     host.calls);
             OfflineSession stored = store.row(session.getId());
             assertEquals(LogoutReason.APP_STOPPED, stored.getEndReason());
@@ -2006,11 +2013,405 @@ class AppSessionEngineTest {
         }
     }
 
+    @Nested
+    class SessionResults {
+
+        private final SessionResult block = SessionResult.builder()
+                .items(Collections.singletonList(SessionResultItem.builder()
+                        .itemTemplateId(6411L)
+                        .source(ItemSource.FISHING)
+                        .delta(37L)
+                        .events(37L)
+                        .build()))
+                .build();
+
+        private String json(SessionResult result) {
+            return SessionResultJson.toJson(result, null);
+        }
+
+        private AppSessionEngine restartWith(OfflineSession row) {
+            engine = newEngine();
+            bootWith(row);
+            hostReady();
+            return engine;
+        }
+
+        @Test
+        void close_shouldTakeTheResultAfterRemoveAndStoreWhatTheEndCarries() {
+            host.sessionResult = s -> block;
+            OfflineSession session = started(request().build());
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(
+                    Arrays.asList(
+                            "place:" + session.getId(),
+                            "startAction:" + session.getId(),
+                            "stopAction:" + session.getId(),
+                            "remove:" + session.getId() + ":true",
+                            "takeResult:" + session.getId()),
+                    host.calls);
+            assertEquals(json(block), store.results.get(session.getId()));
+            assertEquals(block, events.last().getResult());
+        }
+
+        @Test
+        void close_shouldGoOnWithoutAResult_whenTheHostThrows() {
+            host.sessionResult = s -> {
+                throw new IllegalStateException("recorder failed");
+            };
+            OfflineSession session = started(request().build());
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertFalse(store.row(session.getId()).isOpen());
+            assertFalse(events.last().isOnline());
+            assertNull(events.last().getResult());
+            assertNull(store.results.get(session.getId()));
+        }
+
+        @Test
+        void close_shouldDropTheResultBeforeTheRowCloses_whenItIsOverTheBudget() {
+            host.sessionResult = s -> SessionResultJsonTest.overBudget();
+            OfflineSession session = started(request().build());
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertFalse(store.row(session.getId()).isOpen());
+            assertNull(store.results.get(session.getId()));
+            assertNull(events.last().getResult());
+        }
+
+        @Test
+        void close_shouldNotAskTheHost_whenTheStopCameBeforeTheRestore() {
+            host.sessionResult = s -> block;
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+            bootWith(row);
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertFalse(host.called("takeResult:"));
+            assertNull(events.last().getResult());
+            assertNull(store.results.get(row.getId()), "a republish must not pick up the carried block");
+        }
+
+        @Test
+        void close_shouldNotAskTheHost_whenTimeRanOutBeforeThePlacement() {
+            host.sessionResult = s -> block;
+            OfflineSession row = openRow(CHAR_ID, 5, 60L * MINUTE);
+
+            restartWith(row);
+
+            assertEquals(LogoutReason.APP_TIME_UP, store.row(row.getId()).getEndReason());
+            assertFalse(host.called("takeResult:"));
+            assertNull(events.last().getResult());
+        }
+
+        @Test
+        void close_shouldNotAskTheHost_whenTheRestorePlacementIsRefused() {
+            host.sessionResult = s -> block;
+            host.placement = s -> OfflineSessionPlacement.refused(AppSessionRefusalReason.NO_FREE_SPOT, null);
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+
+            restartWith(row);
+
+            assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
+            assertFalse(host.called("takeResult:"));
+            assertNull(events.last().getResult());
+        }
+
+        @Test
+        void close_shouldKeepTheResult_whenTheRestorePlacedAndStartActionFailed() {
+            host.sessionResult = s -> block;
+            host.failStartAction = true;
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+
+            restartWith(row);
+
+            assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
+            assertEquals(block, events.last().getResult());
+        }
+
+        @Test
+        void shutdown_shouldStoreTheBlockOfARunningSessionAndLeaveItOpen() {
+            host.sessionResult = s -> block;
+            OfflineSession session = started(request().build());
+
+            engine.shutdown();
+
+            assertTrue(store.row(session.getId()).isOpen());
+            assertEquals(json(block), store.results.get(session.getId()));
+            assertTrue(host.called("takeResult:" + session.getId()));
+            assertEquals(1, events.events.size(), "the stop publishes no end");
+        }
+
+        @Test
+        void shutdown_shouldKeepTheColumn_whenTheSessionWaitsForItsRestore() {
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+            bootWith(row);
+
+            engine.shutdown();
+
+            assertFalse(host.called("takeResult:"));
+            assertEquals(json(block), store.results.get(row.getId()));
+        }
+
+        @Test
+        void shutdown_shouldStillStop_whenTheColumnRefusesTheBlock() {
+            host.sessionResult = s -> block;
+            OfflineSession session = started(request().build());
+            store.failResultWrites = 1;
+
+            engine.shutdown();
+
+            assertNull(store.results.get(session.getId()));
+            assertTrue(store.row(session.getId()).isOpen());
+        }
+
+        @Test
+        void close_shouldUseTheKeptBlockAndNotAskTheHostAgain_whenAnEndFollowsTheStop() {
+            int[] asked = {0};
+            host.sessionResult = s -> {
+                asked[0]++;
+                return asked[0] == 1 ? block : null;
+            };
+            OfflineSession session = started(request().build());
+            engine.shutdown();
+
+            engine.onActionEnded(session.getId(), LogoutReason.KICKED);
+
+            assertEquals(1, asked[0]);
+            assertEquals(block, events.last().getResult());
+            assertEquals(json(block), store.results.get(session.getId()));
+        }
+
+        @Test
+        void restore_shouldHandTheBlockToTheHostAndClearTheColumn() {
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+
+            restartWith(row);
+
+            assertEquals(block, host.placedSessions.get(0).getCarriedResult());
+            assertEquals(block, host.startedSessions.get(0).getCarriedResult());
+            assertNull(store.results.get(row.getId()));
+        }
+
+        @Test
+        void restore_shouldNotMarkTheBlockPartial_whenTheStopWasGraceful() {
+            host.sessionResult = OfflineSession::getCarriedResult;
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+            restartWith(row);
+            host.sessionResult = s -> block;
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertFalse(events.last().getResult().isPartial());
+        }
+
+        @Test
+        void close_shouldMarkThePartialBlock_whenTheRestoreFoundNoCarriedBlock() {
+            host.sessionResult = s -> block;
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            restartWith(row);
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertNull(host.placedSessions.get(0).getCarriedResult());
+            assertTrue(events.last().getResult().isPartial());
+            assertTrue(SessionResultJson.parse(store.results.get(row.getId())).isPartial());
+        }
+
+        @Test
+        void restore_shouldTreatAnUnreadableBlockAsLost() {
+            host.sessionResult = s -> block;
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), "{broken");
+            restartWith(row);
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertNull(host.placedSessions.get(0).getCarriedResult());
+            assertTrue(events.last().getResult().isPartial());
+        }
+
+        @Test
+        void partial_shouldSurviveAGracefulStopAndALaterRestore() {
+            host.sessionResult = s -> block;
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            restartWith(row);
+            engine.shutdown();
+            assertTrue(SessionResultJson.parse(store.results.get(row.getId())).isPartial());
+            time = new ManualScheduler();
+            restartWith(store.row(row.getId()));
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertTrue(events.last().getResult().isPartial());
+        }
+
+        @Test
+        void restore_shouldKeepTheColumnUntilThePlacement_whenItIsRefusedForNow() {
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+            host.placement = s -> OfflineSessionPlacement.refusedForNow(AppSessionRefusalReason.CHARACTER_ONLINE, null);
+
+            restartWith(row);
+
+            assertEquals(json(block), store.results.get(row.getId()));
+            int readsAfterFirstAttempt = store.resultReads;
+            host.placement = s -> OfflineSessionPlacement.placed(s.getSpotId());
+            time.advance(rules.restoreBatchPauseMillis());
+
+            assertEquals(readsAfterFirstAttempt, store.resultReads, "read once per restore");
+            assertEquals(block, host.startedSessions.get(0).getCarriedResult());
+            assertNull(store.results.get(row.getId()));
+        }
+
+        @Test
+        void restore_shouldRetryAndNotCallItACrash_whenTheColumnCannotBeRead() {
+            host.sessionResult = s -> block;
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+            store.failResultReads = 1;
+
+            restartWith(row);
+
+            assertFalse(host.called("place:"));
+            time.advance(rules.restoreBatchPauseMillis());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(block, host.placedSessions.get(0).getCarriedResult());
+            assertFalse(events.last().getResult().isPartial());
+        }
+
+        @Test
+        void restore_shouldEndTheSession_whenTheColumnCannotBeCleared() {
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+            store.failResultWrites = 1;
+
+            restartWith(row);
+
+            assertEquals(LogoutReason.APP_RESTORE_FAILED, store.row(row.getId()).getEndReason());
+            assertFalse(host.called("startAction:"));
+        }
+
+        @Test
+        void running_shouldNotHoldTheCarriedBlock_onceTheActionStarted() {
+            OfflineSession row = openRow(CHAR_ID, 5, MINUTE);
+            store.results.put(row.getId(), json(block));
+
+            restartWith(row);
+
+            assertNull(engine.findActive(CHAR_ID).get().getCarriedResult());
+        }
+
+        @Test
+        void republish_shouldSendTheSameEventAsTheFirstSend() {
+            engine.startScheduling();
+            host.sessionResult = s -> block;
+            events.holdAcks = true;
+            started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+            CharacterPresenceEvent first = events.last();
+            events.answerAll(new IllegalStateException("not acknowledged"));
+            int reads = store.resultReads;
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(reads + 1, store.resultReads);
+            assertEquals(first, events.last());
+            assertEquals(block, events.last().getResult());
+        }
+
+        @Test
+        void republish_shouldWaitForTheNextTick_whenTheColumnCannotBeRead() {
+            engine.startScheduling();
+            host.sessionResult = s -> block;
+            events.holdAcks = true;
+            started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+            CharacterPresenceEvent first = events.last();
+            events.answerAll(new IllegalStateException("not acknowledged"));
+            int sends = events.events.size();
+            store.failResultReads = 1;
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(sends, events.events.size(), "never an end without the stored result");
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(sends + 1, events.events.size());
+            assertEquals(first, events.last());
+        }
+
+        @Test
+        void republish_shouldSendTheEndWithoutAResult_whenTheStoredTextCannotBeParsed() {
+            engine.startScheduling();
+            events.holdAcks = true;
+            OfflineSession session = started(request().build());
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+            events.answerAll(new IllegalStateException("not acknowledged"));
+            store.results.put(session.getId(), "{\"items\":[{\"source\":\"FROM_THE_FUTURE\"}]}");
+            int sends = events.events.size();
+
+            time.advance(AppSessionEngine.FLUSH_INTERVAL_MS);
+
+            assertEquals(sends + 1, events.events.size());
+            assertFalse(events.last().isOnline());
+            assertNull(events.last().getResult());
+        }
+
+        @Test
+        void retry_shouldStoreTheTextTheEndCarried_whenTheTableRefusedTheClose() {
+            host.sessionResult = s -> block;
+            OfflineSession session = started(request().build());
+            store.failCloses = 1;
+
+            engine.stop(CHAR_ID, ActivityType.OFFLINE_FISHING).join();
+
+            assertEquals(block, events.last().getResult());
+            assertTrue(store.row(session.getId()).isOpen());
+
+            engine.retryPendingWrites();
+
+            assertFalse(store.row(session.getId()).isOpen());
+            assertEquals(json(block), store.results.get(session.getId()));
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(
+                value = LogoutReason.class,
+                names = {"APP_OVERWEIGHT", "APP_INVENTORY_FULL"})
+        void onActionEnded_shouldCloseWithTheCapacityReason(LogoutReason reason) {
+            OfflineSession session = started(request().build());
+
+            engine.onActionEnded(session.getId(), reason);
+
+            assertEquals(reason, store.row(session.getId()).getEndReason());
+        }
+
+        @Test
+        void onActionEnded_shouldIgnoreSoldOut_becauseItBelongsToTheNativeStore() {
+            OfflineSession session = started(request().build());
+
+            engine.onActionEnded(session.getId(), LogoutReason.SOLD_OUT);
+
+            assertTrue(store.row(session.getId()).isOpen());
+        }
+    }
+
     private static void assertAppFields(OfflineSession session, CharacterPresenceEvent event) {
         assertEquals(SessionSource.APP, event.getSource());
         assertEquals(session.getActivity(), event.getActivity());
         assertEquals(session.getId(), event.getSessionId());
-        assertEquals(session.getCharacterId(), event.getCharId());
+        assertEquals(session.getCharacterId(), event.getCharacterId());
         assertEquals(session.getAccountName(), event.getAccountName());
         assertEquals(session.getInitiatorIp(), event.getIp());
         assertEquals(session.getHwid(), event.getHwid());

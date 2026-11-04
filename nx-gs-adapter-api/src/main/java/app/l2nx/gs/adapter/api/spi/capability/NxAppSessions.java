@@ -42,7 +42,11 @@ public interface NxAppSessions {
      */
     CompletableFuture<Optional<OfflineSession>> stop(int characterId, ActivityType activity);
 
-    /** The host's action ended on its own; closes asynchronously, so the game thread may call it. */
+    /**
+     * The host's action ended on its own; closes asynchronously, so the game thread may call it. {@code reason} is one
+     * of {@code APP_OUT_OF_BAIT}, {@code APP_DAILY_LIMIT}, {@code APP_INVENTORY_FULL}, {@code APP_OVERWEIGHT},
+     * {@code APP_SOLD_OUT}, {@code APP_INTERRUPTED}, {@code BANNED}, {@code KICKED}.
+     */
     void onActionEnded(UUID sessionId, LogoutReason reason);
 
     /**

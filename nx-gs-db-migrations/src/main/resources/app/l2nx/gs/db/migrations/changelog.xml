@@ -205,4 +205,15 @@
             <column name="ended_at"/>
         </createIndex>
     </changeSet>
+
+    <!--
+        A closed row holds the block of its end; an open row holds it only from a graceful stop until the restore placed
+        the character, so an empty open row at a restore means the stop was a crash. Nullable, no backfill: older rows
+        published their end long ago.
+    -->
+    <changeSet id="0014-offline-sessions-result" author="nx-gs-adapter">
+        <addColumn tableName="l2nx_offline_sessions">
+            <column name="result" type="clob"/>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>

@@ -64,7 +64,7 @@ path.
     attributes. Hosts MAY add arbitrary keys without an api release; consumers ignore unknown keys.
     `null` when absent; normalized to an unmodifiable copy when present.
   - `@Nullable List<Long> recipientCharacterIds` — see R17.
-  - `@Nullable List<ChatItemSnapshot> items` — see R18.
+  - `@Nullable List<ItemSnapshot> items` — see R18.
 
   These three fields (api 0.91.0) are additive: a host built before them omits them (they read as
   `null`), and consumers MUST tolerate their absence.
@@ -124,15 +124,15 @@ path.
   the recipient list is the only way to scope those channels on the read side. Clan / alliance scoping
   uses the `clanId` / `allianceId` fields (R7, R21).
 
-- [done] R18. `ChatMessageEvent.items` MUST hold an immutable `ChatItemSnapshot` for every item link
-  present in `text`, one per objectId, taken at send time: the item's later state (enchant, augment,
-  owner) cannot be reconstructed through chat. New wire class
-  `nx-gs-adapter-api.kafka.events.chat.ChatItemSnapshot` (Java-8 POJO, same conventions as R1):
-  - `long itemObjectId`, `int itemTemplateId`, `int enchantLevel`
-  - `Map<String, Integer> attributes` — elemental type (`FIRE` / `WATER` / `WIND` / `EARTH` / `HOLY` /
-    `DARK`) to power; empty when none, never `null`
-  - `@Nullable ItemAugmentationDbDto augmentation` = `{int option1Id; @Nullable Integer option2Id}` — the
-    item-sync class itself (`kafka.sync.db.item`), not a chat copy: one domain concept, one wire shape
+- [done] R18. `ChatMessageEvent.items` MUST hold an immutable `ItemSnapshot`
+  ([`042`](042-item-snapshot.md), `domain.item`) for every item link present in `text`, one per item
+  instance, taken at send time: the item's later state (enchant, augment, owner) cannot be reconstructed
+  through chat. The snapshot replaced the chat-only `ChatItemSnapshot`, so `itemObjectId` became `itemId`:
+  - `long itemId`, `long itemTemplateId`, `@Nullable Integer enchantLevel`
+  - `@Nullable Map<Attribute, Integer> attributes` — element to power; `null` = not reported, empty =
+    none. The keys on the wire are the `Attribute` names, as they were
+  - `@Nullable ItemAugmentation augmentation` = `{int option1Id; @Nullable Integer option2Id}` — one domain
+    concept, one wire shape
   - `@Nullable Long count` — stack count of the linked item at send time. The host fills it for both
     in-game `Say2` links and command-echo links (outbound R25). `null` = unknown (a host older than
     this field). Consumers MUST NOT backfill it from a current inventory: the count in the inventory
@@ -209,8 +209,8 @@ path.
 
 Purely additive and already released — `ChatMessageEvent` + the channel constants (then `WellKnownChatChannels`) in
 `api/v0.67.0`, the registry binding in `core/v0.32.0`. R16-R20, R21a and R28 are additive on top of that: new
-nullable event fields, one new wire class, new metadata keys, `ChatItemSnapshot.count`; old hosts omit
-them and consumers tolerate absence. The one behavioral change is R19 (publish after delivery).
+nullable event fields, one new wire class (the snapshot later replaced by `ItemSnapshot`), new metadata keys, the
+stack `count`; old hosts omit them and consumers tolerate absence. The one behavioral change is R19 (publish after delivery).
 
 **`api/v0.123.0`, `core/v0.52.0` — `UNDELIVERED` (R31) and the chat vocabularies as enums.** Additive on the wire: one
 new metadata key, absent on older hosts. Source-breaking for Java code only, wire strings unchanged, no `@Deprecated`
@@ -224,10 +224,14 @@ switches in its release that takes this api; the platform reads the same strings
 switches in one release. The platform reads the `metadata` keys of a not-yet-restarted host with its own private
 constants until the gate "every game server of the tenant restarted on the new host", then deletes that branch.
 
-**Constructor rule.** `ChatItemSnapshot.count` is appended at the end of its canonical constructor; no
-overload keeping the old signature (two visible constructors break parameter-name binding for every
-consumer). On the wire nothing breaks; a host calling the constructor positionally adds one `null` and
-recompiles — hosts use `builder()`.
+**The item snapshot release ([`042`](042-item-snapshot.md)).** Breaking on the wire: `items` holds `ItemSnapshot`,
+whose `itemId` replaces `itemObjectId`. `ChatItemSnapshot` is removed in the same release with no `@Deprecated` copy.
+The host switches in one release; the platform reads the old form of a not-yet-restarted host with its own private
+mapping until every game server of the tenant restarted on the new host.
+
+**Constructor rule.** A DTO field is appended at the end of its canonical constructor; no overload keeping the old
+signature (two visible constructors break parameter-name binding for every consumer). A host calling the constructor
+positionally adds one `null` and recompiles — hosts use `builder()`.
 
 ## Non-goals
 

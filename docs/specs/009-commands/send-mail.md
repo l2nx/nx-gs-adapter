@@ -169,8 +169,8 @@ authors composing `SendMailCommand` records onto the commands topic.
   has since become all-or-nothing: a line that cannot be delivered fails the
   whole request, and `itemErrors` is always empty on its replies.]
 - [resolved: `itemTemplateId` rename vs legacy `itemId`. The legacy field was
-  ambiguous (could be read as object-id) and the new commands surface uses
-  `itemObjectId` for object-ids in `DeleteItemCommand`. Renaming makes the
+  ambiguous (could be read as object-id) and the commands surface uses
+  `itemId` for object-ids in `DeleteItemCommand`. Renaming makes the
   identity explicit.]
 - [assumed: `Long createdMailIds` (not `Integer`). Aligns with the rest of
   the commands api which uses `Long` for primary keys; current host
