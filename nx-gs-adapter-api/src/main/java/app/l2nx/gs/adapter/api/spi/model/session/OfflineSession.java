@@ -186,10 +186,9 @@ public final class OfflineSession {
     }
 
     /**
-     * The session's running block as the last graceful stop stored it. Set only on the views a restore hands to
-     * {@link OfflineSessionHost#placeInWorld} and {@link OfflineSessionHost#startAction}, for the host to seed its
-     * recorder with; empty when the stop had nothing to carry, {@code null} everywhere else and when no block survived
-     * the restart.
+     * The running block as the last graceful stop stored it, for the host to seed its recorder with. Set only on the
+     * views a restore hands to {@link OfflineSessionHost#placeInWorld} and {@link OfflineSessionHost#startAction}; empty
+     * when the stop had nothing to carry, {@code null} elsewhere and when no block survived.
      */
     public @Nullable SessionResult getCarriedResult() {
         return carriedResult;

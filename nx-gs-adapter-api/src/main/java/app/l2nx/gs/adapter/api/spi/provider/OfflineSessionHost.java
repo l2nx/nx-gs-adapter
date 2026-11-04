@@ -31,10 +31,8 @@ public interface OfflineSessionHost {
      * {@link OfflineSessionPlacement#refusedForNow}. A type state the placement changed goes back in the answer, not
      * through {@link NxAppSessions#updateTypeState}.</p>
      *
-     * <p>On a restore {@link OfflineSession#getCarriedResult()} holds the running block of the session as the graceful
-     * stop left it, for the host to seed its recorder with, so the end carries the whole session; an empty block means
-     * the stop had nothing to carry. The same view reaches {@link #startAction}. {@code null} means no block survived,
-     * and what ran before the restart is lost.</p>
+     * <p>On a restore the host seeds its recorder from {@link OfflineSession#getCarriedResult()}, so the end carries the
+     * whole session; the same view reaches {@link #startAction}.</p>
      */
     OfflineSessionPlacement placeInWorld(OfflineSession session);
 
@@ -73,20 +71,15 @@ public interface OfflineSessionHost {
     void removeFromWorld(OfflineSession session, boolean returnToOrigin);
 
     /**
-     * The result of a session, or {@code null} when there is none. Called once after every {@link #removeFromWorld},
-     * and on a graceful stop for a session left open. The answer is the host's to give up: the engine owns it from here,
-     * so whatever the host parked for the session can go.
+     * The result of a session, or {@code null} when there is none. Called once after every {@link #removeFromWorld} and
+     * on a graceful stop for a session left open; the engine owns the answer, so the host can free its recorder.
      *
-     * <p>The character is out of the world by then, so the host takes the recorder of the session when it settles the
-     * character and keeps it by session id for this call: no world state is needed here, and the method neither hops
-     * to the game thread nor waits.</p>
+     * <p>The character is out of the world by then: the host parks the recorder by session id when it settles the
+     * character, and this method neither hops to the game thread nor waits.</p>
      *
-     * <p>The engine drops the answer of a session with no end to carry it (a start that rolls back) and of a character
-     * {@link #placeInWorld} did not place in this JVM; the end of the latter carries the block the last graceful stop
-     * stored, if any. It is the same block that stands in when this answers nothing after a failed restore.</p>
-     *
-     * <p>A throw is logged and the end goes on with {@code result = null}. A block over
-     * {@link SessionResult#MAX_JSON_BYTES} is dropped the same way, so the host folds past it first.</p>
+     * <p>The answer is dropped for a start that rolls back and for a character {@link #placeInWorld} did not place in
+     * this JVM; the end then carries the block the last graceful stop stored. A throw, or a block over
+     * {@link SessionResult#MAX_JSON_BYTES}, ends the session with {@code result = null}.</p>
      */
     default @Nullable SessionResult takeSessionResult(OfflineSession session) {
         return null;

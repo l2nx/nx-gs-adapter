@@ -15,9 +15,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code source} is required. With {@link SessionSource#APP}, {@code activity} is required, {@code sessionId} is
  * the app session id, {@code ip} is that of the app request and {@code hwid} is the character's snapshot. With
- * {@link SessionSource#CLIENT} {@code activity} is absent on a session played in the client and
- * {@code OFFLINE_PRIVATE_STORE} on a native offline store session: source says who started a session, activity what
- * it does.</p>
+ * {@link SessionSource#CLIENT} {@code activity} is absent, or {@code OFFLINE_PRIVATE_STORE} on a native offline store
+ * session.</p>
  *
  * <p>{@code resumed} is {@code true} only on an {@code online=true} APP event that restores a session after a host
  * restart.</p>
@@ -26,7 +25,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code result} is allowed only on {@code online=false}, on client and app sessions alike: what the session
  * changed, {@code null} when the host has none. A close of a character not placed in this JVM carries the block the last
- * graceful stop stored, if any, and {@code null} otherwise.</p>
+ * graceful stop stored.</p>
  *
  * <p>{@code sessionId}: a start and its matching end carry the SAME id, fresh per session; {@code null} on builds that
  * do not emit it, in which case the platform leaves the session's end time unset. {@code hwid} only on cores with HWID

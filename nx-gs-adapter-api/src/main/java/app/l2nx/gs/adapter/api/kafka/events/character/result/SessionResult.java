@@ -15,10 +15,9 @@ import org.jspecify.annotations.Nullable;
 public final class SessionResult {
 
     /**
-     * Ceiling of the serialized block in UTF-8 bytes, before compression. It leaves room for the rest of the event and
-     * the headers inside the producer's default 1 MiB limit: a larger record fails with an error no later send can fix.
-     * A host folds {@link #getUniques()} into {@link #getItems()} past it; the adapter drops a block still over it, and
-     * the end goes out with {@code result = null}.
+     * Ceiling of the serialized block in UTF-8 bytes, before compression; leaves room for the rest of the event inside
+     * the producer's default 1 MiB limit. A host folds {@link #getUniques()} into {@link #getItems()} past it, else the
+     * adapter drops the block and the end goes out with {@code result = null}.
      */
     public static final int MAX_JSON_BYTES = 800_000;
 
@@ -62,8 +61,8 @@ public final class SessionResult {
     }
 
     /**
-     * {@code true} when the block covers only part of the session: it went through a crash of the host. Set by the
-     * engine, which alone knows what a restore found; always {@code false} on a client session.
+     * {@code true} when a host crash cost part of the session; set by the engine, always {@code false} on a client
+     * session.
      */
     public boolean isPartial() {
         return partial;
@@ -79,7 +78,6 @@ public final class SessionResult {
         return orEmpty(items);
     }
 
-    /** Non-stackable items, one row per item, with their state in the snapshot. */
     public List<SessionResultUnique> getUniques() {
         return orEmpty(uniques);
     }
@@ -89,17 +87,14 @@ public final class SessionResult {
         return orEmpty(experience);
     }
 
-    /** Kills by victim. */
     public List<SessionResultKill> getKills() {
         return orEmpty(kills);
     }
 
-    /** Deaths by killer. */
     public List<SessionResultDeath> getDeaths() {
         return orEmpty(deaths);
     }
 
-    /** What the host saw but no source explains. */
     public List<SessionResultUntracked> getUntracked() {
         return orEmpty(untracked);
     }

@@ -7,9 +7,8 @@ public enum LogoutReason {
     DISCONNECT,
 
     /**
-     * Client session: the client left while the character stays in the world as an offline trader. The game session
-     * ends here and a store session opens under a new id, {@code source = CLIENT} with
-     * {@code activity = OFFLINE_PRIVATE_STORE}.
+     * Client left while the character stays as an offline trader: the game session ends and a store session opens under
+     * a new id ({@code source = CLIENT}, {@code activity = OFFLINE_PRIVATE_STORE}).
      */
     OFFLINE_PRIVATE_STORE,
 
@@ -39,10 +38,8 @@ public enum LogoutReason {
 
     APP_DAILY_LIMIT,
 
-    /** App session: the action has no free slot left. Weight is {@link #APP_OVERWEIGHT}. */
     APP_INVENTORY_FULL,
 
-    /** App session: going on would overload the character. A missing slot is {@link #APP_INVENTORY_FULL}. */
     APP_OVERWEIGHT,
 
     APP_SOLD_OUT,

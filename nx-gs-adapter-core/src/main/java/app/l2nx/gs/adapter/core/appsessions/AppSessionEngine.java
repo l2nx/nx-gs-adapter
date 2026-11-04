@@ -123,9 +123,8 @@ final class AppSessionEngine {
     private final AtomicBoolean republishing = new AtomicBoolean();
     /** Closed rows whose end event cannot be built; logged once and skipped from then on. */
     private final Set<UUID> unbuildableEnds = ConcurrentHashMap.newKeySet();
-    /** Closed rows whose stored result this version cannot read; logged once, their ends go out without it. */
+
     private final Set<UUID> unreadableResults = ConcurrentHashMap.newKeySet();
-    /** Reads and writes of the {@code result} column that failed; none of them ever ends a session. */
     private final AtomicLong resultColumnFailures = new AtomicLong();
 
     private final ConcurrentLinkedQueue<Slot> restoreQueue = new ConcurrentLinkedQueue<Slot>();
@@ -297,9 +296,9 @@ final class AppSessionEngine {
     }
 
     /**
-     * Queued on every open session, not only the running ones: a restore in flight settles first and may leave one
-     * running. No block in the column reads as a crash at the next restore, which is what a block the host failed to
-     * give is; a host with nothing to give leaves an empty block, because nothing was lost.
+     * Queued on every open session, not only running ones: a restore in flight may leave one running. No block in the
+     * column reads as a crash at the next restore, as does a host failure; a host with nothing to give stores an empty
+     * block.
      */
     private void collectRunningResult(Slot slot, Map<UUID, String> blocks) {
         if (slot.phase != Phase.RUNNING) {
@@ -345,7 +344,6 @@ final class AppSessionEngine {
         }
     }
 
-    /** {@code false} when the wait ran out or the work failed: what missed its write reads as a crash at the restore. */
     private static boolean await(CompletableFuture<Void> work, long timeoutMs, String what) {
         try {
             work.get(timeoutMs, TimeUnit.MILLISECONDS);
@@ -953,7 +951,7 @@ final class AppSessionEngine {
 
     /**
      * Read once per session; the block stays in the column until the character is placed, so a stop between two
-     * attempts loses nothing. A failed read costs the block, never the session: the end says {@code partial}.
+     * attempts loses nothing. A failed read costs the block (end says {@code partial}), never the session.
      */
     private void readCarriedResult(Slot slot) {
         slot.carriedRead = true;
@@ -987,8 +985,8 @@ final class AppSessionEngine {
     }
 
     /**
-     * A block left in an open row makes a crash after this restore look like a graceful stop. That stale block is all a
-     * failed clear risks, so it never costs the session.
+     * A stale block left in an open row makes a later crash look like a graceful stop; that is all a failed clear
+     * risks, so it never costs the session.
      */
     private void clearCarriedColumn(Slot slot) {
         if (!slot.carriedInColumn) {
@@ -1067,8 +1065,7 @@ final class AppSessionEngine {
     /**
      * The text the row and every send of the end share. The host is asked after every {@code removeFromWorld}, placed or
      * not, because it parks the recorder there. Without a placement in this JVM its answer is dropped and the block the
-     * last stop carried stands; the phase cannot tell, a restore that failed after its placement closes from the same
-     * path. The same block stands in for a host that has nothing because it seeds in a {@code startAction} that threw.
+     * last stop carried stands.
      */
     private @Nullable String endResultJson(Slot slot, OfflineSession row) {
         SessionResult answer = askHost(row);
@@ -1084,7 +1081,6 @@ final class AppSessionEngine {
         return answer == HOST_FAILED || answer == null ? null : blockJson(slot, answer, row.getId());
     }
 
-    /** {@link #HOST_FAILED} when the call threw. */
     private @Nullable SessionResult askHost(OfflineSession row) {
         try {
             return host.takeSessionResult(row);
@@ -1103,7 +1099,6 @@ final class AppSessionEngine {
                 slot.partial ? block.toBuilder().partial(true).build() : block, sessionId);
     }
 
-    /** The stored text, unreadable ones included so the column keeps them; {@code null} for an empty block. */
     private @Nullable String carriedJson(Slot slot) {
         if (!slot.carriedRead) {
             readCarriedResult(slot);
@@ -1236,7 +1231,6 @@ final class AppSessionEngine {
         return sendEnd(closed, resultJson);
     }
 
-    /** A stored text a later version cannot parse gives {@code null} on every send alike. */
     private @Nullable SessionResult storedResult(UUID sessionId, @Nullable String resultJson) {
         if (resultJson == null) {
             return null;
@@ -1482,7 +1476,6 @@ final class AppSessionEngine {
     static final class PendingWrite {
         final OfflineSession session;
         final boolean delete;
-        /** The text the end already carried, so the retry stores what went out. */
         final @Nullable String resultJson;
 
         private PendingWrite(OfflineSession session, boolean delete, @Nullable String resultJson) {
@@ -1500,7 +1493,6 @@ final class AppSessionEngine {
         }
     }
 
-    /** {@link #row}, {@link #phase}, {@link #restoreAttempts} and the result state change only on {@link #ops}. */
     static final class Slot {
         final UUID id;
         final SerialExecutor ops;
@@ -1511,9 +1503,7 @@ final class AppSessionEngine {
 
         int restoreAttempts;
 
-        /** {@code placeInWorld} put the character in the world of this JVM, so an end has a result to ask for. */
         boolean placed;
-        /** The block of this session lost something to a crash; a later restore finds that in the block it carries. */
         boolean partial;
 
         boolean carriedRead;

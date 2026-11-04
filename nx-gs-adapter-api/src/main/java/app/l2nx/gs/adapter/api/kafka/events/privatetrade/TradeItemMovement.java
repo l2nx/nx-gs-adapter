@@ -28,7 +28,6 @@ public final class TradeItemMovement {
         return newItemId;
     }
 
-    /** Quantity this line moved, not the stack size of {@code item}. */
     public long getCount() {
         return count;
     }

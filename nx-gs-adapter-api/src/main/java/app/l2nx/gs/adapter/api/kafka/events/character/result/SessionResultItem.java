@@ -51,19 +51,17 @@ public final class SessionResultItem {
         return source;
     }
 
-    /** NPC template id. */
     public @Nullable Long getSourceNpcId() {
         return sourceNpcId;
     }
 
-    /** The other character of the operation. */
     public @Nullable Long getSourceCharacterId() {
         return sourceCharacterId;
     }
 
     /**
-     * Opaque link to the event already describing the operation, part of the row's key. A consumer joins on it, never
-     * parses it, and tolerates one it cannot join yet; {@code null} when no such event exists, never empty.
+     * Opaque link to the event describing the operation, part of the row's key: join on it, never parse it. {@code null}
+     * when no such event exists, never empty.
      */
     public @Nullable String getSourceRefId() {
         return sourceRefId;

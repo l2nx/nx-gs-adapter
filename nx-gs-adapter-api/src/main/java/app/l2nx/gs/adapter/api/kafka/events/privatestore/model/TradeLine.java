@@ -23,7 +23,6 @@ public final class TradeLine {
         return item;
     }
 
-    /** Quantity this line moved, not the stack size of {@code item}. */
     public long getCount() {
         return count;
     }

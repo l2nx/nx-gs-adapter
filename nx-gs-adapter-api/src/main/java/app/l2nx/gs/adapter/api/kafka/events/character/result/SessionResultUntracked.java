@@ -24,7 +24,6 @@ public final class SessionResultUntracked {
         return itemTemplateId;
     }
 
-    /** Signed net. */
     public long getDelta() {
         return delta;
     }

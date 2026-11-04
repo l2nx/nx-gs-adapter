@@ -19,8 +19,8 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The JSON of a {@link SessionResult}, written by the producer's own Gson: the size measured here is the size the
- * producer's limit checks, and the text the session table holds rebuilds the same block.
+ * The JSON of a {@link SessionResult}, written by the producer's own Gson so the size measured here is the size the
+ * producer's limit checks.
  */
 public final class SessionResultJson {
 
@@ -56,9 +56,8 @@ public final class SessionResultJson {
     }
 
     /**
-     * Gson bypasses the constructors and reads an unknown enum constant as {@code null}, a map key included, so every
-     * row and snapshot is rebuilt through its checks: a block a newer adapter wrote fails here instead of reaching the
-     * wire with a {@code null} source.
+     * Gson bypasses constructors and reads an unknown enum constant as {@code null}, so every row and snapshot is
+     * rebuilt through its checks: a block a newer adapter wrote fails here, not on the wire with a {@code null} source.
      *
      * @throws RuntimeException when the text is not a block this adapter version can carry
      */

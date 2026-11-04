@@ -19,7 +19,6 @@ public final class SessionResultDeath {
         this.count = count;
     }
 
-    /** NPC template id. */
     public @Nullable Long getSourceNpcId() {
         return sourceNpcId;
     }

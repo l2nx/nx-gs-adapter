@@ -46,12 +46,10 @@ public final class SessionResultUnique {
         return delta;
     }
 
-    /** NPC template id. */
     public @Nullable Long getSourceNpcId() {
         return sourceNpcId;
     }
 
-    /** The other character of the operation. */
     public @Nullable Long getSourceCharacterId() {
         return sourceCharacterId;
     }

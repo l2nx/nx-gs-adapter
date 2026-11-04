@@ -74,7 +74,7 @@ interface OfflineSessionStore {
 
     /**
      * Sets {@code result} of open rows in one batch: the running blocks at a graceful stop, {@code null} once a restore
-     * placed the character. Closed rows are left as they are.
+     * placed the character.
      */
     void writeOpenResults(Map<UUID, @Nullable String> resultJsonById);
 

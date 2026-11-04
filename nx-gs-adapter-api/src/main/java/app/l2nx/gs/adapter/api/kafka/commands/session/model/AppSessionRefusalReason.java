@@ -50,10 +50,8 @@ public enum AppSessionRefusalReason {
 
     INVALID_BAIT,
 
-    /** The character's level is outside the chosen bait's level range. */
     BAIT_LEVEL_MISMATCH,
 
-    /** The character does not have the fishing skill. */
     NO_FISHING_EXPERTISE,
 
     /** The chosen fishing shot is missing or its count is zero. */

@@ -70,7 +70,6 @@ public final class ItemSnapshot {
         return attributes;
     }
 
-    /** {@code null} = not augmented. */
     public @Nullable ItemAugmentation getAugmentation() {
         return augmentation;
     }

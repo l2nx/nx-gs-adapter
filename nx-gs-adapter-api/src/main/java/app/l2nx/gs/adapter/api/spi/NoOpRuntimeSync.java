@@ -2,7 +2,6 @@ package app.l2nx.gs.adapter.api.spi;
 
 import app.l2nx.gs.adapter.api.spi.capability.NxRuntimeSync;
 
-/** Fallback when no adapter runtime is wired; a callback never fires. */
 final class NoOpRuntimeSync implements NxRuntimeSync {
 
     static final NoOpRuntimeSync INSTANCE = new NoOpRuntimeSync();

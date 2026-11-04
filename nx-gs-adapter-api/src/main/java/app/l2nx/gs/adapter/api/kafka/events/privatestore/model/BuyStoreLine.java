@@ -36,7 +36,6 @@ public final class BuyStoreLine {
         return itemTemplateId;
     }
 
-    /** {@code null} = no enchant concept; {@code 0} = unenchanted; {@code > 0} = enchanted. */
     public @Nullable Integer getEnchantLevel() {
         return enchantLevel;
     }

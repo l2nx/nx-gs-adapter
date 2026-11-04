@@ -5,7 +5,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * One drop entry of a {@link RaidKillEvent}: what the raid actually rolled, not the template drop table. A template
- * reference: no instance is known when the drop is recorded. Drop-claim tracking is out of scope.
+ * reference: no instance is known when the drop is recorded.
  */
 public final class RaidDropItem {
 

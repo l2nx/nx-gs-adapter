@@ -4,16 +4,14 @@ import app.l2nx.gs.adapter.api.spi.ConnectContext;
 
 /**
  * The start gate of runtime sync: ticks run only once the module has started and the host has declared its start, so no
- * runtime event of a server generation carries a time before that generation's {@code started_at}. Obtained through
- * {@link ConnectContext#runtimeSync()}, or the static {@code NxAdapter.runtimeSync()} for host code outside a module;
- * both are one instance, usable from JVM start. A context built without it gets a no-op that never fires.
+ * runtime event of a server generation carries a time before that generation's {@code started_at}. Both access paths
+ * ({@link ConnectContext#runtimeSync()}, static {@code NxAdapter.runtimeSync()}) share one instance.
  */
 public interface NxRuntimeSync {
 
     /**
-     * The host's call, once, right after it publishes {@code ServerStartedEvent}, whether that event went out or is held
-     * until the events channel binds. A one-way fact of this JVM: safe from any thread, early and repeated calls
-     * included, and it outlives a reconnect. There is no timer and no fallback: a host that never calls it gets no ticks.
+     * The host's call, right after it publishes {@code ServerStartedEvent} (sent or held). Safe from any thread, early
+     * and repeated calls included, and it outlives a reconnect. A host that never calls it gets no ticks.
      */
     void hostStarted();
 

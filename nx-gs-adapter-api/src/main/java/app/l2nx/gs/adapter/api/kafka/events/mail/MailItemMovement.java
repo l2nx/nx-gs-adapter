@@ -10,7 +10,7 @@ import java.util.Objects;
  *
  * <p>{@code item.itemId} / {@code newItemId} are the object-id transition. SENT and RETURNED have none (both equal the
  * attachment row id); ACCEPTED goes mail row to receiver inventory, CANCELLED to sender inventory. A stack merge
- * collapses {@code newItemId} onto the existing stack id; {@code item} still describes the moved item as it was.</p>
+ * collapses {@code newItemId} onto the existing stack id.</p>
  */
 public final class MailItemMovement {
 
@@ -32,7 +32,6 @@ public final class MailItemMovement {
         return newItemId;
     }
 
-    /** Quantity this line moved, not the stack size of {@code item}. */
     public long getCount() {
         return count;
     }

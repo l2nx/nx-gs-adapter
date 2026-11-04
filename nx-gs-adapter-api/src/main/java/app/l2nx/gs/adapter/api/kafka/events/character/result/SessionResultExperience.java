@@ -23,7 +23,6 @@ public final class SessionResultExperience {
         return source;
     }
 
-    /** NPC template id. */
     public @Nullable Long getSourceNpcId() {
         return sourceNpcId;
     }

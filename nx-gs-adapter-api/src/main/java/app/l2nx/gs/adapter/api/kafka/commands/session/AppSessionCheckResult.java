@@ -87,10 +87,6 @@ public final class AppSessionCheckResult {
         return new AppSessionCheckResult(true, null, null, null, effectiveDurationMs, null, null, null, null);
     }
 
-    /**
-     * A refusal without extras; {@code ALREADY_ACTIVE}, {@code COOLDOWN}, {@code RECENTLY_LOGGED_OUT},
-     * {@code INVENTORY_FULL}, {@code OVERWEIGHT} and a {@code DAILY_LIMIT} with its reset moment need the builder.
-     */
     public static AppSessionCheckResult refused(AppSessionRefusalReason reason) {
         return new AppSessionCheckResult(
                 false, Objects.requireNonNull(reason, "reason"), null, null, null, null, null, null, null);
@@ -122,7 +118,6 @@ public final class AppSessionCheckResult {
         return effectiveDurationMs;
     }
 
-    /** Set with {@code INVENTORY_FULL}, as the start carries it. */
     public @Nullable Integer getRequiredSlots() {
         return requiredSlots;
     }
@@ -132,7 +127,6 @@ public final class AppSessionCheckResult {
         return freeSlots;
     }
 
-    /** Set with {@code OVERWEIGHT}, as the start carries it. */
     public @Nullable Long getRequiredWeight() {
         return requiredWeight;
     }
