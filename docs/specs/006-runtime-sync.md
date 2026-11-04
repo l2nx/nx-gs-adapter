@@ -230,6 +230,14 @@ entity '<name>'"`), entity transitions to `DEGRADED`, no publishes for that
   - `nx-gs-db-sync-core` and `nx-gs-kafka` carry no contract change in this slice —
     versions stay where they are unless touched independently.
 
+- [todo] R14. Ticks MUST start only when both hold: the module has started and the host has declared
+  its start through `NxAdapter.runtimeSync().hostStarted()`
+  ([#53](https://github.com/l2nx/nx-gs-adapter/issues/53)). No runtime event of a server generation
+  may carry a time before that generation's `started_at`, or the platform's generation sweep reads the
+  row as absent and a static row never republishes. The host calls the method once, right after it
+  publishes `ServerStartedEvent`, whether that event went out or is held until the events channel
+  binds. No timer, no fallback: a host that never calls it gets no ticks.
+
 **Should:**
 
 - [done] R12. The runtime engine SHOULD surface per-module health on
@@ -340,6 +348,7 @@ failedAcks, timedOutAcks, consecutiveErrors}`. Same shape as `db-sync` per
   same SPI plumbing, different data source (MySQL vs in-memory)
 - Sibling feature (algorithm reference):
   [`docs/specs/005-cdc-engine/spec.md`](005-cdc-engine/spec.md) — hash-and-diff snapshot pattern
+- Issue: [l2nx/nx-gs-adapter#53](https://github.com/l2nx/nx-gs-adapter/issues/53) (the start gate, R14)
 
 ---
 
@@ -421,6 +430,12 @@ Host-side (in the reference host integration, not this monorepo):
   swap in only the acked subset of the new snapshot. `CycleResult.degraded`
   is returned on any publish failure / timeout so the heartbeat reflects
   Kafka tail-health.
+- **NxRuntimeSync** [planned] (implements R14) — capability in `spi.capability`, modelled on
+  `NxAppSessions.hostReady()`. `hostStarted()` is the host side; `onHostStarted(Runnable)` is the module
+  side, last registration wins, and runs at once when the start was already declared. Reached through
+  `NxAdapter.runtimeSync()` and `ConnectContext.runtimeSync()`, one instance, usable from JVM start; a
+  context built without it gets a no-op that never fires. The public `ConnectContext` constructor
+  changes arity; hosts build it through the builder.
 - **SyncEventPublisher** [done] — wraps `NxKafka` producer. Reuses the same
   `inFlight`-future + flush-at-tick-end mechanism `db-sync` has on a per-window basis;
   runtime-sync has no windows, so the equivalent flush boundary is the tick itself
@@ -483,6 +498,13 @@ End-to-end per tick (one entity, e.g. `character`):
    `failedAcks`, `timedOutAcks`. `CycleResult` is `DEGRADED` if either ack
    counter is non-zero, otherwise `HEALTHY`.
 
+Start gate (R14) [planned]: `RuntimeSyncModule.start()` builds the engine and registers
+`onHostStarted`; the callback starts the engine. The flag "host started" is a one-way JVM-wide fact on
+the core's facade, so it is safe from any thread, early and repeated calls included, and it outlives a
+reconnect: the `start()` after a reconnect finds it set and ticks at once. A `stop()` or `onDisconnect`
+before the host's call drops the pending start, so a stale callback builds nothing. While it waits the
+module stays `ACTIVE` with no entity stats and logs one INFO.
+
 Shutdown: `stop()` cancels scheduled tasks and waits up to
 `max(2, publishFlushSeconds + 1)` seconds on `awaitTermination` so in-flight
 publishes can drain (the prior fixed 2s lost data once `publishFlushSeconds`
@@ -510,6 +532,9 @@ Wire DTO (Kafka payload):
 - **Tier-2 SPI: `RuntimeStateProvider`** [planned] — defined in `nx-gs-adapter-api`,
   consumed by `nx-gs-runtime-sync-core` engine. The host ships
   a `RuntimeStateProvider` impl + ServiceLoader descriptor.
+- **Host boot** [planned] — the host calls `hostStarted()` right after publishing
+  `ServerStartedEvent`, after `NxAppSessions.hostReady()`. Characters the host restores during boot
+  (offline traders, app sessions) are therefore published after the start, not before it.
 - **`ConnectContext.syncTopics().runtime()`** [planned] — engine reads its per-entity
   Kafka topic from this map. Map shape and adapter-side parsing are owned by
   [`adapter-bootstrap` R17](001-adapter-bootstrap.md).
@@ -604,6 +629,15 @@ Wire DTO (Kafka payload):
   once for engine wiring — which surprised providers that materialized the
   list eagerly on each call (e.g. read live game state). Single call +
   cache keeps the contract simple and predictable.
+
+- **Decision:** Ticks wait for the host's declared start, not for the module start (R14).
+  **Why:** The module starts on connect, while the host is still restoring its world, so a tick could
+  land before `started_at`. The platform takes `started_at` from the `eventId` of
+  `ServerStartedEvent` (the moment of `publishStarted`, not of delivery). A host that holds the event
+  until its channel binds keeps that id, and the module's `start()` runs after every module's
+  `onConnect`, so the first tick is later than `started_at` on the held path as well, whichever topic
+  is read first. **Rejected:** resetting `prevSnapshot` after the start (compensates, keeps the order);
+  a sweep exception on the platform for stores (leaves fishing and autofarm out).
 
 - **Decision:** Uniqueness validation on `entityName()` at engine start.
   **Why:** A provider declaring two mappings with the same `entityName`

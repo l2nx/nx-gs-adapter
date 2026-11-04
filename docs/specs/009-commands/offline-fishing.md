@@ -56,7 +56,8 @@ The session mechanics (table, lifecycle, events, restart) are in
 - [done] R6. Every refusal MUST carry a stable `reason` from the shared enum below in `CommandProblem.extensions`;
   the host never sends player-facing text. `RECENTLY_LOGGED_OUT` and `COOLDOWN` also carry `retryAt` (`Instant`);
   `DAILY_LIMIT` carries it as the moment the daily allowance resets, when the host knows that moment.
-  `ALREADY_ACTIVE` carries a `scope`.
+  `ALREADY_ACTIVE` carries a `scope`. [planned] `INVENTORY_FULL` carries `requiredSlots` and `freeSlots`, `OVERWEIGHT`
+  carries `requiredWeight` and `freeWeight` (R14).
 - [host rule] R7. A duration longer than what the character may still fish today (the daily stop) is not a refusal: the session
   runs shorter and the result shows the effective plan. Rod and bait are the player's choice: the host checks that the
   items belong to the character, the rod is a rod, the bait is allowed for fishing and its count is above zero. When the
@@ -87,6 +88,23 @@ The session mechanics (table, lifecycle, events, restart) are in
   `AlreadyActiveScope` value) under `initiator.ip` of the start. Live fishing counts app sessions under that IP too.
   The IP passes `ClientIdentifiers`; a placeholder limits nothing. The limit itself is a host rule, off
   when the host's per-IP limit is off. Released in api 0.120.0 / core 0.51.0.
+- [host rule] R13. **Parity with live fishing.** A start MUST be refused where live fishing with the same gear is refused.
+  A character without the fishing skill is refused with `NO_FISHING_EXPERTISE`; a bait whose character level range
+  excludes the character with `BAIT_LEVEL_MISMATCH`; any other item condition of the bait with `INVALID_BAIT` and of the
+  rod with `INVALID_ROD`, which also cover an item the character may not use and a hero or quest item. Registration for
+  the olympiad and an event count as `UNSAFE_LOGOUT_LOCATION`. Check gets the same answer at once. These are start
+  checks: a restore does not run them, as a live player who leaves the bait's level range goes on fishing with the bait
+  on. The level range the frontend shows comes from the fishing catalog
+  ([`fishing-gear-contract.md`](../030-gamedata-sync/fishing-gear-contract.md),
+  `FishingBait.minCharacterLevel` / `maxCharacterLevel`), with no adapter change.
+- [host rule] R14. **Capacity at the start.** A start MUST be refused when the first catch cannot fit, by the same
+  predicate the host applies at every catch: `INVENTORY_FULL` when no slot is free for it, `OVERWEIGHT` when it would
+  overload the character. The host checks every item one catch can give, at the count one catch gives. The numbers use the keys of the mail canon
+  ([`accept-mail.md`](accept-mail.md) R18): `requiredSlots` / `freeSlots`, `requiredWeight` / `freeWeight`, the free side
+  never below `0`. They travel in `CommandProblem.extensions` and in `AppSessionCheckResult`. `placeInWorld` does not repeat
+  this check, so a `PLACEMENT_REFUSED` never carries these numbers.
+- [host rule] R15. **Capacity at a catch.** A catch that has no free slot ends the session with `APP_INVENTORY_FULL`; a
+  catch that would overload the character ends it with `APP_OVERWEIGHT`. The two reasons never stand in for each other.
 
 **Non-goals:**
 
@@ -101,30 +119,34 @@ The session mechanics (table, lifecycle, events, restart) are in
 
 Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 
-| Reason code                   | Meaning                                                                                                                                                                                                                   | Extras             |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| `RECENTLY_LOGGED_OUT`         | The character left the game less than `app.session.recent-logout-minutes` ago (default 2); the leave time is recorded on every client disconnect                                                                          | `retryAt`          |
-| `COOLDOWN`                    | The previous app fishing session of the same master account (any character) started too recently: less than `app.fishing.start-cooldown-minutes` (default 15) since its real start; `retryAt` = that start + the cooldown | `retryAt`          |
-| `CHARACTER_ONLINE`            | The character is in the game with a client                                                                                                                                                                                |                    |
-| `DEAD`                        | The character is dead                                                                                                                                                                                                     |                    |
-| `KARMA`                       | The character has karma                                                                                                                                                                                                   |                    |
-| `CHARACTER_JAILED`            | The character is in jail                                                                                                                                                                                                  |                    |
-| `CHARACTER_BANNED`            | The character or account is banned                                                                                                                                                                                        |                    |
-| `UNSAFE_LOGOUT_LOCATION`      | The character logged out in a place from which a session may not start (olympiad, event, instance, siege)                                                                                                                 |                    |
-| `IN_PRIVATE_STORE`            | The character has a private store open                                                                                                                                                                                    |                    |
-| `NO_ROD`                      | The chosen rod is missing                                                                                                                                                                                                 |                    |
-| `NO_BAIT`                     | The chosen bait is missing or its count is zero                                                                                                                                                                           |                    |
-| `INVALID_ROD`                 | The chosen item is not a rod of this character                                                                                                                                                                            |                    |
-| `INVALID_BAIT`                | The chosen item is not an allowed bait for this character                                                                                                                                                                 |                    |
-| `NO_FISHING_SHOT`             | The chosen fishing shot is missing or its count is zero                                                                                                                                                                   |                    |
-| `INVALID_FISHING_SHOT`        | The chosen item is not a fishing shot                                                                                                                                                                                     |                    |
-| `FISHING_SHOT_GRADE_MISMATCH` | The chosen fishing shot's grade does not fit the chosen rod                                                                                                                                                               |                    |
-| `DAILY_LIMIT`                 | The daily fishing allowance is used up; `retryAt` = the moment it resets, when the host knows it                                                                                                                          | `retryAt`          |
-| `RESTART_SOON`                | A scheduled restart is closer than `app.session.restart-window-minutes` (default 15 minutes)                                                                                                                              |                    |
-| `INVALID_DURATION`            | `durationMs` is outside `app.fishing.min-duration-minutes`..`app.fishing.max-duration-minutes`                                                                                                                            |                    |
-| `FEATURE_DISABLED`            | The session type is turned off on this server (`app.fishing.enabled`)                                                                                                                                                     |                    |
-| `NO_FREE_SPOT`                | Every spot of the pool is taken                                                                                                                                                                                           |                    |
-| `ALREADY_ACTIVE`              | The character already has an open app session, or a limit of one fishing is hit                                                                                                                                           | `scope`, see below |
+| Reason code                   | Meaning                                                                                                                                                                                                                   | Extras                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `RECENTLY_LOGGED_OUT`         | The character left the game less than `app.session.recent-logout-minutes` ago (default 2); the leave time is recorded on every client disconnect                                                                          | `retryAt`                      |
+| `COOLDOWN`                    | The previous app fishing session of the same master account (any character) started too recently: less than `app.fishing.start-cooldown-minutes` (default 15) since its real start; `retryAt` = that start + the cooldown | `retryAt`                      |
+| `CHARACTER_ONLINE`            | The character is in the game with a client                                                                                                                                                                                |                                |
+| `DEAD`                        | The character is dead                                                                                                                                                                                                     |                                |
+| `KARMA`                       | The character has karma                                                                                                                                                                                                   |                                |
+| `CHARACTER_JAILED`            | The character is in jail                                                                                                                                                                                                  |                                |
+| `CHARACTER_BANNED`            | The character or account is banned                                                                                                                                                                                        |                                |
+| `UNSAFE_LOGOUT_LOCATION`      | The character logged out in a place from which a session may not start (olympiad, event, instance, siege)                                                                                                                 |                                |
+| `IN_PRIVATE_STORE`            | The character has a private store open                                                                                                                                                                                    |                                |
+| `NO_ROD`                      | The chosen rod is missing                                                                                                                                                                                                 |                                |
+| `NO_BAIT`                     | The chosen bait is missing or its count is zero                                                                                                                                                                           |                                |
+| `INVALID_ROD`                 | The chosen item is not a rod of this character                                                                                                                                                                            |                                |
+| `INVALID_BAIT`                | The chosen item is not an allowed bait for this character                                                                                                                                                                 |                                |
+| `NO_FISHING_EXPERTISE`        | [planned] The character does not have the fishing skill (R13)                                                                                                                                                             |                                |
+| `BAIT_LEVEL_MISMATCH`         | [planned] The character's level is outside the chosen bait's level range (R13)                                                                                                                                            |                                |
+| `INVENTORY_FULL`              | [planned] No free slot for the first catch (R14)                                                                                                                                                                          | `requiredSlots`, `freeSlots`   |
+| `OVERWEIGHT`                  | [planned] The first catch would overload the character (R14)                                                                                                                                                              | `requiredWeight`, `freeWeight` |
+| `NO_FISHING_SHOT`             | The chosen fishing shot is missing or its count is zero                                                                                                                                                                   |                                |
+| `INVALID_FISHING_SHOT`        | The chosen item is not a fishing shot                                                                                                                                                                                     |                                |
+| `FISHING_SHOT_GRADE_MISMATCH` | The chosen fishing shot's grade does not fit the chosen rod                                                                                                                                                               |                                |
+| `DAILY_LIMIT`                 | The daily fishing allowance is used up; `retryAt` = the moment it resets, when the host knows it                                                                                                                          | `retryAt`                      |
+| `RESTART_SOON`                | A scheduled restart is closer than `app.session.restart-window-minutes` (default 15 minutes)                                                                                                                              |                                |
+| `INVALID_DURATION`            | `durationMs` is outside `app.fishing.min-duration-minutes`..`app.fishing.max-duration-minutes`                                                                                                                            |                                |
+| `FEATURE_DISABLED`            | The session type is turned off on this server (`app.fishing.enabled`)                                                                                                                                                     |                                |
+| `NO_FREE_SPOT`                | Every spot of the pool is taken                                                                                                                                                                                           |                                |
+| `ALREADY_ACTIVE`              | The character already has an open app session, or a limit of one fishing is hit                                                                                                                                           | `scope`, see below             |
 
 **`ALREADY_ACTIVE` scopes** (`AlreadyActiveScope`, one per refusal, the first limit hit):
 
@@ -134,7 +156,7 @@ Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 | `MASTER_ACCOUNT` | another fishing app session of the same master account is open; counts app sessions only, because the host does not know the master account of a live player |
 | `ACCOUNT`        | the game account already fishes, live or through the app                                                                                                     |
 | `HWID`           | the device (the session's hwid snapshot) already fishes, live or through the app; a missing or placeholder hwid is `null` and limits nothing                 |
-| `IP`             | the IP already fishes, live or through the app (R12); an app session counts under the start's `initiator.ip`                                                  |
+| `IP`             | the IP already fishes, live or through the app (R12); an app session counts under the start's `initiator.ip`                                                 |
 
 Until R12 ships there is no IP scope and app sessions are not counted in any per-IP limit.
 
@@ -142,11 +164,11 @@ Until R12 ships there is no IP scope and app sessions are not counted in any per
 R29). The set of codes is the design's. The `CommandStatus` carrying each follows the convention of
 [`send-player-mail.md`](send-player-mail.md#status-mapping):
 
-| Status              | Reason codes                                                                                             |
-| ------------------- | -------------------------------------------------------------------------------------------------------- |
-| `INVALID_STATE`     | `NO_ROD`, `NO_BAIT`, `NO_FISHING_SHOT`, and every other state refusal not listed below                   |
-| `VALIDATION_FAILED` | `INVALID_ROD`, `INVALID_BAIT`, `INVALID_FISHING_SHOT`, `FISHING_SHOT_GRADE_MISMATCH`, `INVALID_DURATION` |
-| `FORBIDDEN`         | `CHARACTER_BANNED`, `CHARACTER_JAILED`                                                                   |
+| Status              | Reason codes                                                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID_STATE`     | `NO_ROD`, `NO_BAIT`, `NO_FISHING_SHOT`, `NO_FISHING_EXPERTISE`, `INVENTORY_FULL`, `OVERWEIGHT`, and every other state refusal not listed below |
+| `VALIDATION_FAILED` | `INVALID_ROD`, `INVALID_BAIT`, `BAIT_LEVEL_MISMATCH`, `INVALID_FISHING_SHOT`, `FISHING_SHOT_GRADE_MISMATCH`, `INVALID_DURATION`                |
+| `FORBIDDEN`         | `CHARACTER_BANNED`, `CHARACTER_JAILED`                                                                                                         |
 
 A character that is already fishing in the game client counts for the account and device limits as an offline session
 does (those limits cover live and offline fishing together); the master-account limit sees app sessions only. A live login
@@ -169,7 +191,10 @@ the same account keeps the session, and that character's own live fishing is the
 | Bait runs out                                                                               | Session ends `APP_OUT_OF_BAIT`                                                                                                                                                                                                                                                                                                                                                                             |
 | Fishing shots run out                                                                       | Session goes on without shots (R9)                                                                                                                                                                                                                                                                                                                                                                         |
 | Check (any outcome)                                                                         | `OK` with `allowed` and the first `reason`; no lock, no reservation, nothing stored (R10)                                                                                                                                                                                                                                                                                                                  |
-| Inventory full or overweight at a catch                                                     | Session ends `APP_INVENTORY_FULL`; checked at every catch                                                                                                                                                                                                                                                                                                                                                  |
+| Start when the first catch cannot fit                                                       | `INVENTORY_FULL` + `requiredSlots`, `freeSlots`, or `OVERWEIGHT` + `requiredWeight`, `freeWeight` (R14)                                                                                                                                                                                                                                                                                                    |
+| No free slot at a catch                                                                     | Session ends `APP_INVENTORY_FULL`; checked at every catch                                                                                                                                                                                                                                                                                                                                                  |
+| Catch would overload the character                                                          | Session ends `APP_OVERWEIGHT`; checked at every catch                                                                                                                                                                                                                                                                                                                                                      |
+| Restored session whose character left the bait's level range                                | Goes on: the level check is a start check (R13)                                                                                                                                                                                                                                                                                                                                                            |
 | Daily allowance reached while running                                                       | Session ends `APP_DAILY_LIMIT`                                                                                                                                                                                                                                                                                                                                                                             |
 | Duration longer than today's remaining allowance                                            | Not a refusal: shorter effective plan in the result                                                                                                                                                                                                                                                                                                                                                        |
 | Duration outside the host's minimum..maximum                                                | `INVALID_DURATION`                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -187,10 +212,9 @@ the same account keeps the session, and that character's own live fishing is the
 There is no dedicated end event. On every end the adapter emits the existing `CharacterPresenceEvent` with
 `online = false`, `source = APP`, `activity = OFFLINE_FISHING` and the end reason in the required `logoutReason`
 (`APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL`,
-`APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`). `APP_INTERRUPTED` (api 0.115.0) goes out in order: adapter
-enum, then the platform enum and its CHECK, then the host. A session report is an initial design only, not approved and not part of the contract, see
-[`038`](../038-app-offline-sessions.md) › "Session report - initial design, not approved (separate design session
-pending)". Fishing notifications are a deferred, separate task: the platform can later derive "fishing ended" from the
+[planned] `APP_OVERWEIGHT`, `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`). A new reason goes out in order:
+adapter enum, then the platform enum and its CHECK, then the host. [planned] The event carries the session's catch,
+consumption and experience in `result` ([`043-session-results`](../043-session-results.md)). Fishing notifications are a deferred, separate task: the platform can later derive "fishing ended" from the
 activity usage (the `FISHING` row's `activeSince` clears, for live and offline fishing alike).
 
 ## Technical design
@@ -229,6 +253,11 @@ private store start. The start stores the initiator's IP in the session; the ses
 character's hwid snapshot as `hwid`, both marked as coming from the app. A check runs the same handler steps
 in check mode and maps the first refusal into `AppSessionCheckResult` instead of a `CommandProblem`.
 
+[planned] `AppSessionRefusal` gains `REQUIRED_SLOTS`, `FREE_SLOTS`, `REQUIRED_WEIGHT` and `FREE_WEIGHT` with the values of
+`WellKnownAcceptMailReasons`, and `AppSessionCheckResult` gains `requiredSlots`, `freeSlots` (`Integer?`), `requiredWeight`,
+`freeWeight` (`Long?`). Its constructor requires each pair exactly with its reason, as it does `scope` with
+`ALREADY_ACTIVE`, so these two refusals need the builder, not `refused(reason)`.
+
 ## Rollout
 
 Additive wire (new commands, new reason enum), api minor version. Until the host registers the handlers the adapter
@@ -244,14 +273,14 @@ R9 (fishing shot), R10 (check), R11 (session state in the activity usage) and R1
 initiator that replaced `masterAccountId` / `initiatorIp`, shipped in api 0.120.0 / core 0.51.0; the reference host runs
 them since bohpts-core #3153, the platform since nx-gameservers 0.212.0.
 
-## Open questions
-
-- [ ] Session report: initial design only, the owner's design session is pending (see
-      [`038`](../038-app-offline-sessions.md)).
+[planned] R13-R15 ship in the adapter release of [`043`](../043-session-results.md): the four refusals, the numbers and
+`APP_OVERWEIGHT`. Order (new vocabulary values): this api release, then the platform's enums, `close_reason` CHECKs and
+frontend changelog, then the host.
 
 ## Links
 
 - Session mechanics: [`038-app-offline-sessions`](../038-app-offline-sessions.md)
+- Session result: [`043-session-results`](../043-session-results.md)
 - Rail: [`spec.md`](spec.md); wire entry: [`catalog.md`](catalog.md)
 - Platform contract: `nx-gameservers/docs/specs/086-offline-fishing.md`
 - Host documentation: not linked here, this repository does not name tenant hosts.

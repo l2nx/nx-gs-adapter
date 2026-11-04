@@ -168,10 +168,10 @@ rather than posting twice.
 
 **Result** (`SendChatMessageResult`)
 
-| Field          | Type       | Notes                                                                                                                                                                                                                                                         |
-| -------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `linesSent`    | `int`      | Physical chat lines emitted — the count of non-empty lines after splitting `text` on LF                                                                                                                                                                       |
-| `recipients`   | `int`      | Online recipients the packet actually reached. Best-effort telemetry; hosts that don't track it MAY report `0`. Never a delivery signal                                                                                                                       |
+| Field          | Type       | Notes                                                                                                                                                                                                                                                                 |
+| -------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `linesSent`    | `int`      | Physical chat lines emitted — the count of non-empty lines after splitting `text` on LF                                                                                                                                                                               |
+| `recipients`   | `int`      | Online recipients the packet actually reached. Best-effort telemetry; hosts that don't track it MAY report `0`. Never a delivery signal                                                                                                                               |
 | `targetInGame` | `Boolean?` | `WHISPER` only: `true` when the addressee is in game (also for a shadowed whisper), `false` when the addressee was out of game and the message lives only in the app; `null` on other channels and from older hosts. The platform derives delivery from it (spec R34) |
 
 **Errors**
@@ -774,9 +774,11 @@ bait. The host decides every rule; the reply carries a reason code from the shar
 `NO_ROD`, `NO_BAIT`, `INVALID_ROD`, `INVALID_BAIT`, `INVALID_DURATION`, `FEATURE_DISABLED`, `DAILY_LIMIT` (with `retryAt` = the
 moment the daily allowance resets, when the host knows it), `RESTART_SOON`,
 `NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope` `CHARACTER` / `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`, `IP`), `COMMAND_EXPIRED`;
-`NO_FISHING_SHOT`, `INVALID_FISHING_SHOT`, `FISHING_SHOT_GRADE_MISMATCH`. Status per reason: `NO_ROD` / `NO_BAIT` /
-`NO_FISHING_SHOT` and every other state refusal are `INVALID_STATE`; `INVALID_ROD` / `INVALID_BAIT` / `INVALID_DURATION` /
-`INVALID_FISHING_SHOT` / `FISHING_SHOT_GRADE_MISMATCH` are `VALIDATION_FAILED`; `CHARACTER_BANNED` / `CHARACTER_JAILED` are
+`NO_FISHING_SHOT`, `INVALID_FISHING_SHOT`, `FISHING_SHOT_GRADE_MISMATCH`; [planned] `NO_FISHING_EXPERTISE`,
+`BAIT_LEVEL_MISMATCH`, `INVENTORY_FULL` (with `requiredSlots`, `freeSlots`), `OVERWEIGHT` (with `requiredWeight`,
+`freeWeight`). Status per reason: `NO_ROD` / `NO_BAIT` / `NO_FISHING_SHOT` / `NO_FISHING_EXPERTISE` / `INVENTORY_FULL` /
+`OVERWEIGHT` and every other state refusal are `INVALID_STATE`; `INVALID_ROD` / `INVALID_BAIT` / `BAIT_LEVEL_MISMATCH` /
+`INVALID_DURATION` / `INVALID_FISHING_SHOT` / `FISHING_SHOT_GRADE_MISMATCH` are `VALIDATION_FAILED`; `CHARACTER_BANNED` / `CHARACTER_JAILED` are
 `FORBIDDEN`.
 
 ---
@@ -808,6 +810,10 @@ idempotency key, nothing stored.
 | `scope`               | `AlreadyActiveScope?`      | Non-null only with `reason = ALREADY_ACTIVE`: the limit hit, as a refused start carries it       |
 | `retryAt`             | `Instant?`                 | Set for `RECENTLY_LOGGED_OUT`, `COOLDOWN` and `DAILY_LIMIT` (the reset moment), as on start      |
 | `effectiveDurationMs` | `Long?`                    | What a start would run now (the daily stop applied); `null` without `durationMs` or when refused |
+| `requiredSlots`       | `Integer?`                 | [planned] Set with `INVENTORY_FULL`, as on start                                                 |
+| `freeSlots`           | `Integer?`                 | [planned] Set with `INVENTORY_FULL`, as on start                                                 |
+| `requiredWeight`      | `Long?`                    | [planned] Set with `OVERWEIGHT`, as on start                                                     |
+| `freeWeight`          | `Long?`                    | [planned] Set with `OVERWEIGHT`, as on start                                                     |
 
 **Errors.** A refusal is `OK` with `allowed = false`, its `reason` and, for `ALREADY_ACTIVE`, its `scope`. A `CommandProblem` means the check itself failed: `COMMAND_EXPIRED`, an invalid
 initiator (`VALIDATION_FAILED`), a host timeout (`UNAVAILABLE`). A core without the check handler answers
