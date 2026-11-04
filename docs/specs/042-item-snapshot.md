@@ -148,8 +148,8 @@ Only the names change; these commands keep their shape and take no snapshot.
 `characterId` in the same release ([`043`](043-session-results.md)). Every other `charId` and `*CharId` of the api becomes `characterId` and `*CharacterId` in the same release: commands, results,
 events and `RatingDbDto`. `charName` fields keep their names.
 
-A reader of the old form maps the old key onto the new property before it binds: many of these fields are primitives, so a
-missing key would read as `0` and no error would show it.
+A reader of the old form maps the old key onto the new property before it binds: the classes bind by constructor parameter
+name.
 
 ### Wire compatibility
 
