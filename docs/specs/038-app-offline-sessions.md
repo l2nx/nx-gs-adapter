@@ -144,8 +144,8 @@ adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged 
   refused start reports it.
 - [done] R27. **Session result.** The end of a session whose character was placed in this JVM MUST carry the result the host gives through
   `OfflineSessionHost.takeSessionResult`. The close writes it into the row's `result` column and every send of the end
-  builds it from there, so a republish stays identical (R24). A close of a character not placed in this JVM has
-  `result = null`, and so has a thrown call: the end never waits on or fails with the result. Contract in
+  builds it from there, so a republish stays identical (R24). A close of a character not placed in this JVM carries the
+  block the last graceful stop stored when there is one (043 R10) and `result = null` otherwise; a thrown call gives `null` too: the end never waits on or fails with the result. Contract in
   [`043-session-results`](043-session-results.md). A failed read or clear of the column is logged and counted and never
   ends a session.
 - [done] R28. **Capacity ends.** An action that stops because the character has no free slot ends with
@@ -189,7 +189,7 @@ adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged 
   and the engine closes the session.
 - **Session end after a restart:** the result covers the whole session after a graceful stop; after a crash it covers
   the time since the restore and says so with `partial` (R27).
-- **Session closed before the restore reached the character:** no result (R27).
+- **Session closed before the restore reached the character:** the block the last graceful stop stored, `null` when there is none (R27, 043 R10).
 - **Session type disabled in the app settings file:** running sessions finish normally, the host refuses a new start
   with `FEATURE_DISABLED` (see [App settings file](#app-settings-file)).
 - **Client disconnect right before a start:** counts as leaving the game (R8), including the offline-trader command.
@@ -572,6 +572,7 @@ snapshot carries.
 | `app.chat.offline-send-channels`           | list    | as above, `PARTY` invalid                                                         | `CLAN,ALLIANCE,WHISPER`       | channels the app may send to while the character is out of game (`CHANNEL_DISABLED` outside); empty: read-only. Snapshot (`chat.offlineSendChannels`)                                                                                                                                                                                      |
 | `app.restore.batch-size`                   | int     | >= 1                                                                              | `10`                          | sessions restored per batch after a restart (capped at the engine's share of the IO pool)                                                                                                                                                                                                                                                  |
 | `app.restore.batch-pause-millis`           | int     | >= 0                                                                              | `1000`                        | pause between restore batches                                                                                                                                                                                                                                                                                                              |
+| `app.shutdown.result-millis-per-session`   | int     | >= 1                                                                              | see `AppRules`                | wait per open session, added to the 5 s base, for taking and writing the running results at a graceful stop ([`043`](043-session-results.md) R9) |
 | `app.history.retention-days`               | int     | >= 7                                                                              | `90`                          | closed sessions older than this are deleted from the adapter's table at server start (R13); bounds the session-history read                                                                                                                                                                                                                |
 
 A new session type adds one `app.<type>.enabled` key of the same form, not a new file layout. The spot pool name goes
@@ -879,7 +880,7 @@ Phases across repos, in delivery order:
    Plan: the platform drops its `501`, the permission goes to a testers role, then, after a prod
    check, to the player role; frontend. The platform drops its legacy mapping of the old shapes once every game server of
    the tenant is on the phase-2 host; backlog by priority ([#40](https://github.com/l2nx/nx-gs-adapter/issues/40) first).
-6. **[planned] Session results and capacity ends.** One adapter release with [`042`](042-item-snapshot.md) and
+6. **[done] Session results and capacity ends.** One adapter release with [`042`](042-item-snapshot.md) and
    [`043`](043-session-results.md): `takeSessionResult`, the `result` column (changeset `0014`, db-migrations),
    `APP_OVERWEIGHT` and `SOLD_OUT`, which `AppSessionEngine.HOST_END_REASONS` learns for `APP_OVERWEIGHT` only. Order (new
    vocabulary value): this release, then the platform's `SessionCloseReason` and the `close_reason` CHECKs of

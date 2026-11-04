@@ -43,8 +43,8 @@ import app.l2nx.gs.adapter.core.lifecycle.StartupBanner;
 import app.l2nx.gs.adapter.core.modules.ModuleRegistry;
 import app.l2nx.gs.adapter.core.receipts.JdbcCommandReceipts;
 import app.l2nx.gs.adapter.core.schema.SchemaMigration;
+import app.l2nx.gs.adapter.core.sync.NxRuntimeSyncImpl;
 import app.l2nx.gs.adapter.core.sync.NxSyncImpl;
-import app.l2nx.gs.adapter.core.sync.RuntimeSyncGate;
 import app.l2nx.gs.commons.concurrent.DaemonThreadFactory;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
 import app.l2nx.gs.kafka.KafkaException;
@@ -65,7 +65,7 @@ public final class NxAdapter {
 
     private static final NxLog log = NxLogFactory.getLogger(NxAdapter.class);
     private static final AtomicReference<AdapterState> STATE = new AtomicReference<>(AdapterState.INIT);
-    private static final RuntimeSyncGate RUNTIME_SYNC = new RuntimeSyncGate();
+    private static final NxRuntimeSyncImpl RUNTIME_SYNC = new NxRuntimeSyncImpl();
     private static final AtomicBoolean started = new AtomicBoolean(false);
     private static final AtomicBoolean closed = new AtomicBoolean(false);
     /** Latches on first ACTIVE: before it a connect failure stays REGISTERING, after it drives DEGRADED. */

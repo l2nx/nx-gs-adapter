@@ -29,7 +29,7 @@ and no fallback: a host that never calls it gets no ticks. Call `NxAppSessions.h
   `OFFLINE_PRIVATE_STORE` only, the native offline store session.
 - `OfflineSessionHost.takeSessionResult(session)` is a new `default` method answering `null`. Override it to report
   results. The engine calls it once after every `removeFromWorld`, including a rolled-back start and a character that
-  was never placed, so a recorder you keep by session id can always be released there. It also runs at a graceful
+  was never placed, so a recorder you keep by session id can be released there, except when the end races a graceful stop that already kept the block: that end skips the call. It also runs at a graceful
   stop for each session left open.
 - `OfflineSession.getCarriedResult()` holds the running block after a graceful stop, on the views `placeInWorld` and
   `startAction` get during a restore. Seed your recorder with it. An empty block means nothing was recorded; `null`

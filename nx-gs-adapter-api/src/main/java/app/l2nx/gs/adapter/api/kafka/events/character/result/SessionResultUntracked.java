@@ -17,7 +17,7 @@ public final class SessionResultUntracked {
         }
         this.itemTemplateId = itemTemplateId;
         this.delta = delta;
-        this.process = ResultText.blankToNull(process);
+        this.process = SessionResultText.blankToNull(process);
     }
 
     public long getItemTemplateId() {

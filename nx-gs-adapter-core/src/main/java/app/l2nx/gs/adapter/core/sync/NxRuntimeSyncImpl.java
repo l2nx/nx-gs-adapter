@@ -6,9 +6,9 @@ import app.l2nx.gs.log.NxLogFactory;
 import org.jspecify.annotations.Nullable;
 
 /** JVM-wide, so the host's call survives a reconnect; a callback that threw is logged, never thrown at the host. */
-public final class RuntimeSyncGate implements NxRuntimeSync {
+public final class NxRuntimeSyncImpl implements NxRuntimeSync {
 
-    private static final NxLog log = NxLogFactory.getLogger(RuntimeSyncGate.class);
+    private static final NxLog log = NxLogFactory.getLogger(NxRuntimeSyncImpl.class);
 
     private boolean started;
     private @Nullable Runnable waiting;

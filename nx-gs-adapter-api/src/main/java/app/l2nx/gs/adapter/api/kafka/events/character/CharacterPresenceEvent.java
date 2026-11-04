@@ -25,7 +25,8 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code logoutReason} is required on every {@code online=false} event and forbidden on {@code online=true}.</p>
  *
  * <p>{@code result} is allowed only on {@code online=false}, on client and app sessions alike: what the session
- * changed, {@code null} when the host has none or the character was not placed in this JVM.</p>
+ * changed, {@code null} when the host has none. A close of a character not placed in this JVM carries the block the last
+ * graceful stop stored, if any, and {@code null} otherwise.</p>
  *
  * <p>{@code sessionId}: a start and its matching end carry the SAME id, fresh per session; {@code null} on builds that
  * do not emit it, in which case the platform leaves the session's end time unset. {@code hwid} only on cores with HWID

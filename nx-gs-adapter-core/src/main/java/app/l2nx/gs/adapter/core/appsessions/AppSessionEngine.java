@@ -1226,6 +1226,7 @@ final class AppSessionEngine {
             resultJson = store.readResult(closed.getId());
         } catch (RuntimeException e) {
             endsInFlight.remove(closed.getId());
+            resultColumnFailures.incrementAndGet();
             log.warn(
                     "App sessions: reading the result of session {} failed, its end is sent next minute: {}",
                     closed.getId(),

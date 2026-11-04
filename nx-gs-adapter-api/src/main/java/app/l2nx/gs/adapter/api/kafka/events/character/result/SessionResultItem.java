@@ -38,7 +38,7 @@ public final class SessionResultItem {
         this.source = Objects.requireNonNull(source, "SessionResultItem.source is required");
         this.sourceNpcId = sourceNpcId;
         this.sourceCharacterId = sourceCharacterId;
-        this.sourceRefId = ResultText.blankToNull(sourceRefId);
+        this.sourceRefId = SessionResultText.blankToNull(sourceRefId);
         this.delta = delta;
         this.events = events;
     }

@@ -35,7 +35,8 @@ from that data on the platform.
   `uniques` into `items` and counts them in `overflow`. A `result` still over it MUST be dropped, not the end: the end of
   a session never depends on its result ([Byte budget](#byte-budget)).
 - [done] R7. `OfflineSessionHost` MUST gain `takeSessionResult`, called by the engine once after every `removeFromWorld`
-  and once per session left open by a graceful stop ([SPI](#spi)).
+  and once per session left open by a graceful stop ([SPI](#spi)). An end that races a graceful stop whose block the stop
+  already kept skips the call and uses the kept block.
 - [done] R8. An `APP` end MUST be identical on its first send and on every republish, `result` included, so the
   result is stored in the JSON column `result` of `l2nx_offline_sessions`, written by the close.
 - [done] R9. `result` MUST survive a graceful restart of an `APP` session. The graceful stop takes the running block of every
@@ -425,8 +426,9 @@ exists.
   second event would need its own ordering against the end, and a lost one would leave an end with no result.
 - **Stored in the row.** R24 of `038` republishes an end from the row until Kafka acknowledges it, with a fixed
   `eventId`. A `result` held only in memory would make the republished end differ from the first send, or lose it.
-- **One batched write at the graceful stop, none while running.** The wait is 5 s plus
-  `app.shutdown.result-millis-per-session` per open session, and a slot stuck in the host costs only its own block. A periodic write of a hot structure would cost every session for
+- **One batched write at the graceful stop, none while running.** Each of the take and the write waits 5 s plus
+  `app.shutdown.result-millis-per-session` per open session, then the `active_ms` flush waits 5 s more, in turn: the stop
+  takes at most 15 s plus twice that per-session time per open session. A slot stuck in the host costs only its own block. A periodic write of a hot structure would cost every session for
   the rare crash. The stop is the only moment the block must leave memory; a crash loses it, as it does for `CLIENT`, and
   `partial` says so.
 - **The same column.** An open row holds the carried block, a closed row the final one; a restore clears it, so a crash

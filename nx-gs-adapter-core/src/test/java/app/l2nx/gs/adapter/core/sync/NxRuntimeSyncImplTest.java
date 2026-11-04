@@ -7,9 +7,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-class RuntimeSyncGateTest {
+class NxRuntimeSyncImplTest {
 
-    private final RuntimeSyncGate gate = new RuntimeSyncGate();
+    private final NxRuntimeSyncImpl gate = new NxRuntimeSyncImpl();
     private final AtomicInteger fired = new AtomicInteger();
 
     @Nested

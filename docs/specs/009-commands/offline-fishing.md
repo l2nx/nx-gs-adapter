@@ -213,7 +213,7 @@ There is no dedicated end event. On every end the adapter emits the existing `Ch
 `online = false`, `source = APP`, `activity = OFFLINE_FISHING` and the end reason in the required `logoutReason`
 (`APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL`,
 `APP_OVERWEIGHT`, `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`). A new reason goes out in order:
-adapter enum, then the platform enum and its CHECK, then the host. [planned] The event carries the session's catch,
+adapter enum, then the platform enum and its CHECK, then the host. The event carries the session's catch,
 consumption and experience in `result` ([`043-session-results`](../043-session-results.md)). Fishing notifications are a deferred, separate task: the platform can later derive "fishing ended" from the
 activity usage (the `FISHING` row's `activeSince` clears, for live and offline fishing alike).
 

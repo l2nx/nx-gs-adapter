@@ -30,7 +30,7 @@ public final class SessionResultUnique {
         this.delta = delta;
         this.sourceNpcId = sourceNpcId;
         this.sourceCharacterId = sourceCharacterId;
-        this.sourceRefId = ResultText.blankToNull(sourceRefId);
+        this.sourceRefId = SessionResultText.blankToNull(sourceRefId);
     }
 
     public ItemSnapshot getItem() {
