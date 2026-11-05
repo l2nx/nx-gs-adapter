@@ -207,11 +207,11 @@ namespaces are independent on purpose — `l2nx.cdc-engine.*`, `l2nx.runtime-syn
 ## Distribution & licensing
 
 Open-core. This repo and every artifact published from it is public under Apache 2.0 and published
-to Maven Central. The vanilla sync modules (`nx-gs-db-l2j`, `nx-gs-dp-lucera`, …) — when they land —
+to `maven-oss`. The vanilla sync modules (`nx-gs-db-l2j`, `nx-gs-dp-lucera`, …) — when they land —
 ship from this repo on the same terms.
 
 Per-client overrides (`nx-gs-db-l2j-<client>`, `nx-gs-dp-<core>-<client>`) live in private repos and
-are shipped privately to that client only — never to Maven Central — to avoid leaking
+are shipped privately to that client only — never to `maven-oss` — to avoid leaking
 client-proprietary DB schemas / datapack layouts. They extend a vanilla module via the
 template-method pattern.
 
@@ -231,10 +231,11 @@ ONLY that module — the others stay at the fallback literal in their own `build
 `build.gradle.kts` fallback says — a stale literal ships a dependency pin at a version that predates
 the code. The publish workflow refuses to release when the two disagree.
 
-Local builds default to the per-module fallback (no `local-SNAPSHOT`). Maven Central is the publish
-target; CI uses `signingKey` / `signingPassword` Gradle properties (GPG) and `CENTRAL_TOKEN` for the
-Sonatype Central Portal upload. Central propagation takes ~15-30 min — a dependent release must wait
-for the artifact to be resolvable, not just for the tag to be pushed.
+Local builds default to the per-module fallback (no `local-SNAPSHOT`). The publish target is `maven-oss`
+on `artifacts.l2nx.online`: anonymous read, `allow_once`, 10 latest releases per module. Older versions
+stay on Maven Central, which takes no new ones. CI signs with `signingKey` / `signingPassword` (GPG) and
+writes as `maven-oss-deploy` (`L2NX_MAVEN_OSS_USERNAME` / `L2NX_MAVEN_OSS_PASSWORD`). A version resolves as soon as
+the run is green; a re-run of a published version fails with 409, so a broken release takes a new patch.
 
 ### Breaking wire changes: the host switches in one release, the adapter removes the old member in the same release
 
@@ -251,10 +252,10 @@ release, with no `@Deprecated` copy and no second "removal" release:
    the gate fires the platform deletes it.
 
 The reason is deploy ordering, not politeness: the platform is always deployed **before** the schema
-providers that feed it (nx-gameservers, then adapter-api to Maven Central, then the tenant fork). So
+providers that feed it (nx-gameservers, then adapter-api to `maven-oss`, then the tenant fork). So
 there is always a window in which a new consumer reads events emitted by an old producer. A one-shot
 rename without the platform's legacy mapping makes the new consumer blind to that traffic for the whole window -
-silently, since an unknown JSON field just deserializes to `null`. Central propagation and game-server restart
+silently, since an unknown JSON field just deserializes to `null`. The game-server restart
 schedules make the window hours-to-days wide, not seconds. Keeping that window on the platform keeps the adapter api
 free of dead members.
 

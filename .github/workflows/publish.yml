@@ -1,4 +1,4 @@
-name: Publish to Maven Central
+name: Publish to maven-oss
 
 on:
   push:
@@ -95,51 +95,26 @@ jobs:
           chmod +x gradlew
           ./gradlew ":${MODULE}:test" -PexcludeTags=integration
 
-      # Secrets are passed via ORG_GRADLE_PROJECT_* env vars (Gradle reads these as
-      # `findProperty("signingKey")` / `findProperty("signingPassword")`) so they
-      # never appear on the command line where Gradle stack traces or `ps` output
-      # could leak them.
-      - name: Publish target module to staging
+      # Secrets travel as ORG_GRADLE_PROJECT_* env vars (Gradle reads them as findProperty(...)) so they
+      # never reach the command line, where a stack trace or `ps` could leak them.
+      - name: Publish target module to maven-oss
         env:
           MODULE: ${{ steps.parsed.outputs.module }}
           VERSION: ${{ steps.parsed.outputs.version }}
           ORG_GRADLE_PROJECT_signingKey: ${{ secrets.GPG_PRIVATE_KEY }}
           ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.GPG_PASSPHRASE }}
+          ORG_GRADLE_PROJECT_l2nxOssUsername: ${{ secrets.L2NX_MAVEN_OSS_USERNAME }}
+          ORG_GRADLE_PROJECT_l2nxOssPassword: ${{ secrets.L2NX_MAVEN_OSS_PASSWORD }}
         run: |
-          ./gradlew ":${MODULE}:publishMavenPublicationToStagingRepository" \
+          ./gradlew ":${MODULE}:publishMavenPublicationToL2nxOssRepository" \
             "-P${MODULE}.version=${VERSION}"
-
-      - name: Create bundle
-        env:
-          MODULE: ${{ steps.parsed.outputs.module }}
-        run: |
-          cd "${MODULE}/build/staging-deploy"
-          zip -r "$GITHUB_WORKSPACE/bundle.zip" .
-
-      - name: Upload to Central Portal
-        env:
-          CENTRAL_TOKEN: ${{ secrets.CENTRAL_TOKEN }}
-        run: |
-          STATUS=$(curl --silent --output response.json --write-out "%{http_code}" \
-            --request POST \
-            --header "Authorization: Bearer ${CENTRAL_TOKEN}" \
-            --form bundle=@bundle.zip \
-            "https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC")
-          echo "HTTP status: $STATUS"
-          if [ "$STATUS" -ne 201 ]; then
-            echo "Upload failed."
-            # Print body sanitized — strip any field that could echo auth back.
-            jq 'del(.token, .authorization, .secret, .access_token)' response.json 2>/dev/null \
-              || echo "(response body suppressed; install jq to inspect)"
-            exit 1
-          fi
 
       - name: Create GitHub Release
         run: gh release create "$GITHUB_REF_NAME" --generate-notes --title "${{ steps.parsed.outputs.module }} ${{ steps.parsed.outputs.version }}"
         env:
           GH_TOKEN: ${{ github.token }}
 
-  # Separate job so "Re-run failed jobs" retries only this push, never the Central publish.
+  # Separate job so "Re-run failed jobs" retries only this push, never the publish.
   release-notes:
     needs: publish
     runs-on: [ self-hosted, linux, nexus ]
@@ -179,7 +154,7 @@ jobs:
           echo "::error::Failed to push after 5 retries"
           exit 1
 
-  # Separate job so "Re-run failed jobs" retries only the docs sync, never the Central publish.
+  # Separate job so "Re-run failed jobs" retries only the docs sync, never the publish.
   docs:
     needs: publish
     runs-on: [ self-hosted, linux, nexus ]
@@ -197,7 +172,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Here, not in front of the Central publish: drifted docs must not block a module release.
+      # Here, not in front of the publish: drifted docs must not block a module release.
       - name: Verify configuration docs cover the keys read in code
         working-directory: source
         run: |

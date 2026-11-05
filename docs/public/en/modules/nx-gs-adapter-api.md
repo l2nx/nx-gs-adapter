@@ -15,7 +15,7 @@ app.l2nx:nx-gs-adapter-api
 ```
 
 Java 8. Release tag `api/vX.Y.Z`. Versions on
-[Maven Central](https://central.sonatype.com/artifact/app.l2nx/nx-gs-adapter-api).
+[maven-oss](https://artifacts.l2nx.online/service/rest/repository/browse/maven-oss/app/l2nx/nx-gs-adapter-api/).
 
 ## When the host needs it
 

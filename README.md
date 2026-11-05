@@ -39,7 +39,7 @@ Per-client overrides (private repos) extend vanilla via the template-method patt
 
 ## Distribution & licensing
 
-Open-core model — Apache 2.0, published to Maven Central:
+Open-core model — Apache 2.0, published to the open `maven-oss` repository:
 
 - `nx-gs-adapter-api` (contracts + SPI)
 - `nx-gs-kafka` (Kafka facade)
@@ -52,12 +52,12 @@ Open-core model — Apache 2.0, published to Maven Central:
 - `nx-gs-db-l2j`, `nx-gs-db-lucera`, `nx-gs-dp-l2j`, `nx-gs-dp-lucera` (vanilla sync
   modules — community schemas, future)
 
-Operators can audit every artifact that loads into their host JVM and drop in via Maven
-Central without a private-repo handshake.
+Operators can audit every artifact that loads into their host JVM and drop in from
+`https://artifacts.l2nx.online/repository/maven-oss/` without a login.
 
 Per-client modules (`nx-gs-db-l2j-<client>`, `nx-gs-dp-<core>-<client>`) that encode a
 client-proprietary DB schema or datapack layout are shipped privately to that client
-only — never published to Maven Central — to avoid leaking their schema internals.
+only — never published to `maven-oss` — to avoid leaking their schema internals.
 They extend the vanilla module via the template-method pattern.
 
 ## Versioning

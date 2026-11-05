@@ -72,8 +72,9 @@ tasks.shadowJar {
 publishing {
     repositories {
         maven {
-            name = "staging"
-            url = uri(layout.buildDirectory.dir("staging-deploy"))
+            name = "l2nxOss"
+            url = uri("https://artifacts.l2nx.online/repository/maven-oss/")
+            credentials(PasswordCredentials::class)
         }
     }
     publications {

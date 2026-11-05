@@ -16,7 +16,7 @@ app.l2nx:nx-gs-runtime-sync-core
 ```
 
 Java 8. Release tag `runtime-sync/vX.Y.Z`. Versions on
-[Maven Central](https://central.sonatype.com/artifact/app.l2nx/nx-gs-runtime-sync-core).
+[maven-oss](https://artifacts.l2nx.online/service/rest/repository/browse/maven-oss/app/l2nx/nx-gs-runtime-sync-core/).
 
 ## When the host needs it
 

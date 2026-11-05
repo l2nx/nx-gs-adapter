@@ -15,7 +15,7 @@ app.l2nx:nx-gs-adapter-core
 ```
 
 Java 8. Release tag `core/vX.Y.Z`. Versions on
-[Maven Central](https://central.sonatype.com/artifact/app.l2nx/nx-gs-adapter-core).
+[maven-oss](https://artifacts.l2nx.online/service/rest/repository/browse/maven-oss/app/l2nx/nx-gs-adapter-core/).
 
 ## When the host needs it
 
