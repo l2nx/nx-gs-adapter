@@ -268,7 +268,7 @@ class AppSessionsRuntimeTest {
                     .activity(ActivityType.OFFLINE_PRIVATE_STORE)
                     .build();
             store.seed(closed);
-            store.close(closed.getId(), 0L, closed.getStartedAt().plusSeconds(30), LogoutReason.APP_STOPPED);
+            store.close(closed.getId(), 0L, closed.getStartedAt().plusSeconds(30), LogoutReason.APP_STOPPED, null);
             AppSessionsFacade facade = new AppSessionsFacade(10L);
             facade.ready(bootedEngine(store));
 

@@ -9,16 +9,16 @@ import org.jspecify.annotations.Nullable;
 /** One symmetric side of a closed personal trade; {@link #getItems() items} is what this side gave up, empty = gift recipient. */
 public final class TradeParty {
 
-    private final long charId;
+    private final long characterId;
     private final List<TradeItemMovement> items;
 
-    public TradeParty(long charId, @Nullable List<TradeItemMovement> items) {
-        this.charId = charId;
+    public TradeParty(long characterId, @Nullable List<TradeItemMovement> items) {
+        this.characterId = characterId;
         this.items = freezeList(items);
     }
 
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
     public List<TradeItemMovement> getItems() {
@@ -26,7 +26,7 @@ public final class TradeParty {
     }
 
     public Builder toBuilder() {
-        return new Builder().charId(charId).items(items);
+        return new Builder().characterId(characterId).items(items);
     }
 
     public static Builder builder() {
@@ -45,25 +45,25 @@ public final class TradeParty {
         if (this == o) return true;
         if (!(o instanceof TradeParty)) return false;
         TradeParty that = (TradeParty) o;
-        return charId == that.charId && Objects.equals(items, that.items);
+        return characterId == that.characterId && Objects.equals(items, that.items);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, items);
+        return Objects.hash(characterId, items);
     }
 
     @Override
     public String toString() {
-        return "TradeParty[charId=" + charId + ", items=" + items + "]";
+        return "TradeParty[characterId=" + characterId + ", items=" + items + "]";
     }
 
     public static final class Builder {
-        private long charId;
+        private long characterId;
         private @Nullable List<TradeItemMovement> items;
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -73,7 +73,7 @@ public final class TradeParty {
         }
 
         public TradeParty build() {
-            return new TradeParty(charId, items);
+            return new TradeParty(characterId, items);
         }
     }
 }

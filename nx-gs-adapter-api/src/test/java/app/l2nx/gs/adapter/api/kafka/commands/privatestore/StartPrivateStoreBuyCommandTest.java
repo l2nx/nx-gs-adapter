@@ -39,7 +39,7 @@ class StartPrivateStoreBuyCommandTest {
 
     private static StartPrivateStoreBuyCommand.Builder valid() {
         return StartPrivateStoreBuyCommand.builder()
-                .charId(1)
+                .characterId(1)
                 .title("WTB")
                 .lines(Arrays.asList(LINE_1, LINE_2))
                 .buyerFeePercent(5)
@@ -54,7 +54,7 @@ class StartPrivateStoreBuyCommandTest {
     void builder_shouldKeepAllFields() {
         StartPrivateStoreBuyCommand actual = valid().build();
 
-        assertEquals(1, actual.getCharId());
+        assertEquals(1, actual.getCharacterId());
         assertEquals("WTB", actual.getTitle());
         assertEquals(Arrays.asList(LINE_1, LINE_2), actual.getLines());
         assertEquals(Integer.valueOf(5), actual.getBuyerFeePercent());
@@ -144,14 +144,14 @@ class StartPrivateStoreBuyCommandTest {
     void toString_shouldNameTheStoreFields() {
         String actual = valid().build().toString();
 
-        assertTrue(actual.startsWith("StartPrivateStoreBuyCommand[charId=1, title=WTB, lines=["), actual);
+        assertTrue(actual.startsWith("StartPrivateStoreBuyCommand[characterId=1, title=WTB, lines=["), actual);
         assertTrue(actual.contains("buyerFeePercent=5, offlineAllowed=true"), actual);
     }
 
     @Test
     void gson_shouldRoundtripAndUseTheWireFieldNames() {
         StartPrivateStoreBuyCommand original = valid().build();
-        String expected = "{\"charId\":1,\"title\":\"WTB\","
+        String expected = "{\"characterId\":1,\"title\":\"WTB\","
                 + "\"lines\":[{\"itemTemplateId\":57,\"count\":10,\"priceAdena\":100},"
                 + "{\"itemTemplateId\":58,\"count\":1,\"priceAdena\":5000}],\"buyerFeePercent\":5,"
                 + "\"offlineAllowed\":true,\"ownerVerified\":true,\"deadline\":\"2026-10-22T12:00:00Z\","

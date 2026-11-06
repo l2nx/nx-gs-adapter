@@ -11,19 +11,19 @@ public final class MailAcceptedEvent {
 
     private final UUID eventId;
     private final long mailId;
-    private final long claimedByCharId;
+    private final long claimedByCharacterId;
     private final List<MailItemMovement> attachments;
     private final @Nullable Map<String, String> metadata;
 
     public MailAcceptedEvent(
             UUID eventId,
             long mailId,
-            long claimedByCharId,
+            long claimedByCharacterId,
             @Nullable List<MailItemMovement> attachments,
             @Nullable Map<String, String> metadata) {
         this.eventId = eventId;
         this.mailId = mailId;
-        this.claimedByCharId = claimedByCharId;
+        this.claimedByCharacterId = claimedByCharacterId;
         this.attachments = freezeList(attachments);
         this.metadata =
                 metadata == null ? null : Collections.unmodifiableMap(new LinkedHashMap<String, String>(metadata));
@@ -37,8 +37,8 @@ public final class MailAcceptedEvent {
         return mailId;
     }
 
-    public long getClaimedByCharId() {
-        return claimedByCharId;
+    public long getClaimedByCharacterId() {
+        return claimedByCharacterId;
     }
 
     public List<MailItemMovement> getAttachments() {
@@ -53,7 +53,7 @@ public final class MailAcceptedEvent {
         return new Builder()
                 .eventId(eventId)
                 .mailId(mailId)
-                .claimedByCharId(claimedByCharId)
+                .claimedByCharacterId(claimedByCharacterId)
                 .attachments(attachments)
                 .metadata(metadata);
     }
@@ -75,7 +75,7 @@ public final class MailAcceptedEvent {
         if (!(o instanceof MailAcceptedEvent)) return false;
         MailAcceptedEvent that = (MailAcceptedEvent) o;
         return mailId == that.mailId
-                && claimedByCharId == that.claimedByCharId
+                && claimedByCharacterId == that.claimedByCharacterId
                 && Objects.equals(eventId, that.eventId)
                 && Objects.equals(attachments, that.attachments)
                 && Objects.equals(metadata, that.metadata);
@@ -83,14 +83,14 @@ public final class MailAcceptedEvent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventId, mailId, claimedByCharId, attachments, metadata);
+        return Objects.hash(eventId, mailId, claimedByCharacterId, attachments, metadata);
     }
 
     @Override
     public String toString() {
         return "MailAcceptedEvent[eventId=" + eventId
                 + ", mailId=" + mailId
-                + ", claimedByCharId=" + claimedByCharId
+                + ", claimedByCharacterId=" + claimedByCharacterId
                 + ", attachments=" + attachments
                 + ", metadata=" + metadata + "]";
     }
@@ -98,7 +98,7 @@ public final class MailAcceptedEvent {
     public static final class Builder {
         private UUID eventId;
         private long mailId;
-        private long claimedByCharId;
+        private long claimedByCharacterId;
         private @Nullable List<MailItemMovement> attachments;
         private @Nullable Map<String, String> metadata;
 
@@ -112,8 +112,8 @@ public final class MailAcceptedEvent {
             return this;
         }
 
-        public Builder claimedByCharId(long claimedByCharId) {
-            this.claimedByCharId = claimedByCharId;
+        public Builder claimedByCharacterId(long claimedByCharacterId) {
+            this.claimedByCharacterId = claimedByCharacterId;
             return this;
         }
 
@@ -128,7 +128,7 @@ public final class MailAcceptedEvent {
         }
 
         public MailAcceptedEvent build() {
-            return new MailAcceptedEvent(eventId, mailId, claimedByCharId, attachments, metadata);
+            return new MailAcceptedEvent(eventId, mailId, claimedByCharacterId, attachments, metadata);
         }
     }
 }

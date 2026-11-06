@@ -58,10 +58,10 @@ host-side authors hooking raid-death paths.
       group received drop protection. Group-first semantics: when
       `dropOwner.partyId` (or `commandChannelId`) is non-null, drop rights
       belong to that group — consumers MUST aggregate analytics by
-      `partyId` / `commandChannelId`, not by `dropOwner.charId` (which is
+      `partyId` / `commandChannelId`, not by `dropOwner.characterId` (which is
       the L2 representative of the group and is unstable across kills of
       the same party). When both group ids are null the kill was solo and
-      `dropOwner.charId` IS the drop owner directly. `null` when no
+      `dropOwner.characterId` IS the drop owner directly. `null` when no
       resolvable player damager (admin kill, instant kill with empty
       aggro list).
     - `List<RaidActor> participants` — REQUIRED, may be empty (raid
@@ -73,7 +73,7 @@ host-side authors hooking raid-death paths.
       Party / CommandChannel members of those players (covers pure buffers
       grouped with the actual fighters). Multiple aggro entries for the
       same character (main attacks + summon) are aggregated — one
-      `RaidActor` per `charId`, damage summed across entries. Ordering not
+      `RaidActor` per `characterId`, damage summed across entries. Ordering not
       enforced on wire; producers SHOULD emit sorted by `damageDealt` desc
       as a convenience — support entries (damage=0) park at the tail.
     - `List<RaidDropItem> drops` — REQUIRED, may be empty (raid configured
@@ -87,9 +87,9 @@ host-side authors hooking raid-death paths.
 - [todo] R2. `nx-gs-adapter-api.kafka.events.raid.RaidActor` MUST ship as the
   reusable actor sub-DTO used by `lastHit`, `dropOwner`, and every
   `participants` entry. Names (char / clan) are intentionally NOT carried —
-  the platform joins on `charId` / `clanId` against CDC-synced character /
+  the platform joins on `characterId` / `clanId` against CDC-synced character /
   clan catalogs. Fields:
-    - `long charId` — REQUIRED. Character's `objectId`.
+    - `long characterId` — REQUIRED. Character's `objectId`.
     - `@Nullable Long clanId` — clan affiliation at the event moment.
     - `@Nullable Long allyId` — alliance affiliation.
     - `@Nullable UUID partyId` — UUIDv7 party identity (host-minted on Party
@@ -109,7 +109,9 @@ host-side authors hooking raid-death paths.
 
 - [todo] R3. `nx-gs-adapter-api.kafka.events.raid.RaidDropItem` MUST ship as
   the per-drop record with:
-    - `int itemId` — REQUIRED. L2 item template id.
+    - `long itemTemplateId` — REQUIRED. L2 item template id. A template reference, not an
+      `ItemSnapshot`: the raid rolled a template and no instance is known when the drop is recorded
+      ([`042`](042-item-snapshot.md)).
     - `long count` — REQUIRED, `>= 1`. Stack quantity.
     - `@Nullable Integer enchantLevel` — only populated when the drop is an
       enchantable type (weapon / armor). `null` for adena, materials, etc.
@@ -308,14 +310,14 @@ host-side authors hooking raid-death paths.
 - [resolved: `lastHit` + `dropOwner` collapsed from 12 flat fields into two
   `@Nullable RaidActor` references on `RaidKillEvent`. `dropOwner` follows
   group-first semantics — `partyId` / `commandChannelId` are the canonical
-  identity; the embedded `charId` is the L2 `mainDamageDealer` representative
+  identity; the embedded `characterId` is the L2 `mainDamageDealer` representative
   (unstable across kills of the same party — for narrative, not aggregation).
-  Solo kills (no party) surface the owner directly via `dropOwner.charId`.]
+  Solo kills (no party) surface the owner directly via `dropOwner.characterId`.]
 - [resolved: `RaidParticipant` deleted; `RaidActor` absorbs `damageDealt` and
   serves all three actor-ref sites (lastHit / dropOwner / each participants
   entry). One source of truth for actor shape, no nesting on the wire.
   Char / clan names dropped from the wire — platform joins on
-  `charId` / `clanId` against CDC catalogs (`<tenant>.gs.sync.db.character`,
+  `characterId` / `clanId` against CDC catalogs (`<tenant>.gs.sync.db.character`,
   `<tenant>.gs.sync.db.clan`). `bossName` kept for now (no NPC CDC stream
   exists today; remove when a gamedata service lands).]
 

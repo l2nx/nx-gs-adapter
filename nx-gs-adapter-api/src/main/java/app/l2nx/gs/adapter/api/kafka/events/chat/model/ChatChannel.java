@@ -11,7 +11,7 @@ public enum ChatChannel {
     GENERAL,
     SHOUT,
 
-    /** Private tell; {@code targetCharId} / {@code targetCharName} are set. */
+    /** Private tell; {@code targetCharacterId} / {@code targetCharacterName} are set. */
     WHISPER,
 
     PARTY,

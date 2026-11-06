@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
+import app.l2nx.gs.adapter.api.spi.capability.NxRuntimeSync;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.adapter.api.spi.model.session.ClientLoginOutcome;
 import java.util.Collections;
@@ -42,6 +43,33 @@ class ConnectContextTest {
         assertEquals(
                 ClientLoginOutcome.Status.NONE,
                 ctx.appSessions().onClientLogin(1).getStatus());
+    }
+
+    @Test
+    void runtimeSync_shouldNeverFire_whenBuilderOmitsIt() {
+        ConnectContext ctx = ConnectContext.builder().build();
+        boolean[] fired = {false};
+
+        ctx.runtimeSync().onHostStarted(() -> fired[0] = true);
+        ctx.runtimeSync().hostStarted();
+
+        assertFalse(fired[0]);
+    }
+
+    @Test
+    void runtimeSync_shouldKeepTheWiredInstance_whenCopiedThroughToBuilder() {
+        NxRuntimeSync wired = new NxRuntimeSync() {
+            @Override
+            public void hostStarted() {}
+
+            @Override
+            public void onHostStarted(Runnable callback) {}
+        };
+
+        ConnectContext ctx =
+                ConnectContext.builder().runtimeSync(wired).build().toBuilder().build();
+
+        assertSame(wired, ctx.runtimeSync());
     }
 
     @Test

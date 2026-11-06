@@ -24,19 +24,19 @@ Audience: platform market and trader-list authors; host authors wiring the publi
 
 - [todo] R1. `nx-gs-adapter-api.kafka.events.privatestore.PrivateStoreStateEvent` MUST ship next to
   `PrivateStorePurchaseEvent`, on the `privatestore` family topic, routed by the simple name
-  `PrivateStoreStateEvent`, with the trader's `charId` as the Kafka key (8-byte big-endian). Events of one trader are
+  `PrivateStoreStateEvent`, with the trader's `characterId` as the Kafka key (8-byte big-endian). Events of one trader are
   therefore ordered.
 - [todo] R2. The event is the **full state** of one trader's store, never a delta. The consumer replaces everything it
-  holds for `charId` with `store.lines`.
+  holds for `characterId` with `store.sellLines` / `store.buyLines`.
 - [todo] R3. `store == null` is a **tombstone**: the trader has no market store any more (closed, sold out, logged out,
-  switched to a non-market state). The consumer drops everything it holds for `charId`. A tombstone is sent once per
+  switched to a non-market state). The consumer drops everything it holds for `characterId`. A tombstone is sent once per
   close and MAY be repeated on the next full resend (R6); consumers treat a repeated tombstone as a no-op.
 - [todo] R4. Payload:
 
   | Field      | Type                  | Notes                                                                |
   | ---------- | --------------------- | -------------------------------------------------------------------- |
   | `eventId`  | `UUID`                | UUIDv7; the occurrence time derives from it; consumers dedupe on it  |
-  | `charId`   | `long`                | Trader character id; the partition key                               |
+  | `characterId`   | `long`                | Trader character id; the partition key                               |
   | `store`    | `StoreState?`         | `null` = tombstone                                                   |
   | `metadata` | `Map<String,String>?` | Open, like the other privatestore events; unknown keys are tolerated |
 
@@ -47,19 +47,30 @@ Audience: platform market and trader-list authors; host authors wiring the publi
   | `type`    | `CharacterPrivateStore` | Closed: `SELL`, `PACKAGE_SELL` or `BUY`. `CRAFT` is not a market store and is never sent |
   | `title`   | `String?`               | The store sign; `null` when none is set, never blank                                     |
   | `offline` | `boolean`               | `true` while the trader stands in the world without a game client                        |
-  | `lines`   | `List<StoreLine>`       | Never null; every line has `count > 0`; order is not significant                         |
+  | `sellLines` | `List<SellStoreLine>` | Never null; the lines of a `SELL` / `PACKAGE_SELL` store, empty on `BUY`; every line has `count > 0`; order is not significant |
+  | `buyLines`  | `List<BuyStoreLine>`  | Never null; the lines of a `BUY` store, empty otherwise; every line has `count > 0`; order is not significant                  |
 
-  `StoreLine`:
+  Two lists, because two line classes cannot share one Gson-decoded list ([`042`](042-item-snapshot.md)).
 
-  | Field                    | Type                     | Notes                                                                             |
-  | ------------------------ | ------------------------ | --------------------------------------------------------------------------------- |
-  | `itemId`                 | `Long?`                  | Item instance for `SELL` / `PACKAGE_SELL`; `null` for `BUY`                       |
-  | `itemTemplateId`         | `long`                   | Item template                                                                     |
-  | `enchantLevel`           | `Integer?`               | `null` = no enchant concept, `0` = unenchanted                                    |
-  | `attributes`             | `Map<Attribute,Integer>` | Element attributes; absent / empty when none                                      |
-  | `count`                  | `long`                   | Units still on offer (`SELL` / `PACKAGE_SELL`) or still wanted (`BUY`)            |
-  | `unitPrice`              | `long`                   | Per unit; nominal in a `PACKAGE_SELL` store, whose real price is the bundle total |
-  | `currencyItemTemplateId` | `long`                   | Currency item template                                                            |
+  `SellStoreLine`, a concrete instance on offer:
+
+  | Field                    | Type           | Notes                                                                             |
+  | ------------------------ | -------------- | --------------------------------------------------------------------------------- |
+  | `item`                   | `ItemSnapshot` | The instance on offer                                                             |
+  | `count`                  | `long`         | Units still on offer                                                              |
+  | `unitPrice`              | `long`         | Per unit; nominal in a `PACKAGE_SELL` store, whose real price is the bundle total |
+  | `currencyItemTemplateId` | `long`         | Currency item template                                                            |
+
+  `BuyStoreLine`, a wanted template with no instance:
+
+  | Field                    | Type                      | Notes                                          |
+  | ------------------------ | ------------------------- | ---------------------------------------------- |
+  | `itemTemplateId`         | `long`                    | Item template                                  |
+  | `enchantLevel`           | `Integer?`                | `null` = no enchant concept, `0` = unenchanted |
+  | `attributes`             | `Map<Attribute,Integer>?` | Element attributes; absent / empty when none   |
+  | `count`                  | `long`                    | Units still wanted                             |
+  | `unitPrice`              | `long`                    | Per unit                                       |
+  | `currencyItemTemplateId` | `long`                    | Currency item template                         |
 
 - [todo] R5. The host publishes on **every change** of a store (open, line sold, price or title edit, going offline,
   close), within about a second of the change, so the platform sees a store as it is now.

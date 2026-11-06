@@ -1,7 +1,7 @@
 # Session results
 
 > Owner: @n1rmata
-> Status: designed 2026-11-04, not implemented.
+> Status: adapter side implemented 2026-11-04, not yet released.
 > Counterparts: `nx-gameservers/docs/specs/043-sessions/results.md` (storage and reads); the host counterpart holds the
 > recorder and its write points.
 
@@ -24,31 +24,33 @@ from that data on the platform.
 
 **Must:**
 
-- [todo] R1. `CharacterPresenceEvent` MUST gain a nullable `result` (`SessionResult`), allowed only with
+- [done] R1. `CharacterPresenceEvent` MUST gain a nullable `result` (`SessionResult`), allowed only with
   `online = false`, on `CLIENT` and `APP` sessions alike.
-- [todo] R2. `CharacterPresenceEvent.charId` MUST become `characterId` in the same release, partition key included.
-- [todo] R3. The block MUST carry the sections `items`, `uniques`, `experience`, `kills`, `deaths`, `untracked` and the
+- [done] R2. `CharacterPresenceEvent.charId` MUST become `characterId` in the same release, partition key included.
+- [done] R3. The block MUST carry the sections `items`, `uniques`, `experience`, `kills`, `deaths`, `untracked` and the
   fields `partial`, `overflow` ([Shapes](#shapes)).
-- [todo] R4. The api MUST ship the closed enums `domain.item.ItemSource` and `domain.character.ExperienceSource`.
-- [todo] R5. A host change that no source maps to MUST reach `untracked` with the raw token in `process`.
-- [todo] R6. Serialized, `result` MUST fit `SessionResult.MAX_JSON_BYTES` (800,000 UTF-8 bytes). Past it a host folds
+- [done] R4. The api MUST ship the closed enums `domain.item.ItemSource` and `domain.character.ExperienceSource`.
+- [done] R5. A host change that no source maps to MUST reach `untracked` with the raw token in `process`.
+- [done] R6. Serialized, `result` MUST fit `SessionResult.MAX_JSON_BYTES` (800,000 UTF-8 bytes). Past it a host folds
   `uniques` into `items` and counts them in `overflow`. A `result` still over it MUST be dropped, not the end: the end of
   a session never depends on its result ([Byte budget](#byte-budget)).
-- [todo] R7. `OfflineSessionHost` MUST gain `takeSessionResult`, called by the engine once per close of a session that
-  was placed in this JVM and once per session left open by a graceful stop ([SPI](#spi)).
-- [todo] R8. An `APP` end MUST be identical on its first send and on every republish, `result` included, so the
+- [done] R7. `OfflineSessionHost` MUST gain `takeSessionResult`, called by the engine once after every `removeFromWorld`
+  and once per session left open by a graceful stop ([SPI](#spi)). An end that races a graceful stop whose block the stop
+  already kept skips the call and uses the kept block.
+- [done] R8. An `APP` end MUST be identical on its first send and on every republish, `result` included, so the
   result is stored in the JSON column `result` of `l2nx_offline_sessions`, written by the close.
-- [todo] R9. `result` MUST survive a graceful restart of an `APP` session. The graceful stop takes the running block of every
+- [done] R9. `result` MUST survive a graceful restart of an `APP` session. The graceful stop takes the running block of every
   session left open and writes it into the same column `result`. A restore reads and clears the column and hands the
   block to the host as `OfflineSession.getCarriedResult()`; the host seeds the session's recorder with it, so the end
-  carries the whole session. Nothing is written while a session runs. A restore that finds the column empty means the
-  stop was not graceful: what ran before it is lost and the block carries `partial = true`, which later restores keep.
-- [todo] R10. A close of a session whose character was not placed in this JVM MUST have `result = null`: a stop or a
-  login before the restore, an `APP_TIME_UP` without placement, a refused placement. The reason does not decide it: a
+  carries the whole session. Nothing is written while a session runs. A stop whose host has nothing to give writes an empty block, so a restore that
+  finds the column empty means the stop was not graceful: what ran before it is lost and the block carries `partial = true`, which later restores keep.
+- [done] R10. A close of a session whose character was not placed in this JVM MUST carry the block the last graceful stop
+  stored, and `result = null` when nothing was carried: a stop or a login before the restore, an `APP_TIME_UP` without
+  placement, a refused placement. The host's answer is dropped there. The reason does not decide it: a
   restore that placed the character and failed in `startAction` ends with `APP_RESTORE_FAILED` and has a block.
-- [todo] R11. The `CharacterPresenceEvent` constructor MUST allow `activity` with `source = CLIENT`, for the native
+- [done] R11. The `CharacterPresenceEvent` constructor MUST allow `activity` with `source = CLIENT`, for the native
   offline store ([Native offline store](#native-offline-store)). `activity` stays required with `APP`.
-- [todo] R12. `LogoutReason` MUST gain `SOLD_OUT`, the end of a native offline store that sold out. `APP_SOLD_OUT`
+- [done] R12. `LogoutReason` MUST gain `SOLD_OUT`, the end of a native offline store that sold out. `APP_SOLD_OUT`
   stays with `APP`.
 
 **Non-goals:**
@@ -66,7 +68,12 @@ from that data on the platform.
 - **Host without a recorder:** `takeSessionResult` answers `null` and its client ends carry no `result`.
 - **The same item both gained and lost under one key:** `delta` is the net, `events` the operations. A net of `0` is a
   valid row: it records that the operations happened.
-- **`takeSessionResult` throws:** logged, `result = null`, the end continues.
+- **`takeSessionResult` throws:** logged, `result = null` or the carried block, the end continues.
+- **A restore that placed and failed in `startAction`, with a host that seeds there:** the carried block stands in for the
+  host's empty answer.
+- **A failed read or clear of the column:** logged and counted, the session goes on. A failed read means `partial`; a
+  failed clear only risks a stale block. `APP_RESTORE_FAILED` never depends on the column.
+- **A graceful stop:** the seconds between the take and the exit of the JVM are not in the block.
 - **A stored `result` a later version cannot parse:** one ERROR, the end goes out with `result = null`, on every
   republish alike.
 - **A close the table refused:** the retry queue keeps the same `result` text, so the retry writes what the event
@@ -85,12 +92,12 @@ closing row and builds the end from that row, so a republish reproduces the same
 ### Structure
 
 - `nx-gs-adapter-api` `kafka.events.character.result`: `SessionResult`, `SessionResultItem`, `SessionResultUnique`,
-  `SessionResultExperience`, `SessionResultKill`, `SessionResultDeath`, `SessionResultUntracked` [planned].
-- `nx-gs-adapter-api` `domain.item.ItemSource`, `domain.character.ExperienceSource` [planned].
-- `nx-gs-adapter-api` `spi.provider.OfflineSessionHost.takeSessionResult` [planned].
-- `nx-gs-adapter-core` `core.appsessions`: the close, the store and `PresencePublisher` [planned]; `core.events`: the
-  size backstop [planned].
-- `nx-gs-db-migrations`: changeset `0014-offline-sessions-result` [planned].
+  `SessionResultExperience`, `SessionResultKill`, `SessionResultDeath`, `SessionResultUntracked`.
+- `nx-gs-adapter-api` `domain.item.ItemSource`, `domain.character.ExperienceSource`.
+- `nx-gs-adapter-api` `spi.provider.OfflineSessionHost.takeSessionResult`.
+- `nx-gs-adapter-core` `core.appsessions`: the close, the store and `PresencePublisher`; `core.events`: the
+  size backstop.
+- `nx-gs-db-migrations`: changeset `0014-offline-sessions-result`.
 
 ### Shapes
 
@@ -335,9 +342,10 @@ default @Nullable SessionResult takeSessionResult(OfflineSession session) {
 - It reads what `removeFromWorld` left: the character is out of the world by then, so the host takes the recorder of the
   session when it settles the character and keeps it by `sessionId` for this call. No world state is needed here, and the
   method neither hops to the game thread nor waits.
-- The engine does not call it when `placeInWorld` did not place the character in this JVM (R10); the phase cannot tell,
-  because a restore that fails after its placement closes from the same path, so the slot keeps a "placed" mark. A
-  start that rolls back has no end to carry it.
+- The engine calls it after every `removeFromWorld`, so a host never leaks a parked recorder, and drops the answer when
+  `placeInWorld` did not place the character in this JVM (R10) and on a start that rolls back, which has no end to carry
+  it. The phase cannot tell, because a restore that fails after its placement closes from the same path, so the slot
+  keeps a "placed" mark.
 - A throw is logged and gives `result = null`; the end continues.
 
 ### Close and republish
@@ -354,9 +362,10 @@ Order of the close ([`038`](038-app-offline-sessions.md) Lifecycle):
 The first send and every republish build `result` from the same stored text, with the same `eventId` as before, so
 identical means identical (R8). The retry queue carries the text too.
 
-Only the republish reads the column. `JdbcOfflineSessionStore.COLUMNS` stays without it, so reads of open rows and the
-R21 reads never load a `result`, and `OfflineSession` gets no such field: the host has no use for a closed session's
-block. A republish page reads each `result` when its end is sent, not with the page, so a page of 500 ends holds one
+Only the republish and a restore read the column. `JdbcOfflineSessionStore.COLUMNS` stays without it, so reads of open
+rows and the R21 reads never load a `result`, and `OfflineSession` carries only `getCarriedResult()`, set on the views a
+restore hands over: the host has no use for a closed session's block. A restore reads the column before the placement
+and clears it once the character is placed, so a stop between two attempts loses nothing. A republish page reads each `result` when its end is sent, not with the page, so a page of 500 ends holds one
 block at a time. Queues stay bounded by event count, not bytes: a typical block is a few KB.
 
 ### Data model
@@ -365,7 +374,7 @@ block at a time. Queues stay bounded by event count, not bytes: a typical block 
 
 | Column   | Type        | Purpose                                                                                                                                   |
 | -------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `result` | `clob` NULL | The `SessionResult` of a closed session as JSON, written by the close; `NULL` when there is none. Never written while the session is open |
+| `result` | `clob` NULL | The `SessionResult` of a closed session as JSON, written by the close; `NULL` when there is none. On an open row: the running block, from a graceful stop until a restore placed the character (R9). Never written while the session runs |
 
 Nullable, no backfill: an older row has none and its end was published long ago. An older adapter names its columns and
 ignores this one. The row leaves with the retention, as every closed row does.
@@ -382,14 +391,13 @@ exists.
 3. That session ends when the trader leaves the world, with `activity = OFFLINE_PRIVATE_STORE` and a `result` carrying
    the sales.
 
-| The trader leaves because | `logoutReason` |
-
-| The player logs in with that character        | `LOGOUT`      |
-| --------------------------------------------- | ------------- |
-| Everything is sold or bought                  | `SOLD_OUT`    |
-| The paid time ran out, or a stop from the app | `KICKED`      |
-| Banned                                        | `BANNED`      |
-| The server stops                              | `SERVER_STOP` |
+| The trader leaves because                     | `logoutReason` |
+| --------------------------------------------- | -------------- |
+| The player logs in with that character        | `LOGOUT`       |
+| Everything is sold or bought                  | `SOLD_OUT`     |
+| The paid time ran out, or a stop from the app | `KICKED`       |
+| Banned                                        | `BANNED`       |
+| The server stops                              | `SERVER_STOP`  |
 
 - Every exit goes through one host method that publishes the end, so no path leaves a trader with an open session.
 - A restart ends the session: the server stop reports `SERVER_STOP` with its result and the host restores the trader
@@ -418,7 +426,9 @@ exists.
   second event would need its own ordering against the end, and a lost one would leave an end with no result.
 - **Stored in the row.** R24 of `038` republishes an end from the row until Kafka acknowledges it, with a fixed
   `eventId`. A `result` held only in memory would make the republished end differ from the first send, or lose it.
-- **One write at the graceful stop, none while running.** A periodic write of a hot structure would cost every session for
+- **One batched write at the graceful stop, none while running.** Each of the take and the write waits 5 s plus
+  `app.shutdown.result-millis-per-session` per open session, then the `active_ms` flush waits 5 s more, in turn: the stop
+  takes at most 15 s plus twice that per-session time per open session. A slot stuck in the host costs only its own block. A periodic write of a hot structure would cost every session for
   the rare crash. The stop is the only moment the block must leave memory; a crash loses it, as it does for `CLIENT`, and
   `partial` says so.
 - **The same column.** An open row holds the carried block, a closed row the final one; a restore clears it, so a crash

@@ -1,36 +1,32 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.Attribute;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
+import com.google.gson.Gson;
+import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 class BuyLineTest {
 
+    private static ItemSnapshot.Builder item() {
+        return ItemSnapshot.builder().itemId(1L).itemTemplateId(57L);
+    }
+
     private static BuyLine.Builder valid() {
-        return BuyLine.builder().itemId(1).itemTemplateId(57L).count(1L).unitPriceAdena(100L);
+        return BuyLine.builder().item(item().build()).count(1L).unitPriceAdena(100L);
     }
 
-    @ParameterizedTest(name = "itemId={0}")
-    @CsvSource({"0", "-1"})
-    void constructor_shouldReject_whenItemIdNotPositive(int itemId) {
-        BuyLine.Builder builder = valid().itemId(itemId);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @ParameterizedTest(name = "itemTemplateId={0}")
-    @CsvSource({"0", "-1"})
-    void constructor_shouldReject_whenItemTemplateIdNotPositive(long itemTemplateId) {
-        BuyLine.Builder builder = valid().itemTemplateId(itemTemplateId);
+    @Test
+    void constructor_shouldReject_whenItemNull() {
+        BuyLine.Builder builder = valid().item(null);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
@@ -56,68 +52,64 @@ class BuyLineTest {
     @ParameterizedTest(name = "enchantLevel={0}")
     @CsvSource({"-1", "128"})
     void constructor_shouldReject_whenEnchantLevelOutOfRange(int enchantLevel) {
-        BuyLine.Builder builder = valid().enchantLevel(enchantLevel);
+        BuyLine.Builder builder = valid().item(item().enchantLevel(enchantLevel).build());
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @ParameterizedTest(name = "enchantLevel={0}")
     @CsvSource({"0", "127"})
     void constructor_shouldAccept_whenEnchantLevelAtBounds(int enchantLevel) {
-        BuyLine line = valid().enchantLevel(enchantLevel).build();
-        assertEquals(Integer.valueOf(enchantLevel), line.getEnchantLevel());
+        BuyLine line = valid().item(item().enchantLevel(enchantLevel).build()).build();
+        assertEquals(Integer.valueOf(enchantLevel), line.getItem().getEnchantLevel());
     }
 
     @Test
-    void getEnchantLevel_shouldDefaultToNull() {
-        BuyLine line = valid().build();
-        assertNull(line.getEnchantLevel());
+    void attributesForMatch_shouldBeNull_whenTheMapIsEmpty() {
+        BuyLine line = valid().item(item().attributes(Collections.<Attribute, Integer>emptyMap())
+                        .build())
+                .build();
+
+        assertNull(line.attributesForMatch());
     }
 
     @Test
-    void getAttributes_shouldReturnEmptyMap_whenBuilderOmits() {
-        BuyLine line = valid().build();
-        assertTrue(line.getAttributes().isEmpty());
+    void attributesForMatch_shouldBeNull_whenTheOfferCarriedNone() {
+        assertNull(valid().build().attributesForMatch());
     }
 
     @Test
-    void getAttributes_shouldReturnEmptyMap_whenBuilderPassesNull() {
-        BuyLine line = valid().attributes(null).build();
-        assertTrue(line.getAttributes().isEmpty());
+    void attributesForMatch_shouldBeTheMap_whenTheItemHasAttributes() {
+        BuyLine line = valid().item(item().attributes(Collections.singletonMap(Attribute.FIRE, 120))
+                        .build())
+                .build();
+
+        assertEquals(Collections.singletonMap(Attribute.FIRE, 120), line.attributesForMatch());
     }
 
     @Test
-    void getAttributes_shouldBeUnmodifiable() {
-        Map<Attribute, Integer> source = new HashMap<>();
-        source.put(Attribute.FIRE, 300);
-        BuyLine line = valid().attributes(source).build();
+    void attributesForMatch_shouldTreatEmptyAsNull_whenGsonBypassedTheConstructor() {
+        BuyLine line = new Gson()
+                .fromJson(
+                        "{\"item\":{\"itemId\":1,\"itemTemplateId\":57,\"attributes\":{}},\"count\":1}", BuyLine.class);
 
-        assertThrows(
-                UnsupportedOperationException.class, () -> line.getAttributes().put(Attribute.WATER, 150));
+        assertNull(line.attributesForMatch());
     }
 
     @Test
-    void constructor_shouldDefensivelyCopyAttributes() {
-        Map<Attribute, Integer> source = new HashMap<>();
-        source.put(Attribute.FIRE, 300);
-        BuyLine line = valid().attributes(source).build();
+    void getCount_shouldStayApartFromTheStackSizeOfTheItem() {
+        BuyLine line = valid().item(item().count(50L).build()).count(3L).build();
 
-        source.put(Attribute.WATER, 150);
-
-        assertEquals(1, line.getAttributes().size());
-        assertEquals(Integer.valueOf(300), line.getAttributes().get(Attribute.FIRE));
+        assertEquals(3L, line.getCount());
+        assertEquals(Long.valueOf(50L), line.getItem().getCount());
     }
 
     @Test
     void toBuilder_shouldRoundtripAllFields() {
-        Map<Attribute, Integer> attrs = new LinkedHashMap<>();
-        attrs.put(Attribute.FIRE, 300);
-        attrs.put(Attribute.HOLY, 150);
-
         BuyLine original = BuyLine.builder()
-                .itemId(268437521)
-                .itemTemplateId(57L)
-                .enchantLevel(16)
-                .attributes(attrs)
+                .item(item().itemId(268437521L)
+                        .enchantLevel(16)
+                        .attributes(Collections.singletonMap(Attribute.FIRE, 300))
+                        .build())
                 .count(3L)
                 .unitPriceAdena(1_500_000L)
                 .build();
@@ -128,10 +120,9 @@ class BuyLineTest {
     }
 
     @Test
-    void equals_shouldDistinguishItemId() {
-        BuyLine a = valid().itemId(1).build();
-        BuyLine b = valid().itemId(2).build();
-        assertTrue(!a.equals(b));
-        assertTrue(a.hashCode() != b.hashCode() || !a.equals(b));
+    void equals_shouldDistinguishItem() {
+        BuyLine a = valid().item(item().itemId(1L).build()).build();
+        BuyLine b = valid().item(item().itemId(2L).build()).build();
+        assertNotEquals(a, b);
     }
 }

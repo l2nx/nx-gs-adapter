@@ -2,26 +2,26 @@ package app.l2nx.gs.adapter.api.kafka.commands.character;
 
 import java.util.Objects;
 
-public final class TransferCharToAccountResult {
+public final class TransferCharacterToAccountResult {
 
-    private final Long charId;
+    private final Long characterId;
     private final String newAccountName;
     private final boolean wasLoggedOut;
 
-    public TransferCharToAccountResult(Long charId, String newAccountName, boolean wasLoggedOut) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+    public TransferCharacterToAccountResult(Long characterId, String newAccountName, boolean wasLoggedOut) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
         if (newAccountName == null) {
             throw new IllegalArgumentException("newAccountName is required");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.newAccountName = newAccountName;
         this.wasLoggedOut = wasLoggedOut;
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     public String getNewAccountName() {
@@ -34,7 +34,7 @@ public final class TransferCharToAccountResult {
     }
 
     public Builder toBuilder() {
-        return new Builder().charId(charId).newAccountName(newAccountName).wasLoggedOut(wasLoggedOut);
+        return new Builder().characterId(characterId).newAccountName(newAccountName).wasLoggedOut(wasLoggedOut);
     }
 
     public static Builder builder() {
@@ -44,32 +44,32 @@ public final class TransferCharToAccountResult {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TransferCharToAccountResult)) return false;
-        TransferCharToAccountResult that = (TransferCharToAccountResult) o;
+        if (!(o instanceof TransferCharacterToAccountResult)) return false;
+        TransferCharacterToAccountResult that = (TransferCharacterToAccountResult) o;
         return wasLoggedOut == that.wasLoggedOut
-                && Objects.equals(charId, that.charId)
+                && Objects.equals(characterId, that.characterId)
                 && Objects.equals(newAccountName, that.newAccountName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, newAccountName, wasLoggedOut);
+        return Objects.hash(characterId, newAccountName, wasLoggedOut);
     }
 
     @Override
     public String toString() {
-        return "TransferCharToAccountResult[charId=" + charId
+        return "TransferCharacterToAccountResult[characterId=" + characterId
                 + ", newAccountName=" + newAccountName
                 + ", wasLoggedOut=" + wasLoggedOut + "]";
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private String newAccountName;
         private boolean wasLoggedOut;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -83,8 +83,8 @@ public final class TransferCharToAccountResult {
             return this;
         }
 
-        public TransferCharToAccountResult build() {
-            return new TransferCharToAccountResult(charId, newAccountName, wasLoggedOut);
+        public TransferCharacterToAccountResult build() {
+            return new TransferCharacterToAccountResult(characterId, newAccountName, wasLoggedOut);
         }
     }
 }

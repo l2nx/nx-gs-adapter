@@ -2,12 +2,15 @@ package app.l2nx.gs.adapter.core.events;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.NxHeaders;
 import app.l2nx.gs.adapter.api.kafka.events.account.AccountAuthAttemptEvent;
 import app.l2nx.gs.adapter.api.kafka.events.account.AuthOutcomes;
 import app.l2nx.gs.adapter.api.kafka.events.character.AppSessionsSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
+import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailAcceptedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailCancelledEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailReturnedEvent;
@@ -139,11 +142,11 @@ class EventTypeRegistryTest {
     }
 
     @Test
-    void partitionKeyExtractor_shouldReturnCharIdAsLongBytes_forPrivateStoreStateEvent() {
+    void partitionKeyExtractor_shouldReturnCharacterIdAsLongBytes_forPrivateStoreStateEvent() {
         EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateStoreStateEvent.class);
         PrivateStoreStateEvent event = PrivateStoreStateEvent.builder()
                 .eventId(UUIDv7.generate())
-                .charId(42L)
+                .characterId(42L)
                 .build();
 
         assertArrayEquals(
@@ -164,12 +167,63 @@ class EventTypeRegistryTest {
         assertEquals("CharacterPresenceEvent", binding.messageType());
     }
 
+    @Nested
+    class Presence {
+
+        private final EventTypeBinding binding = new EventTypeRegistry().lookup(CharacterPresenceEvent.class);
+
+        private CharacterPresenceEvent.Builder storeEnd() {
+            return CharacterPresenceEvent.builder()
+                    .eventId(UUIDv7.generate())
+                    .characterId(7L)
+                    .online(false)
+                    .source(SessionSource.CLIENT)
+                    .activity(ActivityType.OFFLINE_PRIVATE_STORE)
+                    .logoutReason(LogoutReason.SOLD_OUT)
+                    .result(SessionResult.builder().overflow(3L).build());
+        }
+
+        @Test
+        void wireNormalizer_shouldKeepResultAndActivity_whenItRebuildsTheEvent() {
+            CharacterPresenceEvent event = storeEnd().ip("N/A").hwid("0").build();
+
+            CharacterPresenceEvent actual =
+                    (CharacterPresenceEvent) binding.wireNormalizer().apply(event);
+
+            assertNotSame(event, actual);
+            assertNull(actual.getIp());
+            assertNull(actual.getHwid());
+            assertEquals(event.getResult(), actual.getResult());
+            assertEquals(ActivityType.OFFLINE_PRIVATE_STORE, actual.getActivity());
+        }
+
+        @Test
+        void sendGuard_shouldKeepTheEvent_whenTheResultFits() {
+            CharacterPresenceEvent event = storeEnd().build();
+
+            assertSame(event, binding.sendGuard().apply(event));
+        }
+
+        @Test
+        void sendGuard_shouldDropOnlyTheResult_whenItIsOverTheBudget() {
+            CharacterPresenceEvent event =
+                    storeEnd().result(SessionResultJsonTest.overBudget()).build();
+
+            CharacterPresenceEvent actual =
+                    (CharacterPresenceEvent) binding.sendGuard().apply(event);
+
+            assertNull(actual.getResult());
+            assertEquals(LogoutReason.SOLD_OUT, actual.getLogoutReason());
+            assertEquals(event.getEventId(), actual.getEventId());
+        }
+    }
+
     @Test
-    void partitionKey_shouldEncodeCharId_forCharacterPresenceEvent() {
+    void partitionKey_shouldEncodeCharacterId_forCharacterPresenceEvent() {
         EventTypeBinding binding = new EventTypeRegistry().lookup(CharacterPresenceEvent.class);
         CharacterPresenceEvent event = CharacterPresenceEvent.builder()
                 .eventId(UUIDv7.generate())
-                .charId(0xCAFEBABEL)
+                .characterId(0xCAFEBABEL)
                 .online(true)
                 .source(SessionSource.CLIENT)
                 .build();
@@ -228,8 +282,8 @@ class EventTypeRegistryTest {
         MailSentEvent event = MailSentEvent.builder()
                 .eventId(UUIDv7.generate())
                 .mailId(0xCAFEBABEL)
-                .senderCharId(0L)
-                .receiverCharId(2L)
+                .senderCharacterId(0L)
+                .receiverCharacterId(2L)
                 .subject("s")
                 .expiresAt(Instant.EPOCH)
                 .build();
@@ -255,7 +309,7 @@ class EventTypeRegistryTest {
         MailAcceptedEvent event = MailAcceptedEvent.builder()
                 .eventId(UUIDv7.generate())
                 .mailId(0xBEEFL)
-                .claimedByCharId(1L)
+                .claimedByCharacterId(1L)
                 .build();
 
         byte[] key = binding.partitionKeyExtractor().apply(event);
@@ -278,7 +332,7 @@ class EventTypeRegistryTest {
         MailCancelledEvent event = MailCancelledEvent.builder()
                 .eventId(UUIDv7.generate())
                 .mailId(0xBEEFL)
-                .cancelledByCharId(1L)
+                .cancelledByCharacterId(1L)
                 .build();
 
         byte[] key = binding.partitionKeyExtractor().apply(event);
@@ -326,7 +380,7 @@ class EventTypeRegistryTest {
     @Test
     void partitionKey_shouldReturnNull_forPrivateTradeFinishedEvent() {
         EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateTradeFinishedEvent.class);
-        TradeParty empty = TradeParty.builder().charId(1L).build();
+        TradeParty empty = TradeParty.builder().characterId(1L).build();
         PrivateTradeFinishedEvent event = PrivateTradeFinishedEvent.builder()
                 .eventId(UUIDv7.generate())
                 .tradeId(UUIDv7.generate())
@@ -352,16 +406,16 @@ class EventTypeRegistryTest {
     }
 
     @Test
-    void partitionKey_shouldEncodeCharId_forOlympiadMatchResultEvent() {
+    void partitionKey_shouldEncodeCharacterId_forOlympiadMatchResultEvent() {
         EventTypeBinding binding = new EventTypeRegistry().lookup(OlympiadMatchResultEvent.class);
         OlympiadMatchResultEvent event = OlympiadMatchResultEvent.builder()
                 .eventId(UUIDv7.generate())
                 .matchId(UUIDv7.generate())
                 .olympiadCycle(7)
                 .gameType(OlympiadGameType.CLASSED)
-                .charId(0xCAFEBABEL)
+                .characterId(0xCAFEBABEL)
                 .classId(88)
-                .opponentCharId(1L)
+                .opponentCharacterId(1L)
                 .opponentClassId(92)
                 .result(OlympiadMatchResult.WIN)
                 .reason(OlympiadMatchReason.NORMAL)
@@ -390,11 +444,11 @@ class EventTypeRegistryTest {
     }
 
     @Test
-    void partitionKey_shouldEncodeCharId_forHeroGrantedEvent() {
+    void partitionKey_shouldEncodeCharacterId_forHeroGrantedEvent() {
         EventTypeBinding binding = new EventTypeRegistry().lookup(HeroGrantedEvent.class);
         HeroGrantedEvent event = HeroGrantedEvent.builder()
                 .eventId(UUIDv7.generate())
-                .charId(0xCAFEBABEL)
+                .characterId(0xCAFEBABEL)
                 .classId(88)
                 .olympiadCycle(7)
                 .build();
@@ -559,7 +613,7 @@ class EventTypeRegistryTest {
         private CharacterPresenceEvent.Builder presence() {
             return CharacterPresenceEvent.builder()
                     .eventId(UUIDv7.generate())
-                    .charId(7L)
+                    .characterId(7L)
                     .online(true)
                     .source(SessionSource.CLIENT);
         }

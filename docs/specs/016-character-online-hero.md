@@ -14,7 +14,7 @@ backlog are still missing and now have a consumer:
   volatile column written only at logout/save and CDC excluded it to avoid an
   UPDATE storm.
 - **Hero status** — the `olympiad-events` consumer wants to resolve "is this
-  char a hero" by joining on `charId`; the admin page wants a hero badge.
+  char a hero" by joining on `characterId`; the admin page wants a hero badge.
 
 A CDC boolean answers *"is this char a hero right now"* but throws away the
 **history** — who was crowned, when, in which class, in which olympiad cycle.
@@ -73,7 +73,7 @@ crowning path.
 
 - [todo] R4. Host `CharacterMapping` MUST surface `hero` via a new `heroes`
   child source:
-    - `tableName "heroes"`, `fkColumn "charId"` (the `heroes` table is one row
+    - `tableName "heroes"`, `fkColumn "characterId"` (the `heroes` table is one row
       per character);
     - `hashedColumns` = `["played"]` **only** — the flag that drives the
       boolean. `class_id` / `count` are deliberately NOT hashed: only the
@@ -93,7 +93,7 @@ crowning path.
     - `UUID eventId` — REQUIRED. UUIDv7; upper 48 bits encode the crowning
       timestamp → consumers extract `occurredAt` from the id. No separate
       `crownedAt`. Null-checked in the constructor.
-    - `long charId` — REQUIRED.
+    - `long characterId` — REQUIRED.
     - `int classId` — the class the character was crowned hero with.
     - `@Nullable Long clanId` — clan affiliation snapshot at crowning, read
       from `characters.clanid` for every crowned hero (online + offline);
@@ -105,7 +105,7 @@ crowning path.
 
 - [todo] R6. `nx-gs-adapter-core.events.EventTypeRegistry` MUST bind
   `HeroGrantedEvent`: family `"olympiad"`, message-type `"HeroGrantedEvent"`,
-  partition-key extractor returning `charId` (8-byte big-endian) — the **same**
+  partition-key extractor returning `characterId` (8-byte big-endian) — the **same**
   key as `OlympiadMatchResultEvent`, so a character's olympiad + hero timeline
   co-locates on one partition in occurrence order.
 
@@ -119,7 +119,7 @@ crowning path.
 
 - [todo] R8. The host MUST hook its hero-crowning routine to emit one
   `HeroGrantedEvent` per crowned hero. The hook fires for online **and**
-  offline winners — `charId` / `classId` come from the per-hero
+  offline winners — `characterId` / `classId` come from the per-hero
   `StatsSet`, `olympiadCycle` from the crowning context. Any uncaught
   `Throwable` is logged at ERROR and swallowed — never propagates into the
   crowning path.
@@ -149,7 +149,7 @@ crowning path.
 - [todo] R11. "Times hero" counter — explicitly NOT synced (YAGNI). Neither a
   CDC `CharacterDbDto.heroCount` field nor a `HeroGrantedEvent.count` is
   carried; if a consumer ever needs it, derive by counting `HeroGrantedEvent`s
-  per `charId`, or add a field then.
+  per `characterId`, or add a field then.
 
 **Non-goals:**
 
@@ -195,7 +195,7 @@ crowning path.
   benefit.]
 - [resolved: `hero` as a CDC `Boolean` from a `heroes` child source hashed on
   `played` only. Rejected a `heroCount` CDC field and a `HeroGrantedEvent.count`
-  (YAGNI — derive by counting events per charId if ever needed).]
+  (YAGNI — derive by counting events per characterId if ever needed).]
 - [resolved: `HeroGrantedEvent` rides the existing `events.olympiad` family,
   NOT a new `events.hero` family. The retention-independence argument (scarce
   grants vs high-volume match results, per the raid-kill precedent) was weighed

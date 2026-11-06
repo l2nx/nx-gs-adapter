@@ -1,20 +1,23 @@
 package app.l2nx.gs.adapter.api.kafka.commands.item;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.Objects;
 
 /**
  * Echoes the amount moved and both endpoints; {@code countTransferred} may be less than requested, as in {@link DeleteItemResult}.
+ * {@code item} is the item before the operation.
  */
 public final class TransferItemToCharacterResult {
 
-    private final Long itemId;
+    private final ItemSnapshot item;
     private final Long countTransferred;
-    private final Long fromCharId;
-    private final Long toCharId;
+    private final Long fromCharacterId;
+    private final Long toCharacterId;
 
-    public TransferItemToCharacterResult(Long itemId, Long countTransferred, Long fromCharId, Long toCharId) {
-        if (itemId == null) {
-            throw new IllegalArgumentException("itemId is required");
+    public TransferItemToCharacterResult(
+            ItemSnapshot item, Long countTransferred, Long fromCharacterId, Long toCharacterId) {
+        if (item == null) {
+            throw new IllegalArgumentException("item is required");
         }
         if (countTransferred == null) {
             throw new IllegalArgumentException("countTransferred is required");
@@ -22,40 +25,40 @@ public final class TransferItemToCharacterResult {
         if (countTransferred <= 0L) {
             throw new IllegalArgumentException("countTransferred must be positive (got " + countTransferred + ")");
         }
-        if (fromCharId == null) {
-            throw new IllegalArgumentException("fromCharId is required");
+        if (fromCharacterId == null) {
+            throw new IllegalArgumentException("fromCharacterId is required");
         }
-        if (toCharId == null) {
-            throw new IllegalArgumentException("toCharId is required");
+        if (toCharacterId == null) {
+            throw new IllegalArgumentException("toCharacterId is required");
         }
-        this.itemId = itemId;
+        this.item = item;
         this.countTransferred = countTransferred;
-        this.fromCharId = fromCharId;
-        this.toCharId = toCharId;
+        this.fromCharacterId = fromCharacterId;
+        this.toCharacterId = toCharacterId;
     }
 
-    public Long getItemId() {
-        return itemId;
+    public ItemSnapshot getItem() {
+        return item;
     }
 
     public Long getCountTransferred() {
         return countTransferred;
     }
 
-    public Long getFromCharId() {
-        return fromCharId;
+    public Long getFromCharacterId() {
+        return fromCharacterId;
     }
 
-    public Long getToCharId() {
-        return toCharId;
+    public Long getToCharacterId() {
+        return toCharacterId;
     }
 
     public Builder toBuilder() {
         return new Builder()
-                .itemId(itemId)
+                .item(item)
                 .countTransferred(countTransferred)
-                .fromCharId(fromCharId)
-                .toCharId(toCharId);
+                .fromCharacterId(fromCharacterId)
+                .toCharacterId(toCharacterId);
     }
 
     public static Builder builder() {
@@ -67,33 +70,33 @@ public final class TransferItemToCharacterResult {
         if (this == o) return true;
         if (!(o instanceof TransferItemToCharacterResult)) return false;
         TransferItemToCharacterResult that = (TransferItemToCharacterResult) o;
-        return Objects.equals(itemId, that.itemId)
+        return Objects.equals(item, that.item)
                 && Objects.equals(countTransferred, that.countTransferred)
-                && Objects.equals(fromCharId, that.fromCharId)
-                && Objects.equals(toCharId, that.toCharId);
+                && Objects.equals(fromCharacterId, that.fromCharacterId)
+                && Objects.equals(toCharacterId, that.toCharacterId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemId, countTransferred, fromCharId, toCharId);
+        return Objects.hash(item, countTransferred, fromCharacterId, toCharacterId);
     }
 
     @Override
     public String toString() {
-        return "TransferItemToCharacterResult[itemId=" + itemId
+        return "TransferItemToCharacterResult[item=" + item
                 + ", countTransferred=" + countTransferred
-                + ", fromCharId=" + fromCharId
-                + ", toCharId=" + toCharId + "]";
+                + ", fromCharacterId=" + fromCharacterId
+                + ", toCharacterId=" + toCharacterId + "]";
     }
 
     public static final class Builder {
-        private Long itemId;
+        private ItemSnapshot item;
         private Long countTransferred;
-        private Long fromCharId;
-        private Long toCharId;
+        private Long fromCharacterId;
+        private Long toCharacterId;
 
-        public Builder itemId(Long itemId) {
-            this.itemId = itemId;
+        public Builder item(ItemSnapshot item) {
+            this.item = item;
             return this;
         }
 
@@ -102,18 +105,18 @@ public final class TransferItemToCharacterResult {
             return this;
         }
 
-        public Builder fromCharId(Long fromCharId) {
-            this.fromCharId = fromCharId;
+        public Builder fromCharacterId(Long fromCharacterId) {
+            this.fromCharacterId = fromCharacterId;
             return this;
         }
 
-        public Builder toCharId(Long toCharId) {
-            this.toCharId = toCharId;
+        public Builder toCharacterId(Long toCharacterId) {
+            this.toCharacterId = toCharacterId;
             return this;
         }
 
         public TransferItemToCharacterResult build() {
-            return new TransferItemToCharacterResult(itemId, countTransferred, fromCharId, toCharId);
+            return new TransferItemToCharacterResult(item, countTransferred, fromCharacterId, toCharacterId);
         }
     }
 }

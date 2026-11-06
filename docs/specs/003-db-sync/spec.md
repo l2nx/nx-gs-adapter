@@ -668,7 +668,7 @@ NxAdapter.shutdown()
   for the boundary contract + file format.
 - **Host DB tables (read-only)** — example L2J-family schema:
     - `clan_data` — `clan_id` (PK, BIGINT), `clan_name` (VARCHAR), `clan_level`
-      (INT), `leader_id` (BIGINT FK → `characters.charId`), `crest_id` (BIGINT), `ally_id`
+      (INT), `leader_id` (BIGINT FK → `characters.characterId`), `crest_id` (BIGINT), `ally_id`
       (BIGINT), `ally_name` (VARCHAR), `ally_crest_id` (BIGINT), `ally_penalty_type` (INT,
       custom converter), `ally_penalty_expiry_time` / `char_penalty_expiry_time` /
       `dissolving_expiry_time` (BIGINT epoch). MVP syncs only the 4 plain cols (clan_name,

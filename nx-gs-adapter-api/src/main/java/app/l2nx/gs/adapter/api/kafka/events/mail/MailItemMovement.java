@@ -1,50 +1,31 @@
 package app.l2nx.gs.adapter.api.kafka.events.mail;
 
-import app.l2nx.gs.adapter.api.domain.Attribute;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Map;
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
+import app.l2nx.gs.adapter.api.kafka.events.privatetrade.TradeItemMovement;
 import java.util.Objects;
-import org.jspecify.annotations.Nullable;
 
 /**
  * One item-movement line of a mail-lifecycle event; mirrors
- * {@link app.l2nx.gs.adapter.api.kafka.events.privatetrade.TradeItemMovement}.
+ * {@link TradeItemMovement}.
  *
- * <p>{@code itemId} / {@code newItemId} are the object-id transition. SENT and RETURNED have none (both equal the
+ * <p>{@code item.itemId} / {@code newItemId} are the object-id transition. SENT and RETURNED have none (both equal the
  * attachment row id); ACCEPTED goes mail row to receiver inventory, CANCELLED to sender inventory. A stack merge
  * collapses {@code newItemId} onto the existing stack id.</p>
  */
 public final class MailItemMovement {
 
-    private final long itemTemplateId;
-    private final long itemId;
+    private final ItemSnapshot item;
     private final long newItemId;
     private final long count;
-    private final @Nullable Integer enchantLevel;
-    private final @Nullable Map<Attribute, Integer> attributes;
 
-    public MailItemMovement(
-            long itemTemplateId,
-            long itemId,
-            long newItemId,
-            long count,
-            @Nullable Integer enchantLevel,
-            @Nullable Map<Attribute, Integer> attributes) {
-        this.itemTemplateId = itemTemplateId;
-        this.itemId = itemId;
+    public MailItemMovement(ItemSnapshot item, long newItemId, long count) {
+        this.item = Objects.requireNonNull(item, "item");
         this.newItemId = newItemId;
         this.count = count;
-        this.enchantLevel = enchantLevel;
-        this.attributes = freezeMap(attributes);
     }
 
-    public long getItemTemplateId() {
-        return itemTemplateId;
-    }
-
-    public long getItemId() {
-        return itemId;
+    public ItemSnapshot getItem() {
+        return item;
     }
 
     public long getNewItemId() {
@@ -55,41 +36,12 @@ public final class MailItemMovement {
         return count;
     }
 
-    /**
-     * Enchant level. {@code null} when the item type has no enchant concept;
-     * {@code 0} for enchantable-but-unenchanted; {@code > 0} otherwise.
-     */
-    public @Nullable Integer getEnchantLevel() {
-        return enchantLevel;
-    }
-
-    /**
-     * Elemental attribute power per {@link Attribute}. Empty map on read
-     * when none.
-     */
-    public Map<Attribute, Integer> getAttributes() {
-        return attributes == null ? Collections.emptyMap() : attributes;
-    }
-
     public Builder toBuilder() {
-        return new Builder()
-                .itemTemplateId(itemTemplateId)
-                .itemId(itemId)
-                .newItemId(newItemId)
-                .count(count)
-                .enchantLevel(enchantLevel)
-                .attributes(attributes);
+        return new Builder().item(item).newItemId(newItemId).count(count);
     }
 
     public static Builder builder() {
         return new Builder();
-    }
-
-    private static @Nullable Map<Attribute, Integer> freezeMap(@Nullable Map<Attribute, Integer> src) {
-        if (src == null || src.isEmpty()) {
-            return null;
-        }
-        return Collections.unmodifiableMap(new EnumMap<Attribute, Integer>(src));
     }
 
     @Override
@@ -97,44 +49,26 @@ public final class MailItemMovement {
         if (this == o) return true;
         if (!(o instanceof MailItemMovement)) return false;
         MailItemMovement that = (MailItemMovement) o;
-        return itemTemplateId == that.itemTemplateId
-                && itemId == that.itemId
-                && newItemId == that.newItemId
-                && count == that.count
-                && Objects.equals(enchantLevel, that.enchantLevel)
-                && Objects.equals(attributes, that.attributes);
+        return newItemId == that.newItemId && count == that.count && Objects.equals(item, that.item);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemTemplateId, itemId, newItemId, count, enchantLevel, attributes);
+        return Objects.hash(item, newItemId, count);
     }
 
     @Override
     public String toString() {
-        return "MailItemMovement[itemTemplateId=" + itemTemplateId
-                + ", itemId=" + itemId
-                + ", newItemId=" + newItemId
-                + ", count=" + count
-                + ", enchantLevel=" + enchantLevel
-                + ", attributes=" + attributes + "]";
+        return "MailItemMovement[item=" + item + ", newItemId=" + newItemId + ", count=" + count + "]";
     }
 
     public static final class Builder {
-        private long itemTemplateId;
-        private long itemId;
+        private ItemSnapshot item;
         private long newItemId;
         private long count;
-        private @Nullable Integer enchantLevel;
-        private @Nullable Map<Attribute, Integer> attributes;
 
-        public Builder itemTemplateId(long itemTemplateId) {
-            this.itemTemplateId = itemTemplateId;
-            return this;
-        }
-
-        public Builder itemId(long itemId) {
-            this.itemId = itemId;
+        public Builder item(ItemSnapshot item) {
+            this.item = item;
             return this;
         }
 
@@ -148,18 +82,8 @@ public final class MailItemMovement {
             return this;
         }
 
-        public Builder enchantLevel(@Nullable Integer enchantLevel) {
-            this.enchantLevel = enchantLevel;
-            return this;
-        }
-
-        public Builder attributes(@Nullable Map<Attribute, Integer> attributes) {
-            this.attributes = attributes;
-            return this;
-        }
-
         public MailItemMovement build() {
-            return new MailItemMovement(itemTemplateId, itemId, newItemId, count, enchantLevel, attributes);
+            return new MailItemMovement(item, newItemId, count);
         }
     }
 }

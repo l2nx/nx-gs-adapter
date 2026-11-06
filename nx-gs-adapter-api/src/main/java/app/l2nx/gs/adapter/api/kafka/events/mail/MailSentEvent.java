@@ -13,9 +13,9 @@ public final class MailSentEvent {
 
     private final UUID eventId;
     private final long mailId;
-    private final long senderCharId;
+    private final long senderCharacterId;
     private final @Nullable String senderName;
-    private final long receiverCharId;
+    private final long receiverCharacterId;
     private final String subject;
     private final @Nullable String body;
     private final Instant expiresAt;
@@ -26,9 +26,9 @@ public final class MailSentEvent {
     public MailSentEvent(
             UUID eventId,
             long mailId,
-            long senderCharId,
+            long senderCharacterId,
             @Nullable String senderName,
-            long receiverCharId,
+            long receiverCharacterId,
             String subject,
             @Nullable String body,
             Instant expiresAt,
@@ -37,9 +37,9 @@ public final class MailSentEvent {
             @Nullable Map<String, String> metadata) {
         this.eventId = eventId;
         this.mailId = mailId;
-        this.senderCharId = senderCharId;
+        this.senderCharacterId = senderCharacterId;
         this.senderName = senderName;
-        this.receiverCharId = receiverCharId;
+        this.receiverCharacterId = receiverCharacterId;
         this.subject = subject;
         this.body = body;
         this.expiresAt = expiresAt;
@@ -60,8 +60,8 @@ public final class MailSentEvent {
     }
 
     /** {@code 0} for system / NPC mail (see {@link #getSenderName()}). */
-    public long getSenderCharId() {
-        return senderCharId;
+    public long getSenderCharacterId() {
+        return senderCharacterId;
     }
 
     /** {@code null} for player-to-player mail; the name then comes from char CDC. */
@@ -69,8 +69,8 @@ public final class MailSentEvent {
         return senderName;
     }
 
-    public long getReceiverCharId() {
-        return receiverCharId;
+    public long getReceiverCharacterId() {
+        return receiverCharacterId;
     }
 
     public String getSubject() {
@@ -102,9 +102,9 @@ public final class MailSentEvent {
         return new Builder()
                 .eventId(eventId)
                 .mailId(mailId)
-                .senderCharId(senderCharId)
+                .senderCharacterId(senderCharacterId)
                 .senderName(senderName)
-                .receiverCharId(receiverCharId)
+                .receiverCharacterId(receiverCharacterId)
                 .subject(subject)
                 .body(body)
                 .expiresAt(expiresAt)
@@ -130,8 +130,8 @@ public final class MailSentEvent {
         if (!(o instanceof MailSentEvent)) return false;
         MailSentEvent that = (MailSentEvent) o;
         return mailId == that.mailId
-                && senderCharId == that.senderCharId
-                && receiverCharId == that.receiverCharId
+                && senderCharacterId == that.senderCharacterId
+                && receiverCharacterId == that.receiverCharacterId
                 && codAmount == that.codAmount
                 && Objects.equals(eventId, that.eventId)
                 && Objects.equals(senderName, that.senderName)
@@ -147,9 +147,9 @@ public final class MailSentEvent {
         return Objects.hash(
                 eventId,
                 mailId,
-                senderCharId,
+                senderCharacterId,
                 senderName,
-                receiverCharId,
+                receiverCharacterId,
                 subject,
                 body,
                 expiresAt,
@@ -162,9 +162,9 @@ public final class MailSentEvent {
     public String toString() {
         return "MailSentEvent[eventId=" + eventId
                 + ", mailId=" + mailId
-                + ", senderCharId=" + senderCharId
+                + ", senderCharacterId=" + senderCharacterId
                 + ", senderName=" + senderName
-                + ", receiverCharId=" + receiverCharId
+                + ", receiverCharacterId=" + receiverCharacterId
                 + ", subject=" + subject
                 + ", body=" + body
                 + ", expiresAt=" + expiresAt
@@ -176,9 +176,9 @@ public final class MailSentEvent {
     public static final class Builder {
         private UUID eventId;
         private long mailId;
-        private long senderCharId;
+        private long senderCharacterId;
         private @Nullable String senderName;
-        private long receiverCharId;
+        private long receiverCharacterId;
         private String subject;
         private @Nullable String body;
         private Instant expiresAt;
@@ -196,8 +196,8 @@ public final class MailSentEvent {
             return this;
         }
 
-        public Builder senderCharId(long senderCharId) {
-            this.senderCharId = senderCharId;
+        public Builder senderCharacterId(long senderCharacterId) {
+            this.senderCharacterId = senderCharacterId;
             return this;
         }
 
@@ -206,8 +206,8 @@ public final class MailSentEvent {
             return this;
         }
 
-        public Builder receiverCharId(long receiverCharId) {
-            this.receiverCharId = receiverCharId;
+        public Builder receiverCharacterId(long receiverCharacterId) {
+            this.receiverCharacterId = receiverCharacterId;
             return this;
         }
 
@@ -245,9 +245,9 @@ public final class MailSentEvent {
             return new MailSentEvent(
                     eventId,
                     mailId,
-                    senderCharId,
+                    senderCharacterId,
                     senderName,
-                    receiverCharId,
+                    receiverCharacterId,
                     subject,
                     body,
                     expiresAt,

@@ -1,19 +1,21 @@
 package app.l2nx.gs.adapter.api.kafka.commands.item;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.Objects;
 
 /**
  * Echoes what was actually deleted; may be less than requested if the live stack shrank before execution.
+ * {@code item} is the item before the operation.
  */
 public final class DeleteItemResult {
 
-    private final Long itemId;
+    private final ItemSnapshot item;
     private final Long countDeleted;
     private final boolean fullyDeleted;
 
-    public DeleteItemResult(Long itemId, Long countDeleted, boolean fullyDeleted) {
-        if (itemId == null) {
-            throw new IllegalArgumentException("itemId is required");
+    public DeleteItemResult(ItemSnapshot item, Long countDeleted, boolean fullyDeleted) {
+        if (item == null) {
+            throw new IllegalArgumentException("item is required");
         }
         if (countDeleted == null) {
             throw new IllegalArgumentException("countDeleted is required");
@@ -21,13 +23,13 @@ public final class DeleteItemResult {
         if (countDeleted < 0L) {
             throw new IllegalArgumentException("countDeleted must be non-negative (got " + countDeleted + ")");
         }
-        this.itemId = itemId;
+        this.item = item;
         this.countDeleted = countDeleted;
         this.fullyDeleted = fullyDeleted;
     }
 
-    public Long getItemId() {
-        return itemId;
+    public ItemSnapshot getItem() {
+        return item;
     }
 
     /** May be less than the requested count: the handler clamps to the live stack. */
@@ -41,7 +43,7 @@ public final class DeleteItemResult {
     }
 
     public Builder toBuilder() {
-        return new Builder().itemId(itemId).countDeleted(countDeleted).fullyDeleted(fullyDeleted);
+        return new Builder().item(item).countDeleted(countDeleted).fullyDeleted(fullyDeleted);
     }
 
     public static Builder builder() {
@@ -54,29 +56,29 @@ public final class DeleteItemResult {
         if (!(o instanceof DeleteItemResult)) return false;
         DeleteItemResult that = (DeleteItemResult) o;
         return fullyDeleted == that.fullyDeleted
-                && Objects.equals(itemId, that.itemId)
+                && Objects.equals(item, that.item)
                 && Objects.equals(countDeleted, that.countDeleted);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemId, countDeleted, fullyDeleted);
+        return Objects.hash(item, countDeleted, fullyDeleted);
     }
 
     @Override
     public String toString() {
-        return "DeleteItemResult[itemId=" + itemId
+        return "DeleteItemResult[item=" + item
                 + ", countDeleted=" + countDeleted
                 + ", fullyDeleted=" + fullyDeleted + "]";
     }
 
     public static final class Builder {
-        private Long itemId;
+        private ItemSnapshot item;
         private Long countDeleted;
         private boolean fullyDeleted;
 
-        public Builder itemId(Long itemId) {
-            this.itemId = itemId;
+        public Builder item(ItemSnapshot item) {
+            this.item = item;
             return this;
         }
 
@@ -91,7 +93,7 @@ public final class DeleteItemResult {
         }
 
         public DeleteItemResult build() {
-            return new DeleteItemResult(itemId, countDeleted, fullyDeleted);
+            return new DeleteItemResult(item, countDeleted, fullyDeleted);
         }
     }
 }

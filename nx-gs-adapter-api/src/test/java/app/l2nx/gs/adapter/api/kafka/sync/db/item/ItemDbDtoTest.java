@@ -3,21 +3,23 @@ package app.l2nx.gs.adapter.api.kafka.sync.db.item;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.Attribute;
+import app.l2nx.gs.adapter.api.domain.item.ItemAugmentation;
 import app.l2nx.gs.adapter.api.domain.item.ItemLocation;
-import java.util.Arrays;
+import com.google.gson.Gson;
 import java.util.Collections;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class ItemDbDtoTest {
 
     @Test
     void builder_shouldMapEachFieldToConstructorPosition() {
-        List<ItemAttributeDbDto> attrs = Arrays.asList(
-                ItemAttributeDbDto.builder().type(Attribute.FIRE).value(150).build(),
-                ItemAttributeDbDto.builder().type(Attribute.WATER).value(60).build());
-        ItemAugmentationDbDto augmentation =
-                ItemAugmentationDbDto.builder().option1Id(1000).option2Id(2000).build();
+        Map<Attribute, Integer> attrs = new LinkedHashMap<Attribute, Integer>();
+        attrs.put(Attribute.FIRE, 150);
+        attrs.put(Attribute.WATER, 60);
+        ItemAugmentation augmentation =
+                ItemAugmentation.builder().option1Id(1000).option2Id(2000).build();
 
         ItemDbDto item = ItemDbDto.builder()
                 .id(98765L)
@@ -69,12 +71,35 @@ class ItemDbDtoTest {
     }
 
     @Test
-    void attributes_shouldBeEmptyList_whenTenantSyncsThemButItemHasNone() {
+    void attributes_shouldBeEmptyMap_whenTenantSyncsThemButItemHasNone() {
         ItemDbDto item =
-                ItemDbDto.builder().id(1L).attributes(Collections.emptyList()).build();
+                ItemDbDto.builder().id(1L).attributes(Collections.emptyMap()).build();
 
         assertNotNull(item.getAttributes());
         assertTrue(item.getAttributes().isEmpty());
+    }
+
+    @Test
+    void attributes_shouldBeAnUnmodifiableCopy() {
+        Map<Attribute, Integer> source = new LinkedHashMap<Attribute, Integer>();
+        source.put(Attribute.FIRE, 150);
+        ItemDbDto item = ItemDbDto.builder().id(1L).attributes(source).build();
+
+        source.put(Attribute.WATER, 60);
+
+        assertEquals(Collections.singletonMap(Attribute.FIRE, 150), item.getAttributes());
+        assertThrows(
+                UnsupportedOperationException.class, () -> item.getAttributes().put(Attribute.DARK, 1));
+    }
+
+    @Test
+    void gson_shouldKeyAttributesByElementName() {
+        ItemDbDto item = ItemDbDto.builder()
+                .id(1L)
+                .attributes(Collections.singletonMap(Attribute.FIRE, 150))
+                .build();
+
+        assertTrue(new Gson().toJson(item).contains("\"attributes\":{\"FIRE\":150}"));
     }
 
     @Test
@@ -88,10 +113,9 @@ class ItemDbDtoTest {
 
     @Test
     void toBuilder_shouldRoundtrip() {
-        List<ItemAttributeDbDto> attrs = Collections.singletonList(
-                ItemAttributeDbDto.builder().type(Attribute.HOLY).value(120).build());
-        ItemAugmentationDbDto augmentation =
-                ItemAugmentationDbDto.builder().option1Id(1000).option2Id(2000).build();
+        Map<Attribute, Integer> attrs = Collections.singletonMap(Attribute.HOLY, 120);
+        ItemAugmentation augmentation =
+                ItemAugmentation.builder().option1Id(1000).option2Id(2000).build();
         ItemDbDto original = new ItemDbDto(1L, 7L, 2L, 5L, 10, ItemLocation.INVENTORY, attrs, augmentation);
 
         assertEquals(original, original.toBuilder().build());
@@ -108,7 +132,7 @@ class ItemDbDtoTest {
     void equals_shouldDiffer_whenAugmentationDiffers() {
         ItemDbDto withAugmentation = ItemDbDto.builder()
                 .id(1L)
-                .augmentation(ItemAugmentationDbDto.builder()
+                .augmentation(ItemAugmentation.builder()
                         .option1Id(1000)
                         .option2Id(2000)
                         .build())

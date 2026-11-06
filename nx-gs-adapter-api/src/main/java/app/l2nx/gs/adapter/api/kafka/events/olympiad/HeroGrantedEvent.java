@@ -6,15 +6,15 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Character crowned hero at the end of an Olympiad cycle; one event per hero, on the {@code olympiad} family topic.
- * <p>Partitioned by {@link #getCharId() charId} (8-byte BE) like {@link OlympiadMatchResultEvent}, so a character's matches and crownings stay ordered.
+ * <p>Partitioned by {@link #getCharacterId() characterId} (8-byte BE) like {@link OlympiadMatchResultEvent}, so a character's matches and crownings stay ordered.
  * <p>{@link #getEventId() eventId} MUST be a UUIDv7 (upper 48 bits encode the timestamp); consumers dedupe on it (at-least-once).
- * <p>Names are not carried - join on charId / clanId via CDC. Current hero state is CDC {@code CharacterDbDto.hero}; this event is the historical record.
+ * <p>Names are not carried - join on characterId / clanId via CDC. Current hero state is CDC {@code CharacterDbDto.hero}; this event is the historical record.
  * <p>{@link #getMetadata() metadata} is an optional open string-to-string map; {@code null} when absent, consumers ignore unknown keys.
  */
 public final class HeroGrantedEvent {
 
     private final UUID eventId;
-    private final long charId;
+    private final long characterId;
     private final int classId;
     private final @Nullable CharacterClass clazz;
     private final @Nullable Long clanId;
@@ -23,14 +23,14 @@ public final class HeroGrantedEvent {
 
     public HeroGrantedEvent(
             UUID eventId,
-            long charId,
+            long characterId,
             int classId,
             @Nullable CharacterClass clazz,
             @Nullable Long clanId,
             int olympiadCycle,
             @Nullable Map<String, String> metadata) {
         this.eventId = Objects.requireNonNull(eventId, "HeroGrantedEvent.eventId is required");
-        this.charId = charId;
+        this.characterId = characterId;
         this.classId = classId;
         this.clazz = clazz;
         this.clanId = clanId;
@@ -43,8 +43,8 @@ public final class HeroGrantedEvent {
         return eventId;
     }
 
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
     /** Legacy host-numbered class id; consumers MUST prefer {@link #getClazz() clazz} when non-null. */
@@ -73,7 +73,7 @@ public final class HeroGrantedEvent {
     public Builder toBuilder() {
         return new Builder()
                 .eventId(eventId)
-                .charId(charId)
+                .characterId(characterId)
                 .classId(classId)
                 .clazz(clazz)
                 .clanId(clanId)
@@ -90,7 +90,7 @@ public final class HeroGrantedEvent {
         if (this == o) return true;
         if (!(o instanceof HeroGrantedEvent)) return false;
         HeroGrantedEvent that = (HeroGrantedEvent) o;
-        return charId == that.charId
+        return characterId == that.characterId
                 && classId == that.classId
                 && olympiadCycle == that.olympiadCycle
                 && eventId.equals(that.eventId)
@@ -101,13 +101,13 @@ public final class HeroGrantedEvent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventId, charId, classId, clazz, clanId, olympiadCycle, metadata);
+        return Objects.hash(eventId, characterId, classId, clazz, clanId, olympiadCycle, metadata);
     }
 
     @Override
     public String toString() {
         return "HeroGrantedEvent[eventId=" + eventId
-                + ", charId=" + charId
+                + ", characterId=" + characterId
                 + ", classId=" + classId
                 + ", clazz=" + clazz
                 + ", clanId=" + clanId
@@ -117,7 +117,7 @@ public final class HeroGrantedEvent {
 
     public static final class Builder {
         private @Nullable UUID eventId;
-        private long charId;
+        private long characterId;
         private int classId;
         private @Nullable CharacterClass clazz;
         private @Nullable Long clanId;
@@ -129,8 +129,8 @@ public final class HeroGrantedEvent {
             return this;
         }
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -160,7 +160,7 @@ public final class HeroGrantedEvent {
         }
 
         public HeroGrantedEvent build() {
-            return new HeroGrantedEvent(eventId, charId, classId, clazz, clanId, olympiadCycle, metadata);
+            return new HeroGrantedEvent(eventId, characterId, classId, clazz, clanId, olympiadCycle, metadata);
         }
     }
 }

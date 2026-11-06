@@ -1,5 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.events.chat;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,54 +12,54 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * {@code eventId} is the dedup key under at-least-once delivery; {@code charId} {@code 0} means the platform spoke.
+ * {@code eventId} is the dedup key under at-least-once delivery; {@code characterId} {@code 0} means the platform spoke.
  * {@code clanId} / {@code allianceId} are the speaker's at speaking time; without a legal sender they carry the
  * addressee's (on {@code CLAN} its clan and alliance, on {@code ALLIANCE} only the alliance).
  */
 public final class ChatMessageEvent {
 
     private final UUID eventId;
-    private final long charId;
-    private final @Nullable String charName;
+    private final long characterId;
+    private final @Nullable String characterName;
     private final String channel;
     private final String text;
-    private final @Nullable Long targetCharId;
-    private final @Nullable String targetCharName;
+    private final @Nullable Long targetCharacterId;
+    private final @Nullable String targetCharacterName;
     private final @Nullable Map<String, String> metadata;
     private final @Nullable String senderDisplayName;
     private final @Nullable List<Long> recipientCharacterIds;
-    private final @Nullable List<ChatItemSnapshot> items;
+    private final @Nullable List<ItemSnapshot> items;
     private final @Nullable Long clanId;
     private final @Nullable Long allianceId;
 
     public ChatMessageEvent(
             UUID eventId,
-            long charId,
-            @Nullable String charName,
+            long characterId,
+            @Nullable String characterName,
             String channel,
             String text,
-            @Nullable Long targetCharId,
-            @Nullable String targetCharName,
+            @Nullable Long targetCharacterId,
+            @Nullable String targetCharacterName,
             @Nullable Map<String, String> metadata,
             @Nullable String senderDisplayName,
             @Nullable List<Long> recipientCharacterIds,
-            @Nullable List<ChatItemSnapshot> items,
+            @Nullable List<ItemSnapshot> items,
             @Nullable Long clanId,
             @Nullable Long allianceId) {
         this.eventId = Objects.requireNonNull(eventId, "eventId");
-        this.charId = charId;
-        this.charName = charName;
+        this.characterId = characterId;
+        this.characterName = characterName;
         this.channel = Objects.requireNonNull(channel, "channel");
         this.text = Objects.requireNonNull(text, "text");
-        this.targetCharId = targetCharId;
-        this.targetCharName = targetCharName;
+        this.targetCharacterId = targetCharacterId;
+        this.targetCharacterName = targetCharacterName;
         this.metadata =
                 metadata == null ? null : Collections.unmodifiableMap(new LinkedHashMap<String, String>(metadata));
         this.senderDisplayName = senderDisplayName;
         this.recipientCharacterIds = recipientCharacterIds == null
                 ? null
                 : Collections.unmodifiableList(new ArrayList<Long>(recipientCharacterIds));
-        this.items = items == null ? null : Collections.unmodifiableList(new ArrayList<ChatItemSnapshot>(items));
+        this.items = items == null ? null : Collections.unmodifiableList(new ArrayList<ItemSnapshot>(items));
         this.clanId = clanId;
         this.allianceId = allianceId;
     }
@@ -67,12 +68,12 @@ public final class ChatMessageEvent {
         return eventId;
     }
 
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
-    public @Nullable String getCharName() {
-        return charName;
+    public @Nullable String getCharacterName() {
+        return characterName;
     }
 
     /**
@@ -88,12 +89,12 @@ public final class ChatMessageEvent {
         return text;
     }
 
-    public @Nullable Long getTargetCharId() {
-        return targetCharId;
+    public @Nullable Long getTargetCharacterId() {
+        return targetCharacterId;
     }
 
-    public @Nullable String getTargetCharName() {
-        return targetCharName;
+    public @Nullable String getTargetCharacterName() {
+        return targetCharacterName;
     }
 
     public @Nullable Map<String, String> getMetadata() {
@@ -109,7 +110,7 @@ public final class ChatMessageEvent {
         return recipientCharacterIds;
     }
 
-    public @Nullable List<ChatItemSnapshot> getItems() {
+    public @Nullable List<ItemSnapshot> getItems() {
         return items;
     }
 
@@ -124,12 +125,12 @@ public final class ChatMessageEvent {
     public Builder toBuilder() {
         return new Builder()
                 .eventId(eventId)
-                .charId(charId)
-                .charName(charName)
+                .characterId(characterId)
+                .characterName(characterName)
                 .channel(channel)
                 .text(text)
-                .targetCharId(targetCharId)
-                .targetCharName(targetCharName)
+                .targetCharacterId(targetCharacterId)
+                .targetCharacterName(targetCharacterName)
                 .metadata(metadata)
                 .senderDisplayName(senderDisplayName)
                 .recipientCharacterIds(recipientCharacterIds)
@@ -147,13 +148,13 @@ public final class ChatMessageEvent {
         if (this == o) return true;
         if (!(o instanceof ChatMessageEvent)) return false;
         ChatMessageEvent that = (ChatMessageEvent) o;
-        return charId == that.charId
+        return characterId == that.characterId
                 && Objects.equals(eventId, that.eventId)
-                && Objects.equals(charName, that.charName)
+                && Objects.equals(characterName, that.characterName)
                 && Objects.equals(channel, that.channel)
                 && Objects.equals(text, that.text)
-                && Objects.equals(targetCharId, that.targetCharId)
-                && Objects.equals(targetCharName, that.targetCharName)
+                && Objects.equals(targetCharacterId, that.targetCharacterId)
+                && Objects.equals(targetCharacterName, that.targetCharacterName)
                 && Objects.equals(metadata, that.metadata)
                 && Objects.equals(senderDisplayName, that.senderDisplayName)
                 && Objects.equals(recipientCharacterIds, that.recipientCharacterIds)
@@ -166,12 +167,12 @@ public final class ChatMessageEvent {
     public int hashCode() {
         return Objects.hash(
                 eventId,
-                charId,
-                charName,
+                characterId,
+                characterName,
                 channel,
                 text,
-                targetCharId,
-                targetCharName,
+                targetCharacterId,
+                targetCharacterName,
                 metadata,
                 senderDisplayName,
                 recipientCharacterIds,
@@ -183,12 +184,12 @@ public final class ChatMessageEvent {
     @Override
     public String toString() {
         return "ChatMessageEvent[eventId=" + eventId
-                + ", charId=" + charId
-                + ", charName=" + charName
+                + ", characterId=" + characterId
+                + ", characterName=" + characterName
                 + ", channel=" + channel
                 + ", text=" + text
-                + ", targetCharId=" + targetCharId
-                + ", targetCharName=" + targetCharName
+                + ", targetCharacterId=" + targetCharacterId
+                + ", targetCharacterName=" + targetCharacterName
                 + ", metadata=" + metadata
                 + ", senderDisplayName=" + senderDisplayName
                 + ", recipientCharacterIds=" + recipientCharacterIds
@@ -199,16 +200,16 @@ public final class ChatMessageEvent {
 
     public static final class Builder {
         private UUID eventId;
-        private long charId;
-        private @Nullable String charName;
+        private long characterId;
+        private @Nullable String characterName;
         private String channel;
         private String text;
-        private @Nullable Long targetCharId;
-        private @Nullable String targetCharName;
+        private @Nullable Long targetCharacterId;
+        private @Nullable String targetCharacterName;
         private @Nullable Map<String, String> metadata;
         private @Nullable String senderDisplayName;
         private @Nullable List<Long> recipientCharacterIds;
-        private @Nullable List<ChatItemSnapshot> items;
+        private @Nullable List<ItemSnapshot> items;
         private @Nullable Long clanId;
         private @Nullable Long allianceId;
 
@@ -217,13 +218,13 @@ public final class ChatMessageEvent {
             return this;
         }
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
-        public Builder charName(@Nullable String charName) {
-            this.charName = charName;
+        public Builder characterName(@Nullable String characterName) {
+            this.characterName = characterName;
             return this;
         }
 
@@ -242,13 +243,13 @@ public final class ChatMessageEvent {
             return this;
         }
 
-        public Builder targetCharId(@Nullable Long targetCharId) {
-            this.targetCharId = targetCharId;
+        public Builder targetCharacterId(@Nullable Long targetCharacterId) {
+            this.targetCharacterId = targetCharacterId;
             return this;
         }
 
-        public Builder targetCharName(@Nullable String targetCharName) {
-            this.targetCharName = targetCharName;
+        public Builder targetCharacterName(@Nullable String targetCharacterName) {
+            this.targetCharacterName = targetCharacterName;
             return this;
         }
 
@@ -267,7 +268,7 @@ public final class ChatMessageEvent {
             return this;
         }
 
-        public Builder items(@Nullable List<ChatItemSnapshot> items) {
+        public Builder items(@Nullable List<ItemSnapshot> items) {
             this.items = items;
             return this;
         }
@@ -285,12 +286,12 @@ public final class ChatMessageEvent {
         public ChatMessageEvent build() {
             return new ChatMessageEvent(
                     eventId,
-                    charId,
-                    charName,
+                    characterId,
+                    characterName,
                     channel,
                     text,
-                    targetCharId,
-                    targetCharName,
+                    targetCharacterId,
+                    targetCharacterName,
                     metadata,
                     senderDisplayName,
                     recipientCharacterIds,

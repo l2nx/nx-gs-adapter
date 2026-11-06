@@ -61,7 +61,7 @@ established this convention.
                ▼
 ┌──────────────────────────────────────┐
 │ Kafka topic <tenant>.gs.commands     │
-│   key:    charId for character-      │
+│   key:    characterId for character-      │
 │           scoped commands, null      │
 │           (round-robin) otherwise    │
 │   headers:                           │
@@ -149,15 +149,15 @@ public final class HostCommandHandlers {
 
     static CommandResult<KickCharacterResult> handleKick(KickCharacterCommand cmd, CommandContext ctx) {
         boolean wasOnline = ctx.host().sync(() -> {
-            Player p = GameObjectsStorage.getPlayer(cmd.getCharId().intValue());
+            Player p = GameObjectsStorage.getPlayer(cmd.getCharacterId().intValue());
             if (p == null) return false;
             p.kick();
             return true;
         });
         if (!wasOnline) {
-            return CommandResult.notFound("Character not online", "charId", cmd.getCharId());
+            return CommandResult.notFound("Character not online", "characterId", cmd.getCharacterId());
         }
-        return CommandResult.ok(KickCharacterResult.builder().charId(cmd.getCharId()).build());
+        return CommandResult.ok(KickCharacterResult.builder().characterId(cmd.getCharacterId()).build());
     }
 }
 ```
@@ -190,12 +190,12 @@ beyond the status — which is what `CommandResult.ok()` (payload-less) exists
 for.
 
 ```java
-public final class TransferCharToAccountCommand implements NxCommand<TransferCharToAccountResult> { ... }
+public final class TransferCharacterToAccountCommand implements NxCommand<TransferCharacterToAccountResult> { ... }
 
-commands.on(TransferCharToAccountCommand.class, (cmd, ctx) -> {
+commands.on(TransferCharacterToAccountCommand.class, (cmd, ctx) -> {
     boolean wasLoggedOut = doRebind(cmd);
-    return CommandResult.ok(new TransferCharToAccountResult(
-            cmd.getCharId(), cmd.getAccountTo(), wasLoggedOut));
+    return CommandResult.ok(new TransferCharacterToAccountResult(
+            cmd.getCharacterId(), cmd.getAccountTo(), wasLoggedOut));
 });
 ```
 
@@ -317,8 +317,8 @@ Rules:
 ```java
 static CommandResult<SendMailResult> handleSendMail(SendMailCommand cmd, CommandContext ctx) {
     // cheap wire checks stay on the consumer thread
-    if (cmd.getCharId() == null) {
-        return CommandResult.validationFailed("charId is required", "charId");
+    if (cmd.getCharacterId() == null) {
+        return CommandResult.validationFailed("characterId is required", "characterId");
     }
 
     // recipient lookup, receipt claim and the mail insert are blocking JDBC: the whole send
@@ -337,13 +337,13 @@ The reference `DeleteItemHandler` and `TransferItemToCharacterHandler` are the c
 patterns. Detect online state on the consumer thread, then dispatch:
 
 ```java
-final Player online = GameObjectsStorage.getPlayer(charId);
+final Player online = GameObjectsStorage.getPlayer(characterId);
 if (online != null) {
     return ctx.host().sync(() -> doOnline(online, ...));
 }
 try {
     return CompletableFuture
-            .supplyAsync(() -> doOffline(charId, ...), ctx.io())
+            .supplyAsync(() -> doOffline(characterId, ...), ctx.io())
             .join();
 } catch (CompletionException ce) {
     ...
@@ -390,10 +390,10 @@ new state immediately rather than wait for the next scheduled CDC tick
 static CommandResult<Void> handleTransferItem(TransferItemToCharacterCommand cmd, CommandContext ctx) {
     // ... do the transfer (online or offline)
     if (success) {
-        ctx.sync().requestNow("item", cmd.getItemObjectId());
+        ctx.sync().requestNow("item", cmd.getItemId());
         ctx.sync().requestNow("character", Arrays.asList(fromId, toId));
         return CommandResult.ok(new TransferItemToCharacterResult(
-                cmd.getItemObjectId(), countTransferred, fromId, toId));
+                itemBefore, countTransferred, fromId, toId));
     }
     // ...
 }
@@ -418,7 +418,7 @@ The contract:
 ### Flow
 
 ```
-ctx.sync().requestNow("character", charId)
+ctx.sync().requestNow("character", characterId)
         │
         ▼
 NxSyncImpl  (session-scoped façade in adapter-core)
@@ -536,8 +536,8 @@ guaranteed `source = user`.
 Every command has a `{X}Result` class; populate it with confirmation data:
 
 ```java
-return CommandResult.ok(new DeleteItemResult(itemObjectId, deletedCount, fullyDeleted));
-return CommandResult.ok(new TransferCharToAccountResult(charId, newAccount, wasLoggedOut));
+return CommandResult.ok(new DeleteItemResult(itemBefore, deletedCount, fullyDeleted));
+return CommandResult.ok(new TransferCharacterToAccountResult(characterId, newAccount, wasLoggedOut));
 return CommandResult.ok(new SendMailResult(createdMailIds, itemErrors));
 ```
 
@@ -550,7 +550,7 @@ target); host-side `R` types may be records when the host JVM is Java 14+.
 ```java
 // Common 1-liner patterns:
 return CommandResult.notFound("Character not found");
-return CommandResult.notFound("Item not found", "itemObjectId", 12345L);
+return CommandResult.notFound("Item not found", "itemId", 12345L);
 return CommandResult.invalidState("Capacity exceeded");
 return CommandResult.forbidden("Cannot punish self");
 return CommandResult.validationFailed("count must be positive", "count");
@@ -577,7 +577,7 @@ return CommandResult.error(CommandStatus.VALIDATION_FAILED,
 | Status                | Tier         | Meaning                                 | Example                                                    |
 | --------------------- | ------------ | --------------------------------------- | ---------------------------------------------------------- |
 | `OK`                  | OK           | Handler executed; payload non-null      | Transfer succeeded; mail created                           |
-| `NOT_FOUND`           | CLIENT_ERROR | Subject doesn't exist                   | `getPlayer(charId)` returned null                          |
+| `NOT_FOUND`           | CLIENT_ERROR | Subject doesn't exist                   | `getPlayer(characterId)` returned null                          |
 | `INVALID_STATE`       | CLIENT_ERROR | Subject exists but cannot accept op now | Player in jail; capacity exceeded                          |
 | `FORBIDDEN`           | CLIENT_ERROR | Operation rejected by policy            | Cannot punish self; cannot kick admin                      |
 | `VALIDATION_FAILED`   | CLIENT_ERROR | Request payload malformed               | Null wire field; negative quantity                         |
@@ -610,9 +610,9 @@ public final class HostCommandsModule implements AdapterModule {
         NxCommands commands = ctx.commands();
         commands.on(DeleteItemCommand.class, new DeleteItemHandler());
         commands.on(TransferItemToCharacterCommand.class, new TransferItemToCharacterHandler());
-        commands.on(TransferCharToAccountCommand.class, new TransferCharToAccountHandler());
+        commands.on(TransferCharacterToAccountCommand.class, new TransferCharacterToAccountHandler());
         commands.on(SendMailCommand.class, new SendMailHandler());
-        commands.on(TelegramCharLinkCommand.class, new TelegramCharLinkHandler());
+        commands.on(TelegramCharacterLinkCommand.class, new TelegramCharacterLinkHandler());
     }
 
     @Override public void start() {}
@@ -623,8 +623,8 @@ public final class HostCommandsModule implements AdapterModule {
 
 The handler `Class` is matched against the inbound `Nx-Message-Type`
 header by **simple class name**. So
-`app.l2nx.gs.adapter.api.kafka.commands.character.TransferCharToAccountCommand`
-matches header value `TransferCharToAccountCommand`. Two distinct classes with
+`app.l2nx.gs.adapter.api.kafka.commands.character.TransferCharacterToAccountCommand`
+matches header value `TransferCharacterToAccountCommand`. Two distinct classes with
 the same simple name would collide — keep simple names unique within
 the catalog.
 
@@ -720,9 +720,9 @@ commands runtime exposes:
       "registered-types": [
         "DeleteItemCommand",
         "TransferItemToCharacterCommand",
-        "TransferCharToAccountCommand",
+        "TransferCharacterToAccountCommand",
         "SendMailCommand",
-        "TelegramCharLinkCommand"
+        "TelegramCharacterLinkCommand"
       ],
       "commit-failures-total": 0
     }

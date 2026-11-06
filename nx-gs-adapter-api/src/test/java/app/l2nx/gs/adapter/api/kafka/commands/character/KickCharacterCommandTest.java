@@ -10,13 +10,13 @@ class KickCharacterCommandTest {
     @Test
     void builder_shouldRoundtripFields() {
         KickCharacterCommand cmd = KickCharacterCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .closeClient(true)
                 .staffNotes("botting suspicion")
                 .initiator(TestInitiators.USER)
                 .build();
 
-        assertEquals(42L, cmd.getCharId().longValue());
+        assertEquals(42L, cmd.getCharacterId().longValue());
         assertTrue(cmd.isCloseClient());
         assertEquals("botting suspicion", cmd.getStaffNotes());
     }
@@ -29,16 +29,16 @@ class KickCharacterCommandTest {
     }
 
     @Test
-    void constructor_shouldRejectNullCharId() {
+    void constructor_shouldRejectNullCharacterId() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class, () -> new KickCharacterCommand(null, true, null, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("charId"));
+        assertTrue(ex.getMessage().contains("characterId"));
     }
 
     @Test
     void toBuilder_shouldRoundtrip() {
         KickCharacterCommand original = KickCharacterCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .closeClient(true)
                 .staffNotes("note")
                 .initiator(TestInitiators.USER)
@@ -50,13 +50,13 @@ class KickCharacterCommandTest {
     }
 
     @Test
-    void equals_shouldDistinguishOnCharId() {
+    void equals_shouldDistinguishOnCharacterId() {
         KickCharacterCommand a = KickCharacterCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .initiator(TestInitiators.USER)
                 .build();
         KickCharacterCommand b = KickCharacterCommand.builder()
-                .charId(2L)
+                .characterId(2L)
                 .initiator(TestInitiators.USER)
                 .build();
 
@@ -66,12 +66,12 @@ class KickCharacterCommandTest {
     @Test
     void equals_shouldDistinguishOnCloseClient() {
         KickCharacterCommand a = KickCharacterCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .closeClient(true)
                 .initiator(TestInitiators.USER)
                 .build();
         KickCharacterCommand b = KickCharacterCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .closeClient(false)
                 .initiator(TestInitiators.USER)
                 .build();
@@ -82,12 +82,12 @@ class KickCharacterCommandTest {
     @Test
     void equals_shouldDistinguishOnStaffNotes() {
         KickCharacterCommand a = KickCharacterCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .staffNotes("a")
                 .initiator(TestInitiators.USER)
                 .build();
         KickCharacterCommand b = KickCharacterCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .staffNotes("b")
                 .initiator(TestInitiators.USER)
                 .build();
@@ -98,13 +98,13 @@ class KickCharacterCommandTest {
     @Test
     void hashCode_shouldMatchEquals() {
         KickCharacterCommand a = KickCharacterCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .closeClient(true)
                 .staffNotes("note")
                 .initiator(TestInitiators.USER)
                 .build();
         KickCharacterCommand b = KickCharacterCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .closeClient(true)
                 .staffNotes("note")
                 .initiator(TestInitiators.USER)
@@ -116,7 +116,7 @@ class KickCharacterCommandTest {
     @Test
     void toString_shouldExposeFields() {
         KickCharacterCommand cmd = KickCharacterCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .closeClient(true)
                 .staffNotes("note")
                 .initiator(TestInitiators.USER)
@@ -132,7 +132,7 @@ class KickCharacterCommandTest {
     @Test
     void implementsNxCommandMarker() {
         KickCharacterCommand cmd = KickCharacterCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .initiator(TestInitiators.USER)
                 .build();
 

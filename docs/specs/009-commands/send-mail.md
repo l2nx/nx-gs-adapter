@@ -36,7 +36,7 @@ authors composing `SendMailCommand` records onto the commands topic.
 
 - [done] R1. `nx-gs-adapter-api.kafka.commands.mail.SendMailCommand` MUST ship
   as `NxCommand<SendMailResult>` with the following fields:
-  - `Long charId` — REQUIRED. Recipient character primary key.
+  - `Long characterId` — REQUIRED. Recipient character primary key.
   - `@Nullable String author` — OPTIONAL. Display name of the sender; null/blank
     delegates to the host's system-default sender name.
   - `String title` — REQUIRED. Subject line.
@@ -48,7 +48,7 @@ authors composing `SendMailCommand` records onto the commands topic.
     item-template attachment (template `57`). Positive when present; `null` = no adena. Additive
     field: an old host ignores it, an old producer reads as `null`. [done]
 
-  Constructor enforces non-null `charId` and `title` via `IllegalArgumentException`
+  Constructor enforces non-null `characterId` and `title` via `IllegalArgumentException`
   for programmatic construction. Wire-path Gson bypasses the constructor; handler
   re-validates and emits `VALIDATION_FAILED` on missing fields.
 
@@ -88,10 +88,10 @@ authors composing `SendMailCommand` records onto the commands topic.
 
 - [done] R5. The host MUST ship `SendMailHandler`
   implementing `CommandHandler<SendMailCommand, SendMailResult>`:
-  - Wire-path checks before anything is claimed or written: `charId` non-null,
+  - Wire-path checks before anything is claimed or written: `characterId` non-null,
     `title` non-null and non-empty, every `MailItem` non-null with a non-null
     `itemTemplateId` inside the `int` range that names a known item template and
-    a positive `count`, then `charId` in `1..Integer.MAX_VALUE`. Each failure is
+    a positive `count`, then `characterId` in `1..Integer.MAX_VALUE`. Each failure is
     `validationFailed("<title>", "<field>")`, which puts the field under the
     `field` extension key.
   - The send runs on `ctx.io()` through the host's mail service under a durable
@@ -139,7 +139,7 @@ authors composing `SendMailCommand` records onto the commands topic.
 
 ### Edge cases
 
-- **`charId` not found and platform has stale character state.** Reply
+- **`characterId` not found and platform has stale character state.** Reply
   `NOT_FOUND` → web side decides whether to alert / retry / drop. Same as legacy.
 - **Empty `items` + empty `body` + non-blank `title`** — text-only mail with
   no attachments and a header-only body. Allowed; the host creates a single
@@ -169,8 +169,8 @@ authors composing `SendMailCommand` records onto the commands topic.
   has since become all-or-nothing: a line that cannot be delivered fails the
   whole request, and `itemErrors` is always empty on its replies.]
 - [resolved: `itemTemplateId` rename vs legacy `itemId`. The legacy field was
-  ambiguous (could be read as object-id) and the new commands surface uses
-  `itemObjectId` for object-ids in `DeleteItemCommand`. Renaming makes the
+  ambiguous (could be read as object-id) and the commands surface uses
+  `itemId` for object-ids in `DeleteItemCommand`. Renaming makes the
   identity explicit.]
 - [assumed: `Long createdMailIds` (not `Integer`). Aligns with the rest of
   the commands api which uses `Long` for primary keys; current host
@@ -196,7 +196,7 @@ authors composing `SendMailCommand` records onto the commands topic.
 Inbound record on `<tenant>.gs.commands`:
 
 ```
-key:   longBytesBe(charId)
+key:   longBytesBe(characterId)
 headers:
   Nx-Server-Id      = raw 16-byte tenant/server uuid (auto-stamped post-/connect)
   Nx-Message-Type   = "SendMailCommand"
@@ -233,7 +233,7 @@ Example value (recipient not found):
 {
   "status": "NOT_FOUND",
   "problem": {
-    "title": "charId not found: 42"
+    "title": "characterId not found: 42"
   }
 }
 ```
@@ -242,7 +242,7 @@ Example value (recipient not found):
 
 | Field                    | Type          | Required | Notes                                            |
 | ------------------------ | ------------- | -------- | ------------------------------------------------ |
-| `charId`                 | `Long`        | Yes      | Recipient character pk                           |
+| `characterId`                 | `Long`        | Yes      | Recipient character pk                           |
 | `author`                 | `String?`     | No       | Sender display; null/blank → host system default |
 | `title`                  | `String`      | Yes      | Mail subject; non-empty, host rejects blank      |
 | `body`                   | `String?`     | No       | Mail body; null → empty                          |
@@ -266,14 +266,14 @@ Reply payload:
 
 | Condition                                                    | Status              | `problem`                                               |
 | ------------------------------------------------------------ | ------------------- | ------------------------------------------------------- |
-| `charId` null, or outside `1..Integer.MAX_VALUE`             | `VALIDATION_FAILED` | `extensions.field = "charId"`                           |
+| `characterId` null, or outside `1..Integer.MAX_VALUE`             | `VALIDATION_FAILED` | `extensions.field = "characterId"`                           |
 | `title` null, empty or blank                                 | `VALIDATION_FAILED` | `extensions.field = "title"`                            |
 | `items[i]` null                                              | `VALIDATION_FAILED` | `extensions.field = "items[*]"`                         |
 | `itemTemplateId` null, above `Integer.MAX_VALUE`, or unknown | `VALIDATION_FAILED` | `extensions.field = "items[].itemTemplateId"`           |
 | `count` null or ≤ 0                                          | `VALIDATION_FAILED` | `extensions.field = "items[].count"`                    |
 | `adena` ≤ 0 or above the host's adena cap                    | `VALIDATION_FAILED` | `extensions.field = "adena"`                            |
 | Traders or the recipient still being restored after a start  | `INVALID_STATE`     | restore-gate refusal                                    |
-| Recipient not found                                          | `NOT_FOUND`         | `title = "charId not found: <id>"`                      |
+| Recipient not found                                          | `NOT_FOUND`         | `title = "characterId not found: <id>"`                      |
 | Host mail manager rejects the request                        | `VALIDATION_FAILED` | `title` = the host's message                            |
 | Repeat of a correlation id whose receipt is `OK`             | `OK`                | stored `createdMailIds` replayed, `itemErrors` empty    |
 | Repeat of a correlation id whose receipt is still open       | `INTERNAL_ERROR`    | `title` says the outcome is unknown                     |
@@ -289,14 +289,14 @@ offending field.
 `SendMailHandler.handle(cmd, ctx)`, behind the dedup decorator and the restore gate:
 
 1. **Wire-validate** on the consumer thread (Gson bypasses the constructors):
-   `charId`, `title` (blank is refused here), every `MailItem` including a
+   `characterId`, `title` (blank is refused here), every `MailItem` including a
    catalog lookup of each `itemTemplateId` (so an unknown template fails before
    anything is claimed or staged), `adena` (added as one more attachment line of
-   template `57`), then the `charId` range.
+   template `57`), then the `characterId` range.
 2. **Dispatch to `ctx.io()`** and join: the send is blocking JDBC, which
    belongs on the adapter IO pool, not on the consumer thread or the game
    executor. There is no `ctx.host().sync(...)` hop.
-3. **Recipient lookup** by `charId`; absent → `NOT_FOUND`.
+3. **Recipient lookup** by `characterId`; absent → `NOT_FOUND`.
 4. **Prepare** the mail without touching the database: the host's mail
    manager validates title and receiver, expands non-stackable lines into one
    slot per unit, splits the slots across mails over its per-mail attachment
@@ -324,7 +324,7 @@ the duplicate source — a platform re-issue is.
 
 **Platform-side idempotency key.** For admin system mail the platform derives one
 correlation id per recipient from the required `requestId`, after name resolution and
-de-duplication by `charId`: `UUIDv5(namespace = requestId, name = "SEND_MAIL:" + charId)`.
+de-duplication by `characterId`: `UUIDv5(namespace = requestId, name = "SEND_MAIL:" + characterId)`.
 A retry of the same request reuses the same ids, so both the in-memory dedup and the
 durable receipt below recognise it.
 

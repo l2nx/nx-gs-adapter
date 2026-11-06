@@ -28,6 +28,10 @@ When the platform should show live state within seconds. It works next to
 One `RuntimeStateProvider` that returns the current in-memory rows of each runtime entity. The module does not touch
 the database.
 
+The host must also declare its start: call `NxAdapter.runtimeSync().hostStarted()` once, right after it publishes
+`ServerStartedEvent`. Ticks start only when the module has started and that call has been made, so a host that never
+makes it sends no runtime data. Until then the module stays `ACTIVE` with no entity stats.
+
 ## Configuration
 
 `l2nx.runtime-sync.*` keys:

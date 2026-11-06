@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -25,7 +26,7 @@ class CharacterPresenceEventTest {
     private static CharacterPresenceEvent.Builder clientLogin() {
         return CharacterPresenceEvent.builder()
                 .eventId(id())
-                .charId(1L)
+                .characterId(1L)
                 .online(true)
                 .source(SessionSource.CLIENT);
     }
@@ -33,7 +34,7 @@ class CharacterPresenceEventTest {
     private static CharacterPresenceEvent.Builder clientLogout() {
         return CharacterPresenceEvent.builder()
                 .eventId(id())
-                .charId(1L)
+                .characterId(1L)
                 .online(false)
                 .source(SessionSource.CLIENT)
                 .logoutReason(LogoutReason.LOGOUT);
@@ -42,7 +43,7 @@ class CharacterPresenceEventTest {
     private static CharacterPresenceEvent.Builder appStart() {
         return CharacterPresenceEvent.builder()
                 .eventId(id())
-                .charId(1L)
+                .characterId(1L)
                 .online(true)
                 .source(SessionSource.APP)
                 .activity(ActivityType.OFFLINE_FISHING);
@@ -72,10 +73,58 @@ class CharacterPresenceEventTest {
         }
 
         @Test
-        void constructor_shouldRejectClient_whenActivityPresent() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> clientLogin().activity(ActivityType.PRIVATE_STORE).build());
+        void constructor_shouldAcceptClient_whenActivityMarksANativeStoreSession() {
+            CharacterPresenceEvent actual =
+                    clientLogin().activity(ActivityType.OFFLINE_PRIVATE_STORE).build();
+
+            assertEquals(ActivityType.OFFLINE_PRIVATE_STORE, actual.getActivity());
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(value = ActivityType.class, mode = EnumSource.Mode.EXCLUDE, names = "OFFLINE_PRIVATE_STORE")
+        void constructor_shouldRejectClient_whenActivityIsNotTheNativeStore(ActivityType activity) {
+            CharacterPresenceEvent.Builder builder = clientLogin().activity(activity);
+
+            assertThrows(IllegalArgumentException.class, builder::build);
+        }
+
+        @Test
+        void constructor_shouldRejectResult_whenOnline() {
+            CharacterPresenceEvent.Builder builder =
+                    clientLogin().result(SessionResult.builder().build());
+
+            assertThrows(IllegalArgumentException.class, builder::build);
+        }
+
+        @Test
+        void constructor_shouldAcceptResult_whenAClientOrAppSessionEnds() {
+            SessionResult result = SessionResult.builder().overflow(1L).build();
+
+            assertEquals(result, clientLogout().result(result).build().getResult());
+            assertEquals(
+                    result,
+                    appStart()
+                            .online(false)
+                            .logoutReason(LogoutReason.APP_OVERWEIGHT)
+                            .result(result)
+                            .build()
+                            .getResult());
+        }
+
+        @Test
+        void toBuilder_shouldKeepTheResult() {
+            CharacterPresenceEvent original =
+                    clientLogout().result(SessionResult.builder().build()).build();
+
+            assertEquals(original, original.toBuilder().build());
+        }
+
+        @Test
+        void wire_shouldNameTheCharacterCharacterId() {
+            String json = new Gson().toJson(clientLogin().build());
+
+            assertTrue(json.contains("\"characterId\":1"), json);
+            assertFalse(json.contains("charId"), json);
         }
 
         @Test

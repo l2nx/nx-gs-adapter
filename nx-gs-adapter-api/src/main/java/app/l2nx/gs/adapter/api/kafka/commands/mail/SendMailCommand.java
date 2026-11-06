@@ -9,8 +9,8 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Delivers a system mail to one character, routed by {@code charId}; the host MAY split it into several mails over its
- * attachment cap, all or none. {@code VALIDATION_FAILED} covers missing {@code charId}/{@code title} and a malformed
+ * Delivers a system mail to one character, routed by {@code characterId}; the host MAY split it into several mails over its
+ * attachment cap, all or none. {@code VALIDATION_FAILED} covers missing {@code characterId}/{@code title} and a malformed
  * {@link MailItem}: Gson bypasses the constructor, so the handler must check.
  *
  * <p>Idempotent per {@code idempotencyKey} ({@code correlationId} when {@code null}): a retry replays the stored result,
@@ -19,7 +19,7 @@ import org.jspecify.annotations.Nullable;
  */
 public final class SendMailCommand implements NxCommand<SendMailResult> {
 
-    private final Long charId;
+    private final Long characterId;
     private final @Nullable String author;
     private final String title;
     private final @Nullable String body;
@@ -29,17 +29,17 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
     private final CommandInitiator initiator;
 
     public SendMailCommand(
-            Long charId,
+            Long characterId,
             @Nullable String author,
             String title,
             @Nullable String body,
             @Nullable List<MailItem> items,
             CommandInitiator initiator) {
-        this(charId, author, title, body, items, null, null, initiator);
+        this(characterId, author, title, body, items, null, null, initiator);
     }
 
     public SendMailCommand(
-            Long charId,
+            Long characterId,
             @Nullable String author,
             String title,
             @Nullable String body,
@@ -47,8 +47,8 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
             @Nullable Long adena,
             @Nullable UUID idempotencyKey,
             CommandInitiator initiator) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
         if (title == null) {
             throw new IllegalArgumentException("title is required");
@@ -56,7 +56,7 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         if (adena != null && adena <= 0) {
             throw new IllegalArgumentException("adena must be positive when present");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.author = author;
         this.title = title;
         this.body = body;
@@ -66,8 +66,8 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     /** {@code null} falls back to the host's default sender name. Display only. */
@@ -109,7 +109,7 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
 
     public Builder toBuilder() {
         return new Builder()
-                .charId(charId)
+                .characterId(characterId)
                 .author(author)
                 .title(title)
                 .body(body)
@@ -128,7 +128,7 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         if (this == o) return true;
         if (!(o instanceof SendMailCommand)) return false;
         SendMailCommand that = (SendMailCommand) o;
-        return Objects.equals(charId, that.charId)
+        return Objects.equals(characterId, that.characterId)
                 && Objects.equals(author, that.author)
                 && Objects.equals(title, that.title)
                 && Objects.equals(body, that.body)
@@ -140,12 +140,12 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, author, title, body, items, adena, idempotencyKey, initiator);
+        return Objects.hash(characterId, author, title, body, items, adena, idempotencyKey, initiator);
     }
 
     @Override
     public String toString() {
-        return "SendMailCommand[charId=" + charId
+        return "SendMailCommand[characterId=" + characterId
                 + ", author=" + author
                 + ", title=" + title
                 + ", body=" + body
@@ -155,7 +155,7 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private @Nullable String author;
         private String title;
         private @Nullable String body;
@@ -164,8 +164,8 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         private @Nullable UUID idempotencyKey;
         private CommandInitiator initiator;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -205,7 +205,7 @@ public final class SendMailCommand implements NxCommand<SendMailResult> {
         }
 
         public SendMailCommand build() {
-            return new SendMailCommand(charId, author, title, body, items, adena, idempotencyKey, initiator);
+            return new SendMailCommand(characterId, author, title, body, items, adena, idempotencyKey, initiator);
         }
     }
 }

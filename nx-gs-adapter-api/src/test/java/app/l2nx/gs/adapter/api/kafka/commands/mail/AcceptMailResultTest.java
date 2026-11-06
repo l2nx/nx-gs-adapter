@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailItemMovement;
 import java.util.Collections;
 import java.util.List;
@@ -12,7 +13,8 @@ import org.junit.jupiter.api.Test;
 class AcceptMailResultTest {
 
     private static MailItemMovement movement() {
-        return new MailItemMovement(57L, 100L, 200L, 5000L, null, null);
+        return new MailItemMovement(
+                ItemSnapshot.builder().itemId(100L).itemTemplateId(57L).build(), 200L, 5000L);
     }
 
     @Test

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.model.BuyLine;
 import java.time.Instant;
@@ -26,10 +27,9 @@ class BuyFromPrivateStoreCommandTest {
     private static final String MAIL_SUBJECT = "You've got a delivery!";
     private static final String MAIL_BODY = "Your purchase from the private store has arrived.";
 
-    private static BuyLine line(int itemId) {
+    private static BuyLine line(long itemId) {
         return BuyLine.builder()
-                .itemId(itemId)
-                .itemTemplateId(57L)
+                .item(ItemSnapshot.builder().itemId(itemId).itemTemplateId(57L).build())
                 .count(1L)
                 .unitPriceAdena(100L)
                 .build();
@@ -37,8 +37,8 @@ class BuyFromPrivateStoreCommandTest {
 
     private static BuyFromPrivateStoreCommand.Builder valid() {
         return BuyFromPrivateStoreCommand.builder()
-                .buyerCharId(1)
-                .sellerCharId(2)
+                .buyerCharacterId(1)
+                .sellerCharacterId(2)
                 .lines(Collections.singletonList(line(1)))
                 .buyerFeePercent(5)
                 .deadline(DEADLINE)
@@ -48,23 +48,23 @@ class BuyFromPrivateStoreCommandTest {
                 .initiator(TestInitiators.USER);
     }
 
-    @ParameterizedTest(name = "buyerCharId={0}")
+    @ParameterizedTest(name = "buyerCharacterId={0}")
     @CsvSource({"0", "-1"})
-    void constructor_shouldReject_whenBuyerCharIdNotPositive(int buyerCharId) {
-        BuyFromPrivateStoreCommand.Builder builder = valid().buyerCharId(buyerCharId);
+    void constructor_shouldReject_whenBuyerCharacterIdNotPositive(int buyerCharacterId) {
+        BuyFromPrivateStoreCommand.Builder builder = valid().buyerCharacterId(buyerCharacterId);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @ParameterizedTest(name = "sellerCharId={0}")
+    @ParameterizedTest(name = "sellerCharacterId={0}")
     @CsvSource({"0", "-1"})
-    void constructor_shouldReject_whenSellerCharIdNotPositive(int sellerCharId) {
-        BuyFromPrivateStoreCommand.Builder builder = valid().sellerCharId(sellerCharId);
+    void constructor_shouldReject_whenSellerCharacterIdNotPositive(int sellerCharacterId) {
+        BuyFromPrivateStoreCommand.Builder builder = valid().sellerCharacterId(sellerCharacterId);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @Test
     void constructor_shouldReject_whenBuyerEqualsSeller() {
-        BuyFromPrivateStoreCommand.Builder builder = valid().buyerCharId(5).sellerCharId(5);
+        BuyFromPrivateStoreCommand.Builder builder = valid().buyerCharacterId(5).sellerCharacterId(5);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.commands.chat.SendChatMessageCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.chat.model.ChatAudience;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.AcceptMailCommand;
@@ -45,8 +46,7 @@ class OwnerVerifiedTest {
     private static Stream<Arguments> verifiedCommands() {
         SellLine sell = new SellLine(1, 1L, 10L);
         BuyLine buy = BuyLine.builder()
-                .itemId(1)
-                .itemTemplateId(57L)
+                .item(ItemSnapshot.builder().itemId(1L).itemTemplateId(57L).build())
                 .count(1L)
                 .unitPriceAdena(100L)
                 .build();
@@ -170,7 +170,7 @@ class OwnerVerifiedTest {
     @Test
     void builder_shouldDefaultToNotVerified() {
         assertFalse(StopPrivateStoreCommand.builder()
-                .charId(1)
+                .characterId(1)
                 .initiator(TestInitiators.USER)
                 .build()
                 .isOwnerVerified());

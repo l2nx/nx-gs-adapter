@@ -57,7 +57,7 @@ class RaidKillEventTest {
                 .eventId(UUID.randomUUID())
                 .bossNpcId(29028)
                 .participants(Collections.singletonList(
-                        RaidActor.builder().charId(1L).damageDealt(100L).build()))
+                        RaidActor.builder().characterId(1L).damageDealt(100L).build()))
                 .build();
 
         assertThrows(
@@ -71,7 +71,7 @@ class RaidKillEventTest {
                 .eventId(UUID.randomUUID())
                 .bossNpcId(29028)
                 .drops(Collections.singletonList(
-                        RaidDropItem.builder().itemId(57).count(1L).build()))
+                        RaidDropItem.builder().itemTemplateId(57L).count(1L).build()))
                 .build();
 
         assertThrows(UnsupportedOperationException.class, () -> event.getDrops().add(null));
@@ -80,7 +80,7 @@ class RaidKillEventTest {
     @Test
     void constructor_shouldDefensivelyCopyParticipantsList() {
         List<RaidActor> source = new ArrayList<>();
-        source.add(RaidActor.builder().charId(1L).damageDealt(100L).build());
+        source.add(RaidActor.builder().characterId(1L).damageDealt(100L).build());
 
         RaidKillEvent event = RaidKillEvent.builder()
                 .eventId(UUID.randomUUID())
@@ -88,7 +88,7 @@ class RaidKillEventTest {
                 .participants(source)
                 .build();
 
-        source.add(RaidActor.builder().charId(2L).damageDealt(200L).build());
+        source.add(RaidActor.builder().characterId(2L).damageDealt(200L).build());
 
         assertEquals(1, event.getParticipants().size());
     }
@@ -96,7 +96,7 @@ class RaidKillEventTest {
     @Test
     void constructor_shouldDefensivelyCopyDropsList() {
         List<RaidDropItem> source = new ArrayList<>();
-        source.add(RaidDropItem.builder().itemId(57).count(1L).build());
+        source.add(RaidDropItem.builder().itemTemplateId(57L).count(1L).build());
 
         RaidKillEvent event = RaidKillEvent.builder()
                 .eventId(UUID.randomUUID())
@@ -104,7 +104,7 @@ class RaidKillEventTest {
                 .drops(source)
                 .build();
 
-        source.add(RaidDropItem.builder().itemId(6660).count(1L).build());
+        source.add(RaidDropItem.builder().itemTemplateId(6660L).count(1L).build());
 
         assertEquals(1, event.getDrops().size());
     }
@@ -114,7 +114,7 @@ class RaidKillEventTest {
         UUID partyId = UUID.randomUUID();
         UUID ccId = UUID.randomUUID();
         RaidActor killer = RaidActor.builder()
-                .charId(268415943L)
+                .characterId(268415943L)
                 .clanId(268440117L)
                 .partyId(partyId)
                 .commandChannelId(ccId)
@@ -129,7 +129,7 @@ class RaidKillEventTest {
                 .dropOwner(killer)
                 .participants(Collections.singletonList(killer))
                 .drops(Collections.singletonList(
-                        RaidDropItem.builder().itemId(6660).count(1L).build()))
+                        RaidDropItem.builder().itemTemplateId(6660L).count(1L).build()))
                 .build();
 
         assertEquals(original, original.toBuilder().build());

@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  */
 public final class CreateItemCommand implements NxCommand<CreateItemResult> {
 
-    private final Long charId;
+    private final Long characterId;
     private final Long itemTemplateId;
     private final Long count;
     private final @Nullable Long enchantLevel;
@@ -24,14 +24,14 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
     private final CommandInitiator initiator;
 
     public CreateItemCommand(
-            Long charId,
+            Long characterId,
             Long itemTemplateId,
             Long count,
             @Nullable Long enchantLevel,
             @Nullable ItemLocation location,
             CommandInitiator initiator) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
         if (itemTemplateId == null) {
             throw new IllegalArgumentException("itemTemplateId is required");
@@ -45,7 +45,7 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
         if (enchantLevel != null && enchantLevel < 0L) {
             throw new IllegalArgumentException("enchantLevel must be non-negative (got " + enchantLevel + ")");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.itemTemplateId = itemTemplateId;
         this.count = count;
         this.enchantLevel = enchantLevel;
@@ -53,8 +53,8 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     public Long getItemTemplateId() {
@@ -80,7 +80,7 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
 
     public Builder toBuilder() {
         return new Builder()
-                .charId(charId)
+                .characterId(characterId)
                 .itemTemplateId(itemTemplateId)
                 .count(count)
                 .enchantLevel(enchantLevel)
@@ -97,7 +97,7 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
         if (this == o) return true;
         if (!(o instanceof CreateItemCommand)) return false;
         CreateItemCommand that = (CreateItemCommand) o;
-        return Objects.equals(charId, that.charId)
+        return Objects.equals(characterId, that.characterId)
                 && Objects.equals(itemTemplateId, that.itemTemplateId)
                 && Objects.equals(count, that.count)
                 && Objects.equals(enchantLevel, that.enchantLevel)
@@ -107,12 +107,12 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, itemTemplateId, count, enchantLevel, location, initiator);
+        return Objects.hash(characterId, itemTemplateId, count, enchantLevel, location, initiator);
     }
 
     @Override
     public String toString() {
-        return "CreateItemCommand[charId=" + charId
+        return "CreateItemCommand[characterId=" + characterId
                 + ", itemTemplateId=" + itemTemplateId
                 + ", count=" + count
                 + ", enchantLevel=" + enchantLevel
@@ -120,15 +120,15 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private Long itemTemplateId;
         private Long count = 1L;
         private @Nullable Long enchantLevel;
         private @Nullable ItemLocation location;
         private CommandInitiator initiator;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -158,7 +158,7 @@ public final class CreateItemCommand implements NxCommand<CreateItemResult> {
         }
 
         public CreateItemCommand build() {
-            return new CreateItemCommand(charId, itemTemplateId, count, enchantLevel, location, initiator);
+            return new CreateItemCommand(characterId, itemTemplateId, count, enchantLevel, location, initiator);
         }
     }
 }

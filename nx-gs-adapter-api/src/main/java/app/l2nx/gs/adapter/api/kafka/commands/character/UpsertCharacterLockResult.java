@@ -5,22 +5,22 @@ import java.util.Objects;
 /** Post-upsert state of the one lock the command named, so the platform needs no follow-up read. */
 public final class UpsertCharacterLockResult {
 
-    private final Long charId;
+    private final Long characterId;
     private final CharacterLockState lock;
 
-    public UpsertCharacterLockResult(Long charId, CharacterLockState lock) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+    public UpsertCharacterLockResult(Long characterId, CharacterLockState lock) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
         if (lock == null) {
             throw new IllegalArgumentException("lock is required");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.lock = lock;
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     public CharacterLockState getLock() {
@@ -28,7 +28,7 @@ public final class UpsertCharacterLockResult {
     }
 
     public Builder toBuilder() {
-        return new Builder().charId(charId).lock(lock);
+        return new Builder().characterId(characterId).lock(lock);
     }
 
     public static Builder builder() {
@@ -40,25 +40,25 @@ public final class UpsertCharacterLockResult {
         if (this == o) return true;
         if (!(o instanceof UpsertCharacterLockResult)) return false;
         UpsertCharacterLockResult that = (UpsertCharacterLockResult) o;
-        return Objects.equals(charId, that.charId) && Objects.equals(lock, that.lock);
+        return Objects.equals(characterId, that.characterId) && Objects.equals(lock, that.lock);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, lock);
+        return Objects.hash(characterId, lock);
     }
 
     @Override
     public String toString() {
-        return "UpsertCharacterLockResult[charId=" + charId + ", lock=" + lock + "]";
+        return "UpsertCharacterLockResult[characterId=" + characterId + ", lock=" + lock + "]";
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private CharacterLockState lock;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -68,7 +68,7 @@ public final class UpsertCharacterLockResult {
         }
 
         public UpsertCharacterLockResult build() {
-            return new UpsertCharacterLockResult(charId, lock);
+            return new UpsertCharacterLockResult(characterId, lock);
         }
     }
 }

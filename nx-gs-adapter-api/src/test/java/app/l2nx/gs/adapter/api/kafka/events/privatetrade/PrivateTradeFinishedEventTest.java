@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.events.privatetrade;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.Collections;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -13,11 +14,11 @@ class PrivateTradeFinishedEventTest {
         UUID eventId = UUID.randomUUID();
         UUID tradeId = UUID.randomUUID();
         TradeParty a = TradeParty.builder()
-                .charId(268437521L)
+                .characterId(268437521L)
                 .items(Collections.singletonList(stub(57L, 1L, 1L, 1_000_000L)))
                 .build();
         TradeParty b = TradeParty.builder()
-                .charId(268437522L)
+                .characterId(268437522L)
                 .items(Collections.singletonList(stub(6611L, 11L, 22L, 1L)))
                 .build();
 
@@ -34,7 +35,7 @@ class PrivateTradeFinishedEventTest {
     @Test
     void equals_shouldDistinguishEventId() {
         UUID tradeId = UUID.randomUUID();
-        TradeParty empty = TradeParty.builder().charId(1L).build();
+        TradeParty empty = TradeParty.builder().characterId(1L).build();
 
         PrivateTradeFinishedEvent a = PrivateTradeFinishedEvent.builder()
                 .eventId(UUID.randomUUID())
@@ -55,7 +56,7 @@ class PrivateTradeFinishedEventTest {
     @Test
     void equals_shouldDistinguishTradeId() {
         UUID eventId = UUID.randomUUID();
-        TradeParty empty = TradeParty.builder().charId(1L).build();
+        TradeParty empty = TradeParty.builder().characterId(1L).build();
 
         PrivateTradeFinishedEvent a = PrivateTradeFinishedEvent.builder()
                 .eventId(eventId)
@@ -76,10 +77,10 @@ class PrivateTradeFinishedEventTest {
     @Test
     void giftTrade_shouldRepresentEmptySideAsEmptyItemsList() {
         TradeParty gifter = TradeParty.builder()
-                .charId(1L)
+                .characterId(1L)
                 .items(Collections.singletonList(stub(6611L, 11L, 22L, 1L)))
                 .build();
-        TradeParty receiver = TradeParty.builder().charId(2L).build();
+        TradeParty receiver = TradeParty.builder().characterId(2L).build();
 
         PrivateTradeFinishedEvent event = PrivateTradeFinishedEvent.builder()
                 .eventId(UUID.randomUUID())
@@ -96,7 +97,7 @@ class PrivateTradeFinishedEventTest {
     void toString_shouldRenderIds() {
         UUID eventId = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000000");
         UUID tradeId = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000001");
-        TradeParty empty = TradeParty.builder().charId(11L).build();
+        TradeParty empty = TradeParty.builder().characterId(11L).build();
 
         PrivateTradeFinishedEvent event = PrivateTradeFinishedEvent.builder()
                 .eventId(eventId)
@@ -112,8 +113,10 @@ class PrivateTradeFinishedEventTest {
 
     private static TradeItemMovement stub(long template, long itemId, long newItemId, long count) {
         return TradeItemMovement.builder()
-                .itemTemplateId(template)
-                .itemId(itemId)
+                .item(ItemSnapshot.builder()
+                        .itemId(itemId)
+                        .itemTemplateId(template)
+                        .build())
                 .newItemId(newItemId)
                 .count(count)
                 .build();

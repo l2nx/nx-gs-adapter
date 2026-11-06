@@ -39,10 +39,10 @@ class CommandResultTest {
 
     @Test
     void error_withSingleExtension_shouldExposeIt() {
-        CommandResult<Void> r = CommandResult.error(CommandStatus.NOT_FOUND, "not found", "charId", 12345L);
+        CommandResult<Void> r = CommandResult.error(CommandStatus.NOT_FOUND, "not found", "characterId", 12345L);
 
         assertEquals(CommandStatus.NOT_FOUND, r.getStatus());
-        assertEquals(12345L, r.getProblem().getExtensions().get("charId"));
+        assertEquals(12345L, r.getProblem().getExtensions().get("characterId"));
     }
 
     @Test
@@ -61,11 +61,11 @@ class CommandResultTest {
 
     @Test
     void notFound_factory_shouldShortcutToNotFoundStatus() {
-        CommandResult<Void> r = CommandResult.notFound("Character not found", "charId", 12345L);
+        CommandResult<Void> r = CommandResult.notFound("Character not found", "characterId", 12345L);
 
         assertEquals(CommandStatus.NOT_FOUND, r.getStatus());
         assertEquals("Character not found", r.getProblem().getTitle());
-        assertEquals(12345L, r.getProblem().getExtensions().get("charId"));
+        assertEquals(12345L, r.getProblem().getExtensions().get("characterId"));
     }
 
     @Test

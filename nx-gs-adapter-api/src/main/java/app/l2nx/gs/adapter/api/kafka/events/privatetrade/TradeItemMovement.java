@@ -1,47 +1,29 @@
 package app.l2nx.gs.adapter.api.kafka.events.privatetrade;
 
-import app.l2nx.gs.adapter.api.domain.Attribute;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Map;
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.Objects;
-import org.jspecify.annotations.Nullable;
 
-/** Transferred item line in a {@link PrivateTradeFinishedEvent}; adena is a regular line (no separate price/currency field). */
+/**
+ * Transferred item line in a {@link PrivateTradeFinishedEvent}; adena is a regular line (no separate price/currency
+ * field). {@code item.itemId} is the giver-side inventory object id before the exchange.
+ */
 public final class TradeItemMovement {
 
-    private final long itemTemplateId;
-    private final long itemId;
+    private final ItemSnapshot item;
     private final long newItemId;
     private final long count;
-    private final @Nullable Integer enchantLevel;
-    private final @Nullable Map<Attribute, Integer> attributes;
 
-    public TradeItemMovement(
-            long itemTemplateId,
-            long itemId,
-            long newItemId,
-            long count,
-            @Nullable Integer enchantLevel,
-            @Nullable Map<Attribute, Integer> attributes) {
-        this.itemTemplateId = itemTemplateId;
-        this.itemId = itemId;
+    public TradeItemMovement(ItemSnapshot item, long newItemId, long count) {
+        this.item = Objects.requireNonNull(item, "item");
         this.newItemId = newItemId;
         this.count = count;
-        this.enchantLevel = enchantLevel;
-        this.attributes = freezeMap(attributes);
     }
 
-    public long getItemTemplateId() {
-        return itemTemplateId;
+    public ItemSnapshot getItem() {
+        return item;
     }
 
-    /** Giver-side inventory object id before the exchange. */
-    public long getItemId() {
-        return itemId;
-    }
-
-    /** Receiver-side inventory object id after the exchange. */
+    /** Receiver-side inventory object id after the exchange; on a stack merge, the stack that absorbed the item. */
     public long getNewItemId() {
         return newItemId;
     }
@@ -50,34 +32,12 @@ public final class TradeItemMovement {
         return count;
     }
 
-    /** {@code null} = no enchant concept; {@code 0} = unenchanted; {@code > 0} = enchanted. */
-    public @Nullable Integer getEnchantLevel() {
-        return enchantLevel;
-    }
-
-    public Map<Attribute, Integer> getAttributes() {
-        return attributes == null ? Collections.emptyMap() : attributes;
-    }
-
     public Builder toBuilder() {
-        return new Builder()
-                .itemTemplateId(itemTemplateId)
-                .itemId(itemId)
-                .newItemId(newItemId)
-                .count(count)
-                .enchantLevel(enchantLevel)
-                .attributes(attributes);
+        return new Builder().item(item).newItemId(newItemId).count(count);
     }
 
     public static Builder builder() {
         return new Builder();
-    }
-
-    private static @Nullable Map<Attribute, Integer> freezeMap(@Nullable Map<Attribute, Integer> src) {
-        if (src == null || src.isEmpty()) {
-            return null;
-        }
-        return Collections.unmodifiableMap(new EnumMap<Attribute, Integer>(src));
     }
 
     @Override
@@ -85,44 +45,26 @@ public final class TradeItemMovement {
         if (this == o) return true;
         if (!(o instanceof TradeItemMovement)) return false;
         TradeItemMovement that = (TradeItemMovement) o;
-        return itemTemplateId == that.itemTemplateId
-                && itemId == that.itemId
-                && newItemId == that.newItemId
-                && count == that.count
-                && Objects.equals(enchantLevel, that.enchantLevel)
-                && Objects.equals(attributes, that.attributes);
+        return newItemId == that.newItemId && count == that.count && Objects.equals(item, that.item);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemTemplateId, itemId, newItemId, count, enchantLevel, attributes);
+        return Objects.hash(item, newItemId, count);
     }
 
     @Override
     public String toString() {
-        return "TradeItemMovement[itemTemplateId=" + itemTemplateId
-                + ", itemId=" + itemId
-                + ", newItemId=" + newItemId
-                + ", count=" + count
-                + ", enchantLevel=" + enchantLevel
-                + ", attributes=" + attributes + "]";
+        return "TradeItemMovement[item=" + item + ", newItemId=" + newItemId + ", count=" + count + "]";
     }
 
     public static final class Builder {
-        private long itemTemplateId;
-        private long itemId;
+        private ItemSnapshot item;
         private long newItemId;
         private long count;
-        private @Nullable Integer enchantLevel;
-        private @Nullable Map<Attribute, Integer> attributes;
 
-        public Builder itemTemplateId(long itemTemplateId) {
-            this.itemTemplateId = itemTemplateId;
-            return this;
-        }
-
-        public Builder itemId(long itemId) {
-            this.itemId = itemId;
+        public Builder item(ItemSnapshot item) {
+            this.item = item;
             return this;
         }
 
@@ -136,18 +78,8 @@ public final class TradeItemMovement {
             return this;
         }
 
-        public Builder enchantLevel(@Nullable Integer enchantLevel) {
-            this.enchantLevel = enchantLevel;
-            return this;
-        }
-
-        public Builder attributes(@Nullable Map<Attribute, Integer> attributes) {
-            this.attributes = attributes;
-            return this;
-        }
-
         public TradeItemMovement build() {
-            return new TradeItemMovement(itemTemplateId, itemId, newItemId, count, enchantLevel, attributes);
+            return new TradeItemMovement(item, newItemId, count);
         }
     }
 }

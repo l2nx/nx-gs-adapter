@@ -4,23 +4,23 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One drop entry of a {@link RaidKillEvent}: what the raid actually rolled, not the template drop table.
- * Drop-claim tracking is out of scope.
+ * One drop entry of a {@link RaidKillEvent}: what the raid actually rolled, not the template drop table. A template
+ * reference: no instance is known when the drop is recorded.
  */
 public final class RaidDropItem {
 
-    private final int itemId;
+    private final long itemTemplateId;
     private final long count;
     private final @Nullable Integer enchantLevel;
 
-    public RaidDropItem(int itemId, long count, @Nullable Integer enchantLevel) {
-        this.itemId = itemId;
+    public RaidDropItem(long itemTemplateId, long count, @Nullable Integer enchantLevel) {
+        this.itemTemplateId = itemTemplateId;
         this.count = count;
         this.enchantLevel = enchantLevel;
     }
 
-    public int getItemId() {
-        return itemId;
+    public long getItemTemplateId() {
+        return itemTemplateId;
     }
 
     /** {@code >= 1}; producers MUST NOT emit a zero-count drop. {@code long} because adena stacks overflow {@code int}. */
@@ -34,7 +34,7 @@ public final class RaidDropItem {
     }
 
     public Builder toBuilder() {
-        return new Builder().itemId(itemId).count(count).enchantLevel(enchantLevel);
+        return new Builder().itemTemplateId(itemTemplateId).count(count).enchantLevel(enchantLevel);
     }
 
     public static Builder builder() {
@@ -46,26 +46,29 @@ public final class RaidDropItem {
         if (this == o) return true;
         if (!(o instanceof RaidDropItem)) return false;
         RaidDropItem that = (RaidDropItem) o;
-        return itemId == that.itemId && count == that.count && Objects.equals(enchantLevel, that.enchantLevel);
+        return itemTemplateId == that.itemTemplateId
+                && count == that.count
+                && Objects.equals(enchantLevel, that.enchantLevel);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemId, count, enchantLevel);
+        return Objects.hash(itemTemplateId, count, enchantLevel);
     }
 
     @Override
     public String toString() {
-        return "RaidDropItem[itemId=" + itemId + ", count=" + count + ", enchantLevel=" + enchantLevel + "]";
+        return "RaidDropItem[itemTemplateId=" + itemTemplateId + ", count=" + count + ", enchantLevel=" + enchantLevel
+                + "]";
     }
 
     public static final class Builder {
-        private int itemId;
+        private long itemTemplateId;
         private long count;
         private @Nullable Integer enchantLevel;
 
-        public Builder itemId(int itemId) {
-            this.itemId = itemId;
+        public Builder itemTemplateId(long itemTemplateId) {
+            this.itemTemplateId = itemTemplateId;
             return this;
         }
 
@@ -80,7 +83,7 @@ public final class RaidDropItem {
         }
 
         public RaidDropItem build() {
-            return new RaidDropItem(itemId, count, enchantLevel);
+            return new RaidDropItem(itemTemplateId, count, enchantLevel);
         }
     }
 }

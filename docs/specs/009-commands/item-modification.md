@@ -297,7 +297,7 @@ bonusRatePercent + support bonus + character enchant stat`, capped at 100.
   entity, so the platform simply has no rows; the same holds for every entity of R18-R21 a build lacks.
 - [planned] R21. Augmentation contract changes:
   - `AugmentationOutcome.slot` is the ordinal option slot `1..3` (the Essence line has three option slots; the former
-    "low / high 16 bits" wording is dropped); `ItemAugmentationDbDto` gains `option3Id` (`Integer?`) and
+    "low / high 16 bits" wording is dropped); `ItemAugmentation` gains `option3Id` (`Integer?`) and
     `lifeStoneItemTemplateId` (`Integer?`, the stone that produced the augmentation where the build keeps it) in the
     same api release.
   - The members of an augmentation target group are published after every configured restriction (a blacklisted item
@@ -631,7 +631,7 @@ host rows in the host's mapping doc.
 | 22  | EO         | major   | One instance as scroll and support: two spends per attempt                                                                                                                                                                | R2, platform `400`                                                                                                                     |
 | 23  | IN         | major   | Tenant directory settings map without `gamesettings`: the platform would never see a snapshot                                                                                                                             | Rollout 2                                                                                                                              |
 | 24  | IN         | major   | Two sources of the attribute power limit                                                                                                                                                                                  | R20, R22                                                                                                                               |
-| 25  | IN         | major   | `ItemAugmentationDbDto` without `lifeStoneItemTemplateId`: the per-stone cancel row is unselectable                                                                                                                       | R21                                                                                                                                    |
+| 25  | IN         | major   | `ItemAugmentation` without `lifeStoneItemTemplateId`: the per-stone cancel row is unselectable                                                                                                                       | R21                                                                                                                                    |
 | 26  | IN         | major   | Scroll `kind` derived from a field the engine does not use for the outcome                                                                                                                                                | R18                                                                                                                                    |
 | 29  | IN         | major   | "Never sends an empty snapshot" contradicted 030 (`null` = not ready → permanent error)                                                                                                                                   | Catalog intro; `nx-gs-adapter/CLAUDE.md` corrected                                                                                     |
 | 33  | EO         | minor   | Ownership / enchantable / zero-chance checks sit after the scroll spend in the engine                                                                                                                                     | R6: pre-checks make them unreachable; honest stored result otherwise                                                                   |
@@ -694,7 +694,7 @@ and retention do not concern the phantom.
 
 1. API release: commands and results (five), refusal reasons, `AugmentationChoice`, `ActivityType.OFFLINE_PHANTOM`,
    `ServerOnlineBucket`, `LogoutReason.APP_IDLE` / `APP_SUPERSEDED`, gd entities with numeric `pk`, `ItemSkillRef.enchantLevel`, `ItemTemplate.upgrade.{maxEnchantLevel, enchantGrade, augmentable}`,
-   `AugmentationOutcome.slot = 3` (ordinal), `ItemAugmentationDbDto.{option3Id, lifeStoneItemTemplateId}`, engine
+   `AugmentationOutcome.slot = 3` (ordinal), `ItemAugmentation.{option3Id, lifeStoneItemTemplateId}`, engine
    `touch` / `supersede`, idle end, boot end of non-restorable sessions, list-valued pool keys, the app settings keys of
    R16 (reference file, `configuration.md` en / ru). SPI break: `AppRules.fishingSpotPool` becomes `fishingSpotPools`; a
    host switches in the same release. Contract docs (`enchant-contract.md`, `attribute-contract.md`,

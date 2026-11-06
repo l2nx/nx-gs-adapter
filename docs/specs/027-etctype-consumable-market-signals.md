@@ -38,7 +38,7 @@ New `@Nullable Boolean consumable` field on the gd-sync item-template wire DTO �
 "is this a consumable" predicate (`EtcItem.isConsumable()` on this build), a more precise signal
 than deriving "supply" from a curated `etcItemType` list. `null` = the producer didn't report it
 (no signal, not "false"). Field + getter + builder + `toBuilder`/`equals`/`hashCode` added per the
-module's hand-written-POJO pattern (see `ItemDbDto` / `ItemAugmentationDbDto` for the template this
+module's hand-written-POJO pattern (see `ItemDbDto` / `ItemAugmentation` for the template this
 follows — [`026-item-augmentation-sync.md`](026-item-augmentation-sync.md)). Additive.
 
 ## 3. `commands.privatestore` — start/stop command family
@@ -47,7 +47,7 @@ New package `kafka.commands.privatestore`, mirroring the existing `commands.<gro
 (see [`009-commands/spec.md`](009-commands/spec.md) for the rail infrastructure — unchanged):
 
 - `StartPrivateStoreSellCommand implements NxCommand<StartPrivateStoreResult>` —
-  `{ int charId, @Nullable String title, List<SellLine> lines }` (REQUIRED `charId` + non-empty
+  `{ int characterId, @Nullable String title, List<SellLine> lines }` (REQUIRED `characterId` + non-empty
   `lines`; constructor-enforced for programmatic construction, wire-path re-validated by the handler
   → `VALIDATION_FAILED`).
 - `StartPrivateStorePackageSellCommand` — identical shape, `packaged=true` semantics on the host
@@ -55,7 +55,7 @@ New package `kafka.commands.privatestore`, mirroring the existing `commands.<gro
 - `SellLine { int itemId /* inventory instance object-id, NOT item-template id */, long count,
 long priceAdena }` — **`priceAdena` is per-unit**; the host charges `count * priceAdena` for the
   whole stack. `count > 0` and `priceAdena >= 0` constructor-enforced.
-- `StopPrivateStoreCommand implements NxCommand<StopPrivateStoreResult>` — `{ int charId }`.
+- `StopPrivateStoreCommand implements NxCommand<StopPrivateStoreResult>` — `{ int characterId }`.
 - `StartPrivateStoreResult { String storeType, int acceptedCount, ... }` —
   `storeType` is an open host-defined token (not a closed adapter enum). A store opens only when every
   line is accepted; there is no `dropped` list on the result.

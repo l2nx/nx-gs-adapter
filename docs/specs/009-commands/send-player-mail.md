@@ -27,8 +27,8 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 
   | Field             | Type                   | Required | Constraints / notes                                                                                                                                                                                                                                       |
   | ----------------- | ---------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `senderCharId`    | `Long`                 | yes      | Character the mail is sent from; items and adena are taken from it                                                                                                                                                                                        |
-  | `recipientCharId` | `Long`                 | yes      | Single recipient; MUST differ from `senderCharId`; a recipient on the same account as the sender is allowed                                                                                                                                               |
+  | `senderCharacterId`    | `Long`                 | yes      | Character the mail is sent from; items and adena are taken from it                                                                                                                                                                                        |
+  | `recipientCharacterId` | `Long`                 | yes      | Single recipient; MUST differ from `senderCharacterId`; a recipient on the same account as the sender is allowed                                                                                                                                               |
   | `title`           | `String`               | yes      | Non-blank; at most 128 chars and at most 255 UTF-8 bytes; text allowlist (R10)                                                                                                                                                                            |
   | `body`            | `String?`              | no       | `null` = empty body; at most 512 chars and within the byte limit of the body column; `\n` allowed, text allowlist (R10)                                                                                                                                   |
   | `items`           | `List<PlayerMailItem>` | no       | Lines `PlayerMailItem{Long itemId, Long count}`; `itemId` is an inventory instance id of the sender, `count` positive; no duplicate `itemId`; `null`/empty = no item attachments. An adena stack MUST NOT be listed here, adena goes only through `adena` |
@@ -38,7 +38,7 @@ Audience: platform mail-flow authors composing the command; host operators wirin
   | `idempotencyKey`  | `UUID`                 | yes      | Business identity of this send, stable across retries of the same request; non-null (`requireNonNull`); the host dedups and replays by it (R6), `correlationId` identifies one delivery attempt only                                                      |
   | `deadline`        | `Instant`              | yes      | Execution deadline, see R5; non-null (`requireNonNull`), same type and name as in `BuyFromPrivateStoreCommand`                                                                                                                                            |
 
-  Naming follows the existing wire classes (`senderCharId` / `recipientCharId`, boxed `Long` ids). The line type
+  Naming follows the existing wire classes (`senderCharacterId` / `recipientCharacterId`, boxed `Long` ids). The line type
   `PlayerMailItem` lives next to the command in `kafka.commands.mail`; `MailItem` cannot be reused because it
   carries `itemTemplateId`.
 
@@ -126,7 +126,7 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 
 ### Wire shape
 
-Same rail as other commands: key `longBytesBe(senderCharId)` is the producer's choice, headers
+Same rail as other commands: key `longBytesBe(senderCharacterId)` is the producer's choice, headers
 `Nx-Message-Type = SendPlayerMailCommand`, `Nx-Correlation-Id` (stable per logical send),
 `Nx-Target-Server-Id`. Reply type header is derived per rail R26: `SendPlayerMailResult`.
 

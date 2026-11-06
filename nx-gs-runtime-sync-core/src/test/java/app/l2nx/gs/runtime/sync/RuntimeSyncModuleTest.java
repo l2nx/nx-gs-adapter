@@ -1,10 +1,13 @@
 package app.l2nx.gs.runtime.sync;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStatus;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.ConnectContext;
+import app.l2nx.gs.adapter.api.spi.capability.NxRuntimeSync;
 import app.l2nx.gs.adapter.api.spi.model.RuntimeEntityMapping;
 import app.l2nx.gs.adapter.api.spi.model.RuntimeRow;
 import app.l2nx.gs.adapter.api.spi.provider.RuntimeStateProvider;
@@ -12,6 +15,8 @@ import app.l2nx.gs.runtime.sync.engine.publish.KafkaSender;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class RuntimeSyncModuleTest {
@@ -97,6 +102,119 @@ class RuntimeSyncModuleTest {
         module.start();
 
         assertEquals(RuntimeSyncModule.STATE_DISABLED, module.stateForTesting());
+    }
+
+    @Nested
+    class StartGate {
+
+        private final ManualGate gate = new ManualGate();
+        private final ConnectContext gated =
+                CTX_WITH_TOPIC.toBuilder().runtimeSync(gate).build();
+        private final RuntimeSyncModule module = build(() -> Collections.singletonList(stubProvider()));
+
+        @AfterEach
+        void stopModule() {
+            module.stop();
+        }
+
+        @Test
+        void start_shouldStayActiveWithoutTicks_untilTheHostDeclaresItsStart() {
+            module.onConnect(gated);
+
+            module.start();
+
+            assertFalse(module.engineStartedForTesting());
+            assertEquals(RuntimeSyncModule.STATE_ACTIVE, module.stateForTesting());
+            assertFalse(module.currentStatus().getStats().getEntities().isPresent());
+        }
+
+        @Test
+        void hostStarted_shouldStartTheEngine_whenTheModuleWaits() {
+            module.onConnect(gated);
+            module.start();
+
+            gate.hostStarted();
+
+            assertTrue(module.engineStartedForTesting());
+        }
+
+        @Test
+        void start_shouldTickAtOnce_whenTheHostDeclaredItsStartEarlier() {
+            gate.hostStarted();
+            module.onConnect(gated);
+
+            module.start();
+
+            assertTrue(module.engineStartedForTesting());
+        }
+
+        @Test
+        void hostStarted_shouldBuildNothing_whenTheModuleStoppedMeanwhile() {
+            module.onConnect(gated);
+            module.start();
+            module.stop();
+
+            gate.hostStarted();
+
+            assertFalse(module.engineStartedForTesting());
+        }
+
+        @Test
+        void hostStarted_shouldBuildNothing_whenTheConnectionDroppedMeanwhile() {
+            module.onConnect(gated);
+            module.start();
+            module.onDisconnect();
+
+            gate.hostStarted();
+
+            assertFalse(module.engineStartedForTesting());
+        }
+
+        @Test
+        void start_shouldFail_whenTheConfigIsInvalid_withoutWaitingForTheHost() {
+            RuntimeSyncModule invalid = new RuntimeSyncModule(
+                    () -> Collections.singletonList(stubProvider()), key -> "not-a-number", NEVER_CALLED);
+            invalid.onConnect(gated);
+
+            invalid.start();
+
+            assertEquals(RuntimeSyncModule.STATE_FAILED, invalid.stateForTesting());
+            gate.hostStarted();
+            assertFalse(invalid.engineStartedForTesting());
+        }
+
+        @Test
+        void start_shouldNeverTick_whenTheContextHasNoGate() {
+            module.onConnect(CTX_WITH_TOPIC);
+
+            module.start();
+
+            assertFalse(module.engineStartedForTesting());
+        }
+    }
+
+    /** The contract of the core's gate, without the core: last registration wins, a declared start runs at once. */
+    private static final class ManualGate implements NxRuntimeSync {
+        private boolean started;
+        private Runnable waiting;
+
+        @Override
+        public void hostStarted() {
+            started = true;
+            if (waiting != null) {
+                waiting.run();
+                waiting = null;
+            }
+        }
+
+        @Override
+        public void onHostStarted(Runnable callback) {
+            if (started) {
+                callback.run();
+            } else {
+                waiting = callback;
+            }
+        }
     }
 
     @Test

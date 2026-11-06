@@ -15,7 +15,7 @@ public abstract class StartPrivateStoreSellingCommand extends StartPrivateStoreC
     private final @Nullable Integer sellerFeePercent;
 
     StartPrivateStoreSellingCommand(
-            int charId,
+            int characterId,
             @Nullable String title,
             List<SellLine> lines,
             @Nullable Integer sellerFeePercent,
@@ -24,7 +24,7 @@ public abstract class StartPrivateStoreSellingCommand extends StartPrivateStoreC
             @Nullable Instant deadline,
             UUID idempotencyKey,
             CommandInitiator initiator) {
-        super(charId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiator);
+        super(characterId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiator);
         if (sellerFeePercent != null
                 && (sellerFeePercent < 0 || sellerFeePercent > PrivateStoreFee.MAX_SELLER_FEE_PERCENT)) {
             throw new IllegalArgumentException("sellerFeePercent must be within 0.."

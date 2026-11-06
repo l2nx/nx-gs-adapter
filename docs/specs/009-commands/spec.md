@@ -64,7 +64,7 @@ who consume reply events.
   `Nx-Message-Type` header, never by topic name. The adapter does not read the record key —
   partition-key choice is the platform producer's contract, and the adapter neither enforces nor
   depends on it. What the producer actually does (`nx-gameservers` `CommandsSender.publish`): a
-  nullable `Long` key, `charId` for character-scoped commands so cross-domain ordering per character
+  nullable `Long` key, `characterId` for character-scoped commands so cross-domain ordering per character
   is preserved, `null` for commands with no natural character. Ordering guarantees therefore hold
   only as far as the producer's keying does.
 
@@ -454,7 +454,7 @@ replies-published == 0}` is visible as a failure rather than as silence
   its check command is incomplete.
   - The check takes the start's payload minus the dedup fields (no `idempotencyKey`), with every player choice
     optional: a choice that is absent is not checked, so the platform can check before the player has chosen.
-  - Its result is the shared `AppSessionCheckResult {allowed, reason, scope, retryAt, effectiveDurationMs}`, [planned] plus
+  - Its result is the shared `AppSessionCheckResult {allowed, reason, scope, retryAt, effectiveDurationMs}`, plus
     `requiredSlots`, `freeSlots`, `requiredWeight`, `freeWeight` (`scope` only with `ALREADY_ACTIVE`, the numbers only
     with `INVENTORY_FULL` and `OVERWEIGHT`): `reason` is
     the first refusal in the order the start would hit it, `retryAt` is set where the start would set it, and
@@ -698,8 +698,8 @@ NxCommand<Void>` is the sanctioned exception, and payload-less `CommandResult.ok
 - [resolved: `CommandHandler`'s Javadoc described the pre-R11 world ("at-least-once", "handlers MUST
   be idempotent", "the record is redelivered", `errorDetails`) and was rewritten to at-most-once. The
   same stale idempotency advice was removed from the five command DTOs that carried it —
-  `TransferCharToAccountCommand`, `DeleteItemCommand`, `TransferItemToCharacterCommand`,
-  `SendMailCommand`, `TelegramCharLinkCommand`. A correlation-id dedup cache was never useful anyway:
+  `TransferCharacterToAccountCommand`, `DeleteItemCommand`, `TransferItemToCharacterCommand`,
+  `SendMailCommand`, `TelegramCharacterLinkCommand`. A correlation-id dedup cache was never useful anyway:
   the platform mints a fresh id per dispatch, so a re-issue after a reply timeout does not match it.]
 - [resolved: the dead reply-drain machinery is gone — `awaitRepliesDrain()`, `replyFlushTimeoutsTotal`,
   the `pendingReplies` / `replyDrainLock` bookkeeping, and the `l2nx.commands.reply-flush-timeout-ms`
@@ -707,7 +707,7 @@ NxCommand<Void>` is the sanctioned exception, and payload-less `CommandResult.ok
   `KafkaProducer.close(timeout)` in `NxKafka.doShutdown` already waits out in-flight reply sends
   (the consumer stops before the producer closes). Config-surface change → core takes a minor bump.]
 - [resolved: inbound partition key is the producer's call and both docs were half right —
-  `nx-gameservers` `CommandsSender.publish` passes a nullable `Long`: `charId` for character-scoped
+  `nx-gameservers` `CommandsSender.publish` passes a nullable `Long`: `characterId` for character-scoped
   commands, `null` otherwise. `MessagingTopics` Javadoc and `guide.md` now both say that.]
 - [resolved: single Kafka topic; cross-character cross-domain ordering beats per-domain isolation.]
 - [resolved: sync handler + explicit `ctx.host().sync(...)` hop. Auto-hop was rejected because it

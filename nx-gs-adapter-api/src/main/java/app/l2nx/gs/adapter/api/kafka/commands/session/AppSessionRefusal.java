@@ -19,4 +19,12 @@ public final class AppSessionRefusal {
 
     /** An {@link AlreadyActiveScope} constant name; set for {@code ALREADY_ACTIVE}. */
     public static final String SCOPE = "scope";
+
+    public static final String REQUIRED_SLOTS = "requiredSlots";
+
+    public static final String FREE_SLOTS = "freeSlots";
+
+    public static final String REQUIRED_WEIGHT = "requiredWeight";
+
+    public static final String FREE_WEIGHT = "freeWeight";
 }

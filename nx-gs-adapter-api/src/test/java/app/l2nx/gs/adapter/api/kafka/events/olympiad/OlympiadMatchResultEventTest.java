@@ -43,11 +43,11 @@ class OlympiadMatchResultEventTest {
                 .matchId(UUID.randomUUID())
                 .olympiadCycle(7)
                 .gameType(OlympiadGameType.CLASSED)
-                .charId(268437521L)
+                .characterId(268437521L)
                 .classId(88)
                 .clazz(CharacterClass.DUELIST)
                 .clanId(101L)
-                .opponentCharId(268437522L)
+                .opponentCharacterId(268437522L)
                 .opponentClassId(92)
                 .opponentClazz(CharacterClass.SAGITTARIUS)
                 .opponentClanId(102L)
@@ -132,15 +132,15 @@ class OlympiadMatchResultEventTest {
     }
 
     @Test
-    void toString_shouldRenderCharIdAndOutcome() {
+    void toString_shouldRenderCharacterIdAndOutcome() {
         OlympiadMatchResultEvent event = newBuilder()
-                .charId(268437521L)
+                .characterId(268437521L)
                 .result(OlympiadMatchResult.WIN)
                 .reason(OlympiadMatchReason.OPPONENT_DEFAULTED)
                 .build();
 
         String s = event.toString();
-        assertTrue(s.contains("charId=268437521"));
+        assertTrue(s.contains("characterId=268437521"));
         assertTrue(s.contains("result=WIN"));
         assertTrue(s.contains("reason=OPPONENT_DEFAULTED"));
     }
@@ -151,10 +151,10 @@ class OlympiadMatchResultEventTest {
                 .matchId(UUID.randomUUID())
                 .olympiadCycle(7)
                 .gameType(OlympiadGameType.CLASSED)
-                .charId(268437521L)
+                .characterId(268437521L)
                 .classId(88)
                 .clanId(101L)
-                .opponentCharId(268437522L)
+                .opponentCharacterId(268437522L)
                 .opponentClassId(92)
                 .opponentClanId(102L)
                 .result(OlympiadMatchResult.WIN)

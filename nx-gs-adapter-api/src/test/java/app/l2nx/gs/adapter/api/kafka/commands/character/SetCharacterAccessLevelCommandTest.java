@@ -10,13 +10,13 @@ class SetCharacterAccessLevelCommandTest {
     @Test
     void builder_shouldRoundtripFields() {
         SetCharacterAccessLevelCommand cmd = SetCharacterAccessLevelCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .accessLevel("7")
                 .staffNotes("promoted for event duty")
                 .initiator(TestInitiators.USER)
                 .build();
 
-        assertEquals(42L, cmd.getCharId().longValue());
+        assertEquals(42L, cmd.getCharacterId().longValue());
         assertEquals("7", cmd.getAccessLevel());
         assertEquals("promoted for event duty", cmd.getStaffNotes());
     }
@@ -29,11 +29,11 @@ class SetCharacterAccessLevelCommandTest {
     }
 
     @Test
-    void constructor_shouldRejectNullCharId() {
+    void constructor_shouldRejectNullCharacterId() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
                 () -> new SetCharacterAccessLevelCommand(null, "7", null, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("charId"));
+        assertTrue(ex.getMessage().contains("characterId"));
     }
 
     @Test
@@ -47,7 +47,7 @@ class SetCharacterAccessLevelCommandTest {
     @Test
     void toBuilder_shouldRoundtrip() {
         SetCharacterAccessLevelCommand original = SetCharacterAccessLevelCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .accessLevel("7")
                 .staffNotes("note")
                 .initiator(TestInitiators.USER)
@@ -59,14 +59,14 @@ class SetCharacterAccessLevelCommandTest {
     }
 
     @Test
-    void equals_shouldDistinguishOnCharId() {
+    void equals_shouldDistinguishOnCharacterId() {
         SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .initiator(TestInitiators.USER)
                 .build();
         SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
-                .charId(2L)
+                .characterId(2L)
                 .accessLevel("7")
                 .initiator(TestInitiators.USER)
                 .build();
@@ -77,12 +77,12 @@ class SetCharacterAccessLevelCommandTest {
     @Test
     void equals_shouldDistinguishOnAccessLevel() {
         SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .initiator(TestInitiators.USER)
                 .build();
         SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("0")
                 .initiator(TestInitiators.USER)
                 .build();
@@ -93,13 +93,13 @@ class SetCharacterAccessLevelCommandTest {
     @Test
     void equals_shouldDistinguishOnStaffNotes() {
         SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .staffNotes("a")
                 .initiator(TestInitiators.USER)
                 .build();
         SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .staffNotes("b")
                 .initiator(TestInitiators.USER)
@@ -111,13 +111,13 @@ class SetCharacterAccessLevelCommandTest {
     @Test
     void hashCode_shouldMatchEquals() {
         SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .staffNotes("note")
                 .initiator(TestInitiators.USER)
                 .build();
         SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .staffNotes("note")
                 .initiator(TestInitiators.USER)
@@ -129,7 +129,7 @@ class SetCharacterAccessLevelCommandTest {
     @Test
     void toString_shouldExposeFields() {
         SetCharacterAccessLevelCommand cmd = SetCharacterAccessLevelCommand.builder()
-                .charId(42L)
+                .characterId(42L)
                 .accessLevel("7")
                 .staffNotes("note")
                 .initiator(TestInitiators.USER)
@@ -145,7 +145,7 @@ class SetCharacterAccessLevelCommandTest {
     @Test
     void implementsNxCommandMarker() {
         SetCharacterAccessLevelCommand cmd = SetCharacterAccessLevelCommand.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .initiator(TestInitiators.USER)
                 .build();

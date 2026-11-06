@@ -12,17 +12,20 @@ final class EventTypeBinding {
     private final byte[] messageTypeBytes;
     private final Function<Object, byte[]> partitionKeyExtractor;
     private final UnaryOperator<Object> wireNormalizer;
+    private final UnaryOperator<Object> sendGuard;
 
     EventTypeBinding(
             String familyKey,
             String messageType,
             Function<Object, byte[]> partitionKeyExtractor,
-            UnaryOperator<Object> wireNormalizer) {
+            UnaryOperator<Object> wireNormalizer,
+            UnaryOperator<Object> sendGuard) {
         this.familyKey = familyKey;
         this.messageType = messageType;
         this.messageTypeBytes = messageType.getBytes(StandardCharsets.UTF_8);
         this.partitionKeyExtractor = partitionKeyExtractor;
         this.wireNormalizer = wireNormalizer;
+        this.sendGuard = sendGuard;
     }
 
     String familyKey() {
@@ -44,5 +47,13 @@ final class EventTypeBinding {
     /** Applied before the event is queued; returns the same instance when nothing changes. */
     UnaryOperator<Object> wireNormalizer() {
         return wireNormalizer;
+    }
+
+    /**
+     * Applied on the events publisher thread right before the send, for checks too heavy for the caller's game thread
+     * that {@link #wireNormalizer()} runs on; returns the same instance when nothing changes.
+     */
+    UnaryOperator<Object> sendGuard() {
+        return sendGuard;
     }
 }

@@ -26,9 +26,9 @@ class AcceptMailCommandTest {
 
     private static AcceptMailCommand.Builder valid() {
         return AcceptMailCommand.builder()
-                .receiverCharId(1L)
+                .receiverCharacterId(1L)
                 .mailId(10L)
-                .expectedSenderCharId(2L)
+                .expectedSenderCharacterId(2L)
                 .expectedCodAdena(0L)
                 .idempotencyKey(KEY)
                 .deadline(DEADLINE)
@@ -37,10 +37,10 @@ class AcceptMailCommandTest {
 
     static Stream<Arguments> missingRequired() {
         return Stream.of(
-                Arguments.of("receiverCharId", (Consumer<AcceptMailCommand.Builder>) b -> b.receiverCharId(null)),
+                Arguments.of("receiverCharacterId", (Consumer<AcceptMailCommand.Builder>) b -> b.receiverCharacterId(null)),
                 Arguments.of("mailId", (Consumer<AcceptMailCommand.Builder>) b -> b.mailId(null)),
-                Arguments.of("expectedSenderCharId", (Consumer<AcceptMailCommand.Builder>)
-                        b -> b.expectedSenderCharId(null)),
+                Arguments.of("expectedSenderCharacterId", (Consumer<AcceptMailCommand.Builder>)
+                        b -> b.expectedSenderCharacterId(null)),
                 Arguments.of("expectedCodAdena", (Consumer<AcceptMailCommand.Builder>) b -> b.expectedCodAdena(null)));
     }
 

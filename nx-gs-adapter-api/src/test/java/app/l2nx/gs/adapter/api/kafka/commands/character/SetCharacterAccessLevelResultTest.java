@@ -9,13 +9,13 @@ class SetCharacterAccessLevelResultTest {
     @Test
     void builder_shouldRoundtripFields() {
         SetCharacterAccessLevelResult result = SetCharacterAccessLevelResult.builder()
-                .charId(42L)
+                .characterId(42L)
                 .accessLevel("7")
                 .previousAccessLevel("0")
                 .wasOnline(true)
                 .build();
 
-        assertEquals(42L, result.getCharId().longValue());
+        assertEquals(42L, result.getCharacterId().longValue());
         assertEquals("7", result.getAccessLevel());
         assertEquals("0", result.getPreviousAccessLevel());
         assertTrue(result.isWasOnline());
@@ -29,10 +29,10 @@ class SetCharacterAccessLevelResultTest {
     }
 
     @Test
-    void constructor_shouldRejectNullCharId() {
+    void constructor_shouldRejectNullCharacterId() {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class, () -> new SetCharacterAccessLevelResult(null, "7", null, false));
-        assertTrue(ex.getMessage().contains("charId"));
+        assertTrue(ex.getMessage().contains("characterId"));
     }
 
     @Test
@@ -45,7 +45,7 @@ class SetCharacterAccessLevelResultTest {
     @Test
     void toBuilder_shouldRoundtrip() {
         SetCharacterAccessLevelResult original = SetCharacterAccessLevelResult.builder()
-                .charId(42L)
+                .characterId(42L)
                 .accessLevel("7")
                 .previousAccessLevel("0")
                 .wasOnline(true)
@@ -57,13 +57,13 @@ class SetCharacterAccessLevelResultTest {
     }
 
     @Test
-    void equals_shouldDistinguishOnCharId() {
+    void equals_shouldDistinguishOnCharacterId() {
         SetCharacterAccessLevelResult a = SetCharacterAccessLevelResult.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .build();
         SetCharacterAccessLevelResult b = SetCharacterAccessLevelResult.builder()
-                .charId(2L)
+                .characterId(2L)
                 .accessLevel("7")
                 .build();
 
@@ -73,11 +73,11 @@ class SetCharacterAccessLevelResultTest {
     @Test
     void equals_shouldDistinguishOnAccessLevel() {
         SetCharacterAccessLevelResult a = SetCharacterAccessLevelResult.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .build();
         SetCharacterAccessLevelResult b = SetCharacterAccessLevelResult.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("0")
                 .build();
 
@@ -87,12 +87,12 @@ class SetCharacterAccessLevelResultTest {
     @Test
     void equals_shouldDistinguishOnPreviousAccessLevel() {
         SetCharacterAccessLevelResult a = SetCharacterAccessLevelResult.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .previousAccessLevel("0")
                 .build();
         SetCharacterAccessLevelResult b = SetCharacterAccessLevelResult.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .previousAccessLevel("1")
                 .build();
@@ -103,12 +103,12 @@ class SetCharacterAccessLevelResultTest {
     @Test
     void equals_shouldDistinguishOnWasOnline() {
         SetCharacterAccessLevelResult a = SetCharacterAccessLevelResult.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .wasOnline(true)
                 .build();
         SetCharacterAccessLevelResult b = SetCharacterAccessLevelResult.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .wasOnline(false)
                 .build();
@@ -119,13 +119,13 @@ class SetCharacterAccessLevelResultTest {
     @Test
     void hashCode_shouldMatchEquals() {
         SetCharacterAccessLevelResult a = SetCharacterAccessLevelResult.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .previousAccessLevel("0")
                 .wasOnline(true)
                 .build();
         SetCharacterAccessLevelResult b = SetCharacterAccessLevelResult.builder()
-                .charId(1L)
+                .characterId(1L)
                 .accessLevel("7")
                 .previousAccessLevel("0")
                 .wasOnline(true)
@@ -137,7 +137,7 @@ class SetCharacterAccessLevelResultTest {
     @Test
     void toString_shouldExposeFields() {
         SetCharacterAccessLevelResult result = SetCharacterAccessLevelResult.builder()
-                .charId(42L)
+                .characterId(42L)
                 .accessLevel("7")
                 .previousAccessLevel("0")
                 .wasOnline(true)

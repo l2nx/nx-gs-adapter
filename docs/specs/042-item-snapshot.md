@@ -1,7 +1,7 @@
 # Item snapshot
 
 > Owner: @n1rmata
-> Status: designed 2026-11-04, not implemented.
+> Status: adapter side implemented 2026-11-04, not yet released.
 > Counterparts: `nx-gameservers/docs/specs/093-item-snapshot-migration.md` (legacy mapping, table moves, rollout),
 > `nx-gameservers/docs/specs/043-sessions/results.md` (session results storage).
 
@@ -26,22 +26,22 @@ says where the item went and how much of it moved.
 
 **Must:**
 
-- [todo] R1. The api MUST ship `domain.item.ItemSnapshot`: immutable, Java 8, with a builder, carrying `itemId`,
+- [done] R1. The api MUST ship `domain.item.ItemSnapshot`: immutable, Java 8, with a builder, carrying `itemId`,
   `itemTemplateId`, `count`, `enchantLevel`, `attributes` and `augmentation` ([ItemSnapshot](#itemsnapshot)).
-- [todo] R2. `ItemAugmentationDbDto` MUST become `domain.item.ItemAugmentation` with the same wire shape.
-- [todo] R3. Location, owner and the quantity an event moved MUST stay in the event's own context (the movement, the
+- [done] R2. `ItemAugmentationDbDto` MUST become `domain.item.ItemAugmentation` with the same wire shape.
+- [done] R3. Location, owner and the quantity an event moved MUST stay in the event's own context (the movement, the
   line, the result), never in the snapshot.
-- [todo] R4. Every form under [Migrated forms](#migrated-forms) MUST carry a snapshot in field `item` in place of its
+- [done] R4. Every form under [Migrated forms](#migrated-forms) MUST carry a snapshot in field `item` in place of its
   loose item fields, in one api release that removes the old shapes.
-- [todo] R5. `ChatItemSnapshot` and `ItemAttributeDbDto` MUST be removed from the api.
-- [todo] R6. `StoreLine` MUST split into one class per side: a sell line carries a snapshot, a buy line carries a
+- [done] R5. `ChatItemSnapshot` and `ItemAttributeDbDto` MUST be removed from the api.
+- [done] R6. `StoreLine` MUST split into one class per side: a sell line carries a snapshot, a buy line carries a
   template with no instance.
-- [todo] R7. `RaidDropItem` MUST stay a template reference and name it `itemTemplateId`: the raid rolled a template,
+- [done] R7. `RaidDropItem` MUST stay a template reference and name it `itemTemplateId`: the raid rolled a template,
   and no instance is known when the drop is recorded.
-- [todo] R8. `ItemDbDto.attributes` MUST become `Map<Attribute, Integer>`, the form the other item DTOs already use.
-- [todo] R9. `charId` MUST become `characterId` on every item command and result
+- [done] R8. `ItemDbDto.attributes` MUST become `Map<Attribute, Integer>`, the form the other item DTOs already use.
+- [done] R9. `charId` MUST become `characterId` on every item command and result
   ([Item commands](#item-commands)).
-- [todo] R10. An instance id MUST be `long` and an enchant level `Integer` wherever a snapshot replaces them.
+- [done] R10. An instance id MUST be `long` and an enchant level `Integer` wherever a snapshot replaces them.
 
 **Non-goals:**
 
@@ -120,7 +120,8 @@ Field lists are the current DTOs. `item` is an `ItemSnapshot`.
 - `DeleteItemResult.item` and `TransferItemToCharacterResult.item` are the item before the operation.
 - `BuyLine` is a command input and an optimistic lock: `item.itemId` finds the instance, `item.itemTemplateId`,
   `item.enchantLevel` and `item.attributes` with `unitPriceAdena` are re-verified, `null` keeps its meaning of "the
-  offer carried none", and any mismatch still fails with `OFFER_CHANGED`. `item.count` is not part of the match; the
+  offer carried none", an empty `item.attributes` map counts as `null` (the host compares
+  `BuyLine.attributesForMatch()`), and any mismatch still fails with `OFFER_CHANGED`. `item.count` is not part of the match; the
   lot size is `count`. The line keeps its own checks (positive `count`, non-negative price, no overflow of their
   product, enchant in `0..127`); `BuyFromPrivateStoreCommand` compares `item.itemId` for repeats.
 
@@ -141,10 +142,16 @@ Only the names change; these commands keep their shape and take no snapshot.
 | `CreateItemCommand`              | `charId`                 | `characterId`                      |
 | `DeleteItemCommand`              | `charId`                 | `characterId`                      |
 | `TransferItemToCharacterCommand` | `charIdFrom`, `charIdTo` | `fromCharacterId`, `toCharacterId` |
+| every other api class            | `charId`, `*CharId`      | `characterId`, `*CharacterId`      |
 
 `TransferItemToCharacterCommand` stays routed by the source character. `CharacterPresenceEvent.charId` becomes
-`characterId` in the same release ([`043`](043-session-results.md)). Other commands and events keep `charId` until
-their family is touched.
+`characterId` in the same release ([`043`](043-session-results.md)). Every other `charId` and `*CharId` of the api becomes `characterId` and `*CharacterId` in the same release: commands, results,
+events and `RatingDbDto`. `charName` and `targetCharName` become `characterName` and `targetCharacterName`, and
+`TransferCharToAccount*` and `TelegramCharLink*` become `TransferCharacterToAccount*` and `TelegramCharacterLink*`. The
+class rename changes `Nx-Message-Type`, which is the simple class name.
+
+A reader of the old form maps the old key onto the new property before it binds: the classes bind by constructor parameter
+name.
 
 ### Wire compatibility
 
@@ -157,9 +164,12 @@ as `nx-gameservers/docs/specs/093-item-snapshot-migration.md` describes.
 | core to platform, events  | chat, mail, private trade, store state, store purchase, raid kill, `CharacterPresenceEvent.characterId` | The platform, and nx-social for presence, read old and new form with their own private legacy mapping                                                                                                      |
 | core to platform, sync    | `ItemDbDto.attributes` (array of `{type, value}`, then an object keyed by element)                      | The platform reads both forms                                                                                                                                                                              |
 | core to platform, replies | `SoldLine`, `BoughtLine`, `CreateItemResult`, `DeleteItemResult`, `TransferItemToCharacterResult`       | The platform reads both forms                                                                                                                                                                              |
-| platform to core          | item commands, `BuyLine`                                                                                | The platform sends both forms from a private wire DTO: `charId` with `characterId`, the source / target pair likewise, the flat `BuyLine` fields with `item`. Each core reads its own and ignores the rest |
+| platform to core          | item commands, every command with a character field, `BuyLine`                                                                                | The platform sends both forms from a private wire DTO: `charId` with `characterId`, the source / target pair likewise, the flat `BuyLine` fields with `item`. Each core reads its own and ignores the rest |
 
 - The adapter keeps no `@Deprecated` copy and no alias: the host switches in one release.
+- `Nx-Message-Type` of `TransferCharacterToAccountCommand` stays the old name on the platform side until every host restarted;
+  a new host keeps a private class of the old simple name, so routing needs no alias in the adapter. `TelegramCharacterLinkCommand`
+  has no sender on the platform.
 - The numeric changes (`int` to `long`) are invisible on the wire.
 - The element keys of chat do not change: they were the `Attribute` names as strings.
 - `ItemAugmentation` keeps `option1Id` / `option2Id`, so only the Java package moves. The move is its own commit.
@@ -179,10 +189,10 @@ as `nx-gameservers/docs/specs/093-item-snapshot-migration.md` describes.
 
 ### Structure
 
-- `nx-gs-adapter-api` `domain.item`: `ItemSnapshot`, `ItemAugmentation` [planned].
-- `nx-gs-adapter-api` `kafka.events.privatestore.model`: `SellStoreLine`, `BuyStoreLine` replace `StoreLine` [planned].
+- `nx-gs-adapter-api` `domain.item`: `ItemSnapshot`, `ItemAugmentation`.
+- `nx-gs-adapter-api` `kafka.events.privatestore.model`: `SellStoreLine`, `BuyStoreLine` replace `StoreLine`.
 - Removed: `kafka.events.chat.ChatItemSnapshot`, `kafka.sync.db.item.ItemAttributeDbDto`,
-  `kafka.sync.db.item.ItemAugmentationDbDto`, `kafka.events.privatestore.model.StoreLine` [planned].
+  `kafka.sync.db.item.ItemAugmentationDbDto`, `kafka.events.privatestore.model.StoreLine`.
 
 Living specs of the migrated forms change in the same commit as the code: `009-commands/catalog.md`,
 `009-commands/accept-mail.md`, `014-events-raid.md`, `025-chat-events.md` (R18), `026-item-augmentation-sync.md`,

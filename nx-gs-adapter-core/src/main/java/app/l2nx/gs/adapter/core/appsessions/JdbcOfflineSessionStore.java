@@ -227,16 +227,47 @@ final class JdbcOfflineSessionStore implements OfflineSessionStore {
     }
 
     @Override
-    public void close(UUID id, long activeMs, Instant endedAt, LogoutReason reason) {
+    public void close(UUID id, long activeMs, Instant endedAt, LogoutReason reason, @Nullable String resultJson) {
         run("close session", c -> {
             try (PreparedStatement ps = c.prepareStatement("UPDATE " + TABLE
-                    + " SET active_ms = ?, ended_at = ?, end_reason = ?, active_character_id = NULL, active_spot_key ="
-                    + " NULL WHERE id = ? AND ended_at IS NULL")) {
+                    + " SET active_ms = ?, ended_at = ?, end_reason = ?, result = ?, active_character_id = NULL,"
+                    + " active_spot_key = NULL WHERE id = ? AND ended_at IS NULL")) {
                 ps.setLong(1, activeMs);
                 JdbcValues.setInstant(ps, 2, endedAt);
                 ps.setString(3, reason.name());
-                setUuid(ps, 4, id);
+                JdbcValues.setNullableString(ps, 4, resultJson);
+                setUuid(ps, 5, id);
                 ps.executeUpdate();
+            }
+        });
+    }
+
+    @Override
+    public @Nullable String readResult(UUID id) {
+        return call("read session result", c -> {
+            try (PreparedStatement ps = c.prepareStatement("SELECT result FROM " + TABLE + " WHERE id = ?")) {
+                setUuid(ps, 1, id);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? rs.getString("result") : null;
+                }
+            }
+        });
+    }
+
+    @Override
+    public void writeOpenResults(Map<UUID, @Nullable String> resultJsonById) {
+        if (resultJsonById.isEmpty()) {
+            return;
+        }
+        run("write open session results", c -> {
+            try (PreparedStatement ps =
+                    c.prepareStatement("UPDATE " + TABLE + " SET result = ? WHERE id = ? AND ended_at IS NULL")) {
+                for (Map.Entry<UUID, String> e : resultJsonById.entrySet()) {
+                    JdbcValues.setNullableString(ps, 1, e.getValue());
+                    setUuid(ps, 2, e.getKey());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
             }
         });
     }

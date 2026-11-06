@@ -5,27 +5,27 @@ import org.jspecify.annotations.Nullable;
 
 public final class SetCharacterAccessLevelResult {
 
-    private final Long charId;
+    private final Long characterId;
     private final String accessLevel;
     private final @Nullable String previousAccessLevel;
     private final boolean wasOnline;
 
     public SetCharacterAccessLevelResult(
-            Long charId, String accessLevel, @Nullable String previousAccessLevel, boolean wasOnline) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+            Long characterId, String accessLevel, @Nullable String previousAccessLevel, boolean wasOnline) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
         if (accessLevel == null) {
             throw new IllegalArgumentException("accessLevel is required");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.accessLevel = accessLevel;
         this.previousAccessLevel = previousAccessLevel;
         this.wasOnline = wasOnline;
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     /** As stored by the host; an int build echoes the canonical numeric text. */
@@ -45,7 +45,7 @@ public final class SetCharacterAccessLevelResult {
 
     public Builder toBuilder() {
         return new Builder()
-                .charId(charId)
+                .characterId(characterId)
                 .accessLevel(accessLevel)
                 .previousAccessLevel(previousAccessLevel)
                 .wasOnline(wasOnline);
@@ -61,30 +61,30 @@ public final class SetCharacterAccessLevelResult {
         if (!(o instanceof SetCharacterAccessLevelResult)) return false;
         SetCharacterAccessLevelResult that = (SetCharacterAccessLevelResult) o;
         return wasOnline == that.wasOnline
-                && Objects.equals(charId, that.charId)
+                && Objects.equals(characterId, that.characterId)
                 && Objects.equals(accessLevel, that.accessLevel)
                 && Objects.equals(previousAccessLevel, that.previousAccessLevel);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, accessLevel, previousAccessLevel, wasOnline);
+        return Objects.hash(characterId, accessLevel, previousAccessLevel, wasOnline);
     }
 
     @Override
     public String toString() {
-        return "SetCharacterAccessLevelResult[charId=" + charId + ", accessLevel=" + accessLevel
+        return "SetCharacterAccessLevelResult[characterId=" + characterId + ", accessLevel=" + accessLevel
                 + ", previousAccessLevel=" + previousAccessLevel + ", wasOnline=" + wasOnline + "]";
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private String accessLevel;
         private @Nullable String previousAccessLevel;
         private boolean wasOnline;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -104,7 +104,7 @@ public final class SetCharacterAccessLevelResult {
         }
 
         public SetCharacterAccessLevelResult build() {
-            return new SetCharacterAccessLevelResult(charId, accessLevel, previousAccessLevel, wasOnline);
+            return new SetCharacterAccessLevelResult(characterId, accessLevel, previousAccessLevel, wasOnline);
         }
     }
 }

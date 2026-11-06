@@ -10,35 +10,35 @@ import org.jspecify.annotations.Nullable;
  * converges on the same state.
  *
  * <p>Reply: {@code CommandResult<SetCharacterAccessLevelResult>}. Errors: {@code NOT_FOUND}, {@code INVALID_STATE}
- * (a login raced the offline write), {@code VALIDATION_FAILED} ({@code charId} / {@code accessLevel} missing,
+ * (a login raced the offline write), {@code VALIDATION_FAILED} ({@code characterId} / {@code accessLevel} missing,
  * non-integer, negative - bans go through {@code BanCommand} - or unregistered), {@code FORBIDDEN} (above the
  * host's platform-grantable ceiling), {@code UNAVAILABLE} (DB error on the offline path), {@code INTERNAL_ERROR}.</p>
  *
- * <p>Routed by {@code charId}.</p>
+ * <p>Routed by {@code characterId}.</p>
  */
 public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharacterAccessLevelResult> {
 
-    private final Long charId;
+    private final Long characterId;
     private final String accessLevel;
     private final @Nullable String staffNotes;
     private final CommandInitiator initiator;
 
     public SetCharacterAccessLevelCommand(
-            Long charId, String accessLevel, @Nullable String staffNotes, CommandInitiator initiator) {
-        if (charId == null) {
-            throw new IllegalArgumentException("charId is required");
+            Long characterId, String accessLevel, @Nullable String staffNotes, CommandInitiator initiator) {
+        if (characterId == null) {
+            throw new IllegalArgumentException("characterId is required");
         }
         if (accessLevel == null) {
             throw new IllegalArgumentException("accessLevel is required");
         }
-        this.charId = charId;
+        this.characterId = characterId;
         this.accessLevel = accessLevel;
         this.staffNotes = staffNotes;
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
-    public Long getCharId() {
-        return charId;
+    public Long getCharacterId() {
+        return characterId;
     }
 
     /**
@@ -61,7 +61,7 @@ public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharac
 
     public Builder toBuilder() {
         return new Builder()
-                .charId(charId)
+                .characterId(characterId)
                 .accessLevel(accessLevel)
                 .staffNotes(staffNotes)
                 .initiator(initiator);
@@ -76,7 +76,7 @@ public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharac
         if (this == o) return true;
         if (!(o instanceof SetCharacterAccessLevelCommand)) return false;
         SetCharacterAccessLevelCommand that = (SetCharacterAccessLevelCommand) o;
-        return Objects.equals(charId, that.charId)
+        return Objects.equals(characterId, that.characterId)
                 && Objects.equals(accessLevel, that.accessLevel)
                 && Objects.equals(staffNotes, that.staffNotes)
                 && Objects.equals(initiator, that.initiator);
@@ -84,23 +84,23 @@ public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharac
 
     @Override
     public int hashCode() {
-        return Objects.hash(charId, accessLevel, staffNotes, initiator);
+        return Objects.hash(characterId, accessLevel, staffNotes, initiator);
     }
 
     @Override
     public String toString() {
-        return "SetCharacterAccessLevelCommand[charId=" + charId + ", accessLevel=" + accessLevel + ", staffNotes="
+        return "SetCharacterAccessLevelCommand[characterId=" + characterId + ", accessLevel=" + accessLevel + ", staffNotes="
                 + staffNotes + ", initiator=" + initiator + "]";
     }
 
     public static final class Builder {
-        private Long charId;
+        private Long characterId;
         private String accessLevel;
         private @Nullable String staffNotes;
         private CommandInitiator initiator;
 
-        public Builder charId(Long charId) {
-            this.charId = charId;
+        public Builder characterId(Long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -120,7 +120,7 @@ public final class SetCharacterAccessLevelCommand implements NxCommand<SetCharac
         }
 
         public SetCharacterAccessLevelCommand build() {
-            return new SetCharacterAccessLevelCommand(charId, accessLevel, staffNotes, initiator);
+            return new SetCharacterAccessLevelCommand(characterId, accessLevel, staffNotes, initiator);
         }
     }
 }

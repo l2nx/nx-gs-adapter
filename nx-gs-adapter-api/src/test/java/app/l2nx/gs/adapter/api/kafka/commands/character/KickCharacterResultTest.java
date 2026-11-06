@@ -9,23 +9,23 @@ class KickCharacterResultTest {
     @Test
     void builder_shouldRoundtripFields() {
         KickCharacterResult result =
-                KickCharacterResult.builder().charId(42L).offlineTrader(true).build();
+                KickCharacterResult.builder().characterId(42L).offlineTrader(true).build();
 
-        assertEquals(42L, result.getCharId().longValue());
+        assertEquals(42L, result.getCharacterId().longValue());
         assertTrue(result.isOfflineTrader());
     }
 
     @Test
-    void constructor_shouldRejectNullCharId() {
+    void constructor_shouldRejectNullCharacterId() {
         IllegalArgumentException ex =
                 assertThrows(IllegalArgumentException.class, () -> new KickCharacterResult(null, false));
-        assertTrue(ex.getMessage().contains("charId"));
+        assertTrue(ex.getMessage().contains("characterId"));
     }
 
     @Test
     void toBuilder_shouldRoundtrip() {
         KickCharacterResult original =
-                KickCharacterResult.builder().charId(42L).offlineTrader(true).build();
+                KickCharacterResult.builder().characterId(42L).offlineTrader(true).build();
 
         KickCharacterResult copy = original.toBuilder().build();
 
@@ -33,9 +33,9 @@ class KickCharacterResultTest {
     }
 
     @Test
-    void equals_shouldDistinguishOnCharId() {
-        KickCharacterResult a = KickCharacterResult.builder().charId(1L).build();
-        KickCharacterResult b = KickCharacterResult.builder().charId(2L).build();
+    void equals_shouldDistinguishOnCharacterId() {
+        KickCharacterResult a = KickCharacterResult.builder().characterId(1L).build();
+        KickCharacterResult b = KickCharacterResult.builder().characterId(2L).build();
 
         assertNotEquals(a, b);
     }
@@ -43,9 +43,9 @@ class KickCharacterResultTest {
     @Test
     void equals_shouldDistinguishOnOfflineTrader() {
         KickCharacterResult a =
-                KickCharacterResult.builder().charId(1L).offlineTrader(true).build();
+                KickCharacterResult.builder().characterId(1L).offlineTrader(true).build();
         KickCharacterResult b =
-                KickCharacterResult.builder().charId(1L).offlineTrader(false).build();
+                KickCharacterResult.builder().characterId(1L).offlineTrader(false).build();
 
         assertNotEquals(a, b);
     }
@@ -53,9 +53,9 @@ class KickCharacterResultTest {
     @Test
     void hashCode_shouldMatchEquals() {
         KickCharacterResult a =
-                KickCharacterResult.builder().charId(1L).offlineTrader(true).build();
+                KickCharacterResult.builder().characterId(1L).offlineTrader(true).build();
         KickCharacterResult b =
-                KickCharacterResult.builder().charId(1L).offlineTrader(true).build();
+                KickCharacterResult.builder().characterId(1L).offlineTrader(true).build();
 
         assertEquals(a.hashCode(), b.hashCode());
     }
@@ -63,7 +63,7 @@ class KickCharacterResultTest {
     @Test
     void toString_shouldExposeFields() {
         KickCharacterResult result =
-                KickCharacterResult.builder().charId(42L).offlineTrader(true).build();
+                KickCharacterResult.builder().characterId(42L).offlineTrader(true).build();
 
         String s = result.toString();
 

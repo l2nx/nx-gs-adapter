@@ -117,6 +117,9 @@ database and migrates them itself (spec 037). Put `nx-gs-db-migrator-liquibase5`
 5.x on the classpath and register a `JdbcConnectionSource`; without them a game-server adapter goes `FAILED` at
 start. A host that reads an adapter-owned table during its own boot calls `NxAdapter.migrateSchema()` first.
 
+**Runtime sync start:** the host calls `NxAdapter.runtimeSync().hostStarted()` once, right after it publishes
+`ServerStartedEvent`; without that call runtime sync never ticks (spec 006, R14).
+
 **Every key** (CDC engine, runtime sync, game data sync, events, commands, Kafka producer, IO pool) with its default
 and meaning: **https://l2nx.dev/adapter/configuration/**. The starter `l2nx.properties` carries the game-server tuning keys with their defaults.
 

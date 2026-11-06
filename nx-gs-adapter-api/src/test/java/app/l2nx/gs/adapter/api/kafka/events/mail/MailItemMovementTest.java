@@ -2,169 +2,68 @@ package app.l2nx.gs.adapter.api.kafka.events.mail;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import app.l2nx.gs.adapter.api.domain.Attribute;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import org.junit.jupiter.api.Test;
 
 class MailItemMovementTest {
 
-    @Test
-    void getAttributes_shouldReturnEmptyMap_whenBuilderOmits() {
-        MailItemMovement movement = MailItemMovement.builder()
-                .itemTemplateId(6611L)
+    private static ItemSnapshot item() {
+        return ItemSnapshot.builder()
                 .itemId(268437521L)
-                .newItemId(268437521L)
-                .count(1L)
+                .itemTemplateId(6611L)
+                .count(10L)
+                .enchantLevel(16)
                 .build();
+    }
 
-        assertTrue(movement.getAttributes().isEmpty());
+    private static MailItemMovement.Builder valid() {
+        return MailItemMovement.builder().item(item()).newItemId(268437522L).count(5L);
     }
 
     @Test
-    void getAttributes_shouldReturnEmptyMap_whenBuilderPassesNull() {
-        MailItemMovement movement = MailItemMovement.builder()
-                .itemTemplateId(6611L)
-                .itemId(268437521L)
-                .newItemId(268437521L)
-                .count(1L)
-                .attributes(null)
-                .build();
+    void constructor_shouldReject_whenItemNull() {
+        MailItemMovement.Builder builder = valid().item(null);
 
-        assertTrue(movement.getAttributes().isEmpty());
-    }
-
-    @Test
-    void getAttributes_shouldBeUnmodifiable() {
-        Map<Attribute, Integer> source = new HashMap<Attribute, Integer>();
-        source.put(Attribute.FIRE, 300);
-
-        MailItemMovement movement = MailItemMovement.builder()
-                .itemTemplateId(6611L)
-                .itemId(268437521L)
-                .newItemId(268437521L)
-                .count(1L)
-                .attributes(source)
-                .build();
-
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> movement.getAttributes().put(Attribute.WATER, 150));
-    }
-
-    @Test
-    void constructor_shouldDefensivelyCopyAttributes() {
-        Map<Attribute, Integer> source = new HashMap<Attribute, Integer>();
-        source.put(Attribute.FIRE, 300);
-
-        MailItemMovement movement = MailItemMovement.builder()
-                .itemTemplateId(6611L)
-                .itemId(268437521L)
-                .newItemId(268437521L)
-                .count(1L)
-                .attributes(source)
-                .build();
-
-        source.put(Attribute.WATER, 150);
-
-        assertEquals(1, movement.getAttributes().size());
-        assertEquals(Integer.valueOf(300), movement.getAttributes().get(Attribute.FIRE));
-    }
-
-    @Test
-    void enchantLevel_shouldDefaultToNull_signalingNotApplicable() {
-        MailItemMovement movement = MailItemMovement.builder()
-                .itemTemplateId(57L)
-                .itemId(268437521L)
-                .newItemId(268437521L)
-                .count(1L)
-                .build();
-
-        assertNull(movement.getEnchantLevel());
-    }
-
-    @Test
-    void enchantLevel_shouldRoundtripExplicitZero() {
-        MailItemMovement movement = MailItemMovement.builder()
-                .itemTemplateId(6611L)
-                .itemId(268437521L)
-                .newItemId(268437521L)
-                .count(1L)
-                .enchantLevel(0)
-                .build();
-
-        assertEquals(Integer.valueOf(0), movement.getEnchantLevel());
+        assertThrows(NullPointerException.class, builder::build);
     }
 
     @Test
     void getNewItemId_shouldRoundtripDistinctFromItemId() {
-        MailItemMovement movement = MailItemMovement.builder()
-                .itemTemplateId(57L)
-                .itemId(268437521L)
-                .newItemId(268437522L)
-                .count(1L)
-                .build();
+        MailItemMovement actual = valid().build();
 
-        assertEquals(268437521L, movement.getItemId());
-        assertEquals(268437522L, movement.getNewItemId());
+        assertEquals(268437521L, actual.getItem().getItemId());
+        assertEquals(268437522L, actual.getNewItemId());
+    }
+
+    @Test
+    void getCount_shouldStayApartFromTheStackSizeOfTheItem() {
+        MailItemMovement actual = valid().build();
+
+        assertEquals(5L, actual.getCount());
+        assertEquals(Long.valueOf(10L), actual.getItem().getCount());
     }
 
     @Test
     void toBuilder_shouldRoundtripAllFields() {
-        Map<Attribute, Integer> attrs = new LinkedHashMap<Attribute, Integer>();
-        attrs.put(Attribute.FIRE, 300);
-
-        MailItemMovement original = MailItemMovement.builder()
-                .itemTemplateId(6611L)
-                .itemId(268437521L)
-                .newItemId(268437522L)
-                .count(5L)
-                .enchantLevel(16)
-                .attributes(attrs)
-                .build();
+        MailItemMovement original = valid().build();
 
         MailItemMovement copy = original.toBuilder().build();
+
         assertEquals(original, copy);
+        assertEquals(original.hashCode(), copy.hashCode());
         assertNotSame(original, copy);
     }
 
     @Test
     void equals_shouldDistinguishNewItemId() {
-        MailItemMovement a = MailItemMovement.builder()
-                .itemTemplateId(57L)
-                .itemId(1L)
-                .newItemId(2L)
-                .count(1L)
-                .build();
-        MailItemMovement b = MailItemMovement.builder()
-                .itemTemplateId(57L)
-                .itemId(1L)
-                .newItemId(3L)
-                .count(1L)
-                .build();
-
-        assertNotEquals(a, b);
+        assertNotEquals(valid().build(), valid().newItemId(3L).build());
     }
 
     @Test
-    void equals_shouldDistinguishAttributes() {
-        MailItemMovement a = MailItemMovement.builder()
-                .itemTemplateId(57L)
-                .itemId(1L)
-                .newItemId(1L)
-                .count(1L)
-                .attributes(Collections.singletonMap(Attribute.FIRE, 300))
-                .build();
-        MailItemMovement b = MailItemMovement.builder()
-                .itemTemplateId(57L)
-                .itemId(1L)
-                .newItemId(1L)
-                .count(1L)
-                .attributes(Collections.singletonMap(Attribute.WATER, 300))
-                .build();
+    void equals_shouldDistinguishItem() {
+        MailItemMovement other =
+                valid().item(item().toBuilder().enchantLevel(1).build()).build();
 
-        assertNotEquals(a, b);
+        assertNotEquals(valid().build(), other);
     }
 }

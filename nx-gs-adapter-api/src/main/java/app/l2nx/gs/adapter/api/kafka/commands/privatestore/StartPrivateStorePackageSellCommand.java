@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
 public final class StartPrivateStorePackageSellCommand extends StartPrivateStoreSellingCommand {
 
     public StartPrivateStorePackageSellCommand(
-            int charId,
+            int characterId,
             @Nullable String title,
             List<SellLine> lines,
             @Nullable Integer sellerFeePercent,
@@ -21,7 +21,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
             UUID idempotencyKey,
             CommandInitiator initiator) {
         super(
-                charId,
+                characterId,
                 title,
                 lines,
                 sellerFeePercent,
@@ -34,7 +34,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
 
     public Builder toBuilder() {
         return new Builder()
-                .charId(getCharId())
+                .characterId(getCharacterId())
                 .title(getTitle())
                 .lines(getLines())
                 .sellerFeePercent(getSellerFeePercent())
@@ -50,7 +50,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
     }
 
     public static final class Builder {
-        private int charId;
+        private int characterId;
         private @Nullable String title;
         private @Nullable List<SellLine> lines;
         private @Nullable Integer sellerFeePercent;
@@ -60,8 +60,8 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
         private @Nullable UUID idempotencyKey;
         private CommandInitiator initiator;
 
-        public Builder charId(int charId) {
-            this.charId = charId;
+        public Builder characterId(int characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -107,7 +107,7 @@ public final class StartPrivateStorePackageSellCommand extends StartPrivateStore
 
         public StartPrivateStorePackageSellCommand build() {
             return new StartPrivateStorePackageSellCommand(
-                    charId,
+                    characterId,
                     title,
                     lines,
                     sellerFeePercent,

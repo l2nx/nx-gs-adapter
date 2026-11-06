@@ -36,7 +36,7 @@ progression paths.
 
   - `UUID eventId` — REQUIRED. UUIDv7; the upper 48 bits encode the occurrence timestamp, so there
     is no separate `occurredAt` field.
-  - `long charId` — REQUIRED. The character the fact is about, and the Kafka partition key, so one
+  - `long characterId` — REQUIRED. The character the fact is about, and the Kafka partition key, so one
     character's facts land on one partition in occurrence order.
   - `String type` — REQUIRED. Open token classifying the fact. Canonical values in
     `WellKnownCharacterLogTypes`; hosts MAY publish tokens the platform does not know yet.
@@ -59,7 +59,7 @@ progression paths.
   enforced on the wire.
 
 - [done] R4. `EventTypeRegistry` MUST bind `CharacterLogEvent` to family key `characterlog` with
-  `charId` as the partition-key extractor.
+  `characterId` as the partition-key extractor.
 
 - [wip]  R5. The host MUST publish from three choke points, replacing scattered per-call-site
   branches:

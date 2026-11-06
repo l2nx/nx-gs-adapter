@@ -16,19 +16,19 @@ public final class RatingDbDto {
 
     private final String ratingType;
     private final @Nullable String season;
-    private final long charId;
+    private final long characterId;
     private final long points;
     private final @Nullable Map<String, String> metadata;
 
     public RatingDbDto(
             String ratingType,
             @Nullable String season,
-            long charId,
+            long characterId,
             long points,
             @Nullable Map<String, String> metadata) {
         this.ratingType = Objects.requireNonNull(ratingType, "RatingDbDto.ratingType is required");
         this.season = season;
-        this.charId = charId;
+        this.characterId = characterId;
         this.points = points;
         this.metadata =
                 metadata == null ? null : Collections.unmodifiableMap(new LinkedHashMap<String, String>(metadata));
@@ -43,8 +43,8 @@ public final class RatingDbDto {
         return season;
     }
 
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
     /** Higher is better. */
@@ -61,7 +61,7 @@ public final class RatingDbDto {
         return new Builder()
                 .ratingType(ratingType)
                 .season(season)
-                .charId(charId)
+                .characterId(characterId)
                 .points(points)
                 .metadata(metadata);
     }
@@ -75,7 +75,7 @@ public final class RatingDbDto {
         if (this == o) return true;
         if (!(o instanceof RatingDbDto)) return false;
         RatingDbDto that = (RatingDbDto) o;
-        return charId == that.charId
+        return characterId == that.characterId
                 && points == that.points
                 && ratingType.equals(that.ratingType)
                 && Objects.equals(season, that.season)
@@ -84,14 +84,14 @@ public final class RatingDbDto {
 
     @Override
     public int hashCode() {
-        return Objects.hash(ratingType, season, charId, points, metadata);
+        return Objects.hash(ratingType, season, characterId, points, metadata);
     }
 
     @Override
     public String toString() {
         return "RatingDbDto[ratingType=" + ratingType
                 + ", season=" + season
-                + ", charId=" + charId
+                + ", characterId=" + characterId
                 + ", points=" + points
                 + ", metadata=" + metadata + "]";
     }
@@ -99,7 +99,7 @@ public final class RatingDbDto {
     public static final class Builder {
         private @Nullable String ratingType;
         private @Nullable String season;
-        private long charId;
+        private long characterId;
         private long points;
         private @Nullable Map<String, String> metadata;
 
@@ -113,8 +113,8 @@ public final class RatingDbDto {
             return this;
         }
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -129,7 +129,7 @@ public final class RatingDbDto {
         }
 
         public RatingDbDto build() {
-            return new RatingDbDto(ratingType, season, charId, points, metadata);
+            return new RatingDbDto(ratingType, season, characterId, points, metadata);
         }
     }
 }

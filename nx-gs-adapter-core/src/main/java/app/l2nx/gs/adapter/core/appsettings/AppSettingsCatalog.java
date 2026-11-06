@@ -44,6 +44,7 @@ final class AppSettingsCatalog {
     static final String CHAT_OFFLINE_SEND_CHANNELS = "app.chat.offline-send-channels";
     static final String RESTORE_BATCH_SIZE = "app.restore.batch-size";
     static final String RESTORE_BATCH_PAUSE_MILLIS = "app.restore.batch-pause-millis";
+    static final String SHUTDOWN_RESULT_MILLIS_PER_SESSION = "app.shutdown.result-millis-per-session";
     static final String HISTORY_RETENTION_DAYS = "app.history.retention-days";
 
     static final String UNSET = "<unset>";
@@ -240,6 +241,11 @@ final class AppSettingsCatalog {
                 RESTORE_BATCH_PAUSE_MILLIS,
                 r -> String.valueOf(r.restoreBatchPauseMillis()),
                 (raw, b) -> b.restoreBatchPauseMillis(intIn(raw, AppRules.RESTORE_BATCH_PAUSE_MILLIS)));
+        put(
+                keys,
+                SHUTDOWN_RESULT_MILLIS_PER_SESSION,
+                r -> String.valueOf(r.shutdownResultMillisPerSession()),
+                (raw, b) -> b.shutdownResultMillisPerSession(intIn(raw, AppRules.SHUTDOWN_RESULT_MILLIS_PER_SESSION)));
         put(
                 keys,
                 HISTORY_RETENTION_DAYS,

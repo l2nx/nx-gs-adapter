@@ -12,7 +12,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Mail from a character (online or offline) to another, optionally cash on delivery; items and adena are taken from
- * the sender. All-or-nothing, idempotent per {@code idempotencyKey}, routed by {@code senderCharId}. Host-configured
+ * the sender. All-or-nothing, idempotent per {@code idempotencyKey}, routed by {@code senderCharacterId}. Host-configured
  * limits (attachment count, maximum adena) are enforced by the host, not the wire type.
  *
  * <p>Refusals carry a {@code reason} from {@link WellKnownSendPlayerMailReasons} in
@@ -21,8 +21,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<SendPlayerMailResult> {
 
-    private final Long senderCharId;
-    private final Long recipientCharId;
+    private final Long senderCharacterId;
+    private final Long recipientCharacterId;
     private final String title;
     private final @Nullable String body;
     private final List<PlayerMailItem> items;
@@ -34,8 +34,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
     private final CommandInitiator initiator;
 
     public SendPlayerMailCommand(
-            Long senderCharId,
-            Long recipientCharId,
+            Long senderCharacterId,
+            Long recipientCharacterId,
             String title,
             @Nullable String body,
             @Nullable List<PlayerMailItem> items,
@@ -45,11 +45,11 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
             UUID idempotencyKey,
             Instant deadline,
             CommandInitiator initiator) {
-        if (senderCharId == null) {
-            throw new IllegalArgumentException("senderCharId is required");
+        if (senderCharacterId == null) {
+            throw new IllegalArgumentException("senderCharacterId is required");
         }
-        if (recipientCharId == null) {
-            throw new IllegalArgumentException("recipientCharId is required");
+        if (recipientCharacterId == null) {
+            throw new IllegalArgumentException("recipientCharacterId is required");
         }
         if (title == null) {
             throw new IllegalArgumentException("title is required");
@@ -60,8 +60,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
         if (codPrice != null && codPrice <= 0) {
             throw new IllegalArgumentException("codPrice must be positive when present");
         }
-        this.senderCharId = senderCharId;
-        this.recipientCharId = recipientCharId;
+        this.senderCharacterId = senderCharacterId;
+        this.recipientCharacterId = recipientCharacterId;
         this.title = title;
         this.body = body;
         this.items = MailLists.freeze(items);
@@ -74,13 +74,13 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
     }
 
     /** Items and adena are taken from this character; it need not be online. */
-    public Long getSenderCharId() {
-        return senderCharId;
+    public Long getSenderCharacterId() {
+        return senderCharacterId;
     }
 
     /** Must differ from the sender; a recipient on the sender's account is allowed. */
-    public Long getRecipientCharId() {
-        return recipientCharId;
+    public Long getRecipientCharacterId() {
+        return recipientCharacterId;
     }
 
     /** Non-blank; at most 128 chars and 255 UTF-8 bytes. */
@@ -130,8 +130,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
 
     public Builder toBuilder() {
         return new Builder()
-                .senderCharId(senderCharId)
-                .recipientCharId(recipientCharId)
+                .senderCharacterId(senderCharacterId)
+                .recipientCharacterId(recipientCharacterId)
                 .title(title)
                 .body(body)
                 .items(items)
@@ -153,8 +153,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
         if (!(o instanceof SendPlayerMailCommand)) return false;
         SendPlayerMailCommand that = (SendPlayerMailCommand) o;
         return ownerVerified == that.ownerVerified
-                && Objects.equals(senderCharId, that.senderCharId)
-                && Objects.equals(recipientCharId, that.recipientCharId)
+                && Objects.equals(senderCharacterId, that.senderCharacterId)
+                && Objects.equals(recipientCharacterId, that.recipientCharacterId)
                 && Objects.equals(title, that.title)
                 && Objects.equals(body, that.body)
                 && Objects.equals(items, that.items)
@@ -168,8 +168,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
     @Override
     public int hashCode() {
         return Objects.hash(
-                senderCharId,
-                recipientCharId,
+                senderCharacterId,
+                recipientCharacterId,
                 title,
                 body,
                 items,
@@ -183,8 +183,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
 
     @Override
     public String toString() {
-        return "SendPlayerMailCommand[senderCharId=" + senderCharId
-                + ", recipientCharId=" + recipientCharId
+        return "SendPlayerMailCommand[senderCharacterId=" + senderCharacterId
+                + ", recipientCharacterId=" + recipientCharacterId
                 + ", title=" + title
                 + ", body=" + body
                 + ", items=" + items
@@ -196,8 +196,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
     }
 
     public static final class Builder {
-        private Long senderCharId;
-        private Long recipientCharId;
+        private Long senderCharacterId;
+        private Long recipientCharacterId;
         private String title;
         private @Nullable String body;
         private @Nullable List<PlayerMailItem> items;
@@ -208,13 +208,13 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
         private Instant deadline;
         private CommandInitiator initiator;
 
-        public Builder senderCharId(Long senderCharId) {
-            this.senderCharId = senderCharId;
+        public Builder senderCharacterId(Long senderCharacterId) {
+            this.senderCharacterId = senderCharacterId;
             return this;
         }
 
-        public Builder recipientCharId(Long recipientCharId) {
-            this.recipientCharId = recipientCharId;
+        public Builder recipientCharacterId(Long recipientCharacterId) {
+            this.recipientCharacterId = recipientCharacterId;
             return this;
         }
 
@@ -265,8 +265,8 @@ public final class SendPlayerMailCommand implements OwnerVerified, NxCommand<Sen
 
         public SendPlayerMailCommand build() {
             return new SendPlayerMailCommand(
-                    senderCharId,
-                    recipientCharId,
+                    senderCharacterId,
+                    recipientCharacterId,
                     title,
                     body,
                     items,

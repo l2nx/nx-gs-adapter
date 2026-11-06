@@ -36,8 +36,8 @@ class SendPlayerMailCommandTest {
 
     private static SendPlayerMailCommand.Builder valid() {
         return SendPlayerMailCommand.builder()
-                .senderCharId(1L)
-                .recipientCharId(2L)
+                .senderCharacterId(1L)
+                .recipientCharacterId(2L)
                 .title("Hello")
                 .idempotencyKey(KEY)
                 .deadline(DEADLINE)
@@ -55,8 +55,8 @@ class SendPlayerMailCommandTest {
                 .ownerVerified(true)
                 .build();
 
-        assertEquals(1L, cmd.getSenderCharId().longValue());
-        assertEquals(2L, cmd.getRecipientCharId().longValue());
+        assertEquals(1L, cmd.getSenderCharacterId().longValue());
+        assertEquals(2L, cmd.getRecipientCharacterId().longValue());
         assertEquals("Hello", cmd.getTitle());
         assertEquals("text", cmd.getBody());
         assertEquals(items, cmd.getItems());
@@ -114,10 +114,10 @@ class SendPlayerMailCommandTest {
     void constructor_shouldRejectNullRequiredFields(Long nullId) {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> valid().senderCharId(nullId).build());
+                () -> valid().senderCharacterId(nullId).build());
         assertThrows(
                 IllegalArgumentException.class,
-                () -> valid().recipientCharId(nullId).build());
+                () -> valid().recipientCharacterId(nullId).build());
         assertThrows(IllegalArgumentException.class, () -> valid().title(null).build());
     }
 

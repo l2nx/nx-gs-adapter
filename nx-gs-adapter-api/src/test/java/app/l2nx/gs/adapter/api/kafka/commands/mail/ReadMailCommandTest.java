@@ -12,14 +12,14 @@ import org.junit.jupiter.api.Test;
 class ReadMailCommandTest {
 
     private static ReadMailCommand.Builder valid() {
-        return ReadMailCommand.builder().charId(1L).mailId(10L).initiator(TestInitiators.USER);
+        return ReadMailCommand.builder().characterId(1L).mailId(10L).initiator(TestInitiators.USER);
     }
 
     @Test
-    void constructor_shouldReject_whenCharIdNull() {
+    void constructor_shouldReject_whenCharacterIdNull() {
         IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class, () -> valid().charId(null).build());
-        assertTrue(ex.getMessage().contains("charId"));
+                IllegalArgumentException.class, () -> valid().characterId(null).build());
+        assertTrue(ex.getMessage().contains("characterId"));
     }
 
     @Test

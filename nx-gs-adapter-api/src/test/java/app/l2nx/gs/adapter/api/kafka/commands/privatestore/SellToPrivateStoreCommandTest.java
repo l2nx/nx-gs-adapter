@@ -32,8 +32,8 @@ class SellToPrivateStoreCommandTest {
 
     private static SellToPrivateStoreCommand.Builder valid() {
         return SellToPrivateStoreCommand.builder()
-                .sellerCharId(1)
-                .buyerCharId(2)
+                .sellerCharacterId(1)
+                .buyerCharacterId(2)
                 .lines(Collections.singletonList(line(1)))
                 .sellerFeePercent(5)
                 .deadline(DEADLINE)
@@ -43,23 +43,23 @@ class SellToPrivateStoreCommandTest {
                 .initiator(TestInitiators.USER);
     }
 
-    @ParameterizedTest(name = "sellerCharId={0}")
+    @ParameterizedTest(name = "sellerCharacterId={0}")
     @CsvSource({"0", "-1"})
-    void constructor_shouldReject_whenSellerCharIdNotPositive(int sellerCharId) {
-        SellToPrivateStoreCommand.Builder builder = valid().sellerCharId(sellerCharId);
+    void constructor_shouldReject_whenSellerCharacterIdNotPositive(int sellerCharacterId) {
+        SellToPrivateStoreCommand.Builder builder = valid().sellerCharacterId(sellerCharacterId);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @ParameterizedTest(name = "buyerCharId={0}")
+    @ParameterizedTest(name = "buyerCharacterId={0}")
     @CsvSource({"0", "-1"})
-    void constructor_shouldReject_whenBuyerCharIdNotPositive(int buyerCharId) {
-        SellToPrivateStoreCommand.Builder builder = valid().buyerCharId(buyerCharId);
+    void constructor_shouldReject_whenBuyerCharacterIdNotPositive(int buyerCharacterId) {
+        SellToPrivateStoreCommand.Builder builder = valid().buyerCharacterId(buyerCharacterId);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @Test
     void constructor_shouldReject_whenSellerEqualsBuyer() {
-        SellToPrivateStoreCommand.Builder builder = valid().sellerCharId(5).buyerCharId(5);
+        SellToPrivateStoreCommand.Builder builder = valid().sellerCharacterId(5).buyerCharacterId(5);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 

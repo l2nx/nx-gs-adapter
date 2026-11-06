@@ -9,21 +9,21 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Full state, not a delta, of one trader's private store: the consumer replaces what it holds for {@code charId};
+ * Full state, not a delta, of one trader's private store: the consumer replaces what it holds for {@code characterId};
  * {@code store == null} is a tombstone (no market store any more). Open stores are re-sent at least every 10 minutes
  * (at-least-once, so be idempotent); a trader silent for 25 minutes may be treated as closed.
  */
 public final class PrivateStoreStateEvent {
 
     private final UUID eventId;
-    private final long charId;
+    private final long characterId;
     private final @Nullable StoreState store;
     private final @Nullable Map<String, String> metadata;
 
     public PrivateStoreStateEvent(
-            UUID eventId, long charId, @Nullable StoreState store, @Nullable Map<String, String> metadata) {
+            UUID eventId, long characterId, @Nullable StoreState store, @Nullable Map<String, String> metadata) {
         this.eventId = eventId;
-        this.charId = charId;
+        this.characterId = characterId;
         this.store = store;
         this.metadata =
                 metadata == null ? null : Collections.unmodifiableMap(new LinkedHashMap<String, String>(metadata));
@@ -35,8 +35,8 @@ public final class PrivateStoreStateEvent {
     }
 
     /** Trader character id; also the Kafka partition key (8-byte BE), keeping one trader's updates ordered. */
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
     public @Nullable StoreState getStore() {
@@ -48,7 +48,7 @@ public final class PrivateStoreStateEvent {
     }
 
     public Builder toBuilder() {
-        return new Builder().eventId(eventId).charId(charId).store(store).metadata(metadata);
+        return new Builder().eventId(eventId).characterId(characterId).store(store).metadata(metadata);
     }
 
     public static Builder builder() {
@@ -60,7 +60,7 @@ public final class PrivateStoreStateEvent {
         if (this == o) return true;
         if (!(o instanceof PrivateStoreStateEvent)) return false;
         PrivateStoreStateEvent that = (PrivateStoreStateEvent) o;
-        return charId == that.charId
+        return characterId == that.characterId
                 && Objects.equals(eventId, that.eventId)
                 && Objects.equals(store, that.store)
                 && Objects.equals(metadata, that.metadata);
@@ -68,20 +68,20 @@ public final class PrivateStoreStateEvent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventId, charId, store, metadata);
+        return Objects.hash(eventId, characterId, store, metadata);
     }
 
     @Override
     public String toString() {
         return "PrivateStoreStateEvent[eventId=" + eventId
-                + ", charId=" + charId
+                + ", characterId=" + characterId
                 + ", store=" + store
                 + ", metadata=" + metadata + "]";
     }
 
     public static final class Builder {
         private UUID eventId;
-        private long charId;
+        private long characterId;
         private @Nullable StoreState store;
         private @Nullable Map<String, String> metadata;
 
@@ -90,8 +90,8 @@ public final class PrivateStoreStateEvent {
             return this;
         }
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -106,7 +106,7 @@ public final class PrivateStoreStateEvent {
         }
 
         public PrivateStoreStateEvent build() {
-            return new PrivateStoreStateEvent(eventId, charId, store, metadata);
+            return new PrivateStoreStateEvent(eventId, characterId, store, metadata);
         }
     }
 }

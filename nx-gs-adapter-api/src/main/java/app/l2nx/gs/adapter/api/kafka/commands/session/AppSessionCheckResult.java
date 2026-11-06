@@ -18,13 +18,21 @@ public final class AppSessionCheckResult {
     private final @Nullable AlreadyActiveScope scope;
     private final @Nullable Instant retryAt;
     private final @Nullable Long effectiveDurationMs;
+    private final @Nullable Integer requiredSlots;
+    private final @Nullable Integer freeSlots;
+    private final @Nullable Long requiredWeight;
+    private final @Nullable Long freeWeight;
 
     public AppSessionCheckResult(
             boolean allowed,
             @Nullable AppSessionRefusalReason reason,
             @Nullable AlreadyActiveScope scope,
             @Nullable Instant retryAt,
-            @Nullable Long effectiveDurationMs) {
+            @Nullable Long effectiveDurationMs,
+            @Nullable Integer requiredSlots,
+            @Nullable Integer freeSlots,
+            @Nullable Long requiredWeight,
+            @Nullable Long freeWeight) {
         if (allowed == (reason != null)) {
             throw new IllegalArgumentException("AppSessionCheckResult.reason is required exactly when not allowed");
         }
@@ -43,11 +51,32 @@ public final class AppSessionCheckResult {
             throw new IllegalArgumentException(
                     "AppSessionCheckResult.effectiveDurationMs must be positive and only on an allowed check");
         }
+        boolean inventoryFull = reason == AppSessionRefusalReason.INVENTORY_FULL;
+        if (inventoryFull != (requiredSlots != null) || inventoryFull != (freeSlots != null)) {
+            throw new IllegalArgumentException(
+                    "AppSessionCheckResult.requiredSlots and freeSlots are required exactly with INVENTORY_FULL");
+        }
+        boolean overweight = reason == AppSessionRefusalReason.OVERWEIGHT;
+        if (overweight != (requiredWeight != null) || overweight != (freeWeight != null)) {
+            throw new IllegalArgumentException(
+                    "AppSessionCheckResult.requiredWeight and freeWeight are required exactly with OVERWEIGHT");
+        }
+        if ((requiredSlots != null && requiredSlots <= 0) || (requiredWeight != null && requiredWeight <= 0L)) {
+            throw new IllegalArgumentException(
+                    "AppSessionCheckResult.requiredSlots and requiredWeight must be positive");
+        }
+        if ((freeSlots != null && freeSlots < 0) || (freeWeight != null && freeWeight < 0L)) {
+            throw new IllegalArgumentException("AppSessionCheckResult.freeSlots and freeWeight must not be negative");
+        }
         this.allowed = allowed;
         this.reason = reason;
         this.scope = scope;
         this.retryAt = retryAt;
         this.effectiveDurationMs = effectiveDurationMs;
+        this.requiredSlots = requiredSlots;
+        this.freeSlots = freeSlots;
+        this.requiredWeight = requiredWeight;
+        this.freeWeight = freeWeight;
     }
 
     private static boolean requiresRetryAt(@Nullable AppSessionRefusalReason reason) {
@@ -55,15 +84,12 @@ public final class AppSessionCheckResult {
     }
 
     public static AppSessionCheckResult allowed(@Nullable Long effectiveDurationMs) {
-        return new AppSessionCheckResult(true, null, null, null, effectiveDurationMs);
+        return new AppSessionCheckResult(true, null, null, null, effectiveDurationMs, null, null, null, null);
     }
 
-    /**
-     * A refusal without extras; {@code ALREADY_ACTIVE}, {@code COOLDOWN}, {@code RECENTLY_LOGGED_OUT} and a
-     * {@code DAILY_LIMIT} with its reset moment need the builder.
-     */
     public static AppSessionCheckResult refused(AppSessionRefusalReason reason) {
-        return new AppSessionCheckResult(false, Objects.requireNonNull(reason, "reason"), null, null, null);
+        return new AppSessionCheckResult(
+                false, Objects.requireNonNull(reason, "reason"), null, null, null, null, null, null, null);
     }
 
     public boolean isAllowed() {
@@ -92,13 +118,35 @@ public final class AppSessionCheckResult {
         return effectiveDurationMs;
     }
 
+    public @Nullable Integer getRequiredSlots() {
+        return requiredSlots;
+    }
+
+    /** Set with {@code INVENTORY_FULL}, as the start carries it; never below {@code 0}. */
+    public @Nullable Integer getFreeSlots() {
+        return freeSlots;
+    }
+
+    public @Nullable Long getRequiredWeight() {
+        return requiredWeight;
+    }
+
+    /** Set with {@code OVERWEIGHT}, as the start carries it; never below {@code 0}. */
+    public @Nullable Long getFreeWeight() {
+        return freeWeight;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .allowed(allowed)
                 .reason(reason)
                 .scope(scope)
                 .retryAt(retryAt)
-                .effectiveDurationMs(effectiveDurationMs);
+                .effectiveDurationMs(effectiveDurationMs)
+                .requiredSlots(requiredSlots)
+                .freeSlots(freeSlots)
+                .requiredWeight(requiredWeight)
+                .freeWeight(freeWeight);
     }
 
     public static Builder builder() {
@@ -114,12 +162,25 @@ public final class AppSessionCheckResult {
                 && reason == that.reason
                 && scope == that.scope
                 && Objects.equals(retryAt, that.retryAt)
-                && Objects.equals(effectiveDurationMs, that.effectiveDurationMs);
+                && Objects.equals(effectiveDurationMs, that.effectiveDurationMs)
+                && Objects.equals(requiredSlots, that.requiredSlots)
+                && Objects.equals(freeSlots, that.freeSlots)
+                && Objects.equals(requiredWeight, that.requiredWeight)
+                && Objects.equals(freeWeight, that.freeWeight);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(allowed, reason, scope, retryAt, effectiveDurationMs);
+        return Objects.hash(
+                allowed,
+                reason,
+                scope,
+                retryAt,
+                effectiveDurationMs,
+                requiredSlots,
+                freeSlots,
+                requiredWeight,
+                freeWeight);
     }
 
     @Override
@@ -128,7 +189,11 @@ public final class AppSessionCheckResult {
                 + ", reason=" + reason
                 + ", scope=" + scope
                 + ", retryAt=" + retryAt
-                + ", effectiveDurationMs=" + effectiveDurationMs + "]";
+                + ", effectiveDurationMs=" + effectiveDurationMs
+                + ", requiredSlots=" + requiredSlots
+                + ", freeSlots=" + freeSlots
+                + ", requiredWeight=" + requiredWeight
+                + ", freeWeight=" + freeWeight + "]";
     }
 
     public static final class Builder {
@@ -137,6 +202,10 @@ public final class AppSessionCheckResult {
         private @Nullable AlreadyActiveScope scope;
         private @Nullable Instant retryAt;
         private @Nullable Long effectiveDurationMs;
+        private @Nullable Integer requiredSlots;
+        private @Nullable Integer freeSlots;
+        private @Nullable Long requiredWeight;
+        private @Nullable Long freeWeight;
 
         public Builder allowed(boolean allowed) {
             this.allowed = allowed;
@@ -163,8 +232,37 @@ public final class AppSessionCheckResult {
             return this;
         }
 
+        public Builder requiredSlots(@Nullable Integer requiredSlots) {
+            this.requiredSlots = requiredSlots;
+            return this;
+        }
+
+        public Builder freeSlots(@Nullable Integer freeSlots) {
+            this.freeSlots = freeSlots;
+            return this;
+        }
+
+        public Builder requiredWeight(@Nullable Long requiredWeight) {
+            this.requiredWeight = requiredWeight;
+            return this;
+        }
+
+        public Builder freeWeight(@Nullable Long freeWeight) {
+            this.freeWeight = freeWeight;
+            return this;
+        }
+
         public AppSessionCheckResult build() {
-            return new AppSessionCheckResult(allowed, reason, scope, retryAt, effectiveDurationMs);
+            return new AppSessionCheckResult(
+                    allowed,
+                    reason,
+                    scope,
+                    retryAt,
+                    effectiveDurationMs,
+                    requiredSlots,
+                    freeSlots,
+                    requiredWeight,
+                    freeWeight);
         }
     }
 }

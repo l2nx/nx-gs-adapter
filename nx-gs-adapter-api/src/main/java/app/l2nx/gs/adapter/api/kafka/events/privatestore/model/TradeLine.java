@@ -1,49 +1,26 @@
 package app.l2nx.gs.adapter.api.kafka.events.privatestore.model;
 
-import app.l2nx.gs.adapter.api.domain.Attribute;
+import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStorePurchaseEvent;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Map;
 import java.util.Objects;
-import org.jspecify.annotations.Nullable;
 
-/** One transferred position in a closed {@link PrivateStorePurchaseEvent}. */
+/** One transferred position in a closed {@link PrivateStorePurchaseEvent}; {@code item} is the item that moved. */
 public final class TradeLine {
 
-    private final long itemTemplateId;
-    private final @Nullable Integer enchantLevel;
-    private final @Nullable Map<Attribute, Integer> attributes;
+    private final ItemSnapshot item;
     private final long count;
     private final long unitPrice;
     private final long currencyItemTemplateId;
 
-    public TradeLine(
-            long itemTemplateId,
-            @Nullable Integer enchantLevel,
-            @Nullable Map<Attribute, Integer> attributes,
-            long count,
-            long unitPrice,
-            long currencyItemTemplateId) {
-        this.itemTemplateId = itemTemplateId;
-        this.enchantLevel = enchantLevel;
-        this.attributes = freezeMap(attributes);
+    public TradeLine(ItemSnapshot item, long count, long unitPrice, long currencyItemTemplateId) {
+        this.item = Objects.requireNonNull(item, "item");
         this.count = count;
         this.unitPrice = unitPrice;
         this.currencyItemTemplateId = currencyItemTemplateId;
     }
 
-    public long getItemTemplateId() {
-        return itemTemplateId;
-    }
-
-    /** {@code null} = no enchant concept; {@code 0} = unenchanted; {@code > 0} = enchanted. */
-    public @Nullable Integer getEnchantLevel() {
-        return enchantLevel;
-    }
-
-    public Map<Attribute, Integer> getAttributes() {
-        return attributes == null ? Collections.emptyMap() : attributes;
+    public ItemSnapshot getItem() {
+        return item;
     }
 
     public long getCount() {
@@ -61,9 +38,7 @@ public final class TradeLine {
 
     public Builder toBuilder() {
         return new Builder()
-                .itemTemplateId(itemTemplateId)
-                .enchantLevel(enchantLevel)
-                .attributes(attributes)
+                .item(item)
                 .count(count)
                 .unitPrice(unitPrice)
                 .currencyItemTemplateId(currencyItemTemplateId);
@@ -73,13 +48,6 @@ public final class TradeLine {
         return new Builder();
     }
 
-    private static @Nullable Map<Attribute, Integer> freezeMap(@Nullable Map<Attribute, Integer> src) {
-        if (src == null || src.isEmpty()) {
-            return null;
-        }
-        return Collections.unmodifiableMap(new EnumMap<Attribute, Integer>(src));
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -87,47 +55,31 @@ public final class TradeLine {
         TradeLine that = (TradeLine) o;
         return count == that.count
                 && unitPrice == that.unitPrice
-                && itemTemplateId == that.itemTemplateId
                 && currencyItemTemplateId == that.currencyItemTemplateId
-                && Objects.equals(enchantLevel, that.enchantLevel)
-                && Objects.equals(attributes, that.attributes);
+                && Objects.equals(item, that.item);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemTemplateId, enchantLevel, attributes, count, unitPrice, currencyItemTemplateId);
+        return Objects.hash(item, count, unitPrice, currencyItemTemplateId);
     }
 
     @Override
     public String toString() {
-        return "TradeLine[itemTemplateId=" + itemTemplateId
-                + ", enchantLevel=" + enchantLevel
-                + ", attributes=" + attributes
+        return "TradeLine[item=" + item
                 + ", count=" + count
                 + ", unitPrice=" + unitPrice
                 + ", currencyItemTemplateId=" + currencyItemTemplateId + "]";
     }
 
     public static final class Builder {
-        private long itemTemplateId;
-        private @Nullable Integer enchantLevel;
-        private @Nullable Map<Attribute, Integer> attributes;
+        private ItemSnapshot item;
         private long count;
         private long unitPrice;
         private long currencyItemTemplateId;
 
-        public Builder itemTemplateId(long itemTemplateId) {
-            this.itemTemplateId = itemTemplateId;
-            return this;
-        }
-
-        public Builder enchantLevel(@Nullable Integer enchantLevel) {
-            this.enchantLevel = enchantLevel;
-            return this;
-        }
-
-        public Builder attributes(@Nullable Map<Attribute, Integer> attributes) {
-            this.attributes = attributes;
+        public Builder item(ItemSnapshot item) {
+            this.item = item;
             return this;
         }
 
@@ -147,7 +99,7 @@ public final class TradeLine {
         }
 
         public TradeLine build() {
-            return new TradeLine(itemTemplateId, enchantLevel, attributes, count, unitPrice, currencyItemTemplateId);
+            return new TradeLine(item, count, unitPrice, currencyItemTemplateId);
         }
     }
 }

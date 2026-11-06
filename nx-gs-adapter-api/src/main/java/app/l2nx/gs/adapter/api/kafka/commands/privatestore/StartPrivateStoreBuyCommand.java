@@ -20,7 +20,7 @@ public final class StartPrivateStoreBuyCommand extends StartPrivateStoreCommand 
     private final @Nullable Integer buyerFeePercent;
 
     public StartPrivateStoreBuyCommand(
-            int charId,
+            int characterId,
             @Nullable String title,
             List<WantedLine> lines,
             @Nullable Integer buyerFeePercent,
@@ -29,7 +29,7 @@ public final class StartPrivateStoreBuyCommand extends StartPrivateStoreCommand 
             @Nullable Instant deadline,
             UUID idempotencyKey,
             CommandInitiator initiator) {
-        super(charId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiator);
+        super(characterId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiator);
         if (buyerFeePercent != null && buyerFeePercent < 0) {
             throw new IllegalArgumentException("buyerFeePercent must not be negative (got " + buyerFeePercent + ")");
         }
@@ -51,7 +51,7 @@ public final class StartPrivateStoreBuyCommand extends StartPrivateStoreCommand 
 
     public Builder toBuilder() {
         return new Builder()
-                .charId(getCharId())
+                .characterId(getCharacterId())
                 .title(getTitle())
                 .lines(getLines())
                 .buyerFeePercent(getBuyerFeePercent())
@@ -84,7 +84,7 @@ public final class StartPrivateStoreBuyCommand extends StartPrivateStoreCommand 
     }
 
     public static final class Builder {
-        private int charId;
+        private int characterId;
         private @Nullable String title;
         private @Nullable List<WantedLine> lines;
         private @Nullable Integer buyerFeePercent;
@@ -94,8 +94,8 @@ public final class StartPrivateStoreBuyCommand extends StartPrivateStoreCommand 
         private @Nullable UUID idempotencyKey;
         private CommandInitiator initiator;
 
-        public Builder charId(int charId) {
-            this.charId = charId;
+        public Builder characterId(int characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -141,7 +141,7 @@ public final class StartPrivateStoreBuyCommand extends StartPrivateStoreCommand 
 
         public StartPrivateStoreBuyCommand build() {
             return new StartPrivateStoreBuyCommand(
-                    charId,
+                    characterId,
                     title,
                     lines,
                     buyerFeePercent,

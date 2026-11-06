@@ -13,6 +13,7 @@ import app.l2nx.gs.adapter.api.spi.capability.NxCommandReceipts;
 import app.l2nx.gs.adapter.api.spi.capability.NxCommands;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import app.l2nx.gs.adapter.api.spi.capability.NxGameData;
+import app.l2nx.gs.adapter.api.spi.capability.NxRuntimeSync;
 import app.l2nx.gs.adapter.api.spi.capability.NxSync;
 import app.l2nx.gs.adapter.api.spi.provider.SchemaMigrationException;
 import app.l2nx.gs.adapter.core.appsessions.AppSessionsRuntime;
@@ -42,6 +43,7 @@ import app.l2nx.gs.adapter.core.lifecycle.StartupBanner;
 import app.l2nx.gs.adapter.core.modules.ModuleRegistry;
 import app.l2nx.gs.adapter.core.receipts.JdbcCommandReceipts;
 import app.l2nx.gs.adapter.core.schema.SchemaMigration;
+import app.l2nx.gs.adapter.core.sync.NxRuntimeSyncImpl;
 import app.l2nx.gs.adapter.core.sync.NxSyncImpl;
 import app.l2nx.gs.commons.concurrent.DaemonThreadFactory;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
@@ -63,6 +65,7 @@ public final class NxAdapter {
 
     private static final NxLog log = NxLogFactory.getLogger(NxAdapter.class);
     private static final AtomicReference<AdapterState> STATE = new AtomicReference<>(AdapterState.INIT);
+    private static final NxRuntimeSyncImpl RUNTIME_SYNC = new NxRuntimeSyncImpl();
     private static final AtomicBoolean started = new AtomicBoolean(false);
     private static final AtomicBoolean closed = new AtomicBoolean(false);
     /** Latches on first ACTIVE: before it a connect failure stays REGISTERING, after it drives DEGRADED. */
@@ -123,6 +126,11 @@ public final class NxAdapter {
      */
     public static NxAppSessions appSessions() {
         return AppSessionsRuntime.facade();
+    }
+
+    /** Never null and usable from JVM start: the host declares its start here, see {@link NxRuntimeSync#hostStarted()}. */
+    public static NxRuntimeSync runtimeSync() {
+        return RUNTIME_SYNC;
     }
 
     /**
@@ -506,6 +514,7 @@ public final class NxAdapter {
                         .gameData(gameData)
                         .appSessions(AppSessionsRuntime.facade())
                         .appRules(AppSettingsRuntime.rules())
+                        .runtimeSync(RUNTIME_SYNC)
                         .build();
                 registry.connect(ctx);
             } catch (Throwable t) {
@@ -837,6 +846,7 @@ public final class NxAdapter {
         failEventsBootstrapForTesting = false;
         schemaMigration = new SchemaMigration();
         AppSessionsRuntime.resetForTesting();
+        RUNTIME_SYNC.resetForTesting();
         AppSettingsRuntime.resetForTesting();
         appRulesUnresolved = false;
     }

@@ -11,19 +11,19 @@ public final class MailCancelledEvent {
 
     private final UUID eventId;
     private final long mailId;
-    private final long cancelledByCharId;
+    private final long cancelledByCharacterId;
     private final List<MailItemMovement> attachments;
     private final @Nullable Map<String, String> metadata;
 
     public MailCancelledEvent(
             UUID eventId,
             long mailId,
-            long cancelledByCharId,
+            long cancelledByCharacterId,
             @Nullable List<MailItemMovement> attachments,
             @Nullable Map<String, String> metadata) {
         this.eventId = eventId;
         this.mailId = mailId;
-        this.cancelledByCharId = cancelledByCharId;
+        this.cancelledByCharacterId = cancelledByCharacterId;
         this.attachments = freezeList(attachments);
         this.metadata =
                 metadata == null ? null : Collections.unmodifiableMap(new LinkedHashMap<String, String>(metadata));
@@ -37,8 +37,8 @@ public final class MailCancelledEvent {
         return mailId;
     }
 
-    public long getCancelledByCharId() {
-        return cancelledByCharId;
+    public long getCancelledByCharacterId() {
+        return cancelledByCharacterId;
     }
 
     public List<MailItemMovement> getAttachments() {
@@ -53,7 +53,7 @@ public final class MailCancelledEvent {
         return new Builder()
                 .eventId(eventId)
                 .mailId(mailId)
-                .cancelledByCharId(cancelledByCharId)
+                .cancelledByCharacterId(cancelledByCharacterId)
                 .attachments(attachments)
                 .metadata(metadata);
     }
@@ -75,7 +75,7 @@ public final class MailCancelledEvent {
         if (!(o instanceof MailCancelledEvent)) return false;
         MailCancelledEvent that = (MailCancelledEvent) o;
         return mailId == that.mailId
-                && cancelledByCharId == that.cancelledByCharId
+                && cancelledByCharacterId == that.cancelledByCharacterId
                 && Objects.equals(eventId, that.eventId)
                 && Objects.equals(attachments, that.attachments)
                 && Objects.equals(metadata, that.metadata);
@@ -83,14 +83,14 @@ public final class MailCancelledEvent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventId, mailId, cancelledByCharId, attachments, metadata);
+        return Objects.hash(eventId, mailId, cancelledByCharacterId, attachments, metadata);
     }
 
     @Override
     public String toString() {
         return "MailCancelledEvent[eventId=" + eventId
                 + ", mailId=" + mailId
-                + ", cancelledByCharId=" + cancelledByCharId
+                + ", cancelledByCharacterId=" + cancelledByCharacterId
                 + ", attachments=" + attachments
                 + ", metadata=" + metadata + "]";
     }
@@ -98,7 +98,7 @@ public final class MailCancelledEvent {
     public static final class Builder {
         private UUID eventId;
         private long mailId;
-        private long cancelledByCharId;
+        private long cancelledByCharacterId;
         private @Nullable List<MailItemMovement> attachments;
         private @Nullable Map<String, String> metadata;
 
@@ -112,8 +112,8 @@ public final class MailCancelledEvent {
             return this;
         }
 
-        public Builder cancelledByCharId(long cancelledByCharId) {
-            this.cancelledByCharId = cancelledByCharId;
+        public Builder cancelledByCharacterId(long cancelledByCharacterId) {
+            this.cancelledByCharacterId = cancelledByCharacterId;
             return this;
         }
 
@@ -128,7 +128,7 @@ public final class MailCancelledEvent {
         }
 
         public MailCancelledEvent build() {
-            return new MailCancelledEvent(eventId, mailId, cancelledByCharId, attachments, metadata);
+            return new MailCancelledEvent(eventId, mailId, cancelledByCharacterId, attachments, metadata);
         }
     }
 }

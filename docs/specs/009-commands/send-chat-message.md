@@ -128,7 +128,7 @@ is registered for the `Nx-Message-Type`. That is an explicit, fast, per-server n
   - `CHARACTER` (whisper) is now allowed for an **offline** addressee. The host runs the same gates as
     the in-game whisper — sender chat ban, min level 40, the addressee's block list (read from the DB
     when offline), message refusal mode — sends a packet only if the addressee is online, and
-    publishes the echo with `targetCharId` set either way (events R20).
+    publishes the echo with `targetCharacterId` set either way (events R20).
 
 - [done] R23. **Sender identity.** `senderDisplayName` is nullable when `senderCharacterId` is
   set. The host builds the name itself, including the `*` postfix for an offline speaker (events

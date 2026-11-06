@@ -29,9 +29,9 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 
   | Field              | Type      | Required | Constraints / notes                                                                                                                                                                                             |
   | ------------------ | --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `receiverCharId`   | `Long`    | yes      | Character that accepts the mail; items and adena move to and from it. A different recipient on the live mail is `MAIL_NOT_FOUND`                                                                                  |
+  | `receiverCharacterId`   | `Long`    | yes      | Character that accepts the mail; items and adena move to and from it. A different recipient on the live mail is `MAIL_NOT_FOUND`                                                                                  |
   | `mailId`           | `Long`    | yes      | Mail to accept                                                                                                                                                                                                  |
-  | `expectedSenderCharId` | `Long` | yes | Sender the player saw on the mail (from `MailSent`); a different sender on the live mail is `MAIL_NOT_FOUND` |
+  | `expectedSenderCharacterId` | `Long` | yes | Sender the player saw on the mail (from `MailSent`); a different sender on the live mail is `MAIL_NOT_FOUND` |
   | `expectedCodAdena` | `Long`    | yes      | COD the player saw when deciding; `0` for a mail without COD. A mismatch with the live mail is `MAIL_NOT_FOUND` and nothing is charged                                                                            |
   | `acceptedFeeAdena` | `Long?`   | no       | Consent to a receive fee (R6). `null` = no consent given yet. When present it is the largest fee the player agreed to pay                                                                                       |
   | `ownerVerified`    | `boolean` | no       | See R28 in [`spec.md`](spec.md); absent reads as `false`                                                                                                                                                        |
@@ -39,7 +39,7 @@ Audience: platform mail-flow authors composing the command; host operators wirin
   | `deadline`         | `Instant` | yes      | Execution deadline, see R7; non-null, same type and name as in `SendPlayerMailCommand`                                                                                                                          |
 
   **Mail identity.** The mail is identified by what the platform saw in `MailSent`: `mailId` +
-  `receiverCharId` + `expectedSenderCharId` + `expectedCodAdena`. The host compares them with its live
+  `receiverCharacterId` + `expectedSenderCharacterId` + `expectedCodAdena`. The host compares them with its live
   mail: no mail with this id, or a different recipient, sender or COD, is `MAIL_NOT_FOUND` ("the mail the
   player saw no longer exists"): a mail's recipient, sender and COD never change, and the platform checks
   the recipient before sending, so any mismatch means the id now belongs to another mail. How the host proves internally that the id still points to
@@ -92,7 +92,7 @@ Audience: platform mail-flow authors composing the command; host operators wirin
   only after every durable write succeeded. A business refusal marks the receipt `FAILED`; a retry with the same key and a new `correlationId` reopens it and
   restarts cleanly.
 - [todo] R9. The host MUST validate the wire command itself before the receipt lookup: required fields
-  present (including `expectedSenderCharId`); ids within the host id range (out of range is `VALIDATION_FAILED` with a `field` extension);
+  present (including `expectedSenderCharacterId`); ids within the host id range (out of range is `VALIDATION_FAILED` with a `field` extension);
   `expectedCodAdena` non-negative; `acceptedFeeAdena` non-negative when present.
 - [todo] R10. Checks that are business refusals, not wire errors: mail exists with the recipient, sender and
   COD the player saw (`MAIL_NOT_FOUND`); mail has attachments or COD (`NO_ATTACHMENTS`); receiver has room for the
@@ -186,19 +186,25 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 
 ### Wire shape
 
-Same rail as other commands: key `longBytesBe(receiverCharId)` is the producer's choice, headers
+Same rail as other commands: key `longBytesBe(receiverCharacterId)` is the producer's choice, headers
 `Nx-Message-Type = AcceptMailCommand`, `Nx-Correlation-Id` (stable per logical accept),
 `Nx-Target-Server-Id`. Reply type header is derived per rail R26: `AcceptMailResult`.
 
-Example reply value (success; the `items` element is a `MailItemMovement`, its keys here are
-illustrative):
+Example reply value (success; the `items` element is a `MailItemMovement`, which carries the moved item as an
+`ItemSnapshot` in `item`, [`042`](../042-item-snapshot.md)):
 
 ```json
 {
   "status": "OK",
   "payload": {
     "mailId": 10243,
-    "items": [{ "itemId": 268451233, "itemTemplateId": 57, "count": 5000 }],
+    "items": [
+      {
+        "item": { "itemId": 268451233, "itemTemplateId": 57, "count": 5000 },
+        "newItemId": 268451290,
+        "count": 5000
+      }
+    ],
     "codPaidAdena": 1000,
     "receiveFeeAdena": 500
   }
@@ -247,7 +253,7 @@ names it. The classification matches the send.
 
 | Reason                      | Meaning                                                                                                                |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `MAIL_NOT_FOUND`            | The mail the player saw no longer exists: no mail with this `mailId`, recipient, `expectedSenderCharId` and `expectedCodAdena`, or it was returned or deleted |
+| `MAIL_NOT_FOUND`            | The mail the player saw no longer exists: no mail with this `mailId`, recipient, `expectedSenderCharacterId` and `expectedCodAdena`, or it was returned or deleted |
 | `NO_ATTACHMENTS`            | Nothing to accept: no item attachments and no COD to settle                                                            |
 | `INVENTORY_FULL`            | The receiver has no room for the attachments; `requiredSlots` / `freeSlots` (R18)                                      |
 | `OVERWEIGHT`                | The attachments would overload the receiver, as in game; `requiredWeight` / `freeWeight` (R18)                         |
@@ -301,7 +307,7 @@ publishing and ship with the host release, independent of the command. `AcceptMa
 
 ## Edge flows
 
-**Invariants.** mail identity by `mailId` + `receiverCharId` + `expectedSenderCharId` +
+**Invariants.** mail identity by `mailId` + `receiverCharacterId` + `expectedSenderCharacterId` +
 `expectedCodAdena` (a foreign and a missing mail are indistinguishable); a system-sender mail is acceptable
 (sender id matches the stored one); the consent amount is not part of the idempotency identity; the host
 charges exactly the fee it computed, never the larger consent; a retry after OK with a new key finds no

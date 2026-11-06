@@ -1,9 +1,11 @@
 package app.l2nx.gs.adapter.api.spi.provider;
 
+import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppSessions;
 import app.l2nx.gs.adapter.api.spi.model.session.OfflineSession;
 import app.l2nx.gs.adapter.api.spi.model.session.OfflineSessionPlacement;
 import java.util.ServiceLoader;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The game side of app sessions, discovered via {@link ServiceLoader}. Exactly one implementation may be registered:
@@ -28,6 +30,9 @@ public interface OfflineSessionHost {
      * closes the session with {@code APP_RESTORE_FAILED}, or tries again later on
      * {@link OfflineSessionPlacement#refusedForNow}. A type state the placement changed goes back in the answer, not
      * through {@link NxAppSessions#updateTypeState}.</p>
+     *
+     * <p>On a restore the host seeds its recorder from {@link OfflineSession#getCarriedResult()}, so the end carries the
+     * whole session; the same view reaches {@link #startAction}.</p>
      */
     OfflineSessionPlacement placeInWorld(OfflineSession session);
 
@@ -64,4 +69,19 @@ public interface OfflineSessionHost {
      * <p>A throw is logged and the end continues: the row closes and the end event is published.</p>
      */
     void removeFromWorld(OfflineSession session, boolean returnToOrigin);
+
+    /**
+     * The result of a session, or {@code null} when there is none. Called once after every {@link #removeFromWorld} and
+     * on a graceful stop for a session left open; the engine owns the answer, so the host can free its recorder.
+     *
+     * <p>The character is out of the world by then: the host parks the recorder by session id when it settles the
+     * character, and this method neither hops to the game thread nor waits.</p>
+     *
+     * <p>The answer is dropped for a start that rolls back and for a character {@link #placeInWorld} did not place in
+     * this JVM; the end then carries the block the last graceful stop stored. A throw, or a block over
+     * {@link SessionResult#MAX_JSON_BYTES}, ends the session with {@code result = null}.</p>
+     */
+    default @Nullable SessionResult takeSessionResult(OfflineSession session) {
+        return null;
+    }
 }

@@ -18,7 +18,7 @@ class StartPrivateStoreSessionFieldsTest {
 
     private static StartPrivateStoreSellCommand.Builder sell() {
         return StartPrivateStoreSellCommand.builder()
-                .charId(1)
+                .characterId(1)
                 .lines(Collections.singletonList(LINE))
                 .idempotencyKey(KEY)
                 .initiator(TestInitiators.USER);
@@ -31,7 +31,7 @@ class StartPrivateStoreSessionFieldsTest {
         assertThrows(
                 NullPointerException.class,
                 () -> StartPrivateStorePackageSellCommand.builder()
-                        .charId(1)
+                        .characterId(1)
                         .lines(Collections.singletonList(LINE))
                         .initiator(TestInitiators.USER)
                         .build());
@@ -41,7 +41,7 @@ class StartPrivateStoreSessionFieldsTest {
     void toBuilder_shouldRoundtripSessionFields_forBothSubclasses() {
         StartPrivateStoreSellCommand sell = sell().build();
         StartPrivateStorePackageSellCommand packageSell = StartPrivateStorePackageSellCommand.builder()
-                .charId(1)
+                .characterId(1)
                 .lines(Collections.singletonList(LINE))
                 .idempotencyKey(KEY)
                 .initiator(TestInitiators.USER)

@@ -32,6 +32,7 @@ Root package `app.l2nx.gs.adapter.api`.
 | `kafka.events.<family>`        | outbound discrete-fact / snapshot event DTOs, grouped by family                                                                                                                   | per family |
 | `kafka.commands.<group>`       | inbound command DTOs; the package root holds `NxCommand`, `CommandInitiator`, `CommandResult`, `CommandStatus` (+ nested `Tier`), `CommandProblem` and the `OwnerVerified` marker | 009        |
 | `kafka.ops`                    | `HeartbeatEvent`; its stats and state payloads in `kafka.ops.model`                                                                                                               | 001        |
+| `domain`                       | game vocabulary and value objects shared by wire forms; `domain.item`: `ItemSnapshot`, `ItemAugmentation`, `ItemSource`; `domain.character`: `ExperienceSource`, `ActivityType`                                                                                                                                             | 034, 042, 043 |
 | `spi`                          | `AdapterModule`, the two contexts, package-private `NoOp*`; sub-packages `provider`, `model` (+ `model.session`, `model.appsettings`, `model.receipt`), `capability`              | 002, 034   |
 
 Current entity / family / group names (the directory listing is authoritative — check it before
@@ -89,8 +90,10 @@ in its root and splits effect / condition / learn / produced types into sub-pack
   event vocabulary `ChatChannel`; the live `l2nx-app.properties` values, also
   the static `NxAdapter.appRules()`, spec 038 R20),
   `NxCommandReceipts` (+ `spi.model.receipt`; via `CommandContext` and the static `NxAdapter.commandReceipts()`, spec
-  040). Each ships a `NoOp*` fallback so a context wired without that runtime never returns null; the receipts
-  fallback throws instead of doing nothing, since a dropped receipt write loses money.
+  040), `NxRuntimeSync` (the runtime-sync start gate; via `ConnectContext` and the static `NxAdapter.runtimeSync()`,
+  spec 006 R14). Each ships a `NoOp*` fallback so a context wired without that runtime never returns null; the receipts
+  fallback throws instead of doing nothing, since a dropped receipt write loses money, and the runtime-sync one never
+  fires, so a module on it gets no ticks.
 
 They all live here so a host provider depends on the contracts artifact alone.
 
@@ -113,13 +116,22 @@ They all live here so a host provider depends on the contracts artifact alone.
   than relying on the null-value tombstone protocol.
 - **Closed vocabularies are enums, constant name on the wire.** `ActivityType` (`domain.character`),
   `SessionSource`, `LogoutReason`, `ServerOnlineBucket`, `UsageUnit`, `AppSessionRefusalReason`, `ReviveRefusalReason`,
-  `SendChatMessageRefusalReason`. A new value is an api
+  `SendChatMessageRefusalReason`, `ItemSource`, `ExperienceSource`. A new value is an api
   release first, then the platform enum and CHECK, then the host. A wire consumer must treat an unknown constant as
   data it cannot place (skip with a metric), never as a reason to stop a partition.
 - **`CharacterPresenceEvent` is validated in the constructor, and Gson/Jackson may bypass it.** `source` is required;
-  `activity` exactly when `source=APP`; `resumed` only on `online=true` + APP; `logoutReason` exactly when
-  `online=false`. A consumer re-checks what it depends on. For an APP event `sessionId` is the app session id, `ip` the
-  initiator IP of the app request and `hwid` the snapshot the character carried.
+  `activity` is required with `source=APP` and allowed with `CLIENT` only for a native offline store session;
+  `resumed` only on `online=true` + APP; `logoutReason` exactly when `online=false`; `result` only on `online=false`.
+  A consumer re-checks what it depends on. For an APP event `sessionId` is the app session id, `ip` the initiator IP of
+  the app request and `hwid` the snapshot the character carried.
+- **`SessionResult` rides the end of a session, and the end never depends on it** (spec 043). Past
+  `SessionResult.MAX_JSON_BYTES` a host folds `uniques` into `items`, and the adapter drops a block still over it. On an
+  app session the engine owns it: `OfflineSessionHost.takeSessionResult` gives it up, the row stores it, and every send
+  of the end is built from that text; `partial` is the engine's. A graceful stop stores the running block in the same
+  column and a restore hands it back as `OfflineSession.getCarriedResult()`. List getters never return `null`.
+- **A snapshot is what an item was, the event around it says what moved** (spec 042). `ItemSnapshot.attributes`: `null`
+  = not reported, empty = none. `BuyLine` is the exception where the two mean the same: its optimistic lock compares
+  `attributesForMatch()`, which reads empty as `null`.
 - **`characteractivityusage` is packed per character.** One row per `characterId`, payload = the COMPLETE set of that
   character's usage rows (`CharacterActivityUsagesDto`); the platform replaces the character's rows with it, so an
   empty list means "no rows", not "unchanged". At most one row per `(type, key)`.
@@ -155,8 +167,9 @@ They all live here so a host provider depends on the contracts artifact alone.
   `false`. Every call throws `IllegalStateException` until the schema is migrated in the JVM. Status names
   (`ReceiptStatus`) are stored values.
 - **App-session command refusals** carry `reason` (an `AppSessionRefusalReason` name), plus `retryAt` (ISO-8601
-  instant) or `scope` (`AlreadyActiveScope`) where the reason defines them; the `CommandStatus` per reason is on the
-  enum.
+  instant), `scope` (`AlreadyActiveScope`) or the numbers `requiredSlots` / `freeSlots`, `requiredWeight` / `freeWeight`
+  where the reason defines them; `AppSessionCheckResult` requires each pair exactly with its reason. The `CommandStatus`
+  per reason is on the enum.
 - **Revive refusals** carry `reason` (`ReviveRefusal.REASON`, a `ReviveRefusalReason` name), a separate vocabulary from
   the app-session one; `ReviveCharacterCommand.restartPoint` stays a `String` (open `RestartPoint`), so an older host
   refuses a newer token instead of failing to deserialize.

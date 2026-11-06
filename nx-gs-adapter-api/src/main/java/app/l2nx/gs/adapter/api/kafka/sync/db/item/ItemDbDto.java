@@ -1,8 +1,11 @@
 package app.l2nx.gs.adapter.api.kafka.sync.db.item;
 
+import app.l2nx.gs.adapter.api.domain.Attribute;
+import app.l2nx.gs.adapter.api.domain.item.ItemAugmentation;
 import app.l2nx.gs.adapter.api.domain.item.ItemLocation;
 import java.util.Collections;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -10,7 +13,7 @@ import org.jspecify.annotations.Nullable;
  * Wire DTO for one item, payload of {@code SyncEvent<ItemDbDto>}. Only {@code id} is required;
  * {@code ownerId} is null for the {@code owner_id = 0} sentinel.
  *
- * {@code attributes} is null when the tenant does not sync elementals, empty when synced but none
+ * {@code attributes} (element to power) is null when the tenant does not sync elementals, empty when synced but none
  * (Gson omits nulls, so the wire distinguishes the two).
  */
 public final class ItemDbDto {
@@ -21,8 +24,8 @@ public final class ItemDbDto {
     private final @Nullable Long count;
     private final @Nullable Integer enchantLevel;
     private final @Nullable ItemLocation location;
-    private final @Nullable List<ItemAttributeDbDto> attributes;
-    private final @Nullable ItemAugmentationDbDto augmentation;
+    private final @Nullable Map<Attribute, Integer> attributes;
+    private final @Nullable ItemAugmentation augmentation;
 
     public ItemDbDto(
             long id,
@@ -31,15 +34,17 @@ public final class ItemDbDto {
             @Nullable Long count,
             @Nullable Integer enchantLevel,
             @Nullable ItemLocation location,
-            @Nullable List<ItemAttributeDbDto> attributes,
-            @Nullable ItemAugmentationDbDto augmentation) {
+            @Nullable Map<Attribute, Integer> attributes,
+            @Nullable ItemAugmentation augmentation) {
         this.id = id;
         this.itemTemplateId = itemTemplateId;
         this.ownerId = ownerId;
         this.count = count;
         this.enchantLevel = enchantLevel;
         this.location = location;
-        this.attributes = attributes == null ? null : Collections.unmodifiableList(attributes);
+        this.attributes = attributes == null
+                ? null
+                : Collections.unmodifiableMap(new LinkedHashMap<Attribute, Integer>(attributes));
         this.augmentation = augmentation;
     }
 
@@ -69,12 +74,12 @@ public final class ItemDbDto {
         return location;
     }
 
-    public @Nullable List<ItemAttributeDbDto> getAttributes() {
+    public @Nullable Map<Attribute, Integer> getAttributes() {
         return attributes;
     }
 
     /** Null when not augmented or when the tenant does not sync augmentation. */
-    public @Nullable ItemAugmentationDbDto getAugmentation() {
+    public @Nullable ItemAugmentation getAugmentation() {
         return augmentation;
     }
 
@@ -133,8 +138,8 @@ public final class ItemDbDto {
         private @Nullable Long count;
         private @Nullable Integer enchantLevel;
         private @Nullable ItemLocation location;
-        private @Nullable List<ItemAttributeDbDto> attributes;
-        private @Nullable ItemAugmentationDbDto augmentation;
+        private @Nullable Map<Attribute, Integer> attributes;
+        private @Nullable ItemAugmentation augmentation;
 
         public Builder id(long id) {
             this.id = id;
@@ -166,12 +171,12 @@ public final class ItemDbDto {
             return this;
         }
 
-        public Builder attributes(@Nullable List<ItemAttributeDbDto> attributes) {
+        public Builder attributes(@Nullable Map<Attribute, Integer> attributes) {
             this.attributes = attributes;
             return this;
         }
 
-        public Builder augmentation(@Nullable ItemAugmentationDbDto augmentation) {
+        public Builder augmentation(@Nullable ItemAugmentation augmentation) {
             this.augmentation = augmentation;
             return this;
         }

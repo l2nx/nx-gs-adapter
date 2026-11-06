@@ -7,10 +7,13 @@ public enum LogoutReason {
     DISCONNECT,
 
     /**
-     * Client session: the client left while the character stays in the world as an offline trader. No session is
-     * opened for the trader afterwards, including when the host restores it after a restart.
+     * Client left while the character stays as an offline trader: the game session ends and a store session opens under
+     * a new id ({@code source = CLIENT}, {@code activity = OFFLINE_PRIVATE_STORE}).
      */
     OFFLINE_PRIVATE_STORE,
+
+    /** Native offline store session: everything is sold or bought. An app store ends with {@link #APP_SOLD_OUT}. */
+    SOLD_OUT,
 
     /** Client session: sent for every player still in the world at server shutdown. */
     SERVER_STOP,
@@ -36,6 +39,8 @@ public enum LogoutReason {
     APP_DAILY_LIMIT,
 
     APP_INVENTORY_FULL,
+
+    APP_OVERWEIGHT,
 
     APP_SOLD_OUT,
 

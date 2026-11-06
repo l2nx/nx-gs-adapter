@@ -52,7 +52,7 @@ the slice's contract from its supporting types. The same smell exists inside cor
   | `kafka.commands.ban`           | `WellKnownBanTargetTypes`, `WellKnownBanTypes`                                                                                   |
   | `kafka.commands.mail`          | `ItemDeliveryError`, `MailItem`                                                                                                  |
   | `kafka.commands.captcha` (new) | `CaptchaRoundResult`, `WellKnownCaptchaOutcomes`                                                                                 |
-  | `kafka.events.privatestore`    | `StoreLine`, `StoreState`, `TradeLine`, `PrivateStoreSide`, `PrivateStoreMetadataKey`, `PrivateStoreMetadata`, `PrivateStoreFee` |
+  | `kafka.events.privatestore`    | `SellStoreLine`, `BuyStoreLine`, `StoreState`, `TradeLine`, `PrivateStoreSide`, `PrivateStoreMetadataKey`, `PrivateStoreMetadata`, `PrivateStoreFee` |
   | `kafka.events.premiumpurchase` | `Payment`, `PurchaseItem`, `PurchaseService`, `WellKnownServices`                                                                |
   | `kafka.events.olympiad`        | `OlympiadGameType`, `OlympiadMatchReason`, `OlympiadMatchResult`                                                                 |
   | `kafka.events.character`       | `LogoutReason`, `SessionSource` (lenient `fromToken`), `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`    |
@@ -63,7 +63,7 @@ the slice's contract from its supporting types. The same smell exists inside cor
   | `kafka.sync.gd.gearscore`      | `GearScoreRule`, `GearScoreRuleGroup`, `GearScoreScalingStep`, `WellKnownGearScoreEnchantProfiles`                               |
 
   Package-private helpers (`MailLists`, `PrivateStoreLists`) stay with the commands that use them;
-  `BuyLine` carries its own attribute-map copy instead of reaching back into the root helper.
+  `BuyLine` needs none: its attributes live in its `ItemSnapshot` ([`042`](042-item-snapshot.md)).
 
 - [done] R2a. The api root holds one single file, `Vocabularies`: the lenient `fromToken(Class, String)` lookup behind every
   open vocabulary enum (a per-enum cached token map), shared so no enum repeats the loop.

@@ -56,7 +56,7 @@ bot), operators (server-status menu section), and platform-side consumers
   family dispatched by `Nx-Message-Type`. Fields:
   - `UUID eventId` — REQUIRED. UUIDv7; upper 48 bits encode the death
     occurrence timestamp. Platform consumers dedupe on this id.
-  - `long charId` — REQUIRED. The character that died. Partition key
+  - `long characterId` — REQUIRED. The character that died. Partition key
     (8-byte big-endian) so a character's presence + death history land in one
     partition in occurrence order, identical to `CharacterPresenceEvent`.
   - `@Nullable Map<String,String> metadata` — open string→string map carrying
@@ -86,7 +86,7 @@ bot), operators (server-status menu section), and platform-side consumers
 
 - [todo] R3. `nx-gs-adapter-core.events.EventTypeRegistry` MUST register
   `CharacterDeathEvent` → family `"character"`, message-type
-  `"CharacterDeathEvent"`, partition-key extractor returning `charId` as 8-byte
+  `"CharacterDeathEvent"`, partition-key extractor returning `characterId` as 8-byte
   big-endian (same extractor used for `CharacterPresenceEvent`). Host publishes
   through the existing generic `NxEvents.publish(Object)` — no new SPI method.
 
@@ -232,7 +232,7 @@ bot), operators (server-status menu section), and platform-side consumers
   - `RatingSnapshotEvent` — `UUID eventId` (REQUIRED, UUIDv7),
     `String ratingType` (REQUIRED, open string), `List<RatingEntry> entries`
     (REQUIRED, full ranked snapshot).
-  - `RatingEntry` — `long charId`, `long score`, `int rank`. No character name
+  - `RatingEntry` — `long characterId`, `long score`, `int rank`. No character name
     (platform joins `gs_characters`).
   - `WellKnownRatingTypes` constants class: `FISHING = "fishing"` (the first
     ranked leaderboard; future rating types add constants here without an api
@@ -265,7 +265,7 @@ bot), operators (server-status menu section), and platform-side consumers
 - [todo] R18. The host MUST publish a `RatingSnapshotEvent` every 1 minute
   via a new `RatingSnapshotPublisher` (scheduled `scheduleAtFixedDelay`, bound in
   the host events module), reading the top 1000 of its fishing championship,
-  mapping each `SnapshotEntry{rank, charId, name, points}` → `RatingEntry`
+  mapping each `SnapshotEntry{rank, characterId, name, points}` → `RatingEntry`
   (dropping `name`, `points` → `score`), publishing with
   `ratingType = WellKnownRatingTypes.FISHING`. Fewer than 1000 active fishers
   yields a shorter list. Game-loop safety identical to the other publishers.

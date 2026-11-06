@@ -16,7 +16,7 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
 
     public static final int MAX_TITLE_LENGTH = 29;
 
-    private final int charId;
+    private final int characterId;
     private final @Nullable String title;
     private final @Nullable Boolean offlineAllowed;
     private final boolean ownerVerified;
@@ -25,14 +25,14 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
     private final CommandInitiator initiator;
 
     StartPrivateStoreCommand(
-            int charId,
+            int characterId,
             @Nullable String title,
             @Nullable Boolean offlineAllowed,
             boolean ownerVerified,
             @Nullable Instant deadline,
             UUID idempotencyKey,
             CommandInitiator initiator) {
-        this.charId = charId;
+        this.characterId = characterId;
         this.title = title == null || title.trim().isEmpty() ? null : title.trim();
         this.offlineAllowed = offlineAllowed;
         this.ownerVerified = ownerVerified;
@@ -41,8 +41,8 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
-    public int getCharId() {
-        return charId;
+    public int getCharacterId() {
+        return characterId;
     }
 
     /** {@code null} falls back to the host's default banner. */
@@ -88,7 +88,7 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         StartPrivateStoreCommand that = (StartPrivateStoreCommand) o;
-        return charId == that.charId
+        return characterId == that.characterId
                 && ownerVerified == that.ownerVerified
                 && Objects.equals(title, that.title)
                 && Objects.equals(offlineAllowed, that.offlineAllowed)
@@ -100,12 +100,12 @@ public abstract class StartPrivateStoreCommand implements OwnerVerified, NxComma
     @Override
     public int hashCode() {
         return Objects.hash(
-                getClass(), charId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiator);
+                getClass(), characterId, title, offlineAllowed, ownerVerified, deadline, idempotencyKey, initiator);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[charId=" + charId + ", title=" + title + ", " + storeFieldsToString()
+        return getClass().getSimpleName() + "[characterId=" + characterId + ", title=" + title + ", " + storeFieldsToString()
                 + ", offlineAllowed=" + offlineAllowed + ", ownerVerified=" + ownerVerified + ", deadline=" + deadline
                 + ", idempotencyKey=" + idempotencyKey + ", initiator=" + initiator + "]";
     }

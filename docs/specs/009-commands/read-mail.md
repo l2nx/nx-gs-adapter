@@ -25,7 +25,7 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 
   | Field    | Type   | Required | Notes                                                                               |
   | -------- | ------ | -------- | ----------------------------------------------------------------------------------- |
-  | `charId` | `Long` | yes      | The receiver; a different character on the live mail is `MAIL_NOT_FOUND`            |
+  | `characterId` | `Long` | yes      | The receiver; a different character on the live mail is `MAIL_NOT_FOUND`            |
   | `mailId` | `Long` | yes      | The host's mail id (an `int` in the core), the value `MailReadEvent.mailId` carries |
 
   Gson bypasses the constructor, so the handler re-validates: a null field, or a `mailId` outside `int` range, is
@@ -41,7 +41,7 @@ Audience: platform mail-flow authors composing the command; host operators wirin
   | Status              | Reason                                                                                       |
   | ------------------- | -------------------------------------------------------------------------------------------- |
   | `OK`                | The mail is read now, or was already read                                                    |
-  | `NOT_FOUND`         | `MAIL_NOT_FOUND` (`WellKnownReadMailReasons`): no such mail, or `charId` is not its receiver |
+  | `NOT_FOUND`         | `MAIL_NOT_FOUND` (`WellKnownReadMailReasons`): no such mail, or `characterId` is not its receiver |
   | `VALIDATION_FAILED` | Malformed command, carrying a `field` extension                                              |
   | `INTERNAL_ERROR`    | Host-side failure                                                                            |
 

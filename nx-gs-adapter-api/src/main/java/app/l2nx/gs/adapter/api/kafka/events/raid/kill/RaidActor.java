@@ -8,11 +8,11 @@ import org.jspecify.annotations.Nullable;
  * Character snapshot (identity, affiliation, damage) at the raid event moment; used for {@link RaidKillEvent#getLastHit() lastHit}, {@link RaidKillEvent#getDropOwner() dropOwner} and each {@link RaidKillEvent#getParticipants() participants} entry.
  * <p>Affiliations are event-moment values (characters can switch clans / parties mid-fight). {@code partyId} / {@code commandChannelId} are host-minted UUIDv7s, stable across leader changes, reset on disband / restart.
  * <p>{@code partyLeader} / {@code commandChannelLeader} are {@code false} without a party / CC; the "leader party" of a CC is the party whose leader is also the CC leader.
- * <p>{@link #getDamageDealt() damageDealt} comes from the host aggro list, {@code >= 0}; {@code 0} is valid (healers, tanks, pure buffers, a final blow on an already-dead boss, GM {@code //kill}). Names are not carried - join on charId / clanId via CDC.
+ * <p>{@link #getDamageDealt() damageDealt} comes from the host aggro list, {@code >= 0}; {@code 0} is valid (healers, tanks, pure buffers, a final blow on an already-dead boss, GM {@code //kill}). Names are not carried - join on characterId / clanId via CDC.
  */
 public final class RaidActor {
 
-    private final long charId;
+    private final long characterId;
     private final @Nullable Long clanId;
     private final @Nullable Long allyId;
     private final @Nullable UUID partyId;
@@ -22,7 +22,7 @@ public final class RaidActor {
     private final long damageDealt;
 
     public RaidActor(
-            long charId,
+            long characterId,
             @Nullable Long clanId,
             @Nullable Long allyId,
             @Nullable UUID partyId,
@@ -30,7 +30,7 @@ public final class RaidActor {
             boolean partyLeader,
             boolean commandChannelLeader,
             long damageDealt) {
-        this.charId = charId;
+        this.characterId = characterId;
         this.clanId = clanId;
         this.allyId = allyId;
         this.partyId = partyId;
@@ -40,8 +40,8 @@ public final class RaidActor {
         this.damageDealt = damageDealt;
     }
 
-    public long getCharId() {
-        return charId;
+    public long getCharacterId() {
+        return characterId;
     }
 
     public @Nullable Long getClanId() {
@@ -76,7 +76,7 @@ public final class RaidActor {
 
     public Builder toBuilder() {
         return new Builder()
-                .charId(charId)
+                .characterId(characterId)
                 .clanId(clanId)
                 .allyId(allyId)
                 .partyId(partyId)
@@ -95,7 +95,7 @@ public final class RaidActor {
         if (this == o) return true;
         if (!(o instanceof RaidActor)) return false;
         RaidActor that = (RaidActor) o;
-        return charId == that.charId
+        return characterId == that.characterId
                 && damageDealt == that.damageDealt
                 && partyLeader == that.partyLeader
                 && commandChannelLeader == that.commandChannelLeader
@@ -108,12 +108,12 @@ public final class RaidActor {
     @Override
     public int hashCode() {
         return Objects.hash(
-                charId, clanId, allyId, partyId, commandChannelId, partyLeader, commandChannelLeader, damageDealt);
+                characterId, clanId, allyId, partyId, commandChannelId, partyLeader, commandChannelLeader, damageDealt);
     }
 
     @Override
     public String toString() {
-        return "RaidActor[charId=" + charId
+        return "RaidActor[characterId=" + characterId
                 + ", clanId=" + clanId
                 + ", allyId=" + allyId
                 + ", partyId=" + partyId
@@ -124,7 +124,7 @@ public final class RaidActor {
     }
 
     public static final class Builder {
-        private long charId;
+        private long characterId;
         private @Nullable Long clanId;
         private @Nullable Long allyId;
         private @Nullable UUID partyId;
@@ -133,8 +133,8 @@ public final class RaidActor {
         private boolean commandChannelLeader;
         private long damageDealt;
 
-        public Builder charId(long charId) {
-            this.charId = charId;
+        public Builder characterId(long characterId) {
+            this.characterId = characterId;
             return this;
         }
 
@@ -175,7 +175,7 @@ public final class RaidActor {
 
         public RaidActor build() {
             return new RaidActor(
-                    charId, clanId, allyId, partyId, commandChannelId, partyLeader, commandChannelLeader, damageDealt);
+                    characterId, clanId, allyId, partyId, commandChannelId, partyLeader, commandChannelLeader, damageDealt);
         }
     }
 }

@@ -281,8 +281,8 @@ public final class EventsPublisher {
             return;
         }
         try {
-            ProducerRecord<byte[], Object> record =
-                    new ProducerRecord<byte[], Object>(topic, partitionKey, envelope.payload);
+            Object payload = envelope.binding.sendGuard().apply(envelope.payload);
+            ProducerRecord<byte[], Object> record = new ProducerRecord<byte[], Object>(topic, partitionKey, payload);
             record.headers().add(NxHeaders.NX_MESSAGE_TYPE, envelope.binding.messageTypeBytes());
             sender.send(record, (metadata, exception) -> {
                 if (exception != null) {
