@@ -1,7 +1,7 @@
 # Item snapshot
 
 > Owner: @n1rmata
-> Status: adapter side implemented 2026-11-04, not yet released.
+> Status: adapter side released 2026-11-06 (api 0.124.0, core 0.53.0, runtime-sync 0.6.0, db-migrations 0.6.0).
 > Counterparts: `nx-gameservers/docs/specs/093-item-snapshot-migration.md` (legacy mapping, table moves, rollout),
 > `nx-gameservers/docs/specs/043-sessions/results.md` (session results storage).
 

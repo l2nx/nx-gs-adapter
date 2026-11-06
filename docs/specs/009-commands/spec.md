@@ -447,7 +447,7 @@ replies-published == 0}` is visible as a failure rather than as silence
     of those commands' families to enums: that conversion stays a change of its own
     ([#33](https://github.com/l2nx/nx-gs-adapter/issues/33)).
 
-- [done] R31. **Check commands of app sessions.** Implemented in the adapter, not yet released. Every app-session type
+- [done] R31. **Check commands of app sessions.** Every app-session type
   a player opens with a start command
   ([`038`](../038-app-offline-sessions.md); not the app-phantom, which the item-modification commands open implicitly)
   ships three commands: `Start<Type>Command`, `Stop<Type>Command` and `Check<Type>Command`. A new session type without

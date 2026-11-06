@@ -14,9 +14,9 @@ here are drop-in: bump the version and restart.
   what changed, and what to do.
 - The documentation always describes the current version.
 
-## Next release: session results, item snapshots, runtime start gate
+## nx-gs-adapter-api 0.124.0, nx-gs-adapter-core 0.53.0, nx-gs-runtime-sync-core 0.6.0, nx-gs-db-migrations 0.6.0: session results, item snapshots, runtime start gate
 
-**Breaking.** One release of the api, `nx-gs-adapter-core`, `nx-gs-runtime-sync-core` and `nx-gs-db-migrations`. Switch
+**Breaking.** Take the four modules together. Switch
 the host in the release that takes it.
 
 **You must call `NxAdapter.runtimeSync().hostStarted()`, or runtime sync sends nothing.** Call it once, right after you

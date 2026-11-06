@@ -1,7 +1,7 @@
 # Session results
 
 > Owner: @n1rmata
-> Status: adapter side implemented 2026-11-04, not yet released.
+> Status: adapter side released 2026-11-06 (api 0.124.0, core 0.53.0, runtime-sync 0.6.0, db-migrations 0.6.0).
 > Counterparts: `nx-gameservers/docs/specs/043-sessions/results.md` (storage and reads); the host counterpart holds the
 > recorder and its write points.
 

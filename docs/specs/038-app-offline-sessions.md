@@ -24,7 +24,7 @@ configuration. The platform checks only ownership, server liveness and its rate 
 included) are shipped. Offline fishing (phase 3) is not implemented in the host: its start answers `FEATURE_DISABLED`.
 The adapter parts phase 3 needs (R20-R22: the app settings file, the session-history read, `ClientIdentifiers`) are
 released (api 0.111.0, core 0.45.0, db-migrations 0.3.0). The private-store start cooldown (R23) is implemented in the
-adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged end (R24), the open-sessions snapshot
+adapter and released (see [Rollout](#rollout)), as are the acknowledged end (R24), the open-sessions snapshot
 (R25) and the check mode (R26).
 
 ## Requirements
@@ -102,8 +102,8 @@ adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged 
   that character's previous app private-store session (owner decision 2026-10-23, against fast price dumping). The
   scope is the character, not the master account; only app sessions count (`OFFLINE_PRIVATE_STORE`; a store opened in
   the game does not); stopping a store is never refused. The host enforces it; the adapter carries the key (R20) and
-  the read (R21). Implemented in the adapter, not yet released (api 0.112.0, core 0.46.0, db-migrations 0.4.0).
-- [done] R24. **A session end reaches the platform.** Implemented in the adapter, not yet released. The end event is no longer fire-and-forget: the row records
+  the read (R21). Released in api 0.112.0, core 0.46.0, db-migrations 0.4.0.
+- [done] R24. **A session end reaches the platform.** The end event is no longer fire-and-forget: the row records
   `end_published_at` once Kafka acknowledged the end event, and the engine's flush tick republishes the end of every
   closed row whose `end_published_at` is `NULL` until it is acknowledged. The events publisher gets a send with a
   completion callback for this. A republish is the same event as the first send, `eventId` included: a UUIDv7 whose
@@ -121,7 +121,7 @@ adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged 
     `(ended_at, id)` until it has sent 500 ends or reached the end. Rows this version cannot read (written by a newer
     one) take their place in a page but are neither sent nor marked, so they never hide the rows behind them and a
     newer version still publishes them. A row whose end event cannot be built is logged once as an ERROR and skipped.
-- [done] R25. **Open-sessions snapshot.** Implemented in the adapter, not yet released. Every 60 s and once at module start the engine publishes
+- [done] R25. **Open-sessions snapshot.** Every 60 s and once at module start the engine publishes
   `AppSessionsSnapshotEvent {eventId, takenAt, sessionIds}`: the ids of every open session of this server, the ones
   running and the ones waiting for the post-restart restore (`PENDING_RESTORE`). It travels in the `character` event
   family with the server as the record key (a server without an id from `/connect` publishes no snapshot: an unkeyed
@@ -133,7 +133,7 @@ adapter and not yet released (see [Rollout](#rollout)), as are the acknowledged 
   from `ServerStartedEvent` (`011`) and needs no generation counter in the snapshot. The platform closes an open
   `APP` session that a snapshot newer than its login (past a grace) does not list. The snapshot is a full set, not a
   diff; an empty list is a valid snapshot of a server with no open session.
-- [done] R26. **Check mode for start.** Implemented in the adapter, not yet released. The engine's own start checks (one active session per character, the
+- [done] R26. **Check mode for start.** The engine's own start checks (one active session per character, the
   spot pool's free spot) are available without side effects, so a check command ([`009`](009-commands/spec.md) R31) can
   run the start's path to its end without writing a row, taking a spot or placing the character.
   `NxAppSessions.check(characterId, spotPool, spotId)` answers its own SPI type `AppSessionCheckOutcome` (`ALLOWED`,
