@@ -460,6 +460,6 @@ Ships in the single adapter release of [`042`](042-item-snapshot.md), with `db-m
 - Presence event: [`013-character-core-extension`](013-character-core-extension.md)
 - Engine: [`038-app-offline-sessions`](038-app-offline-sessions.md)
 - Snapshot: [`042-item-snapshot`](042-item-snapshot.md)
-- Platform: `nx-gameservers/docs/specs/043-sessions/results.md`, `nx-gameservers/docs/specs/093-item-snapshot-migration.md`
+- Platform: `nx-gameservers/docs/specs/043-sessions/results.md`, `nx-gameservers/docs/archive/093-item-snapshot-migration.md`
 - Host counterpart: not linked here, this repository does not name tenant hosts.
 - Epic: [l2nx/nx-platform#23](https://github.com/l2nx/nx-platform/issues/23)

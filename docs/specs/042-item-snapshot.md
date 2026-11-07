@@ -2,7 +2,7 @@
 
 > Owner: @n1rmata
 > Status: adapter side released 2026-11-06 (api 0.124.0, core 0.53.0, runtime-sync 0.6.0, db-migrations 0.6.0).
-> Counterparts: `nx-gameservers/docs/specs/093-item-snapshot-migration.md` (legacy mapping, table moves, rollout),
+> Counterparts: `nx-gameservers/docs/archive/093-item-snapshot-migration.md` (legacy mapping, table moves, rollout),
 > `nx-gameservers/docs/specs/043-sessions/results.md` (session results storage).
 
 ## Problem
@@ -157,7 +157,7 @@ name.
 
 Every change above except `ItemAugmentation` is a breaking wire change. The adapter classes cannot read the old form:
 their constructors throw on a required field the old form does not have. A reader of the old form needs its own parsing,
-as `nx-gameservers/docs/specs/093-item-snapshot-migration.md` describes.
+as `nx-gameservers/docs/archive/093-item-snapshot-migration.md` describes.
 
 | Direction                 | Forms                                                                                                   | Who straddles                                                                                                                                                                                              |
 | ------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -225,7 +225,7 @@ platform deploys to prod, because prod builds resolve the api from Central.
    legacy mapping and send one form.
 
 The list of legacy mapping points, the table moves and their order are in
-`nx-gameservers/docs/specs/093-item-snapshot-migration.md`.
+`nx-gameservers/docs/archive/093-item-snapshot-migration.md`.
 
 ## Open questions
 
@@ -235,6 +235,6 @@ The list of legacy mapping points, the table moves and their order are in
 ## Links
 
 - Session results: [`043-session-results`](043-session-results.md)
-- Platform: `nx-gameservers/docs/specs/093-item-snapshot-migration.md`, `nx-gameservers/docs/specs/043-sessions/results.md`
+- Platform: `nx-gameservers/docs/archive/093-item-snapshot-migration.md`, `nx-gameservers/docs/specs/043-sessions/results.md`
 - Host counterpart: not linked here, this repository does not name tenant hosts.
 - Epic: [l2nx/nx-platform#23](https://github.com/l2nx/nx-platform/issues/23)
