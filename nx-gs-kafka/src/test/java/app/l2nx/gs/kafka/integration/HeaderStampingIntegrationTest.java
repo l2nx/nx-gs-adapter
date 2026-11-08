@@ -37,7 +37,7 @@ class HeaderStampingIntegrationTest {
     @Container
     static final ConfluentKafkaContainer KAFKA = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.7.0");
 
-    private static final String HEADER_NAME = "X-Test-Static-Header";
+    private static final String HEADER_NAME = "Test-Static-Header";
     private static final byte[] HEADER_VALUE = new byte[] {
         0x01,
         0x23,
