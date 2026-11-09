@@ -10,8 +10,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * One configured recurring PvP / world event inside a {@link GameEventSnapshotEvent}, build-agnostic across event
- * engines. {@code code} is the stable per-event key the consumer upserts on; {@code metadata} keys are in
- * {@link WellKnownGameEventMetadata}.
+ * engines. {@code code} is the stable per-event key the consumer upserts on; {@code name} is the English name, which
+ * the platform shows as the {@code en} translation; {@code metadata} keys are in {@link WellKnownGameEventMetadata}.
  *
  * <p>Java-8 POJO; {@code -parameters} preserves constructor parameter names so Jackson / Gson bind without
  * {@code @JsonProperty}.</p>

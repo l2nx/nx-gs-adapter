@@ -10,9 +10,10 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * One castle inside a {@link CastleSnapshotEvent}. {@code name} rides the wire because the platform has no castle
- * catalog. {@code ownerClanId} is {@code null} when unowned (host maps its no-owner sentinel). {@code nextSiegeAt},
- * {@code registrationEndsAt} (locks some hours before the siege) and {@code siegeEndsAt} are absolute and {@code null}
- * when the host does not expose them. {@code metadata} is an open map; consumers ignore unknown keys.
+ * catalog; it is the English name, which the platform shows as the {@code en} translation. {@code ownerClanId} is
+ * {@code null} when unowned (host maps its no-owner sentinel). {@code nextSiegeAt}, {@code registrationEndsAt} (locks
+ * some hours before the siege) and {@code siegeEndsAt} are absolute and {@code null} when the host does not expose
+ * them. {@code metadata} is an open map; consumers ignore unknown keys.
  */
 public final class CastleSnapshotEntry {
 

@@ -67,7 +67,8 @@ two message types**, no db-sync entity, no runtime entity.
 - [done] R2. `CastleSnapshotEntry`: `int castleId` (REQUIRED — stable per-castle
   upsert key), `@Nullable String name` (host resolves via `Castle.getName(null)`;
   there is no castle catalog on the platform, so the name IS carried on the wire,
-  like `RaidKillEvent.bossName` / `GameEventEntry.name`), `@Nullable Long
+  like `RaidKillEvent.bossName` / `GameEventEntry.name`; the English name, shown
+  by the platform as the `en` translation), `@Nullable Long
   ownerClanId` (source sentinel `0` → `null`), `@Nullable Instant nextSiegeAt`
   (absolute scheduled next-siege moment; `null` when unknown / unscheduled),
   `@Nullable Map<String,String> metadata`.
