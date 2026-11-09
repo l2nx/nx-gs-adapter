@@ -228,14 +228,14 @@ predates the cycle.
       lives on the network-isolated internal subtree
       (`/gameservers/v1/internal/**` — JWT-bypassed via
       `COMMON_UNAUTHORIZED_PATHS`, reachable only inside the docker network /
-      nginx ACL, no permission check). Path-scoped (no JWT to carry tenant
-      context): `POST /gameservers/v1/internal/tenants/{tenantSlug}/servers/{serverSlug}/resync`
+      nginx ACL, no permission check). Header-scoped (no JWT to carry tenant
+      context): `POST /gameservers/v1/internal/resync` scoped by the `Tenant-Slug` +
+      `Server-Slug` request headers, body
       `{entities?: string[]}` (null/empty = all) → creates a resync
       operation, sends `ResyncEntitiesCommand`, returns `202 {operationId}`
-      on ack. `GET /gameservers/v1/internal/tenants/{tenantSlug}/servers/{serverSlug}/resync-operations/{id}`
+      on ack. `GET /gameservers/v1/internal/resync-operations/{id}` (same headers)
       → operation status (no permission — ops surface). Tenant/server
-      resolved from path slugs via `TenantReader`
-      (`ServerRequestScope.resolveOrThrow(tenantSlug, serverSlug)` overload).
+      resolved from the headers (`TenantServer.current()`).
     - **Row resync — admin (JWT) surface.** Targeted PK repair stays a
       day-to-day admin-UI action:
       `POST /gameservers/v1/commands/sync/resync-rows`
