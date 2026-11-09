@@ -7,6 +7,20 @@ import java.util.UUID;
 /** Kafka header names and UUID codecs shared by the adapter and platform consumers. */
 public final class NxHeaders {
 
+    /**
+     * Game-server id, 16 raw bytes via {@link #encodeUuid(UUID)}: the source on server records, the target on the
+     * commands topic. Replaces {@link #NX_SERVER_ID} and {@link #NX_TARGET_SERVER_ID}.
+     */
+    public static final String SERVER_ID = "Server-Id";
+
+    /** Replaces {@link #NX_MESSAGE_TYPE}. */
+    public static final String MESSAGE_TYPE = "Message-Type";
+
+    /** Replaces {@link #NX_CORRELATION_ID}. */
+    public static final String CORRELATION_ID = "Correlation-Id";
+
+    // TODO: the adapter still sends and reads the Nx-* names below; they go once it switches to the names above.
+
     /** Originating game-server id; value encoded via {@link #encodeUuid(UUID)}. */
     public static final String NX_SERVER_ID = "Nx-Server-Id";
 

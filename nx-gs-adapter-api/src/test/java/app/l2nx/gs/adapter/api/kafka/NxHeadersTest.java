@@ -14,6 +14,13 @@ class NxHeadersTest {
         assertEquals("Nx-Server-Id", NxHeaders.NX_SERVER_ID);
     }
 
+    @Test
+    void names_shouldCarryNoPrefix() {
+        assertEquals("Server-Id", NxHeaders.SERVER_ID);
+        assertEquals("Message-Type", NxHeaders.MESSAGE_TYPE);
+        assertEquals("Correlation-Id", NxHeaders.CORRELATION_ID);
+    }
+
     @ParameterizedTest
     @ValueSource(
             strings = {

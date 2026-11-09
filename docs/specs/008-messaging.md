@@ -146,6 +146,11 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
     Auto-stamped by adapter-core on every event publish; platform consumers
     switch on this header for deserialization without peeking into the JSON.
   - `Nx-Server-Id` header (existing) — unchanged.
+  - Unprefixed names `SERVER_ID = "Server-Id"`, `MESSAGE_TYPE = "Message-Type"` and
+    `CORRELATION_ID = "Correlation-Id"` sit next to the `NX_*` ones (api 0.126.0). The adapter still
+    sends and reads only `Nx-*`; platform consumers already read the new name first and fall back to the
+    old one, platform producers send both (`nx-infra/docs/specs/049-request-headers.md` § 9, § 11).
+    `Server-Id` replaces both `Nx-Server-Id` and `Nx-Target-Server-Id` once the adapter switches.
 
 - [todo] R6. `nx-gs-adapter-api.spi.ConnectContext` MUST expose `NxEvents events()`
   accessor — symmetric to existing `getSyncTopics()`. Returned facade is non-null;
