@@ -534,7 +534,7 @@ public final class NxAdapter {
         if (serverId == null) {
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(NxHeaders.NX_SERVER_ID, NxHeaders.encodeUuid(serverId));
+        return Collections.singletonMap(NxHeaders.SERVER_ID, NxHeaders.encodeUuid(serverId));
     }
 
     /** Facade stays stable across reconnects (publisher swapped behind it); absent messagingTopics yields an empty family map so publishX no-ops. */

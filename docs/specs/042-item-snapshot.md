@@ -148,7 +148,7 @@ Only the names change; these commands keep their shape and take no snapshot.
 `characterId` in the same release ([`043`](043-session-results.md)). Every other `charId` and `*CharId` of the api becomes `characterId` and `*CharacterId` in the same release: commands, results,
 events and `RatingDbDto`. `charName` and `targetCharName` become `characterName` and `targetCharacterName`, and
 `TransferCharToAccount*` and `TelegramCharLink*` become `TransferCharacterToAccount*` and `TelegramCharacterLink*`. The
-class rename changes `Nx-Message-Type`, which is the simple class name.
+class rename changes `Message-Type`, which is the simple class name.
 
 A reader of the old form maps the old key onto the new property before it binds: the classes bind by constructor parameter
 name.
@@ -167,7 +167,7 @@ as `nx-gameservers/docs/archive/093-item-snapshot-migration.md` describes.
 | platform to core          | item commands, every command with a character field, `BuyLine`                                                                                | The platform sends both forms from a private wire DTO: `charId` with `characterId`, the source / target pair likewise, the flat `BuyLine` fields with `item`. Each core reads its own and ignores the rest |
 
 - The adapter keeps no `@Deprecated` copy and no alias: the host switches in one release.
-- `Nx-Message-Type` of `TransferCharacterToAccountCommand` stays the old name on the platform side until every host restarted;
+- `Message-Type` of `TransferCharacterToAccountCommand` stays the old name on the platform side until every host restarted;
   a new host keeps a private class of the old simple name, so routing needs no alias in the adapter. `TelegramCharacterLinkCommand`
   has no sender on the platform.
 - The numeric changes (`int` to `long`) are invisible on the wire.

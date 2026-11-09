@@ -187,8 +187,8 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 ### Wire shape
 
 Same rail as other commands: key `longBytesBe(receiverCharacterId)` is the producer's choice, headers
-`Nx-Message-Type = AcceptMailCommand`, `Nx-Correlation-Id` (stable per logical accept),
-`Nx-Target-Server-Id`. Reply type header is derived per rail R26: `AcceptMailResult`.
+`Message-Type = AcceptMailCommand`, `Correlation-Id` (stable per logical accept),
+`Server-Id`. Reply type header is derived per rail R26: `AcceptMailResult`.
 
 Example reply value (success; the `items` element is a `MailItemMovement`, which carries the moved item as an
 `ItemSnapshot` in `item`, [`042`](../042-item-snapshot.md)):

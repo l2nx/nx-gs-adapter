@@ -311,7 +311,7 @@ with a `LongOpenHashSet`. Not a bottleneck today.
 
 - **A new presence kind (for example AWAY):** extends `online` to a third state. A Boolean is limited, so this would go
   back to an enum. The decision waits for a real ops case.
-- **Per-server-id presence in platform-side reconciliation:** already supported through the `Nx-Server-Id` header on the
+- **Per-server-id presence in platform-side reconciliation:** already supported through the `Server-Id` header on the
   runtime topic.
 
 ---

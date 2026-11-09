@@ -201,7 +201,7 @@ They all live here so a host provider depends on the contracts artifact alone.
 - **Partition keys are per event TYPE, not per family.** A family can mix keyed and round-robin
   types (`raid`: `RaidKillEvent` keys on `bossNpcId`, `BossRespawnSnapshotEvent` uses `null`). The
   authoritative mapping is one `register(...)` line per type in adapter-core's `EventTypeRegistry` —
-  read it there; the same file also holds the `Nx-Message-Type` value used for polymorphic dispatch.
+  read it there; the same file also holds the `Message-Type` value used for polymorphic dispatch.
 - **Augmentation chances are the host's own roll, not a model to replay.** `AugmentationOutcome.chancePercent` is the
   final marginal of one slot; slot marginals are not combinable, and `LifeStone` rejects outcomes of unlisted groups,
   repeats and slot sums over 100. Contract: `docs/specs/030-gamedata-sync/augmentation-contract.md`.

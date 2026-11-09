@@ -127,8 +127,8 @@ Audience: platform mail-flow authors composing the command; host operators wirin
 ### Wire shape
 
 Same rail as other commands: key `longBytesBe(senderCharacterId)` is the producer's choice, headers
-`Nx-Message-Type = SendPlayerMailCommand`, `Nx-Correlation-Id` (stable per logical send),
-`Nx-Target-Server-Id`. Reply type header is derived per rail R26: `SendPlayerMailResult`.
+`Message-Type = SendPlayerMailCommand`, `Correlation-Id` (stable per logical send),
+`Server-Id`. Reply type header is derived per rail R26: `SendPlayerMailResult`.
 
 Example reply value (success):
 

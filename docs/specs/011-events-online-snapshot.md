@@ -22,16 +22,16 @@ Audience: platform consumers (dashboards, time-series ingest) and host authors w
 
 ## Requirements
 
-> Siblings: [`008-messaging`](008-messaging.md) (`MessagingTopics.events.<family>` addressing, `Nx-Server-Id` and
-> `Nx-Message-Type` headers, UUIDv7 idempotency), [`038-app-offline-sessions`](038-app-offline-sessions.md) (fills the
+> Siblings: [`008-messaging`](008-messaging.md) (`MessagingTopics.events.<family>` addressing, `Server-Id` and
+> `Message-Type` headers, UUIDv7 idempotency), [`038-app-offline-sessions`](038-app-offline-sessions.md) (fills the
 > `APP` and `OFFLINE_FISHING` buckets).
 
 **Must:**
 
 - [done] R1. `ServerOnlineSnapshotEvent` (`kafka.events.server.online`) is a `final` event class published through
-  `NxEvents.publish(Object)` on the family `serveronline`, dispatched by `Nx-Message-Type`. Together with
+  `NxEvents.publish(Object)` on the family `serveronline`, dispatched by `Message-Type`. Together with
   `ServerStartedEvent` and `ServerStoppingEvent` it is registered in `EventTypeRegistry` with a `null` partition key
-  (round-robin; consumers group by the `Nx-Server-Id` header and order by the UUIDv7 `eventId`).
+  (round-robin; consumers group by the `Server-Id` header and order by the UUIDv7 `eventId`).
 - [done] R2. Fields of `ServerOnlineSnapshotEvent`:
   - `UUID eventId` - UUIDv7; the upper 48 bits are the occurrence time. Consumers dedupe on it.
   - `Map<ServerOnlineBucket, Long> buckets` - non-negative counts; the wire key is the enum constant name. The
@@ -144,7 +144,7 @@ host scheduler (fixed delay)
   -> ServerOnlineSnapshotEvent(eventId = UUIDv7, buckets, clans, metadata)
   -> NxEvents.publish
      -> EventTypeRegistry lookup -> family enabled? -> EventsPublisher queue
-     -> Kafka record with Nx-Message-Type and Nx-Server-Id headers
+     -> Kafka record with Message-Type and Server-Id headers
 ```
 
 ### Decisions
@@ -161,7 +161,7 @@ host scheduler (fixed delay)
   one server); a row per clan per tick would cost the platform ~50M rows a day. The price is that a consumer averages
   as `sum / ticks reported`, not as `avg` over rows; `null` versus empty `clans` tells it which ticks count.
 - **Partition key `null`.** Snapshots are rare; ordering comes from the UUIDv7 `eventId` and grouping from the
-  `Nx-Server-Id` header, so no key extractor is needed.
+  `Server-Id` header, so no key extractor is needed.
 
 ### Extension points
 

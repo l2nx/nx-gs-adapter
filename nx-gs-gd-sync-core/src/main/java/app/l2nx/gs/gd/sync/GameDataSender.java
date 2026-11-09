@@ -3,7 +3,7 @@ package app.l2nx.gs.gd.sync;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
-/** Pre-built record because gd-sync stamps the {@code Nx-Message-Type} header on every record. */
+/** Pre-built record because gd-sync stamps the {@code Message-Type} header on every record. */
 @FunctionalInterface
 public interface GameDataSender {
 

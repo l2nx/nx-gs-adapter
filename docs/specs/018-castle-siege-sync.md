@@ -21,7 +21,7 @@ Two signals with different shapes:
   **discrete per-occurrence event**, exactly like `RaidKillEvent`.
 
 Both ride **one new event family `castle`** (topic `<tenant>.gs.events.castle`),
-multiplexed by the `Nx-Message-Type` header — the same multi-event-family shape
+multiplexed by the `Message-Type` header — the same multi-event-family shape
 the `raid` topic already uses (`RaidKillEvent` + `BossRespawnSnapshotEvent`).
 
 The design stays **build-agnostic**: castles/sieges are near-universal in L2 but
@@ -95,7 +95,7 @@ two message types**, no db-sync entity, no runtime entity.
 - [done] R5. `nx-gs-adapter-core` `EventTypeRegistry` registers both types under
   family key `"castle"`: `CastleSnapshotEvent` → round-robin partition key
   (`null`, like other snapshots); `SiegeFinishedEvent` → partition key
-  `castleId` (8-byte big-endian). `Nx-Message-Type` = the simple class name
+  `castleId` (8-byte big-endian). `Message-Type` = the simple class name
   (automatic). **Platform follow-up (out of this repo):** nx-tenants must return
   `castle → <tenant>.gs.events.castle` in the `/connect` `messagingTopics.events`
   map, and the Kafka topic must be created — else the family is "disabled" and
@@ -119,7 +119,7 @@ two message types**, no db-sync entity, no runtime entity.
 
 - [done] R7. Consumer (nx-gameservers) ingests family `castle`:
     - `CastleEventConsumer` (`@KafkaListener` on `^.*\.gs\.events\.castle$`, group
-      `nx-gameservers-events-castle`) dispatches by `Nx-Message-Type`.
+      `nx-gameservers-events-castle`) dispatches by `Message-Type`.
     - `CastleSnapshotEvent` → `CastleSnapshotIngestor` → `gs_castles` full-scope
       replace gated by a per-scope watermark (`gs_castles_sync`), mirroring
       `BossRespawnIngestor`.
@@ -148,13 +148,13 @@ CastleSnapshotEvent {
   eventId: UUIDv7,
   castles: [ CastleSnapshotEntry { castleId, name?, ownerClanId?, nextSiegeAt?, metadata? } ],
   metadata?: { ... }
-}                                   // Nx-Message-Type: CastleSnapshotEvent, key: null (round-robin)
+}                                   // Message-Type: CastleSnapshotEvent, key: null (round-robin)
 
 SiegeFinishedEvent {
   eventId: UUIDv7, castleId, castleName?, siegeStartedAt?,
   outcome: "captured"|"defended"|"draw", winnerClanId?,
   attackerClanIds: [..], defenderClanIds: [..], metadata?: { ... }
-}                                   // Nx-Message-Type: SiegeFinishedEvent, key: castleId (8-byte BE)
+}                                   // Message-Type: SiegeFinishedEvent, key: castleId (8-byte BE)
 ```
 
 ## Storage (nx-gameservers)

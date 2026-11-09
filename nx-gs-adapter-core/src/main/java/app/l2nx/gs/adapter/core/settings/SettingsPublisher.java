@@ -161,7 +161,7 @@ final class SettingsPublisher<T> {
         }
         SettingsSyncEvent<T> event = new SettingsSyncEvent<T>(entityName, snapshot, clock.millis());
         ProducerRecord<byte[], Object> record = new ProducerRecord<byte[], Object>(target, key, event);
-        record.headers().add(NxHeaders.NX_MESSAGE_TYPE, MESSAGE_TYPE.getBytes(StandardCharsets.UTF_8));
+        record.headers().add(NxHeaders.MESSAGE_TYPE, MESSAGE_TYPE.getBytes(StandardCharsets.UTF_8));
         sent = snapshot;
         return new Pending<T>(record, snapshot, build);
     }

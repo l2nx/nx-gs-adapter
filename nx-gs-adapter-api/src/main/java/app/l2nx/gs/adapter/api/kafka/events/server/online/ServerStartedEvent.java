@@ -10,13 +10,13 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Emitted once when the server has finished loading the world and is accepting logins; shares the
- * {@code serveronline} topic with {@link ServerOnlineSnapshotEvent} (dispatched by {@code Nx-Message-Type}).
+ * {@code serveronline} topic with {@link ServerOnlineSnapshotEvent} (dispatched by {@code Message-Type}).
  *
  * <p>The host owns suppression during scheduled maintenance restarts; the platform applies no restart
  * logic. {@code eventId} is a UUIDv7 idempotency key. {@code metadata} carries {@link WellKnownServerStartMetadata}
  * keys; a consumer SHOULD mute its "server is up" notification when {@code gm_only=true}.</p>
  *
- * <p>Partition key is {@code null} (round-robin); consumers group by the {@code Nx-Server-Id} header.</p>
+ * <p>Partition key is {@code null} (round-robin); consumers group by the {@code Server-Id} header.</p>
  */
 public final class ServerStartedEvent {
 

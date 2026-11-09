@@ -70,7 +70,7 @@ order):
 2. one terminal `GameDataSyncEvent{op=SNAPSHOT_COMPLETE, syncId, count}` marker.
 
 `syncId` is UUIDv7 (time-ordered — the platform derives burst time from the id). Every record carries
-`Nx-Message-Type=GameDataSyncEvent`. The topic of each entity comes from `ctx.getSyncTopics().getGd()`
+`Message-Type=GameDataSyncEvent`. The topic of each entity comes from `ctx.getSyncTopics().getGd()`
 (keyed by `entityName`); an absent topic skips that entity with a `WARN`. The platform maps every
 entity to one `<tenant>.gd.sync` topic (since 2026-10-08); the consumer routes by the envelope's
 `entityName`. The map is applied at `/connect`, so a host picks up a changed map on reconnect.

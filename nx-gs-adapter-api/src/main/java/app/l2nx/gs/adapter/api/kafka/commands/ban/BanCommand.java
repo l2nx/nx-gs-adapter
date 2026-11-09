@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Invariant: {@code permanent == (expiresAt == null)}, enforced by the constructor.</p>
  *
- * <p>Targets exactly one server ({@code Nx-Target-Server-Id}); the platform issues one command per server in scope.
+ * <p>Targets exactly one server ({@code Server-Id}); the platform issues one command per server in scope.
  * Re-delivery of a command for an already-active ban should be a no-op success.</p>
  */
 public final class BanCommand implements NxCommand<BanResult> {

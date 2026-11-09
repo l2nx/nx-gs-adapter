@@ -10,11 +10,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 class NxHeadersTest {
 
     @Test
-    void NX_SERVER_ID_shouldBeStableLiteral() {
-        assertEquals("Nx-Server-Id", NxHeaders.NX_SERVER_ID);
-    }
-
-    @Test
     void names_shouldCarryNoPrefix() {
         assertEquals("Server-Id", NxHeaders.SERVER_ID);
         assertEquals("Message-Type", NxHeaders.MESSAGE_TYPE);

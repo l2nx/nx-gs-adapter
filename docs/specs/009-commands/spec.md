@@ -42,9 +42,9 @@ who consume reply events.
 >   Commands runtime is **not** a discovered Tier-1 module — it lives inside `nx-gs-adapter-core`
 >   as a built-in capability surfaced through `ConnectContext`, symmetric to the
 >   [`messaging`](../008-messaging.md) `events` surface.
-> - `Nx-Server-Id` / `Nx-Message-Type` / `Nx-Correlation-Id` header contracts from
+> - `Server-Id` / `Message-Type` / `Correlation-Id` header contracts from
 >   [`per-server-sync`](../007-per-server-sync.md) and [`messaging`](../008-messaging.md)
->   are reused unchanged. `Nx-Target-Server-Id` (R22) is introduced here.
+>   are reused unchanged. `Server-Id` (R22) is introduced here.
 
 **Must:**
 
@@ -61,7 +61,7 @@ who consume reply events.
     `"commands": {}` is harmless under Gson's ignore-unknown-fields default.
 
 - [done] R2. One inbound Kafka topic carries every command type; routing inside the topic is by
-  `Nx-Message-Type` header, never by topic name. The adapter does not read the record key —
+  `Message-Type` header, never by topic name. The adapter does not read the record key —
   partition-key choice is the platform producer's contract, and the adapter neither enforces nor
   depends on it. What the producer actually does (`nx-gameservers` `CommandsSender.publish`): a
   nullable `Long` key, `characterId` for character-scoped commands so cross-domain ordering per character
@@ -110,7 +110,7 @@ errorDetails` triple. Dropped before first release in favour of R23 + R24: three
   blocking IO requires an explicit `ctx.io()` hop.
 
 - [done] R7. `nx-gs-adapter-api.spi.CommandContext` MUST expose:
-  - `UUID correlationId()` — inbound `Nx-Correlation-Id`, never null (fallback UUIDv7 when the
+  - `UUID correlationId()` — inbound `Correlation-Id`, never null (fallback UUIDv7 when the
     header is absent or malformed).
   - `HostExecutor host()` — game-thread hop (R8).
   - `NxEvents events()` — handlers MAY publish side-effect events.
@@ -171,12 +171,12 @@ errorDetails` triple. Dropped before first release in favour of R23 + R24: three
     loses the in-flight records — they never redeliver, the caller times out, and a human
     re-issues the command with a fresh correlation id. **Handlers therefore do NOT need to be
     idempotent**, and the adapter keeps no dedup cache.
-  - Per-record dispatch: filter by `Nx-Target-Server-Id` (R22) → read `Nx-Message-Type` and
-    `Nx-Correlation-Id` → look up the binding in `CommandTypeRegistry` → Gson-deserialize the
+  - Per-record dispatch: filter by `Server-Id` (R22) → read `Message-Type` and
+    `Correlation-Id` → look up the binding in `CommandTypeRegistry` → Gson-deserialize the
     value into the binding's class → build `CommandContext` → invoke the handler → publish the
     reply fire-and-forget (R13).
   - Error boundaries (all of them reply and move on; none of them re-dispatch):
-    - missing / empty `Nx-Message-Type` → `UNSUPPORTED_COMMAND`,
+    - missing / empty `Message-Type` → `UNSUPPORTED_COMMAND`,
       `error.cause = "missing-message-type-header"`, reply type header falls back to the
       literal `CommandResult`
     - header value with no registered handler → `UNSUPPORTED_COMMAND` with the `messageType`
@@ -213,8 +213,8 @@ errorDetails` triple. Dropped before first release in favour of R23 + R24: three
   record accumulator absorbs back-pressure. Reply construction:
   - `key = bigEndian(correlationId.getMostSignificantBits())`, so replies for one correlation
     co-locate on a partition (tooling aid only)
-  - headers: `Nx-Correlation-Id` (echoed, or the generated fallback), `Nx-Message-Type` (R26),
-    and `Nx-Server-Id` stamped by the Kafka facade's static headers
+  - headers: `Correlation-Id` (echoed, or the generated fallback), `Message-Type` (R26),
+    and `Server-Id` stamped by the Kafka facade's static headers
   - value = the `CommandResult` object, serialized by the facade's `GsonSerializer`
   - target topic = `commandsRepliesTopic`; when it is unconfigured the reply is dropped with a
     DEBUG log and `replies-failed-total` is incremented, so `{consumed > 0,
@@ -307,7 +307,7 @@ replies-published == 0}` is visible as a failure rather than as silence
 **Must (added after the initial slice):**
 
 - [done] R22. The commands topic is per-tenant and shared by every game-server under that tenant,
-  so each record MUST carry `Nx-Target-Server-Id` — the 16-byte encoded server UUID issued in the
+  so each record MUST carry `Server-Id` — the 16-byte encoded server UUID issued in the
   `/connect` response. The adapter drops any record whose header is missing, malformed, or does
   not match its own server id, counting it in `other-server-skipped-total` and emitting **no
   reply**. The contract is strict on purpose: an unheadered record has no addressee, and replying
@@ -333,7 +333,7 @@ replies-published == 0}` is visible as a failure rather than as silence
   a non-OK reply as a transport-neutral RFC 9457 subset: `title` (required, stable per problem
   kind), `@Nullable detail` (per-instance), and an `extensions` map of Gson-serializable values,
   frozen unmodifiable and normalized from `null` to empty. HTTP-specific fields (status, type URI,
-  instance URI) live elsewhere — `CommandStatus` and `Nx-Correlation-Id`. Object-valued extensions
+  instance URI) live elsewhere — `CommandStatus` and `Correlation-Id`. Object-valued extensions
   are what let a problem carry numeric or list context (required vs available adena, rejected item
   ids) that the dropped string map (R5) could not.
 
@@ -344,7 +344,7 @@ replies-published == 0}` is visible as a failure rather than as silence
   in [`force-resync`](../021-force-resync.md); the per-command trigger mapping is in
   [`catalog.md`](./catalog.md).
 
-- [done] R26. The reply's `Nx-Message-Type` MUST be derived from the **command class simple name**:
+- [done] R26. The reply's `Message-Type` MUST be derived from the **command class simple name**:
   strip a trailing `Command`, append `Result` (`TransferItemToCharacterCommand` →
   `TransferItemToCharacterResult`). It is derived, not read off the `R` type, so a routable reply
   type exists even when the command has no registered binding (unknown-type replies derive from
@@ -473,7 +473,7 @@ replies-published == 0}` is visible as a failure rather than as silence
 - **Per-domain Kafka topics** — single topic; cross-domain ordering per character is the more
   useful invariant than per-domain isolation.
 - **Synchronous RPC mode** — replies always go through the replies topic; the web side correlates
-  by `Nx-Correlation-Id`.
+  by `Correlation-Id`.
 - **Per-handler threading flags** — the SPI is sync plus explicit `ctx.host().sync(...)` /
   `ctx.io()` hops. No `@OnGameThread` annotations or registration-time threading hints.
 - **Idempotency / dedup / retry on the adapter side** — at-most-once (R11) makes dedup moot, and a
@@ -487,12 +487,12 @@ replies-published == 0}` is visible as a failure rather than as silence
 
 ### Edge cases
 
-- **`Nx-Target-Server-Id` missing / malformed / other server** — record dropped, no reply,
+- **`Server-Id` missing / malformed / other server** — record dropped, no reply,
   `other-server-skipped-total`++ (R22). A missing header is a producer bug and logs WARN; a
   wrong-target record is routine on a shared topic and logs DEBUG.
-- **`Nx-Message-Type` missing** — the adapter cannot route and cannot derive a reply type; it
+- **`Message-Type` missing** — the adapter cannot route and cannot derive a reply type; it
   replies `UNSUPPORTED_COMMAND` under the literal `CommandResult` type header.
-- **`Nx-Correlation-Id` missing or malformed** — the handler still runs (correlation is opaque to
+- **`Correlation-Id` missing or malformed** — the handler still runs (correlation is opaque to
   the adapter) and gets a generated UUIDv7 so log tagging works; the reply carries that fallback,
   so the platform cannot correlate it and the caller times out. WARN logged.
 - **Handler returns `null`** — wrapped as `INTERNAL_ERROR` with
@@ -530,7 +530,7 @@ Two artifacts. `nx-gs-adapter-api` owns the wire and SPI types — `NxCommand<R>
 `CommandStatus`, `CommandProblem`, the per-group command/result DTOs, and the `NxCommands` /
 `CommandHandler` / `CommandContext` / `HostExecutor` / `NxSync` interfaces — with zero runtime
 dependencies so hosts and the platform can both compile against it. `nx-gs-adapter-core` owns the
-runtime: one Kafka consumer thread, a registry keyed by `Nx-Message-Type`, and a reply publisher
+runtime: one Kafka consumer thread, a registry keyed by `Message-Type`, and a reply publisher
 riding the existing producer.
 
 ### Structure
@@ -576,9 +576,9 @@ poll(pollTimeoutMs)
   └─ commitSync()                              ← at-most-once gate
        └─ failed → commit-failures-total++, WARN, drop the whole batch
   └─ per record:
-       1. Nx-Target-Server-Id != own → other-server-skipped-total++, drop, no reply
-       2. Nx-Message-Type → CommandTypeRegistry.lookup  → miss: UNSUPPORTED_COMMAND
-       3. Nx-Correlation-Id → UUID (fallback UUIDv7 on missing/malformed)
+       1. Server-Id != own → other-server-skipped-total++, drop, no reply
+       2. Message-Type → CommandTypeRegistry.lookup  → miss: UNSUPPORTED_COMMAND
+       3. Correlation-Id → UUID (fallback UUIDv7 on missing/malformed)
        4. gson.fromJson(value, binding.commandClass) → JsonSyntaxException: VALIDATION_FAILED
           initiator missing / invalid (R30)        → VALIDATION_FAILED
        5. handler.handle(cmd, new CommandContextImpl(...))
@@ -612,7 +612,7 @@ poll(pollTimeoutMs)
   shared payload type would have made every command's reply shape a runtime question instead of a
   compile-time one.
 - **Reply type derived from the command name, not the `R` class.** The adapter must name a reply
-  type even for commands it cannot bind (unknown `Nx-Message-Type`), and sibling commands
+  type even for commands it cannot bind (unknown `Message-Type`), and sibling commands
   legitimately share one `R`. Deriving from the command name keeps the header 1:1 with the request
   in both cases.
 - **Target-server filtering in the adapter, not per-server topics.** One topic per tenant keeps
@@ -686,7 +686,7 @@ ignored. `CommandsConfig`'s constructor loses a parameter, so any code construct
 
 ## Open questions
 
-- Reply `Nx-Message-Type` is derived from the command class name (R26), but `guide.md` states it
+- Reply `Message-Type` is derived from the command class name (R26), but `guide.md` states it
   "matches the R class name" and its lifecycle diagram shows `TransferItemToCharacterCommandResult`
   (keeping the `Command` infix). Both are wrong against the code, and the divergence is observable:
   `DeleteAutoAnnouncementCommand` (`R = Void`) replies as `DeleteAutoAnnouncementResult`, and
@@ -731,7 +731,7 @@ NxCommand<Void>` is the sanctioned exception, and payload-less `CommandResult.ok
   [`docs/specs/002-adapter-modules/spec.md`](../002-adapter-modules/spec.md)
 - Sibling feature (topic delivery contract):
   [`docs/specs/001-adapter-bootstrap.md`](../001-adapter-bootstrap.md)
-- Sibling feature (`Nx-Server-Id` header stamping):
+- Sibling feature (`Server-Id` header stamping):
   [`docs/specs/007-per-server-sync.md`](../007-per-server-sync.md)
 - Sibling feature (`NxSync` / force-resync): [`docs/specs/021-force-resync.md`](../021-force-resync.md)
 - Follow-up command slice: [`docs/specs/009-commands/send-mail.md`](send-mail.md)

@@ -33,7 +33,7 @@ class KafkaInitializerTest {
             /* test placeholder */
         };
         Map<String, byte[]> staticHeaders =
-                Collections.singletonMap(NxHeaders.NX_SERVER_ID, NxHeaders.encodeUuid(SERVER_ID));
+                Collections.singletonMap(NxHeaders.SERVER_ID, NxHeaders.encodeUuid(SERVER_ID));
 
         KafkaState result = init.init(
                 kafkaCredentials("acme-x1-user", "p@ss"), "nx-gs-adapter-acme-acme-x1", staticHeaders, listener);
@@ -51,7 +51,7 @@ class KafkaInitializerTest {
                         + " required username=\"acme-x1-user\" password=\"p@ss\";",
                 factory.capturedProperties.get("sasl.jaas.config"));
         assertNotNull(factory.capturedStaticHeaders);
-        assertEquals(SERVER_ID, NxHeaders.decodeUuid(factory.capturedStaticHeaders.get(NxHeaders.NX_SERVER_ID)));
+        assertEquals(SERVER_ID, NxHeaders.decodeUuid(factory.capturedStaticHeaders.get(NxHeaders.SERVER_ID)));
     }
 
     @Test

@@ -5,7 +5,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Periodic full snapshot of every tracked raid / epic boss, on the {@code raid} family topic
- * (multiplexed with {@code RaidKillEvent} via the {@code Nx-Message-Type} header).
+ * (multiplexed with {@code RaidKillEvent} via the {@code Message-Type} header).
  *
  * <p>Full snapshot, not a delta: the consumer replaces last-known state per server and drops bosses
  * absent from a newer snapshot. Respawn times are absolute, so the cadence can be slow.</p>

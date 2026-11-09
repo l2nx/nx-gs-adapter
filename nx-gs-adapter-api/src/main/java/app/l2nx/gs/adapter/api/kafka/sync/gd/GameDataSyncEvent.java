@@ -7,7 +7,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Wire envelope for the {@code gd} sync stream, one per record on the entity's {@code syncTopics.gd} topic; mirrors
  * {@link app.l2nx.gs.adapter.api.kafka.sync.db.SyncEvent} except {@code pk} is nullable (the marker has no row key).
- * {@code serverId} rides the {@code Nx-Server-Id} header and the tenant comes from the topic slug, not the body.
+ * {@code serverId} rides the {@code Server-Id} header and the tenant comes from the topic slug, not the body.
  *
  * <p>A snapshot is a burst of {@code UPSERT}s then one {@code SNAPSHOT_COMPLETE}, keyed by server id so they
  * stay ordered in one partition; on the marker the consumer deletes rows whose stored {@code syncId} differs.</p>

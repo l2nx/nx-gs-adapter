@@ -69,7 +69,7 @@ class EventsPublisherTest {
         long extracted = ByteBuffer.wrap(record.key()).getLong();
         assertEquals(42L, extracted);
 
-        Header header = record.headers().lastHeader(NxHeaders.NX_MESSAGE_TYPE);
+        Header header = record.headers().lastHeader(NxHeaders.MESSAGE_TYPE);
         assertNotNull(header);
         assertEquals("PremiumPurchaseEvent", new String(header.value(), java.nio.charset.StandardCharsets.UTF_8));
 

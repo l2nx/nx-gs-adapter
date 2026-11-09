@@ -354,7 +354,7 @@ connect are buffered and published on connect. Disabled adapter, login server or
 capability starts nothing and finds nothing.
 
 **The `appsettings` publisher** (`SettingsPublisher<AppSettings>` in `SettingsModule`, notified by the settings-file watcher, R20) sends `SettingsSyncEvent<AppSettings>` to `syncTopics.settings["appsettings"]`
-(`<tenant>.gs.settings.sync`), key = the raw 16-byte `serverId` (as on the gd stream), header `Nx-Message-Type =
+(`<tenant>.gs.settings.sync`), key = the raw 16-byte `serverId` (as on the gd stream), header `Message-Type =
 SettingsSyncEvent`, through the shared settings publisher of [`041-settings-sync`](041-settings-sync.md) (send on
 connect, reconnect and change, the 5-minute tick, a missing map entry).
 
@@ -846,7 +846,7 @@ Phases across repos, in delivery order:
    release), published to Maven Central. Platform: `gs_sessions.source` / `activity`, `APP` filters, activity-usage
    storage, the closed `CharacterActivity` and bucket enums with their CHECKs and migrated data, the private legacy
    mapping for the old shapes, offline-fishing commands answering `501` (a deployed adapter answers an unknown
-   `Nx-Message-Type` with `UNSUPPORTED_COMMAND`), the `source = APP` filters for the presence notifications, the
+   `Message-Type` with `UNSUPPORTED_COMMAND`), the `source = APP` filters for the presence notifications, the
    permission seeded and granted to nobody. The platform sends `idempotencyKey` and `initiatorIp` on the private-store
    commands.
 2. **[done] Host, first restart: app sessions.** Migrations through the adapter, the private store from the app on

@@ -25,7 +25,7 @@ progression paths.
 > Sibling feature carrying the wire dispatch plumbing:
 >
 > - [`messaging`](008-messaging.md) — `MessagingTopics.events.<family>` topic addressing,
->   `Nx-Server-Id` connection-scoped header, `Nx-Message-Type` per-record header, UUIDv7
+>   `Server-Id` connection-scoped header, `Message-Type` per-record header, UUIDv7
 >   idempotency. UNCHANGED.
 
 **Must:**

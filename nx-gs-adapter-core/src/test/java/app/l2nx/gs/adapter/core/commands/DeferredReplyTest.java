@@ -67,9 +67,9 @@ class DeferredReplyTest {
     private static ConsumerRecord<byte[], byte[]> record(UUID corr) {
         ConsumerRecord<byte[], byte[]> r =
                 new ConsumerRecord<>("in", 0, 0L, new byte[] {1}, CommandsConsumerTest.payload(1));
-        r.headers().add(NxHeaders.NX_MESSAGE_TYPE, "FakeCommand".getBytes(StandardCharsets.UTF_8));
-        r.headers().add(NxHeaders.NX_CORRELATION_ID, corr.toString().getBytes(StandardCharsets.UTF_8));
-        r.headers().add(NxHeaders.NX_TARGET_SERVER_ID, NxHeaders.encodeUuid(OWN_SERVER_ID));
+        r.headers().add(NxHeaders.MESSAGE_TYPE, "FakeCommand".getBytes(StandardCharsets.UTF_8));
+        r.headers().add(NxHeaders.CORRELATION_ID, corr.toString().getBytes(StandardCharsets.UTF_8));
+        r.headers().add(NxHeaders.SERVER_ID, NxHeaders.encodeUuid(OWN_SERVER_ID));
         return r;
     }
 
@@ -128,10 +128,10 @@ class DeferredReplyTest {
             ProducerRecord<byte[], Object> reply = sender.sent.get(0);
             assertArrayEquals(
                     corr.toString().getBytes(StandardCharsets.UTF_8),
-                    reply.headers().lastHeader(NxHeaders.NX_CORRELATION_ID).value());
+                    reply.headers().lastHeader(NxHeaders.CORRELATION_ID).value());
             assertArrayEquals(
                     "FakeResult".getBytes(StandardCharsets.UTF_8),
-                    reply.headers().lastHeader(NxHeaders.NX_MESSAGE_TYPE).value());
+                    reply.headers().lastHeader(NxHeaders.MESSAGE_TYPE).value());
             assertTrue(onlyReply().isOk());
             assertEquals(0L, deferredReplies.openCount());
         }

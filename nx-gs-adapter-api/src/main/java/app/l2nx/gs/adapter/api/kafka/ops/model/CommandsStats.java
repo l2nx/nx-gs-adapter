@@ -10,9 +10,9 @@ import org.jspecify.annotations.Nullable;
  * Heartbeat slot for the built-in {@code commands} module (inbound consumer + dispatch).
  * All counters are cumulative since adapter start.
  * <ul>
- *     <li>{@code otherServerSkippedTotal} - dropped for a non-matching or missing/malformed {@code Nx-Target-Server-Id}.</li>
+ *     <li>{@code otherServerSkippedTotal} - dropped for a non-matching or missing/malformed {@code Server-Id}.</li>
  *     <li>{@code handledTotal} - handler returned a result (success or business error); excludes unsupported, validation and internal branches.</li>
- *     <li>{@code unsupportedTotal} - no {@code Nx-Message-Type} header or no registered handler.</li>
+ *     <li>{@code unsupportedTotal} - no {@code Message-Type} header or no registered handler.</li>
  *     <li>{@code validationFailedTotal} - payload deserialization failed.</li>
  *     <li>{@code internalErrorsTotal} - handler threw {@code RuntimeException}.</li>
  *     <li>{@code commitFailuresTotal} - offset commit failed; the record is redelivered on next poll.</li>

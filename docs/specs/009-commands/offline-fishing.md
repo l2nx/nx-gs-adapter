@@ -225,8 +225,8 @@ activity usage (the `FISHING` row's `activeSince` clears, for live and offline f
 
 ### Wire shape
 
-Same rail as the other commands: `Nx-Message-Type = StartOfflineFishingCommand` / `StopOfflineFishingCommand` /
-`CheckOfflineFishingCommand`, `Nx-Correlation-Id` (stable per logical start), `Nx-Target-Server-Id`.
+Same rail as the other commands: `Message-Type = StartOfflineFishingCommand` / `StopOfflineFishingCommand` /
+`CheckOfflineFishingCommand`, `Correlation-Id` (stable per logical start), `Server-Id`.
 Permission on the platform side: `GS_COMMANDS_OFFLINE_FISHING_OWN`, one permission for start, stop and check,
 own-character scope. Caching and rate-limiting checks is the platform's job.
 
@@ -265,7 +265,7 @@ in check mode and maps the first refusal into `AppSessionCheckResult` instead of
 ## Rollout
 
 Additive wire (new commands, new reason enum), api minor version. Until the host registers the handlers the adapter
-replies `UNSUPPORTED_COMMAND` to an unknown `Nx-Message-Type` (`CommandsConsumer`) and the platform answers `501` to its
+replies `UNSUPPORTED_COMMAND` to an unknown `Message-Type` (`CommandsConsumer`) and the platform answers `501` to its
 clients; the platform ships first, the permission is
 granted only after the host phase ([`038`](../038-app-offline-sessions.md) Rollout).
 

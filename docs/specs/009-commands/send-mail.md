@@ -198,9 +198,9 @@ Inbound record on `<tenant>.gs.commands`:
 ```
 key:   longBytesBe(characterId)
 headers:
-  Nx-Server-Id      = raw 16-byte tenant/server uuid (auto-stamped post-/connect)
-  Nx-Message-Type   = "SendMailCommand"
-  Nx-Correlation-Id = <platform-issued UUID>
+  Server-Id      = raw 16-byte tenant/server uuid (auto-stamped post-/connect)
+  Message-Type   = "SendMailCommand"
+  Correlation-Id = <platform-issued UUID>
 value: gson(SendMailCommand JSON)
 ```
 
@@ -209,9 +209,9 @@ Reply record on `<tenant>.gs.commands.replies`:
 ```
 key:   longBytesBe(corrId.getMostSignificantBits())
 headers:
-  Nx-Server-Id      = raw 16-byte tenant/server uuid
-  Nx-Message-Type   = "SendMailCommandResult"
-  Nx-Correlation-Id = <inbound corrId>
+  Server-Id      = raw 16-byte tenant/server uuid
+  Message-Type   = "SendMailCommandResult"
+  Correlation-Id = <inbound corrId>
 value: gson(CommandResult<SendMailResult> JSON)
 ```
 

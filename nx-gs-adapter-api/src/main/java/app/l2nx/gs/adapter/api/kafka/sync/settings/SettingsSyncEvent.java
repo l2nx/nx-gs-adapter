@@ -5,7 +5,7 @@ import java.util.Objects;
 /**
  * Wire envelope of the settings family, one record per snapshot on the entity's {@code syncTopics.settings} topic; all
  * settings entities share {@code <tenant>.gs.settings.sync} and the consumer routes by {@code entityName}. {@code serverId}
- * rides the {@code Nx-Server-Id} header and the tenant comes from the topic slug, not the body.
+ * rides the {@code Server-Id} header and the tenant comes from the topic slug, not the body.
  *
  * <p>Every record is the full current settings of one server, so the newest one wins.</p>
  *

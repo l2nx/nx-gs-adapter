@@ -20,7 +20,7 @@ This slice introduces two surfaces in `nx-gs-adapter`:
   `events.character` / `events.clan` / `events.server` are provisioned in the wire contract
   but the concrete subtypes are deferred.
 - **Inbound commands (architectural sketch only)** — the wire shape (`<tenant>.gs.commands.<domain>`
-  per-business-domain topics, `Nx-Message-Type` + `Nx-Correlation-Id` headers, `CommandResultEvent`
+  per-business-domain topics, `Message-Type` + `Correlation-Id` headers, `CommandResultEvent`
   reply via the events stream) and the high-level SPI hook are committed in Javadoc placeholders;
   the runtime consumer + dispatch implementation is Phase 2.
 
@@ -33,7 +33,7 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
 > **Sibling features carry the SPI plumbing and topic delivery contract:**
 >
 > - Tier-1 SPI (`AdapterModule` + ServiceLoader) lives in > [`adapter-modules`](002-adapter-modules/spec.md). Phase 1 messaging is **not** > a discovered Tier-1 module — it lives inside `nx-gs-adapter-core` as a built-in > capability surfaced through `ConnectContext`.
-> - Existing `Nx-Server-Id` header stamping (raw 16-byte UUID on every record post-`/connect`) > from [`per-server-sync`](007-per-server-sync.md) is reused unchanged.
+> - Existing `Server-Id` header stamping (raw 16-byte UUID on every record post-`/connect`) > from [`per-server-sync`](007-per-server-sync.md) is reused unchanged.
 >
 > All requirements below assume `adapter-bootstrap` topic-delivery contract is extended
 > with the new `messagingTopics` field in this slice.
@@ -140,17 +140,18 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
   - Public to consumers of `:nx-gs-commons` (adapter-core uses it; tenant providers
     and host hooks may use it for their own correlation-id needs).
 
-- [todo] R5. `nx-gs-adapter-api.kafka.NxHeaders` MUST expose a new constant:
-  - `String NX_MESSAGE_TYPE = "Nx-Message-Type"` — UTF-8 string header, value =
+- [todo] R5. `nx-gs-adapter-api.kafka.NxHeaders` holds the Kafka header names:
+  - `String MESSAGE_TYPE = "Message-Type"` — UTF-8 string header, value =
     simple class name of the concrete event type (e.g. `"PremiumPurchaseEvent"`).
     Auto-stamped by adapter-core on every event publish; platform consumers
     switch on this header for deserialization without peeking into the JSON.
-  - `Nx-Server-Id` header (existing) — unchanged.
-  - Unprefixed names `SERVER_ID = "Server-Id"`, `MESSAGE_TYPE = "Message-Type"` and
-    `CORRELATION_ID = "Correlation-Id"` sit next to the `NX_*` ones (api 0.126.0). The adapter still
-    sends and reads only `Nx-*`; platform consumers already read the new name first and fall back to the
-    old one, platform producers send both (`nx-infra/docs/specs/049-request-headers.md` § 9, § 11).
-    `Server-Id` replaces both `Nx-Server-Id` and `Nx-Target-Server-Id` once the adapter switches.
+  - `String SERVER_ID = "Server-Id"` — raw 16-byte server UUID, one name for both directions: the source on
+    every record the adapter publishes, the target on the commands topic.
+  - `String CORRELATION_ID = "Correlation-Id"` — textual UUID on commands, echoed on replies.
+  - Since api 0.127.0 / core 0.55.0 the adapter sends and reads only these names (the `Nx-` prefix and
+    `Nx-Target-Server-Id` are gone). Platform consumers read the new name first and fall back to the old one,
+    platform producers send both, until every game server runs the new adapter and topic retention has passed
+    (`nx-infra/docs/specs/049-request-headers.md` § 9, § 11; l2nx/nx-platform#41).
 
 - [todo] R6. `nx-gs-adapter-api.spi.ConnectContext` MUST expose `NxEvents events()`
   accessor — symmetric to existing `getSyncTopics()`. Returned facade is non-null;
@@ -240,13 +241,13 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
   - **Wire topology:** per-domain topic `<tenant>.gs.commands.<domain>`.
     Reserved domains: `char`, `clan`, `mail`, `account`. Adapter consumes one
     topic per domain it supports.
-  - **Headers:** `Nx-Message-Type` (concrete command class simple name) +
-    `Nx-Correlation-Id` (UUIDv7, platform-issued; embedded timestamp = command
+  - **Headers:** `Message-Type` (concrete command class simple name) +
+    `Correlation-Id` (UUIDv7, platform-issued; embedded timestamp = command
     enqueue time on platform side).
   - **Reply path (as shipped):** a dedicated topic —
     `MessagingTopics.commandsRepliesTopic`, not an events family. The reply record is keyed by the
-    big-endian most-significant bits of the correlation id and carries `Nx-Correlation-Id` (echoed)
-    plus `Nx-Message-Type` (the reply type derived from the command class name). Platform correlates
+    big-endian most-significant bits of the correlation id and carries `Correlation-Id` (echoed)
+    plus `Message-Type` (the reply type derived from the command class name). Platform correlates
     by `correlationId`.
   - **Result envelope (as shipped, replaces legacy `ResponseV2`):**
     `CommandResult { status: CommandStatus, payload?: R, problem?: CommandProblem }`. `CommandStatus`
@@ -267,7 +268,7 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
 - [todo] R13. **Module versions (MVP slice ship):**
   - `nx-gs-adapter-api` = `0.13.0` — additive (new `MessagingTopics` field on
     `ConnectResponse`, new `kafka.events.*` and `kafka.commands` packages,
-    new `NxHeaders.NX_MESSAGE_TYPE` + `NX_CORRELATION_ID` constants, new
+    new `NxHeaders.MESSAGE_TYPE` + `CORRELATION_ID` constants, new
     `NxEvents` SPI in `spi.*`, new `ConnectContext.events()` accessor, new
     `EventsStats` POJO + `events` slot on `ModuleStatus.Stats`). No deletions;
     clients on `0.12.x` continue to work against an `0.13.0` platform that
@@ -276,7 +277,7 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
   - `nx-gs-kafka` = `0.4.0` — additive: new
     `NxProducer.sendBytesKeyRecord(record, callback)` +
     `NxKafka.sendBytesKeyRecord(record, callback)` so adapter-core can
-    attach per-record headers ({@code Nx-Message-Type}) on byte-keyed
+    attach per-record headers ({@code Message-Type}) on byte-keyed
     events records. No removals.
   - `nx-gs-adapter-core` = `0.6.0` — new `EventsPublisher` + `NxEvents` impl,
     new `messagingTopics` parsing on `ConnectResponse`, heartbeat slot
@@ -320,7 +321,7 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
   Gson-friendly POJOs with `serializeNulls=false`. Adding a nullable field is
   forward+backward compatible. Removing or retyping a field is a breaking
   api-major bump.
-- **Tracing (`Nx-Trace-Id`).** Distributed tracing across publish ↔ consume is
+- **Tracing (`traceparent`).** Distributed tracing across publish ↔ consume is
   desirable but not justified at MVP scale.
 - **Per-event-type config overrides** (per-type queue / drop policy / partitioner).
   One global queue, one drop policy. Differentiation comes when a real event type
@@ -410,7 +411,7 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
   [`docs/specs/002-adapter-modules/spec.md`](002-adapter-modules/spec.md)
 - Sibling feature (topic delivery contract):
   [`docs/specs/001-adapter-bootstrap.md`](001-adapter-bootstrap.md)
-- Sibling feature (`Nx-Server-Id` header stamping):
+- Sibling feature (`Server-Id` header stamping):
   [`docs/specs/007-per-server-sync.md`](007-per-server-sync.md)
 - Premium-purchase inventory source: the reference host's community-board service
   listeners + multisell custom shops.
@@ -432,7 +433,7 @@ never re-acquire.
 Host hooks call typed publish methods (`publishPremiumPurchase`, …) which
 enqueue into a shared bounded `ArrayBlockingQueue` on a single internal
 `nx-events-publisher` daemon thread; the daemon Gson-serializes, stamps
-`Nx-Server-Id` + `Nx-Message-Type` headers, derives a partition key from the
+`Server-Id` + `Message-Type` headers, derives a partition key from the
 event payload via a hardcoded type-registry, and hands off to the single
 `KafkaProducer<byte[], Object>` owned by `DefaultNxProducer` (string keys are
 encoded to UTF-8 bytes at the boundary). Producer durability is wire-enforced
@@ -472,7 +473,7 @@ health check — created once at init, reused.
 - `nx-gs-adapter-api/src/main/java/app/l2nx/gs/adapter/api/kafka/commands/`
   [planned] — package placeholder; `NxCommand` marker interface + Javadoc-stub
 - `nx-gs-adapter-api/src/main/java/app/l2nx/gs/adapter/api/kafka/NxHeaders.java`
-  [planned] — adds `NX_MESSAGE_TYPE` constant
+  [planned] — adds `MESSAGE_TYPE` constant
 - `nx-gs-commons/src/main/java/app/l2nx/gs/commons/UUIDv7.java`
   [planned] — pure-JDK UUIDv7 generator + extractor
 - `nx-gs-adapter-core/src/main/java/app/l2nx/gs/adapter/core/events/EventsPublisher.java`
@@ -575,9 +576,9 @@ End-to-end publish (premium purchase from a community-board buy-noblesse click):
      `serializeNulls=false` so unset fields are absent on the wire.
    - Build `ProducerRecord(topic, partitionKey, jsonBytes)` where
      `partitionKey = LongSerializer.serialize(event.getCharacterId())`.
-   - Stamp headers: `Nx-Server-Id` (raw 16-byte UUID — already auto-stamped
+   - Stamp headers: `Server-Id` (raw 16-byte UUID — already auto-stamped
      by the producer's static-headers config from `per-server-sync`),
-     `Nx-Message-Type: PremiumPurchaseEvent`.
+     `Message-Type: PremiumPurchaseEvent`.
    - Call `kafkaProducer.send(record, callback)`.
 5. Kafka producer ack callback:
    - Success → `published-total++`.
@@ -645,7 +646,7 @@ Wire DTOs (Kafka payloads):
 - **`NxKafka` producer** [planned] — reused via `EventsPublisher`. No new Kafka
   init code; the single `KafkaProducer<byte[], Object>` built at adapter
   bootstrap (per `adapter-bootstrap` R6) is shared. Static headers
-  (`Nx-Server-Id`) registered there auto-apply to events as well as sync
+  (`Server-Id`) registered there auto-apply to events as well as sync
   records. The `commands` consumer surface shares producer access for reply
   publication and uses a separate `ConsumerGroup` (renamed from
   `NxConsumerGroup`) running with `enable.auto.commit=false` and sync per-record
@@ -748,7 +749,7 @@ Object payload)` would allow). Adding a family is a binary-compatible API
   `events.server` (online snapshots, periodic) is low-value and short-retained.
   Separate topics let operators tune each independently without affecting
   the others. Within a family, multiple concrete event types share the topic
-  and are discriminated by `Nx-Message-Type` header — cheap and forward-friendly.
+  and are discriminated by `Message-Type` header — cheap and forward-friendly.
 
 - **Decision:** `Source` (multisell vs CB vs NPC vs item-handler) is NOT
   carried in `PremiumPurchaseEvent`.
@@ -790,7 +791,7 @@ Object payload)` would allow). Adding a family is a binary-compatible API
   `Premium<Action>Event extends PremiumPurchaseEvent`, add registry binding in
   `EventTypeRegistry` (same family-key, distinct `messageType` header),
   no `NxEvents` SPI change required. Platform consumer switches on
-  `Nx-Message-Type` header. Examples: `PremiumRefundEvent`,
+  `Message-Type` header. Examples: `PremiumRefundEvent`,
   `PremiumGiftReceivedEvent`, `PremiumSubscriptionExpiredEvent`.
 
 - **Add a new well-known service code** — append to `WellKnownServices`

@@ -95,7 +95,7 @@ core's jar applies only at the morning restart.** Announcements must not break i
 platform is new and the host is old.
 
 `CommandStatus.UNSUPPORTED_COMMAND` already covers it — the dispatcher replies with it when no handler
-is registered for the `Nx-Message-Type`. That is an explicit, fast, per-server negative.
+is registered for the `Message-Type`. That is an explicit, fast, per-server negative.
 
 > Considered and rejected: feature detection through `CommandsStats.registeredTypes`, which rides the
 > heartbeat topic. No platform service consumes heartbeats at all, so this would mean standing up a
@@ -232,7 +232,7 @@ is `NOT_FOUND` without a reason.
 | Item              | Value                                                   |
 | ----------------- | ------------------------------------------------------- |
 | Command topic     | `<tenant>.gs.commands` (shared, routed by message type) |
-| `Nx-Message-Type` | `SendChatMessageCommand`                                |
+| `Message-Type` | `SendChatMessageCommand`                                |
 | Idempotency       | `messageId` (UUIDv7), at-most-once delivery             |
 
 ## Compatibility

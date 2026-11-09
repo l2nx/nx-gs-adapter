@@ -26,7 +26,7 @@ path.
 
 > Sibling feature carrying the wire dispatch plumbing:
 > [`messaging`](008-messaging.md) — `MessagingTopics.events.<family>` topic addressing,
-> `Nx-Server-Id` connection-scoped header, `Nx-Message-Type` per-record header, UUIDv7 idempotency.
+> `Server-Id` connection-scoped header, `Message-Type` per-record header, UUIDv7 idempotency.
 > UNCHANGED by this slice.
 
 **Must:**
@@ -195,7 +195,7 @@ path.
 | ----------------- | ------------------------------------------ |
 | Family            | `chat`                                     |
 | Event topic       | `<tenant>.gs.events.chat`                  |
-| `Nx-Message-Type` | `ChatMessageEvent`                         |
+| `Message-Type` | `ChatMessageEvent`                         |
 | Partition key     | `characterId` (8-byte big-endian)          |
 | Idempotency       | `eventId` (UUIDv7), at-least-once delivery |
 

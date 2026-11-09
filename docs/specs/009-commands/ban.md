@@ -122,7 +122,7 @@ schema-provider mapping.
   run a consumer for `SyncEvent<BanDbDto>`, plus route `BanCommand` /
   `UnbanCommand` onto the existing commands topic (single topic — the
   `kafka.commands.ban` package split is for Javadoc / IDE discovery only). No
-  new adapter-core dispatch code: commands route by `Nx-Message-Type` through
+  new adapter-core dispatch code: commands route by `Message-Type` through
   the existing `NxCommands` consumer; the ban DTO rides the standard db-sync
   per-entity flow.
 
@@ -151,7 +151,7 @@ schema-provider mapping.
 Purely additive. The `kafka.commands.ban.*` command/result/vocab types and
 `kafka.sync.db.ban.BanDbDto` are new in `nx-gs-adapter-api` (released as
 `api/v0.67.0`). No existing wire shape changes; no adapter-core change is
-required (commands route by `Nx-Message-Type`; the DTO rides the standard
+required (commands route by `Message-Type`; the DTO rides the standard
 db-sync flow). A host on an older api jar simply does not register the handlers
 and does not map the `ban` entity until rebuilt against the new api.
 
@@ -160,7 +160,7 @@ and does not map the `ban` entity until rebuilt against the new api.
 - **Adapter-side ban enforcement / policy.** The adapter ships the contract; the
   host owns enforcement, fan-out expansion, and policy rejection.
 - **Multi-server fan-out.** A `BanCommand` targets exactly one server (routed by
-  `Nx-Target-Server-Id`); the platform issues one command per server in scope.
+  `Server-Id`); the platform issues one command per server in scope.
 - **A dedicated `unban` sync DTO.** A lifted ban surfaces as a `DELETED` op on
   the `ban` sync entity (consumers MUST explicitly handle `DELETED` — topics use
   bounded retention, not log compaction).

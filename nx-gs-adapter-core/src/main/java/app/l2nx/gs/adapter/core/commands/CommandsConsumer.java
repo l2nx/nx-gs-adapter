@@ -251,12 +251,12 @@ public final class CommandsConsumer {
 
     void processRecord(ConsumerRecord<byte[], byte[]> record) {
         Headers headers = record.headers();
-        // topic is shared across game-servers; records without a matching Nx-Target-Server-Id are dropped
+        // topic is shared across game-servers; records without a matching Server-Id are dropped
         if (!targetsThisServer(headers)) {
             otherServerSkippedTotal.incrementAndGet();
             return;
         }
-        String messageType = readStringHeader(headers, NxHeaders.NX_MESSAGE_TYPE);
+        String messageType = readStringHeader(headers, NxHeaders.MESSAGE_TYPE);
         UUID correlationId = readCorrelationId(headers);
 
         byte[] value = record.value();
@@ -268,13 +268,13 @@ public final class CommandsConsumer {
             unsupportedTotal.incrementAndGet();
             log.warn(
                     "Inbound command record missing {} header — replying UNSUPPORTED_COMMAND",
-                    NxHeaders.NX_MESSAGE_TYPE);
+                    NxHeaders.MESSAGE_TYPE);
             sendReply(
                     correlationId,
                     FALLBACK_REPLY_TYPE_BYTES,
                     CommandResult.error(
                             CommandStatus.UNSUPPORTED_COMMAND,
-                            "Inbound command missing Nx-Message-Type header",
+                            "Inbound command missing Message-Type header",
                             "error.cause",
                             "missing-message-type-header"));
             return;
@@ -467,8 +467,8 @@ public final class CommandsConsumer {
         byte[] key = LongBytes.bigEndian(correlationId.getMostSignificantBits());
         ProducerRecord<byte[], Object> record = new ProducerRecord<byte[], Object>(repliesTopic, key, result);
         record.headers()
-                .add(NxHeaders.NX_CORRELATION_ID, correlationId.toString().getBytes(StandardCharsets.UTF_8));
-        record.headers().add(NxHeaders.NX_MESSAGE_TYPE, replyMessageTypeBytes);
+                .add(NxHeaders.CORRELATION_ID, correlationId.toString().getBytes(StandardCharsets.UTF_8));
+        record.headers().add(NxHeaders.MESSAGE_TYPE, replyMessageTypeBytes);
 
         try {
             replySender.send(record, (metadata, exception) -> {
@@ -495,11 +495,11 @@ public final class CommandsConsumer {
     }
 
     private boolean targetsThisServer(Headers headers) {
-        Header h = headers == null ? null : headers.lastHeader(NxHeaders.NX_TARGET_SERVER_ID);
+        Header h = headers == null ? null : headers.lastHeader(NxHeaders.SERVER_ID);
         if (h == null || h.value() == null) {
             log.warn(
                     "Inbound command record missing {} header — dropping (strict contract)",
-                    NxHeaders.NX_TARGET_SERVER_ID);
+                    NxHeaders.SERVER_ID);
             return false;
         }
         UUID target;
@@ -508,7 +508,7 @@ public final class CommandsConsumer {
         } catch (IllegalArgumentException ex) {
             log.warn(
                     "Inbound command record has malformed {} header — dropping: {}",
-                    NxHeaders.NX_TARGET_SERVER_ID,
+                    NxHeaders.SERVER_ID,
                     ex.getMessage());
             return false;
         }
@@ -532,12 +532,12 @@ public final class CommandsConsumer {
 
     /** Missing or malformed ids get a fallback UUIDv7 so the handler still has a stable log tag. */
     private UUID readCorrelationId(Headers headers) {
-        String raw = readStringHeader(headers, NxHeaders.NX_CORRELATION_ID);
+        String raw = readStringHeader(headers, NxHeaders.CORRELATION_ID);
         if (raw == null || raw.isEmpty()) {
             UUID fallback = UUIDv7.generate();
             log.warn(
                     "Inbound command record missing {} header — generated fallback {}",
-                    NxHeaders.NX_CORRELATION_ID,
+                    NxHeaders.CORRELATION_ID,
                     fallback);
             return fallback;
         }
@@ -547,7 +547,7 @@ public final class CommandsConsumer {
             UUID fallback = UUIDv7.generate();
             log.warn(
                     "Inbound command record has malformed {} header '{}' — generated fallback {}",
-                    NxHeaders.NX_CORRELATION_ID,
+                    NxHeaders.CORRELATION_ID,
                     raw,
                     fallback);
             return fallback;

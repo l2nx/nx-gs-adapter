@@ -136,7 +136,7 @@ public final class GameDataSnapshotPublisher {
 
     private <T> void send(String topic, byte[] key, GameDataSyncEvent<T> value) {
         ProducerRecord<byte[], Object> record = new ProducerRecord<byte[], Object>(topic, key, value);
-        record.headers().add(NxHeaders.NX_MESSAGE_TYPE, MESSAGE_TYPE.getBytes(StandardCharsets.UTF_8));
+        record.headers().add(NxHeaders.MESSAGE_TYPE, MESSAGE_TYPE.getBytes(StandardCharsets.UTF_8));
         sender.send(record, (metadata, exception) -> {
             if (exception != null) {
                 log.warn("gd-sync publish failed for topic {}: {}", topic, exception.getMessage(), exception);

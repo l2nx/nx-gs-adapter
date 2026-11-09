@@ -26,7 +26,7 @@ Audience: platform settings authors; host authors wiring a `GameSettingsProvider
 **Must:**
 
 - [done] R1. Every settings entity MUST ride `<tenant>.gs.settings.sync` (`syncTopics.settings[<entityName>]`) in a
-  `SettingsSyncEvent`, routed by `entityName`, key = the raw 16-byte `serverId`, header `Nx-Message-Type =
+  `SettingsSyncEvent`, routed by `entityName`, key = the raw 16-byte `serverId`, header `Message-Type =
 SettingsSyncEvent`. Each record is the full current settings of one server; the newest wins. Entities: `appsettings`
   (`AppSettings`, [`038`](038-app-offline-sessions.md#settings-snapshot)) and `gamesettings` (`GameSettings`, R4).
 - [done] R2. The adapter MUST rebuild and send every settings entity it has **every 5 minutes, unconditionally** (no skip

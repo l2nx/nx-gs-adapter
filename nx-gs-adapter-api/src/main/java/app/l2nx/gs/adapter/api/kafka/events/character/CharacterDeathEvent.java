@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Death of a character the host chooses to report; a host may report only unattended deaths (autofarm or auto-macro,
  * mode in the {@code farm_mode} metadata key). Shares the {@code character} topic with {@link CharacterPresenceEvent}
- * (dispatched by {@code Nx-Message-Type}) and the {@code characterId} partition key.
+ * (dispatched by {@code Message-Type}) and the {@code characterId} partition key.
  * {@code eventId} is a UUIDv7 idempotency key (at-least-once). {@code metadata} is an open map; canonical keys in
  * {@link WellKnownDeathMetadata}: {@code killer_type} ({@link WellKnownKillerTypes}), {@code killer_id} (character
  * object-id for {@code player}, NPC template-id for {@code monster}/{@code boss}), {@code farm_mode}

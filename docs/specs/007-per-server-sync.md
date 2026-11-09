@@ -20,7 +20,7 @@ per-server без изменений wire-схемы `SyncEvent<T>`.
 
 - [done] R1. `nx-gs-adapter-api` MUST expose the wire-level header contract in
   a new class `app.l2nx.gs.adapter.api.kafka.NxHeaders`:
-  - constant `String NX_SERVER_ID = "Nx-Server-Id"` — the header name
+  - constant `String SERVER_ID = "Server-Id"` — the header name
   - `static byte[] encodeUuid(UUID)` and `static UUID decodeUuid(byte[])` —
     encoding rule. Value is the raw 16-byte UUID: `mostSigBits` big-endian
     followed by `leastSigBits` big-endian, NOT the 36-char string form.
@@ -41,13 +41,13 @@ per-server без изменений wire-схемы `SyncEvent<T>`.
 
 - [done] R2. `nx-gs-kafka` MUST provide a thin Kafka-binding helper layered
   over `NxHeaders`: a producer-wrapper that stamps
-  `Nx-Server-Id` on every outbound record via `record.headers().add(name,
+  `Server-Id` on every outbound record via `record.headers().add(name,
 NxHeaders.encodeUuid(serverId))`, plus an optional reader-helper
   `Headers → @Nullable UUID` for adapter-side tests / future reply-flow
   modules. `nx-gs-kafka` brings no new constants — just `org.apache.kafka.*`
   ↔ `NxHeaders` glue.
 
-- [done] R3. Adapter-side producers MUST stamp `Nx-Server-Id` on every sync record
+- [done] R3. Adapter-side producers MUST stamp `Server-Id` on every sync record
   published to topics under `ctx.syncTopics().db()` and `ctx.syncTopics().runtime()`.
   The serverId source is `ConnectContext.getServerId()`, captured once after
   `/connect` and reused for the lifetime of the adapter process. Sync modules
@@ -56,20 +56,20 @@ NxHeaders.encodeUuid(serverId))`, plus an optional reader-helper
   - SC2. No `db-sync` / `runtime-sync` code references `serverId` directly when
     publishing — search-grep returns zero hits in their publisher classes.
 
-- [done] R4. Heartbeat publisher MUST also stamp `Nx-Server-Id` on every
+- [done] R4. Heartbeat publisher MUST also stamp `Server-Id` on every
   `HeartbeatEvent`, even though server identity is already carried in the
   payload. Reason: consistency for any cross-cutting consumer (future
   observability / dead-letter / multi-tenant routing) that wants to read
   identity uniformly across all `nx-gs-adapter`-issued records pre-JSON-parse.
 
-- [done] R5. `nx-gameservers` `SyncEventConsumer` MUST extract `Nx-Server-Id`
+- [done] R5. `nx-gameservers` `SyncEventConsumer` MUST extract `Server-Id`
   from `ConsumerRecord.headers()` via `NxHeaders.decodeUuid(...)` BEFORE
   attempting JSON parse. The extracted `UUID` is then used together with
   `tenantId` (resolved from topic slug) to group the per-poll batch into
   per-`(tenantId, serverId)` chunks dispatched to the matching ingestor.
 
 - [done] R6. `nx-gameservers` MUST `WARN + skip` per-record when:
-  - `Nx-Server-Id` header is absent or has invalid length
+  - `Server-Id` header is absent or has invalid length
   - serverId is not present in the per-tenant active-servers cache
     (unknown server for this tenant)
 
@@ -125,7 +125,7 @@ id)` event produces the same row state.
 
 ### Edge cases
 
-- Header `Nx-Server-Id` отсутствует на inbound record → WARN + skip (R5).
+- Header `Server-Id` отсутствует на inbound record → WARN + skip (R5).
 - Header присутствует, но длина ≠ 16 байт → WARN + skip (R5).
 - Header валидный, но serverId не найден в кэше для известного тенанта
   (server деактивирован после рефреша / только что зарегистрирован) →
@@ -141,7 +141,7 @@ id)` event produces the same row state.
 ## Open questions
 
 - [assumed: heartbeat consumer на платформе остаётся payload-driven — header
-  `Nx-Server-Id` на heartbeat-сообщении это just-in-case для будущих
+  `Server-Id` на heartbeat-сообщении это just-in-case для будущих
   cross-cutting consumer'ов; никакая логика nx-tenants на нём не строится в
   рамках этой фичи]
 - [assumed: PLAN-файл живёт в `docs/specs/007-per-server-sync/.plan/` как
@@ -158,7 +158,7 @@ id)` event produces the same row state.
 ## Technical design
 
 `per-server-sync` — транспортный слой на Kafka-headers, который добавляет
-identity-маркер `Nx-Server-Id` (raw 16-byte UUID) на каждое sync-сообщение
+identity-маркер `Server-Id` (raw 16-byte UUID) на каждое sync-сообщение
 adapter'а и расширяет consumer (nx-gameservers) до per-server-scoped ingestion.
 Фича пересекает три репозитория: `nx-gs-adapter` (kafka-фасад + producer
 wiring + sync/heartbeat модули), `nx-gameservers` (header extraction + schema
@@ -169,13 +169,13 @@ wiring + sync/heartbeat модули), `nx-gameservers` (header extraction + sch
 ### Structure
 
 - `nx-gs-adapter/nx-gs-adapter-api/src/main/java/app/l2nx/gs/adapter/api/kafka/NxHeaders.java`
-  — wire-контракт: константа `NX_SERVER_ID` + pure-JDK helper'ы
+  — wire-контракт: константа `SERVER_ID` + pure-JDK helper'ы
   `encodeUuid(UUID)` / `decodeUuid(byte[])`. Single source of truth для
   имени header'а и encoding'а (16 raw bytes), используется обеими
   сторонами через зависимость на `nx-gs-adapter-api`.
 - `nx-gs-adapter/nx-gs-kafka/src/main/java/app/l2nx/gs/kafka/producer/`
   — Kafka-binding wrapper над `NxProducer`, штампующий
-  connection-scoped `Nx-Server-Id` через `NxHeaders.encodeUuid` на каждом
+  connection-scoped `Server-Id` через `NxHeaders.encodeUuid` на каждом
   `send(...)`. Опциональный reader-helper `Headers → @Nullable UUID` для
   adapter-side тестов и будущих reply-flow модулей.
 - `nx-gs-adapter/nx-gs-adapter-core/src/main/java/app/l2nx/gs/adapter/core/`
@@ -212,7 +212,7 @@ wiring + sync/heartbeat модули), `nx-gameservers` (header extraction + sch
 
 - **`NxHeaders` (Kafka)** (implements R1) — `app.l2nx.gs.adapter.
 api.kafka.NxHeaders` в `nx-gs-adapter-api`. Публичная константа
-  `NX_SERVER_ID = "Nx-Server-Id"` + pure-JDK helper'ы
+  `SERVER_ID = "Server-Id"` + pure-JDK helper'ы
   `encodeUuid(UUID): byte[]` и `decodeUuid(byte[]): UUID`. Encoding: 16 raw
   bytes, `mostSigBits` big-endian затем `leastSigBits` big-endian.
   `decodeUuid` кидает `IllegalArgumentException` при длине ≠ 16. Будущие
@@ -226,7 +226,7 @@ api.kafka.NxHeaders` в `nx-gs-adapter-api`. Публичная констант
   и heartbeat-сервису; сами модули `serverId` напрямую не видят.
 - **`SyncEventConsumer` (header extraction)** (implements R5, R6) —
   до `gson.fromJson(...)` читает `record.headers().lastHeader(NxHeaders.
-NX_SERVER_ID)`, декодирует через `NxHeaders.decodeUuid`. Group key
+SERVER_ID)`, декодирует через `NxHeaders.decodeUuid`. Group key
   dispatch'а становится pair `(tenantId, serverId)`. Missing/invalid header →
   WARN + skip без подсчёта в byTenant. Unknown serverId для известного
   tenantId → WARN + skip после single-flight refresh кэша.
@@ -252,7 +252,7 @@ game_servers.active = true` за один round-trip; mapper аггрегиру�
 
 1. db-sync / runtime-sync / heartbeat вызывает `producer.send(topic, key, message)`.
 2. Wrapper строит `ProducerRecord(topic, partition=null, key, value)`,
-   докладывает `Nx-Server-Id` в `record.headers()`.
+   докладывает `Server-Id` в `record.headers()`.
 3. KafkaProducer сериализует value через `GsonSerializer`, формирует
    record-batch (headers попадают под общую batch compression).
 4. Брокер принимает; per-key partitioning сохраняет партицию через хэш
@@ -263,7 +263,7 @@ game_servers.active = true` за один round-trip; mapper аггрегиру�
 1. `@KafkaListener` получает `List<ConsumerRecord<Long, String>>` per poll.
 2. Для каждой записи: `tenantId = TenantResolver.resolveOrThrow(topic)`,
    `serverId = NxHeaders.decodeUuid(record.headers().lastHeader(NxHeaders.
-NX_SERVER_ID).value())`.
+SERVER_ID).value())`.
 3. Если serverId == null или length invalid → WARN + skip.
 4. `serverSlug = tenantCache.resolveServer(tenantId, serverId)`; если null
    после single-flight refresh → WARN + skip.
@@ -303,7 +303,7 @@ JOIN'ом из `InternalTenantsController` с фильтром `active = true`.
 
 ### Decisions
 
-- **Decision:** identity передаётся через Kafka-header `Nx-Server-Id`, не
+- **Decision:** identity передаётся через Kafka-header `Server-Id`, не
   через ключ и не через payload.
   **Why:** key currently = `entityId` (`Long`) обеспечивает per-entity FIFO
   через partition affinity. Класть `serverId` в ключ (composite или вместо)
@@ -317,7 +317,7 @@ JOIN'ом из `InternalTenantsController` с фильтром `active = true`.
   в record-batch compression так что absolute saving после gzip/zstd не
   драматический, но raw bytes дешевле и для encode (no string formatting),
   и для compare (memcmp). Reader/writer тривиально мала.
-- **Decision:** только один header (`Nx-Server-Id`), не четыре.
+- **Decision:** только один header (`Server-Id`), не четыре.
   **Why:** `tenantSlug` уже в имени топика — single source of truth, дублировать
   = риск рассинхрона; `tenantId` derivable из slug через `TenantCache`;
   `serverSlug` derivable из `serverId` через расширенный кэш. Headers ценны
@@ -341,7 +341,7 @@ JOIN'ом из `InternalTenantsController` с фильтром `active = true`.
   `app.l2nx.common.http.NxHeaders` или аналог) — collision'а нет. Класть
   всё в один класс — coupling без выгоды, потому что serdes тоже разные
   (HTTP value = String, Kafka value = byte[]).
-- **Decision:** consumer warn+skip на missing/unknown `Nx-Server-Id`, не
+- **Decision:** consumer warn+skip на missing/unknown `Server-Id`, не
   fail-fast.
   **Why:** симметрично с unknown-tenant обработкой — один bad record не
   poison'ит остальной poll. Также упрощает rollout adapter'ов в гетерогенной
@@ -371,9 +371,9 @@ JOIN'ом из `InternalTenantsController` с фильтром `active = true`.
   не трогаются.
 - **Per-server scoped subscriptions** — в будущем consumer может фильтровать
   события одного сервера тенанта на стороне приложения через тот же
-  `Nx-Server-Id` header (например, отдельный observability-pipeline для
+  `Server-Id` header (например, отдельный observability-pipeline для
   одного «канарейкового» сервера); фильтр кладётся в `SyncEventConsumer`
   pre-parse без изменений wire-схемы.
 - **Не-sync-каналы** — любой будущий Kafka-канал adapter'а (metrics, audit,
-  command-replies) автоматически получает `Nx-Server-Id` через тот же
+  command-replies) автоматически получает `Server-Id` через тот же
   wrapper, если использует базовый `NxProducer` через core.

@@ -139,13 +139,13 @@ class CommandsConsumerTest {
             String topic, String messageType, UUID corrId, byte[] value, UUID targetServerId) {
         ConsumerRecord<byte[], byte[]> r = new ConsumerRecord<>(topic, 0, 0L, new byte[] {1, 2}, value);
         if (messageType != null) {
-            r.headers().add(NxHeaders.NX_MESSAGE_TYPE, messageType.getBytes(StandardCharsets.UTF_8));
+            r.headers().add(NxHeaders.MESSAGE_TYPE, messageType.getBytes(StandardCharsets.UTF_8));
         }
         if (corrId != null) {
-            r.headers().add(NxHeaders.NX_CORRELATION_ID, corrId.toString().getBytes(StandardCharsets.UTF_8));
+            r.headers().add(NxHeaders.CORRELATION_ID, corrId.toString().getBytes(StandardCharsets.UTF_8));
         }
         if (targetServerId != null) {
-            r.headers().add(NxHeaders.NX_TARGET_SERVER_ID, NxHeaders.encodeUuid(targetServerId));
+            r.headers().add(NxHeaders.SERVER_ID, NxHeaders.encodeUuid(targetServerId));
         }
         return r;
     }
@@ -173,10 +173,10 @@ class CommandsConsumerTest {
         assertEquals("out", reply.topic());
         assertArrayEquals(
                 "FakeResult".getBytes(StandardCharsets.UTF_8),
-                reply.headers().lastHeader(NxHeaders.NX_MESSAGE_TYPE).value());
+                reply.headers().lastHeader(NxHeaders.MESSAGE_TYPE).value());
         assertArrayEquals(
                 corr.toString().getBytes(StandardCharsets.UTF_8),
-                reply.headers().lastHeader(NxHeaders.NX_CORRELATION_ID).value());
+                reply.headers().lastHeader(NxHeaders.CORRELATION_ID).value());
         CommandResult<?> body = (CommandResult<?>) reply.value();
         assertTrue(body.isOk());
     }
@@ -199,7 +199,7 @@ class CommandsConsumerTest {
                 sender.sent
                         .get(0)
                         .headers()
-                        .lastHeader(NxHeaders.NX_MESSAGE_TYPE)
+                        .lastHeader(NxHeaders.MESSAGE_TYPE)
                         .value());
     }
 

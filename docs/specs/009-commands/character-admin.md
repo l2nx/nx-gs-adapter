@@ -113,7 +113,7 @@ shows it to the player.
 
 Purely additive. The four `kafka.commands.character.*` types are new in `nx-gs-adapter-api`
 (released as `api/v0.88.0`). No existing wire shape changes; `nx-gs-adapter-core` needs no change
-(commands route by `Nx-Message-Type`). A host on an older api jar simply does not register the
+(commands route by `Message-Type`). A host on an older api jar simply does not register the
 handlers.
 
 ## Non-goals
@@ -124,7 +124,7 @@ handlers.
 - **A reason shown to the player.** The kick is silent; `staffNotes` is staff-only.
 - **Platform side.** REST endpoints, audit details and admin UI for both commands live in
   nx-gameservers / nx-admin-web and are their own slice.
-- **Multi-server fan-out.** One command targets one server (`Nx-Target-Server-Id`).
+- **Multi-server fan-out.** One command targets one server (`Server-Id`).
 
 ## Links
 

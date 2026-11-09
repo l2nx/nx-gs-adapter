@@ -103,7 +103,7 @@ public final class ConnectContext {
         return events;
     }
 
-    /** Never null: no-op (registrations dropped) when not wired. Dispatch is by {@code Nx-Message-Type}. */
+    /** Never null: no-op (registrations dropped) when not wired. Dispatch is by {@code Message-Type}. */
     public NxCommands commands() {
         return commands;
     }

@@ -42,7 +42,7 @@ bot), operators (server-status menu section), and platform-side consumers
 
 > Sibling feature carrying the wire dispatch plumbing — UNCHANGED by this spec:
 > [`messaging`](008-messaging.md) — `MessagingTopics.events.<family>` topic
-> addressing, `Nx-Server-Id` connection-scoped header, `Nx-Message-Type`
+> addressing, `Server-Id` connection-scoped header, `Message-Type`
 > per-record header, UUIDv7 idempotency, host-pushed `NxEvents.publish(...)` +
 > `EventTypeRegistry` binding pattern.
 
@@ -53,7 +53,7 @@ bot), operators (server-status menu section), and platform-side consumers
 - [todo] R1. `nx-gs-adapter-api.kafka.events.character.CharacterDeathEvent` MUST
   ship as a new message type on the **existing `character` family** (joining
   `CharacterPresenceEvent`, which is UNCHANGED), making `character` a multi-event
-  family dispatched by `Nx-Message-Type`. Fields:
+  family dispatched by `Message-Type`. Fields:
   - `UUID eventId` — REQUIRED. UUIDv7; upper 48 bits encode the death
     occurrence timestamp. Platform consumers dedupe on this id.
   - `long characterId` — REQUIRED. The character that died. Partition key
@@ -103,7 +103,7 @@ bot), operators (server-status menu section), and platform-side consumers
   identical to the other publishers).
 
 - [todo] R5. `nx-gameservers` `CharacterPresenceEventConsumer` (topic
-  `*.gs.events.character`) MUST dispatch on `Nx-Message-Type` and **skip**
+  `*.gs.events.character`) MUST dispatch on `Message-Type` and **skip**
   `CharacterDeathEvent` records (no-op, not an error) so the new message type
   does not break the existing presence ingest. nx-gameservers stores nothing for
   deaths in this milestone (Non-goal: death history).
@@ -111,7 +111,7 @@ bot), operators (server-status menu section), and platform-side consumers
 - [todo] R6. `nx-social` MUST deliver a death notification to the linked
   character's owners, gated by a new per-linked-character toggle:
   - New `LinkedCharacterNotificationType.DEATH`.
-  - The character-family consumer dispatches on `Nx-Message-Type`; on
+  - The character-family consumer dispatches on `Message-Type`; on
     `CharacterDeathEvent` it resolves subscribers with DEATH enabled and sends
     a localized message, reusing the existing `NotificationDispatcher` dedup
     (`tg_notification_dedup`, keyed by `eventId`).
@@ -135,7 +135,7 @@ bot), operators (server-status menu section), and platform-side consumers
 
 - [todo] R7. `nx-gs-adapter-api` MUST add two new message types to the **existing
   `serveronline` family** (joining `ServerOnlineSnapshotEvent`, UNCHANGED),
-  making it a multi-event family dispatched by `Nx-Message-Type`:
+  making it a multi-event family dispatched by `Message-Type`:
   - `ServerStartedEvent` — `UUID eventId` (REQUIRED, UUIDv7) +
     `@Nullable Map<String,String> metadata` carrying `gm_only` ("true"/"false")
     under the `WellKnownServerStartMetadata.GM_ONLY` key.
@@ -146,7 +146,7 @@ bot), operators (server-status menu section), and platform-side consumers
     the stop notification for GM-only runs.
 
   Both POJOs follow the api conventions (builder, Java-8, `-parameters`).
-  Partition key `null` (round-robin); consumers group by `Nx-Server-Id` and order
+  Partition key `null` (round-robin); consumers group by `Server-Id` and order
   by the UUIDv7 `eventId` timestamp.
 
 - [todo] R8. `nx-gs-adapter-core.events.EventTypeRegistry` MUST register
@@ -166,7 +166,7 @@ bot), operators (server-status menu section), and platform-side consumers
   Outside the window, start/stop emit normally.
 
 - [todo] R11. `nx-gameservers` `ServerOnlineEventConsumer` MUST dispatch on
-  `Nx-Message-Type`:
+  `Message-Type`:
   - `ServerOnlineSnapshotEvent` → existing online-bucket ingest, UNCHANGED.
   - `ServerStartedEvent` → upsert a new `gs_server_status` row
     (`started_at` from `eventId`, `gm_only` read from `metadata`,

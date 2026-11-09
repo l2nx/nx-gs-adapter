@@ -5,7 +5,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Reply envelope for an inbound {@link NxCommand}, sent on {@code <tenant>.gs.commands.replies} with
- * {@code Nx-Correlation-Id} echoed and {@code Nx-Message-Type = "<CommandNameWithoutCommandSuffix>Result"}.
+ * {@code Correlation-Id} echoed and {@code Message-Type = "<CommandNameWithoutCommandSuffix>Result"}.
  *
  * <p>Invariant: payload is non-null iff status is OK; problem is non-null iff status is not OK. The constructor
  * enforces it, but Gson bypasses the constructor, so consumers should assume it when reading.</p>

@@ -105,7 +105,7 @@ class SettingsPublisherTest {
                     "SettingsSyncEvent",
                     new String(
                             record.headers()
-                                    .lastHeader(NxHeaders.NX_MESSAGE_TYPE)
+                                    .lastHeader(NxHeaders.MESSAGE_TYPE)
                                     .value(),
                             StandardCharsets.UTF_8));
             SettingsSyncEvent<?> event = (SettingsSyncEvent<?>) record.value();

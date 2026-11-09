@@ -283,7 +283,7 @@ public final class EventsPublisher {
         try {
             Object payload = envelope.binding.sendGuard().apply(envelope.payload);
             ProducerRecord<byte[], Object> record = new ProducerRecord<byte[], Object>(topic, partitionKey, payload);
-            record.headers().add(NxHeaders.NX_MESSAGE_TYPE, envelope.binding.messageTypeBytes());
+            record.headers().add(NxHeaders.MESSAGE_TYPE, envelope.binding.messageTypeBytes());
             sender.send(record, (metadata, exception) -> {
                 if (exception != null) {
                     failedTotal.incrementAndGet();

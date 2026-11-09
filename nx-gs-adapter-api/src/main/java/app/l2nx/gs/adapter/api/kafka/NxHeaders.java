@@ -8,34 +8,17 @@ import java.util.UUID;
 public final class NxHeaders {
 
     /**
-     * Game-server id, 16 raw bytes via {@link #encodeUuid(UUID)}: the source on server records, the target on the
-     * commands topic. Replaces {@link #NX_SERVER_ID} and {@link #NX_TARGET_SERVER_ID}.
+     * Game-server id, 16 raw bytes via {@link #encodeUuid(UUID)}: the source on server records, the target on the shared
+     * per-tenant commands topic. The adapter drops a command whose id differs from its own, and one without the header
+     * (WARN).
      */
     public static final String SERVER_ID = "Server-Id";
 
-    /** Replaces {@link #NX_MESSAGE_TYPE}. */
+    /** UTF-8 simple class name of the payload type; consumers pick the deserializer from it without parsing JSON. */
     public static final String MESSAGE_TYPE = "Message-Type";
 
-    /** Replaces {@link #NX_CORRELATION_ID}. */
-    public static final String CORRELATION_ID = "Correlation-Id";
-
-    // TODO: the adapter still sends and reads the Nx-* names below; they go once it switches to the names above.
-
-    /** Originating game-server id; value encoded via {@link #encodeUuid(UUID)}. */
-    public static final String NX_SERVER_ID = "Nx-Server-Id";
-
-    /** UTF-8 simple class name of the payload type; consumers pick the deserializer from it without parsing JSON. */
-    public static final String NX_MESSAGE_TYPE = "Nx-Message-Type";
-
     /** Platform-issued correlation id as a textual UUID; echoed on the reply so the platform can route it back. */
-    public static final String NX_CORRELATION_ID = "Nx-Correlation-Id";
-
-    /**
-     * Inbound-only target game-server id (16 raw bytes via {@link #encodeUuid(UUID)}) on the shared per-tenant commands topic.
-     * The adapter MUST drop records whose id differs from its own, and records without the header (WARN).
-     * Never present together with {@link #NX_SERVER_ID}.
-     */
-    public static final String NX_TARGET_SERVER_ID = "Nx-Target-Server-Id";
+    public static final String CORRELATION_ID = "Correlation-Id";
 
     private NxHeaders() {}
 

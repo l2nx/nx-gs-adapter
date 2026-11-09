@@ -14,7 +14,7 @@ All commands ship under `app.l2nx.gs.adapter.api.kafka.commands.<group>.*`
 where group is one of: `announcement`, `ban`, `captcha`, `character`, `chat`, `gd`,
 `item`, `mail`, `offlinefishing`, `privatestore`, `sync`, `telegram`. The group is purely a
 code-organization split; on the wire every command travels on the single
-`<tenant>.gs.commands` topic, routed by the `Nx-Message-Type` header.
+`<tenant>.gs.commands` topic, routed by the `Message-Type` header.
 
 Naming convention: `{X}Command` → `{X}Result`. The reply envelope is
 always `CommandResult<R>` where `R` is the dedicated result type

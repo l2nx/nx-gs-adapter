@@ -16,7 +16,7 @@ leaderboards, drop analytics, or balance reviews.
 
 Existing event families (`premiumpurchase`, `serveronline`, `privatestore`,
 `character`) already prove the host-push wire pattern: per-family Kafka topic,
-UUIDv7 `eventId`, `Nx-Message-Type` header dispatch, `NxEvents.publishX(...)`
+UUIDv7 `eventId`, `Message-Type` header dispatch, `NxEvents.publishX(...)`
 SPI, game-loop-safe enqueue. Raid-kill stats are the next family to ride that
 rail — single-event per kill, multi-aggregate payload.
 
@@ -32,8 +32,8 @@ host-side authors hooking raid-death paths.
 
 > Sibling feature carrying the wire dispatch plumbing:
 > - [`messaging`](008-messaging.md) — `MessagingTopics.events.<family>`
-    > topic addressing, `Nx-Server-Id` connection-scoped header,
-    > `Nx-Message-Type` per-record header, UUIDv7 idempotency. UNCHANGED.
+    > topic addressing, `Server-Id` connection-scoped header,
+    > `Message-Type` per-record header, UUIDv7 idempotency. UNCHANGED.
 
 **Must:**
 

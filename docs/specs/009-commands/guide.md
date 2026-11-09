@@ -15,8 +15,8 @@ mail, link a Telegram user to a character. Every command:
 - Implements `app.l2nx.gs.adapter.api.kafka.commands.NxCommand<R>` where
   `R` is a dedicated `{X}Result` class declaring the success-payload
 - Travels on a single Kafka topic `<tenant>.gs.commands`
-- Carries two headers: `Nx-Message-Type` (the simple class name) and
-  `Nx-Correlation-Id` (UUID issued by web side)
+- Carries two headers: `Message-Type` (the simple class name) and
+  `Correlation-Id` (UUID issued by web side)
 - Is dispatched by the adapter to a registered `CommandHandler`
 - Produces a `CommandResult<R>` reply on `<tenant>.gs.commands.replies`
 
@@ -24,7 +24,7 @@ mail, link a Telegram user to a character. Every command:
 (strip `Command` suffix, append `Result`): `TransferItemToCharacterCommand` →
 `TransferItemToCharacterResult`, `DeleteItemCommand` → `DeleteItemResult`.
 
-The wire `Nx-Message-Type` header on the reply is derived from the **command**
+The wire `Message-Type` header on the reply is derived from the **command**
 class name by that same rule (`CommandTypeBinding.deriveReplyTypeName`), not
 from the `R` class — so it is `TransferItemToCharacterResult`, not
 `TransferItemToCharacterCommandResult`. The two coincide whenever the naming
@@ -65,9 +65,9 @@ established this convention.
 │           scoped commands, null      │
 │           (round-robin) otherwise    │
 │   headers:                           │
-│     Nx-Message-Type =                │
+│     Message-Type =                │
 │       "TransferItemToCharacterCommand"          │
-│     Nx-Correlation-Id = <uuid>       │
+│     Correlation-Id = <uuid>       │
 │   value:  Gson(cmd) bytes            │
 └──────────────┬───────────────────────┘
                │ 3. poll
@@ -77,7 +77,7 @@ established this convention.
 │   nx-commands-consumer daemon        │
 └──────────────┬───────────────────────┘
                │ 4. commitSync FIRST (at-most-once)
-               │ 5. lookup by Nx-Message-Type
+               │ 5. lookup by Message-Type
                ▼
 ┌──────────────────────────────────────┐
 │ CommandTypeRegistry                  │
@@ -107,16 +107,16 @@ established this convention.
 │   <tenant>.gs.commands.replies       │
 │   key:    bigEndian(corrId.msb)      │
 │   headers:                           │
-│     Nx-Message-Type =                │
+│     Message-Type =                │
 │       "TransferItemToCharacterResult" │
-│     Nx-Correlation-Id = <echoed>     │
+│     Correlation-Id = <echoed>     │
 │   value:  Gson(CommandResult) bytes  │
 └──────────────┬───────────────────────┘
                │ 8. @KafkaListener
                ▼
 ┌──────────────────────────────────────┐
 │ web-side reply consumer              │
-│   read Nx-Correlation-Id             │
+│   read Correlation-Id             │
 │   lookup slot → payloadType          │
 │   Gson.fromJson(value,               │
 │     CommandResult<payloadType>)      │
@@ -279,7 +279,7 @@ ignored.
 The adapter's commands consumer is a **single daemon thread**
 (`nx-commands-consumer`). Per record:
 
-1. Resolve handler from the type registry by `Nx-Message-Type` header
+1. Resolve handler from the type registry by `Message-Type` header
 2. Deserialize via Gson
 3. Call `handler.handle(cmd, ctx)` synchronously on the consumer thread
 4. Publish the reply (fire-and-forget)
@@ -512,7 +512,7 @@ never copies the host's rules.
   allowance resets when the host knows it). Reserve `CommandProblem` for the check itself failing.
 - Do not cache: the platform caches checks and limits their rate.
 - A core that has not registered the check handler answers the rail's `UNSUPPORTED_COMMAND`, as for any unknown
-  `Nx-Message-Type`; the platform maps it to `501`. Nothing special to do on an old core.
+  `Message-Type`; the platform maps it to `501`. Nothing special to do on an old core.
 
 ## Command initiator [planned]
 
@@ -621,7 +621,7 @@ public final class HostCommandsModule implements AdapterModule {
 }
 ```
 
-The handler `Class` is matched against the inbound `Nx-Message-Type`
+The handler `Class` is matched against the inbound `Message-Type`
 header by **simple class name**. So
 `app.l2nx.gs.adapter.api.kafka.commands.character.TransferCharacterToAccountCommand`
 matches header value `TransferCharacterToAccountCommand`. Two distinct classes with
@@ -688,14 +688,14 @@ The adapter publishes replies to `<tenant>.gs.commands.replies` with:
   (so replies for the same correlation co-locate on a partition; useful
   for tooling)
 - **Headers**:
-  - `Nx-Server-Id` (auto, from connect handshake)
-  - `Nx-Correlation-Id` (echoed from inbound)
-  - `Nx-Message-Type` = command simple name with `Command` replaced by
+  - `Server-Id` (auto, from connect handshake)
+  - `Correlation-Id` (echoed from inbound)
+  - `Message-Type` = command simple name with `Command` replaced by
     `Result` (`TransferItemToCharacterCommand` → `TransferItemToCharacterResult`)
 - **Value** = `gson.toJson(commandResult)`
 
 The platform-side correlator listens on the replies topic, extracts
-`Nx-Correlation-Id` from headers and matches it against pending requests;
+`Correlation-Id` from headers and matches it against pending requests;
 a reply that arrives after the caller stopped waiting is picked up by the
 platform's durable reconciler.
 
@@ -841,9 +841,9 @@ fresh `correlationId`).
   `INVALID_STATE`, …) with nested `Tier` (`OK / CLIENT_ERROR / SERVER_ERROR`)
 - **`CommandProblem`** — RFC 9457-compatible problem body: `title`,
   `detail?`, `extensions` map
-- **`Nx-Message-Type`** — Kafka header carrying the simple class name
+- **`Message-Type`** — Kafka header carrying the simple class name
   (routing key)
-- **`Nx-Correlation-Id`** — Kafka header carrying the platform-issued
+- **`Correlation-Id`** — Kafka header carrying the platform-issued
   UUID (used by web to match reply to request)
 
 ## See also

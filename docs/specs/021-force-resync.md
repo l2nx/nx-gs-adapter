@@ -161,7 +161,7 @@ predates the cycle.
   core/api lockstep hazard when bumping consumers.
 
 - [done] R11. No adapter-core change is needed for the commands: `NxCommands.on(Class, CommandHandler)` wires
-  deserialization by `Nx-Message-Type` (= simple class name) for new
+  deserialization by `Message-Type` (= simple class name) for new
   command classes end-to-end, and Gson handles `UUID` natively and
   `Instant` via `NxGsonAdapters`. Stated here so the implementation plan
   doesn't invent a registry change that isn't required.
@@ -287,7 +287,7 @@ predates the cycle.
       **never swept**.
 
 - [done] R20. A consumer on `^.*\.gs\.events\.sync$` (per-family pattern +
-  `KafkaScopes` `Nx-Server-Id` resolution, like every events consumer)
+  `KafkaScopes` `Server-Id` resolution, like every events consumer)
   marks the matching operation entity SYNCED and records
   `cycle_started_at` from the event. Unknown `resyncId` (e.g. operation
   expired) is logged and dropped.
