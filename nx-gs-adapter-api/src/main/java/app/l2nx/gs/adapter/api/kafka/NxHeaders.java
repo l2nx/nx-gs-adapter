@@ -8,9 +8,10 @@ import java.util.UUID;
 public final class NxHeaders {
 
     /**
-     * Game-server id, 16 raw bytes via {@link #encodeUuid(UUID)}: the source on server records, the target on the shared
-     * per-tenant commands topic. The adapter drops a command whose id differs from its own, and one without the header
-     * (WARN).
+     * Game-server id as 16 raw bytes ({@link #encodeUuid(UUID)}); its direction depends on the topic. On the shared
+     * commands topic it is the target, and the adapter drops a command whose id differs from its own or is missing. On
+     * every other topic (events, settings, gd-sync, command replies) it is the source. Consumers must not derive a
+     * source server from a command record.
      */
     public static final String SERVER_ID = "Server-Id";
 

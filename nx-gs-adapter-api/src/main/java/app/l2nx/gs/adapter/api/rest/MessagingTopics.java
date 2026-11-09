@@ -10,10 +10,10 @@ import org.jspecify.annotations.Nullable;
  * Kafka topic addressing for events and commands, returned in {@link ConnectResponse}.
  * <ul>
  *     <li>{@link #getEvents()} - family to fully-qualified topic ({@code <tenant>.gs.events.<family>}).</li>
- *     <li>{@link #getCommandsTopic()} - single inbound topic ({@code <tenant>.gs.commands}). The record key is a nullable {@code Long} (characterId for character-scoped commands, preserving per-character ordering; unkeyed otherwise) and is never read by the adapter. Routing uses {@code Message-Type} and {@code Server-Id}.</li>
- *     <li>{@link #getCommandsRepliesTopic()} - single reply topic ({@code <tenant>.gs.commands.replies}); replies carry the inbound {@code Correlation-Id}.</li>
+ *     <li>{@link #getCommandsTopic()} - single inbound topic. The record key (characterId, or none) only preserves per-character ordering; the adapter never reads it.</li>
+ *     <li>{@link #getCommandsRepliesTopic()} - single reply topic.</li>
  * </ul>
- * The {@code events} map is copied defensively and exposed unmodifiable; getters normalize {@code null} (Gson bypasses the constructor) to empty. A legacy {@code "commands": {}} on the wire is ignored.
+ * Getters normalize {@code null} (Gson bypasses the constructor) to empty. A legacy {@code "commands": {}} on the wire is ignored.
  */
 public final class MessagingTopics {
 

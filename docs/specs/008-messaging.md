@@ -145,13 +145,26 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
     simple class name of the concrete event type (e.g. `"PremiumPurchaseEvent"`).
     Auto-stamped by adapter-core on every event publish; platform consumers
     switch on this header for deserialization without peeking into the JSON.
-  - `String SERVER_ID = "Server-Id"` — raw 16-byte server UUID, one name for both directions: the source on
-    every record the adapter publishes, the target on the commands topic.
+  - `String SERVER_ID = "Server-Id"` — raw 16-byte server UUID, one name whose direction depends on the topic:
+    - on the commands topic it is the **target** server; the adapter drops a command whose id differs from its
+      own or is missing;
+    - on every other topic (events, settings, gd-sync, command replies) it is the **source** server, stamped by
+      the producer's static headers.
+
+    Consumers MUST NOT derive a source server from a command record.
+
   - `String CORRELATION_ID = "Correlation-Id"` — textual UUID on commands, echoed on replies.
-  - Since api 0.127.0 / core 0.55.0 the adapter sends and reads only these names (the `Nx-` prefix and
-    `Nx-Target-Server-Id` are gone). Platform consumers read the new name first and fall back to the old one,
-    platform producers send both, until every game server runs the new adapter and topic retention has passed
-    (`nx-infra/docs/specs/049-request-headers.md` § 9, § 11; l2nx/nx-platform#41).
+  - Since api 0.127.0 / core 0.55.0 / nx-gs-gd-sync-core 0.17.0 the adapter sends and reads only these names
+    (the `Nx-` prefix and `Nx-Target-Server-Id` are gone). Platform consumers read the new name first and fall
+    back to the old one, platform producers send both (`nx-infra/docs/specs/049-request-headers.md` § 9, § 11;
+    l2nx/nx-platform#41).
+  - **Gate for removing the platform fallback:** every game server runs api ≥ 0.127.0, core ≥ 0.55.0 **and**
+    nx-gs-gd-sync-core ≥ 0.17.0 (gd-sync 0.16 hard-codes `Nx-Message-Type`, so a new core with an old gd-sync
+    still emits prefixed gd-sync records), and the retention of every affected topic has passed since the last
+    record with an old header was written.
+  - Retained commands written by a platform older than nx-gameservers 0.223.0 carry only `Nx-Target-Server-Id`;
+    the new adapter finds no `Server-Id` on them and drops them with a WARN on replay. Accepted: a retained command
+    is stale by the time it replays, and the retention part of the gate bounds the window.
 
 - [todo] R6. `nx-gs-adapter-api.spi.ConnectContext` MUST expose `NxEvents events()`
   accessor — symmetric to existing `getSyncTopics()`. Returned facade is non-null;
@@ -268,7 +281,8 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
 - [todo] R13. **Module versions (MVP slice ship):**
   - `nx-gs-adapter-api` = `0.13.0` — additive (new `MessagingTopics` field on
     `ConnectResponse`, new `kafka.events.*` and `kafka.commands` packages,
-    new `NxHeaders.MESSAGE_TYPE` + `CORRELATION_ID` constants, new
+    new `NxHeaders.NX_MESSAGE_TYPE` + `NX_CORRELATION_ID` constants (renamed to `MESSAGE_TYPE` /
+    `CORRELATION_ID` in 0.127.0), new
     `NxEvents` SPI in `spi.*`, new `ConnectContext.events()` accessor, new
     `EventsStats` POJO + `events` slot on `ModuleStatus.Stats`). No deletions;
     clients on `0.12.x` continue to work against an `0.13.0` platform that
@@ -559,10 +573,10 @@ End-to-end publish (premium purchase from a community-board buy-noblesse click):
  .accountName(player.getAccountName())
  .services(Collections.singletonList(
   PurchaseService.builder()
-      .code(WellKnownServices.NOBLESSE)
-      .payments(Collections.singletonList(
-          Payment.builder().currencyItemId(4037).qty(50).build()))
-      .build()))
+.code(WellKnownServices.NOBLESSE)
+.payments(Collections.singletonList(
+    Payment.builder().currencyItemId(4037).qty(50).build()))
+.build()))
  .build()`
    and calls `nxEvents.publishPremiumPurchase(event)`.
 3. `NxEventsImpl` calls `EventsPublisher.enqueue(envelope)` where

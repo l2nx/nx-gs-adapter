@@ -9,20 +9,12 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Applies a ban on the game-server. Build-agnostic: names the target dimension, ban kind and expiry; the host
- * maps them onto its own ban engine.
+ * Applies a ban on the game-server; the host maps target, kind and expiry onto its own ban engine. Replies with the
+ * ids of the ban rows created or matched; errors {@code NOT_FOUND}, {@code VALIDATION_FAILED} (Gson leaves missing
+ * fields {@code null}, so null-check), {@code FORBIDDEN}.
  *
- * <p>Reply: {@code CommandResult<BanResult>} with the ids of the ban rows created or matched. Errors:
- * {@code NOT_FOUND} (target missing), {@code VALIDATION_FAILED} (missing or unrecognized field; Gson leaves
- * missing wire fields {@code null}, so the handler must null-check), {@code FORBIDDEN} (host policy).</p>
- *
- * <p>A {@code HARD} target fans out into character + account + IP + HWID bans for the same subject; its
- * {@code targetValue} is the subject's char id, from which the host resolves the other dimensions.</p>
- *
- * <p>Invariant: {@code permanent == (expiresAt == null)}, enforced by the constructor.</p>
- *
- * <p>Targets exactly one server ({@code Server-Id}); the platform issues one command per server in scope.
- * Re-delivery of a command for an already-active ban should be a no-op success.</p>
+ * <p>A {@code HARD} target fans out into character, account, IP and HWID bans; its {@code targetValue} is the char
+ * id. Invariant: {@code permanent == (expiresAt == null)}. Re-delivery for an active ban is a no-op success.</p>
  */
 public final class BanCommand implements NxCommand<BanResult> {
 

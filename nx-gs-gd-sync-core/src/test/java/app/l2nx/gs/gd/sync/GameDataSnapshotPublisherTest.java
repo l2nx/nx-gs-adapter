@@ -1,9 +1,12 @@
 package app.l2nx.gs.gd.sync;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.kafka.NxHeaders;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.GameDataSyncEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.ToLongFunction;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.Header;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -28,6 +32,7 @@ class GameDataSnapshotPublisherTest {
     private static final ToLongFunction<Long> PK_OF = value -> value;
 
     private final List<GameDataSyncEvent<?>> sent = new ArrayList<GameDataSyncEvent<?>>();
+    private final List<ProducerRecord<byte[], Object>> records = new ArrayList<ProducerRecord<byte[], Object>>();
     private final AtomicLong now = new AtomicLong(0L);
     private GameDataSnapshotPublisher publisher;
 
@@ -36,6 +41,7 @@ class GameDataSnapshotPublisherTest {
         GameDataSender sender = new GameDataSender() {
             @Override
             public void send(ProducerRecord<byte[], Object> record, Callback callback) {
+                records.add(record);
                 sent.add((GameDataSyncEvent<?>) record.value());
                 callback.onCompletion(null, null);
             }
@@ -119,6 +125,20 @@ class GameDataSnapshotPublisherTest {
             assertEquals(
                     GameDataSnapshotPublisher.OP_SNAPSHOT_COMPLETE, sent.get(2).getOp());
             assertEquals(Integer.valueOf(2), sent.get(2).getCount());
+        }
+
+        @Test
+        void publishSnapshot_shouldCarryNoPrefixedHeader() {
+            publishItems(Collections.singletonList(1L));
+
+            assertEquals(2, records.size());
+            for (ProducerRecord<byte[], Object> record : records) {
+                assertNotNull(record.headers().lastHeader(NxHeaders.MESSAGE_TYPE));
+                for (Header header : record.headers()) {
+                    assertFalse(
+                            header.key().startsWith("Nx-"), "gd-sync record carries prefixed header " + header.key());
+                }
+            }
         }
 
         @Test

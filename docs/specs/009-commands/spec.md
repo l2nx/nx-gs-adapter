@@ -42,9 +42,11 @@ who consume reply events.
 >   Commands runtime is **not** a discovered Tier-1 module — it lives inside `nx-gs-adapter-core`
 >   as a built-in capability surfaced through `ConnectContext`, symmetric to the
 >   [`messaging`](../008-messaging.md) `events` surface.
-> - `Server-Id` / `Message-Type` / `Correlation-Id` header contracts from
->   [`per-server-sync`](../007-per-server-sync.md) and [`messaging`](../008-messaging.md)
->   are reused unchanged. `Server-Id` (R22) is introduced here.
+> - `Message-Type` / `Correlation-Id` header contracts from [`messaging`](../008-messaging.md)
+>   are reused unchanged. Commands reuse the `Server-Id` name of
+>   [`per-server-sync`](../007-per-server-sync.md) as the **target** server (R22): on the commands
+>   topic it names the addressee, on every other topic (events, settings, gd-sync, replies) the
+>   source (008 R5). Consumers never derive a source server from a command record.
 
 **Must:**
 

@@ -15,8 +15,11 @@ mail, link a Telegram user to a character. Every command:
 - Implements `app.l2nx.gs.adapter.api.kafka.commands.NxCommand<R>` where
   `R` is a dedicated `{X}Result` class declaring the success-payload
 - Travels on a single Kafka topic `<tenant>.gs.commands`
-- Carries two headers: `Message-Type` (the simple class name) and
-  `Correlation-Id` (UUID issued by web side)
+- Carries three headers: `Server-Id` (required, the **target** game server; the
+  adapter drops a command without it or addressed to another server), `Message-Type`
+  (the simple class name) and `Correlation-Id` (UUID issued by web side). On the
+  commands topic `Server-Id` names the target, on every other topic (replies
+  included) the source, so never read a source server off a command record
 - Is dispatched by the adapter to a registered `CommandHandler`
 - Produces a `CommandResult<R>` reply on `<tenant>.gs.commands.replies`
 
@@ -45,91 +48,94 @@ established this convention.
 ## End-to-end lifecycle
 
 ```
-┌──────────────────────────────────────┐
-│ web caller                           │
-│   cmd = TransferItemToCharacterCommand(...)     │
-│   nxSender.sendSync(cmd, Void.class, │
-│     correlationId).join()            │
-└──────────────┬───────────────────────┘
+┌────────────────────────────────────────────────┐
+│ web caller                                     │
+│   cmd = TransferItemToCharacterCommand(...)    │
+│   nxSender.sendSync(cmd, Void.class,           │
+│     correlationId).join()                      │
+└──────────────┬─────────────────────────────────┘
                │ 1. register(corrId → Void, future)
                ▼
-┌──────────────────────────────────────┐
-│ PendingReplyRegistry                 │
-│   ConcurrentHashMap<UUID, Slot>      │
-└──────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ PendingReplyRegistry                           │
+│   ConcurrentHashMap<UUID, Slot>                │
+└──────────────┬─────────────────────────────────┘
                │ 2. publish
                ▼
-┌──────────────────────────────────────┐
-│ Kafka topic <tenant>.gs.commands     │
-│   key:    characterId for character-      │
-│           scoped commands, null      │
-│           (round-robin) otherwise    │
-│   headers:                           │
-│     Message-Type =                │
-│       "TransferItemToCharacterCommand"          │
-│     Correlation-Id = <uuid>       │
-│   value:  Gson(cmd) bytes            │
-└──────────────┬───────────────────────┘
+┌────────────────────────────────────────────────┐
+│ Kafka topic <tenant>.gs.commands               │
+│   key:    characterId for character-scoped     │
+│           commands, null (round-robin)         │
+│           otherwise                            │
+│   headers:                                     │
+│     Server-Id      = <target server, 16 bytes> │
+│     Message-Type   =                           │
+│       "TransferItemToCharacterCommand"         │
+│     Correlation-Id = <uuid>                    │
+│   value:  Gson(cmd) bytes                      │
+└──────────────┬─────────────────────────────────┘
                │ 3. poll
                ▼
-┌──────────────────────────────────────┐
-│ CommandsConsumer (adapter-core)      │
-│   nx-commands-consumer daemon        │
-└──────────────┬───────────────────────┘
+┌────────────────────────────────────────────────┐
+│ CommandsConsumer (adapter-core)                │
+│   nx-commands-consumer daemon                  │
+│   Server-Id absent or foreign → drop, no reply │
+└──────────────┬─────────────────────────────────┘
                │ 4. commitSync FIRST (at-most-once)
                │ 5. lookup by Message-Type
                ▼
-┌──────────────────────────────────────┐
-│ CommandTypeRegistry                  │
-│   "TransferItemToCharacterCommand" →            │
-│      TransferItemToCharacterHandler             │
-│   (populated by host module via      │
-│    NxCommands.on(...))               │
-└──────────────┬───────────────────────┘
+┌────────────────────────────────────────────────┐
+│ CommandTypeRegistry                            │
+│   "TransferItemToCharacterCommand" →           │
+│      TransferItemToCharacterHandler            │
+│   (populated by host module via                │
+│    NxCommands.on(...))                         │
+└──────────────┬─────────────────────────────────┘
                │ 6. Gson.fromJson(value, cmdClass)
                ▼
-┌──────────────────────────────────────┐
-│ handler.handle(cmd, ctx)             │
-│                                      │
-│   validate wire fields               │
-│   ctx.host().sync(...)  ─── online →  game pool
-│   ctx.io() supplyAsync  ─── offline → IO pool
-│                                      │
-│   on success: ctx.sync().requestNow( │
-│     entity, pk)                      │
-│                                      │
-│   return CommandResult.ok(result)    │
-└──────────────┬───────────────────────┘
+┌────────────────────────────────────────────────┐
+│ handler.handle(cmd, ctx)                       │
+│                                                │
+│   validate wire fields                         │
+│   ctx.host().sync(...)  ── online  → game pool │
+│   ctx.io() supplyAsync  ── offline → IO pool   │
+│                                                │
+│   on success: ctx.sync().requestNow(           │
+│     entity, pk)                                │
+│                                                │
+│   return CommandResult.ok(result)              │
+└──────────────┬─────────────────────────────────┘
                │ 7. fire-and-forget reply
                ▼
-┌──────────────────────────────────────┐
-│ Kafka topic                          │
-│   <tenant>.gs.commands.replies       │
-│   key:    bigEndian(corrId.msb)      │
-│   headers:                           │
-│     Message-Type =                │
-│       "TransferItemToCharacterResult" │
-│     Correlation-Id = <echoed>     │
-│   value:  Gson(CommandResult) bytes  │
-└──────────────┬───────────────────────┘
+┌────────────────────────────────────────────────┐
+│ Kafka topic                                    │
+│   <tenant>.gs.commands.replies                 │
+│   key:    bigEndian(corrId.msb)                │
+│   headers:                                     │
+│     Server-Id      = <source server, 16 bytes> │
+│     Message-Type   =                           │
+│       "TransferItemToCharacterResult"          │
+│     Correlation-Id = <echoed>                  │
+│   value:  Gson(CommandResult) bytes            │
+└──────────────┬─────────────────────────────────┘
                │ 8. @KafkaListener
                ▼
-┌──────────────────────────────────────┐
-│ web-side reply consumer              │
-│   read Correlation-Id             │
-│   lookup slot → payloadType          │
-│   Gson.fromJson(value,               │
-│     CommandResult<payloadType>)      │
-│   pending.complete(corrId, envelope) │
-└──────────────┬───────────────────────┘
+┌────────────────────────────────────────────────┐
+│ web-side reply consumer                        │
+│   read Correlation-Id                          │
+│   lookup slot → payloadType                    │
+│   Gson.fromJson(value,                         │
+│     CommandResult<payloadType>)                │
+│   pending.complete(corrId, envelope)           │
+└──────────────┬─────────────────────────────────┘
                │ 9. future.complete
                ▼
-┌──────────────────────────────────────┐
-│ web caller's .join() returns         │
-│   CommandResult<Void>                │
-│     success → state SUCCESS          │
-│     error   → state + refund + ...   │
-└──────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ web caller's .join() returns                   │
+│   CommandResult<Void>                          │
+│     success → state SUCCESS                    │
+│     error   → state + refund + ...             │
+└────────────────────────────────────────────────┘
 ```
 
 ## Your first handler — the 30-second tour
@@ -577,7 +583,7 @@ return CommandResult.error(CommandStatus.VALIDATION_FAILED,
 | Status                | Tier         | Meaning                                 | Example                                                    |
 | --------------------- | ------------ | --------------------------------------- | ---------------------------------------------------------- |
 | `OK`                  | OK           | Handler executed; payload non-null      | Transfer succeeded; mail created                           |
-| `NOT_FOUND`           | CLIENT_ERROR | Subject doesn't exist                   | `getPlayer(characterId)` returned null                          |
+| `NOT_FOUND`           | CLIENT_ERROR | Subject doesn't exist                   | `getPlayer(characterId)` returned null                     |
 | `INVALID_STATE`       | CLIENT_ERROR | Subject exists but cannot accept op now | Player in jail; capacity exceeded                          |
 | `FORBIDDEN`           | CLIENT_ERROR | Operation rejected by policy            | Cannot punish self; cannot kick admin                      |
 | `VALIDATION_FAILED`   | CLIENT_ERROR | Request payload malformed               | Null wire field; negative quantity                         |
@@ -688,7 +694,7 @@ The adapter publishes replies to `<tenant>.gs.commands.replies` with:
   (so replies for the same correlation co-locate on a partition; useful
   for tooling)
 - **Headers**:
-  - `Server-Id` (auto, from connect handshake)
+  - `Server-Id` (auto, the **source** server from the connect handshake)
   - `Correlation-Id` (echoed from inbound)
   - `Message-Type` = command simple name with `Command` replaced by
     `Result` (`TransferItemToCharacterCommand` → `TransferItemToCharacterResult`)

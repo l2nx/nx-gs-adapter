@@ -4,13 +4,10 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Reply envelope for an inbound {@link NxCommand}, sent on {@code <tenant>.gs.commands.replies} with
- * {@code Correlation-Id} echoed and {@code Message-Type = "<CommandNameWithoutCommandSuffix>Result"}.
+ * Reply envelope for an inbound {@link NxCommand}; {@code Message-Type} is {@code <CommandNameWithoutCommandSuffix>Result}.
  *
- * <p>Invariant: payload is non-null iff status is OK; problem is non-null iff status is not OK. The constructor
- * enforces it, but Gson bypasses the constructor, so consumers should assume it when reading.</p>
- *
- * <p>Success data belongs in the {@code R} payload, never in problem extensions (failure context only).</p>
+ * <p>Invariant: payload is non-null iff status is OK, problem iff not OK. Gson bypasses the constructor check, so
+ * consumers re-check. Success data never goes into problem extensions.</p>
  *
  * @param <R> success-payload type declared on {@link NxCommand}; {@link Void} when there is none
  */

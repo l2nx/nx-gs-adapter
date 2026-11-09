@@ -4,10 +4,8 @@ import java.util.*;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Full point-in-time snapshot of every castle on the {@code castle} family topic, multiplexed with
- * {@link SiegeFinishedEvent} via {@code Message-Type}. Not a delta: the consumer replaces its state and drops castles
- * absent from a newer snapshot. Absolute {@code nextSiegeAt} lets the platform count down locally, so cadence can be slow.
- * {@code eventId} MUST be a UUIDv7 (timestamp in the upper 48 bits, consumers dedupe/order on it).
+ * Full snapshot of every castle, not a delta: the consumer drops castles absent from a newer one. Siege times are
+ * absolute, so cadence can be slow. {@code eventId} MUST be a UUIDv7; consumers dedupe and order on it.
  */
 public final class CastleSnapshotEvent {
 

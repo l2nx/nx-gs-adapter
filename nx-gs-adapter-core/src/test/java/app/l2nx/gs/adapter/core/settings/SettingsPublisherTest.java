@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.Header;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -104,14 +105,24 @@ class SettingsPublisherTest {
             assertEquals(
                     "SettingsSyncEvent",
                     new String(
-                            record.headers()
-                                    .lastHeader(NxHeaders.MESSAGE_TYPE)
-                                    .value(),
-                            StandardCharsets.UTF_8));
+                            record.headers().lastHeader(NxHeaders.MESSAGE_TYPE).value(), StandardCharsets.UTF_8));
             SettingsSyncEvent<?> event = (SettingsSyncEvent<?>) record.value();
             assertEquals(GameSettings.ENTITY_NAME, event.getEntityName());
             assertSame(snapshot, event.getPayload());
             assertEquals(T0.toEpochMilli(), event.getTimestampEpochMs());
+        }
+
+        @Test
+        void resend_shouldCarryNoPrefixedHeader() {
+            connect(publisher, TOPICS);
+            SettingsPublisher.Build build = publisher.startBuild();
+
+            publisher.resend(build, settings(100L, build.builtAt));
+
+            assertEquals(1, sent.size());
+            for (Header header : sent.get(0).headers()) {
+                assertFalse(header.key().startsWith("Nx-"), "settings record carries prefixed header " + header.key());
+            }
         }
 
         @Test

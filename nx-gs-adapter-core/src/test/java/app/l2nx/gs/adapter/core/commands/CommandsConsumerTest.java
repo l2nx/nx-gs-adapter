@@ -27,6 +27,7 @@ import org.apache.kafka.clients.consumer.MockConsumer;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.Header;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,8 @@ class CommandsConsumerTest {
     }
 
     static byte[] payload(long characterId, String initiatorJson) {
-        return ("{\"characterId\":" + characterId + ",\"initiator\":" + initiatorJson + "}").getBytes(StandardCharsets.UTF_8);
+        return ("{\"characterId\":" + characterId + ",\"initiator\":" + initiatorJson + "}")
+                .getBytes(StandardCharsets.UTF_8);
     }
 
     static final class FakeCommand implements NxCommand<Void> {
@@ -196,11 +198,7 @@ class CommandsConsumerTest {
                 "missing-message-type-header", body.getProblem().getExtensions().get("error.cause"));
         assertArrayEquals(
                 "CommandResult".getBytes(StandardCharsets.UTF_8),
-                sender.sent
-                        .get(0)
-                        .headers()
-                        .lastHeader(NxHeaders.MESSAGE_TYPE)
-                        .value());
+                sender.sent.get(0).headers().lastHeader(NxHeaders.MESSAGE_TYPE).value());
     }
 
     @Test
@@ -418,6 +416,38 @@ class CommandsConsumerTest {
         assertFalse(handlerCalled.get(), "missing target header → strict drop");
         assertEquals(1L, consumer.otherServerSkippedTotal());
         assertEquals(0, sender.sent.size());
+    }
+
+    @Test
+    void processRecord_shouldDropWithoutReply_whenOnlyLegacyTargetHeaderPresent() {
+        AtomicBoolean handlerCalled = new AtomicBoolean(false);
+        registry.register(FakeCommand.class, (cmd, ctx) -> {
+            handlerCalled.set(true);
+            return CommandResult.ok();
+        });
+        CommandsConsumer consumer = build("out");
+        ConsumerRecord<byte[], byte[]> record =
+                recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1), null);
+        record.headers().add("Nx-Target-Server-Id", NxHeaders.encodeUuid(OWN_SERVER_ID));
+
+        consumer.processRecord(record);
+
+        assertFalse(handlerCalled.get(), "a command from a pre-0.223.0 platform must not run");
+        assertEquals(1L, consumer.otherServerSkippedTotal());
+        assertEquals(0, sender.sent.size());
+    }
+
+    @Test
+    void sendReply_shouldCarryNoPrefixedHeader() {
+        registry.register(FakeCommand.class, (cmd, ctx) -> CommandResult.ok());
+        CommandsConsumer consumer = build("out");
+
+        consumer.processRecord(recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1)));
+
+        assertEquals(1, sender.sent.size());
+        for (Header header : sender.sent.get(0).headers()) {
+            assertFalse(header.key().startsWith("Nx-"), "reply carries prefixed header " + header.key());
+        }
     }
 
     @Nested

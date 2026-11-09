@@ -9,14 +9,9 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Emitted once when the server has finished loading the world and is accepting logins; shares the
- * {@code serveronline} topic with {@link ServerOnlineSnapshotEvent} (dispatched by {@code Message-Type}).
- *
- * <p>The host owns suppression during scheduled maintenance restarts; the platform applies no restart
- * logic. {@code eventId} is a UUIDv7 idempotency key. {@code metadata} carries {@link WellKnownServerStartMetadata}
- * keys; a consumer SHOULD mute its "server is up" notification when {@code gm_only=true}.</p>
- *
- * <p>Partition key is {@code null} (round-robin); consumers group by the {@code Server-Id} header.</p>
+ * Emitted once when the server has loaded the world and accepts logins. The host owns suppression during scheduled
+ * restarts. {@code eventId} is a UUIDv7 idempotency key; {@code metadata} keys are {@link WellKnownServerStartMetadata},
+ * and a consumer SHOULD mute its notification when {@code gm_only=true}. Unkeyed: group by the {@code Server-Id} header.
  */
 public final class ServerStartedEvent {
 

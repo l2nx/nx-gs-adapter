@@ -4,18 +4,11 @@ import java.util.*;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Periodic full snapshot of every tracked raid / epic boss, on the {@code raid} family topic
- * (multiplexed with {@code RaidKillEvent} via the {@code Message-Type} header).
+ * Full snapshot of every tracked raid / epic boss, not a delta: the consumer drops bosses absent from a newer one.
+ * Respawn times are absolute, so cadence can be slow. Bosses outside the standard spawn managers are not reported.
  *
- * <p>Full snapshot, not a delta: the consumer replaces last-known state per server and drops bosses
- * absent from a newer snapshot. Respawn times are absolute, so the cadence can be slow.</p>
- *
- * <p>{@code eventId} MUST be a UUIDv7 (upper 48 bits = timestamp); consumers dedupe on it
- * (at-least-once) and order within a server by it. Bosses spawned outside the standard spawn managers
- * (cheat / custom cores) are not reported.</p>
- *
- * <p>{@code metadata} is an open string map; hosts MAY add keys without an API release, consumers
- * ignore unknown ones.</p>
+ * <p>{@code eventId} MUST be a UUIDv7; consumers dedupe and order on it. {@code metadata} keys may be added by hosts
+ * without an API release; consumers ignore unknown ones.</p>
  */
 public final class BossRespawnSnapshotEvent {
 
@@ -31,7 +24,6 @@ public final class BossRespawnSnapshotEvent {
                 metadata == null ? null : Collections.unmodifiableMap(new LinkedHashMap<String, String>(metadata));
     }
 
-    /** MUST be a UUIDv7. */
     public UUID getEventId() {
         return eventId;
     }

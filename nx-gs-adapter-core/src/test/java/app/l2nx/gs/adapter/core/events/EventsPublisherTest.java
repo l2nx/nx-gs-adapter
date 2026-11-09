@@ -11,6 +11,7 @@ import app.l2nx.gs.adapter.api.kafka.ops.model.EventsStats;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStatus;
 import app.l2nx.gs.commons.UUIDv7;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -71,7 +72,10 @@ class EventsPublisherTest {
 
         Header header = record.headers().lastHeader(NxHeaders.MESSAGE_TYPE);
         assertNotNull(header);
-        assertEquals("PremiumPurchaseEvent", new String(header.value(), java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals("PremiumPurchaseEvent", new String(header.value(), StandardCharsets.UTF_8));
+        for (Header h : record.headers()) {
+            assertFalse(h.key().startsWith("Nx-"), "event carries prefixed header " + h.key());
+        }
 
         Thread.sleep(50);
         assertEquals(1L, publisher.publishedTotal());

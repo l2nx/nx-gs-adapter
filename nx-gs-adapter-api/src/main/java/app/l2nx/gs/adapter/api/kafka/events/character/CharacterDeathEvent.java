@@ -7,13 +7,11 @@ import java.util.*;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Death of a character the host chooses to report; a host may report only unattended deaths (autofarm or auto-macro,
- * mode in the {@code farm_mode} metadata key). Shares the {@code character} topic with {@link CharacterPresenceEvent}
- * (dispatched by {@code Message-Type}) and the {@code characterId} partition key.
- * {@code eventId} is a UUIDv7 idempotency key (at-least-once). {@code metadata} is an open map; canonical keys in
+ * Death of a character; a host may report only unattended deaths (autofarm or auto-macro, in {@code farm_mode}).
+ * {@code eventId} is a UUIDv7 idempotency key. {@code metadata} is an open map with canonical keys in
  * {@link WellKnownDeathMetadata}: {@code killer_type} ({@link WellKnownKillerTypes}), {@code killer_id} (character
- * object-id for {@code player}, NPC template-id for {@code monster}/{@code boss}), {@code farm_mode}
- * ({@link WellKnownFarmModes}). No killer name on the wire; the platform resolves it from the ids.
+ * object-id for {@code player}, NPC template-id otherwise), {@code farm_mode} ({@link WellKnownFarmModes}). No killer
+ * name on the wire.
  */
 public final class CharacterDeathEvent {
 
@@ -53,7 +51,9 @@ public final class CharacterDeathEvent {
         if (this == o) return true;
         if (!(o instanceof CharacterDeathEvent)) return false;
         CharacterDeathEvent that = (CharacterDeathEvent) o;
-        return characterId == that.characterId && eventId.equals(that.eventId) && Objects.equals(metadata, that.metadata);
+        return characterId == that.characterId
+                && eventId.equals(that.eventId)
+                && Objects.equals(metadata, that.metadata);
     }
 
     @Override
@@ -63,7 +63,8 @@ public final class CharacterDeathEvent {
 
     @Override
     public String toString() {
-        return "CharacterDeathEvent[eventId=" + eventId + ", characterId=" + characterId + ", metadata=" + metadata + "]";
+        return "CharacterDeathEvent[eventId=" + eventId + ", characterId=" + characterId + ", metadata=" + metadata
+                + "]";
     }
 
     public static final class Builder {

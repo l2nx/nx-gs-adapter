@@ -42,10 +42,9 @@ public final class EventsPublisher {
     }
 
     /**
-     * Completion of one enqueued event, called exactly once: {@code failure} is {@code null} once Kafka acknowledged
-     * the record, otherwise the send failed or the event was dropped before it reached the producer; an
-     * {@link UndeliverableEventException} when sending it again cannot succeed. Runs on the Kafka
-     * producer's I/O thread, the daemon or the enqueuing thread, so it must not block.
+     * Called exactly once per event: {@code failure} is {@code null} once Kafka acknowledged, else a send failure or drop
+     * ({@link UndeliverableEventException} when a retry cannot succeed). May run on the producer I/O thread, so it must
+     * not block.
      */
     @FunctionalInterface
     public interface SendCallback {
