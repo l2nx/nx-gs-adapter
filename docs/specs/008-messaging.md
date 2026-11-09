@@ -156,7 +156,7 @@ command-handler authors across `char` / `clan` / `mail` / `account` domains.
   - `String CORRELATION_ID = "Correlation-Id"` — textual UUID on commands, echoed on replies.
   - Since api 0.127.0 / core 0.55.0 / nx-gs-gd-sync-core 0.17.0 the adapter sends and reads only these names
     (the `Nx-` prefix and `Nx-Target-Server-Id` are gone). Platform consumers read the new name first and fall
-    back to the old one, platform producers send both (`nx-infra/docs/specs/049-request-headers.md` § 9, § 11;
+    back to the old one, platform producers send both (`nx-infra/docs/specs/049-request-headers/spec.md` § 9, § 11;
     l2nx/nx-platform#41).
   - **Gate for removing the platform fallback:** every game server runs api ≥ 0.127.0, core ≥ 0.55.0 **and**
     nx-gs-gd-sync-core ≥ 0.17.0 (gd-sync 0.16 hard-codes `Nx-Message-Type`, so a new core with an old gd-sync
