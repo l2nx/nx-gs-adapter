@@ -2,17 +2,17 @@
 
 ## Problem
 
-`nx-gs-adapter` публикует sync-события в per-tenant Kafka-топики
-(`<tenantSlug>.gs.sync.db.{character,clan,item}`, `.runtime.character`), общие для
-всех game-серверов тенанта. Сообщения сегодня не несут идентичность сервера, поэтому
-на стороне `nx-gameservers` две записи character_id=1 от разных серверов одного
-тенанта коллидят на PK `(tenant_id, id)` и затирают друг друга. Идентичность сервера
-должна путешествовать с каждым sync-событием, чтобы consumer мог скоупить строки
-per-server без изменений wire-схемы `SyncEvent<T>`.
+`nx-gs-adapter` publishes sync events to per-tenant Kafka topics
+(`<tenantSlug>.gs.sync.db.{character,clan,item}`, `.runtime.character`) shared by
+every game server of the tenant. Today the records carry no server identity, so on the
+`nx-gameservers` side two `character_id=1` rows from different servers of one tenant
+collide on the PK `(tenant_id, id)` and overwrite each other. Server identity has to
+travel with every sync event so the consumer can scope rows per server without changing
+the `SyncEvent<T>` wire schema.
 
-Аудитория: adapter-side publisher'ы (`db-sync`, `runtime-sync`, `heartbeat`),
-платформенный consumer `nx-gameservers`, `nx-tenants` (источник server-каталога),
-операторы (управляют несколькими серверами в одном тенанте без коллизий).
+Audience: adapter-side publishers (`db-sync`, `runtime-sync`, `heartbeat`), the platform
+consumer `nx-gameservers`, `nx-tenants` (source of the server catalog), and operators
+(running several servers in one tenant without collisions).
 
 ## Requirements
 
@@ -40,11 +40,10 @@ per-server без изменений wire-схемы `SyncEvent<T>`.
   different serdes, different packages; no compile-time collision.
 
 - [done] R2. `nx-gs-kafka` MUST provide a thin Kafka-binding helper layered
-  over `NxHeaders`: a producer-wrapper that stamps
-  `Server-Id` on every outbound record via `record.headers().add(name,
-NxHeaders.encodeUuid(serverId))`, plus an optional reader-helper
-  `Headers → @Nullable UUID` for adapter-side tests / future reply-flow
-  modules. `nx-gs-kafka` brings no new constants — just `org.apache.kafka.*`
+  over `NxHeaders`: a producer-wrapper that stamps `Server-Id` on every outbound
+  record via `record.headers().add(name, NxHeaders.encodeUuid(serverId))`, plus an
+  optional reader-helper `Headers → @Nullable UUID` for adapter-side tests / future
+  reply-flow modules. `nx-gs-kafka` brings no new constants — just `org.apache.kafka.*`
   ↔ `NxHeaders` glue.
 
 - [done] R3. Adapter-side producers MUST stamp `Server-Id` on every sync record
@@ -85,8 +84,8 @@ NxHeaders.encodeUuid(serverId))`, plus an optional reader-helper
   Implementation MUST be a forward-only Liquibase changeset that drops and
   recreates the affected tables (no backfill, no data migration — current data
   is test-only).
-  - SC3. UPSERT idempotency: re-delivery of the same `(tenant_id, server_id,
-id)` event produces the same row state.
+  - SC3. UPSERT idempotency: re-delivery of the same `(tenant_id, server_id, id)`
+    event produces the same row state.
   - SC4. DELETE event on a parent cascades to children via the three-column FK.
 
 - [done] R8. `nx-gameservers` `TenantCache` (or its successor) MUST surface
@@ -110,43 +109,40 @@ id)` event produces the same row state.
 
 **Non-goals:**
 
-- Изменение wire-схемы `SyncEvent<T>` или per-entity DTO в `nx-gs-adapter-api`
-  (`CharacterDbDto`, `ClanDbDto`, …) — header'ом покрывается транспортный слой.
-- Per-server топик-сплит (например `<slug>.<server>.gs.sync.db.character`) —
-  топики остаются shared по тенанту, server — только metadata.
-- Refactor multi-tenancy перимтра — `tenantSlug` остаётся в имени топика,
-  он же source of truth.
-- REST-поверхность `nx-tenants /servers` (CRUD-эндпоинты) — фича не трогает
-  внешний API игроков/операторов, только internal cross-service контракт.
-- Backwards-compat / data migration в `nx-gameservers` — данные тестовые,
-  drop & recreate приемлемо.
-- Дополнительные header'ы (`Nx-Tenant-Id`, `Nx-Tenant-Slug`, `Nx-Server-Slug`) —
-  tenantSlug derivable из топика, остальное — из кэша.
+- Changing the wire schema of `SyncEvent<T>` or of the per-entity DTOs in `nx-gs-adapter-api`
+  (`CharacterDbDto`, `ClanDbDto`, …) — the header covers the transport layer.
+- A per-server topic split (e.g. `<slug>.<server>.gs.sync.db.character`) — topics stay
+  shared per tenant, the server is metadata only.
+- Refactoring the multi-tenancy perimeter — `tenantSlug` stays in the topic name and remains
+  its source of truth.
+- A REST surface `nx-tenants /servers` (CRUD endpoints) — the feature does not touch the
+  external player / operator API, only the internal cross-service contract.
+- Backwards compatibility / data migration in `nx-gameservers` — the data is test-only,
+  drop & recreate is acceptable.
+- Additional headers (`Tenant-Slug`, `Server-Slug`) — the tenant slug is derivable from the
+  topic, the rest from the cache.
 
 ### Edge cases
 
-- Header `Server-Id` отсутствует на inbound record → WARN + skip (R5).
-- Header присутствует, но длина ≠ 16 байт → WARN + skip (R5).
-- Header валидный, но serverId не найден в кэше для известного тенанта
-  (server деактивирован после рефреша / только что зарегистрирован) →
-  single-flight refresh, при повторном промахе WARN + skip.
-- Один tenant имеет ≥ 2 сервера, оба пишут одновременно одну partition'у
-  (key = entityId одинаковый): per-server FIFO сохраняется через single-producer
-  ordering, два сервера пишут в разные DB-строки — конфликта нет.
-- Heartbeat от сервера, который отсутствует в кэше → WARN + skip симметрично
-  с sync-событиями (если consumer применяет тот же контракт; для
-  `nx-tenants` heartbeat может оставаться payload-driven, header чисто
-  для observability).
+- `Server-Id` header absent on an inbound record → WARN + skip (R6).
+- Header present but its length ≠ 16 bytes → WARN + skip (R6).
+- Header valid, but the serverId is not in the cache for a known tenant (server deactivated
+  after the refresh / just registered) → single-flight refresh, on a second miss WARN + skip.
+- One tenant has ≥ 2 servers both writing the same partition at once (same key = entityId):
+  per-server FIFO holds through single-producer ordering, and the two servers write different
+  DB rows — no conflict.
+- Heartbeat from a server missing from the cache → WARN + skip, symmetric with sync events
+  (if the consumer applies the same contract; for `nx-tenants` the heartbeat may stay
+  payload-driven, the header being purely for observability).
 
 ## Open questions
 
-- [assumed: heartbeat consumer на платформе остаётся payload-driven — header
-  `Server-Id` на heartbeat-сообщении это just-in-case для будущих
-  cross-cutting consumer'ов; никакая логика nx-tenants на нём не строится в
-  рамках этой фичи]
-- [assumed: PLAN-файл живёт в `docs/specs/007-per-server-sync/.plan/` как
-  обычный specl-flow, milestone'ы по репам — adapter-api-contract /
-  kafka-binding / adapter-wiring / nx-tenants-api / nx-gameservers-schema-and-consumer]
+- [assumed: the platform heartbeat consumer stays payload-driven — the `Server-Id` header on
+  the heartbeat record is just-in-case for future cross-cutting consumers; no `nx-tenants`
+  logic is built on it within this feature]
+- [assumed: the PLAN file lives in `docs/specs/007-per-server-sync/.plan/` as the usual specl
+  flow, milestones per repo — adapter-api-contract / kafka-binding / adapter-wiring /
+  nx-tenants-api / nx-gameservers-schema-and-consumer]
 - "Where does the header constant + encoding live?" → resolved: split between
   `nx-gs-adapter-api.NxHeaders` (constant + pure-JDK encoding helpers,
   R1) and `nx-gs-kafka` (Kafka-Headers binding glue, R2). Both nx-gs-adapter
@@ -157,223 +153,202 @@ id)` event produces the same row state.
 
 ## Technical design
 
-`per-server-sync` — транспортный слой на Kafka-headers, который добавляет
-identity-маркер `Server-Id` (raw 16-byte UUID) на каждое sync-сообщение
-adapter'а и расширяет consumer (nx-gameservers) до per-server-scoped ingestion.
-Фича пересекает три репозитория: `nx-gs-adapter` (kafka-фасад + producer
-wiring + sync/heartbeat модули), `nx-gameservers` (header extraction + schema
-с composite PK + tenant-cache с server-каталогом), `nx-tenants` (internal API
-отдаёт активные серверы тенанта). Wire-схема `SyncEvent<T>` в
-`nx-gs-adapter-api` не меняется.
+`per-server-sync` is a transport layer on Kafka headers that adds the identity marker
+`Server-Id` (raw 16-byte UUID) to every adapter sync record and extends the consumer
+(nx-gameservers) to per-server-scoped ingestion. The feature spans three repositories:
+`nx-gs-adapter` (Kafka facade + producer wiring + sync / heartbeat modules), `nx-gameservers`
+(header extraction + schema with a composite PK + tenant cache with the server catalog),
+`nx-tenants` (the internal API returns the tenant's active servers). The `SyncEvent<T>` wire
+schema in `nx-gs-adapter-api` does not change.
 
 ### Structure
 
 - `nx-gs-adapter/nx-gs-adapter-api/src/main/java/app/l2nx/gs/adapter/api/kafka/NxHeaders.java`
-  — wire-контракт: константа `SERVER_ID` + pure-JDK helper'ы
-  `encodeUuid(UUID)` / `decodeUuid(byte[])`. Single source of truth для
-  имени header'а и encoding'а (16 raw bytes), используется обеими
-  сторонами через зависимость на `nx-gs-adapter-api`.
+  — wire contract: the `SERVER_ID` constant + pure-JDK helpers `encodeUuid(UUID)` /
+  `decodeUuid(byte[])`. Single source of truth for the header name and the encoding (16 raw
+  bytes), used by both sides through the dependency on `nx-gs-adapter-api`.
 - `nx-gs-adapter/nx-gs-kafka/src/main/java/app/l2nx/gs/kafka/producer/`
-  — Kafka-binding wrapper над `NxProducer`, штампующий
-  connection-scoped `Server-Id` через `NxHeaders.encodeUuid` на каждом
-  `send(...)`. Опциональный reader-helper `Headers → @Nullable UUID` для
-  adapter-side тестов и будущих reply-flow модулей.
+  — Kafka-binding wrapper over `NxProducer` that stamps the connection-scoped `Server-Id`
+  through `NxHeaders.encodeUuid` on every `send(...)`. Optional reader-helper
+  `Headers → @Nullable UUID` for adapter-side tests and future reply-flow modules.
 - `nx-gs-adapter/nx-gs-adapter-core/src/main/java/app/l2nx/gs/adapter/core/`
-  — место wiring'а: после успешного `/connect` adapter-core
-  оборачивает базовый `NxProducer` в server-stamping wrapper, передаёт его
-  модулям через `ConnectContext` (или через Tier-2 Kafka-publish capability,
-  когда оно появится в SPI).
-- `nx-gs-adapter/nx-gs-db-sync-core/`, `nx-gs-runtime-sync-core/` —
-  publisher-классы переключаются с прямого `NxProducer` на server-stamping
-  wrapper; per-call API не меняется.
+  — the wiring point: after a successful `/connect` adapter-core wraps the base `NxProducer`
+  in the server-stamping wrapper and hands it to the modules through `ConnectContext` (or
+  through a Tier-2 Kafka-publish capability once the SPI has one).
+- `nx-gs-adapter/nx-gs-db-sync-core/`, `nx-gs-runtime-sync-core/` — the publisher classes
+  switch from the bare `NxProducer` to the server-stamping wrapper; the per-call API does not
+  change.
 - `nx-gs-adapter/nx-gs-adapter-core/.../heartbeat/HeartbeatService.java`
-  — publish heartbeat через тот же wrapper.
+  — publishes the heartbeat through the same wrapper.
 - `nx-gameservers/src/main/java/app/l2nx/gameservers/infra/kafka/SyncEventConsumer.java`
-  — pre-parse extraction header'а; dispatch group key меняется с
-  `tenantId` на `(tenantId, serverId)`.
+  — pre-parse header extraction; the dispatch group key changes from `tenantId` to
+  `(tenantId, serverId)`.
 - `nx-gameservers/src/main/java/app/l2nx/gameservers/infra/tenants/TenantCache.java`
-  — расширенная схема снапшота: `Map<slug, TenantInfo>` где
-  `TenantInfo` несёт `tenantId` + `Map<serverId, serverSlug>`.
-- `nx-gameservers/src/main/resources/db/liquibase/v1.0.0_baseline.sql` —
-  baseline changeset обновлён in-place: 6 таблиц с трёхколоночным PK
-  `(tenant_id, server_id, id)` на parent и FK + cascade на child. Данные
-  testing-only, dev wipe'ает БД при apply.
+  — extended snapshot schema: `Map<slug, TenantInfo>` where `TenantInfo` carries
+  `tenantId` and `Map<serverId, serverSlug>`.
+- `nx-gameservers/src/main/resources/db/liquibase/v1.0.0_baseline.sql` — the baseline
+  changeset is updated in place: 6 tables with the three-column PK `(tenant_id, server_id, id)`
+  on parents and FK + cascade on children. The data is testing-only, dev wipes the DB on
+  apply.
 - `nx-gameservers/src/main/java/app/l2nx/gameservers/ingest/*Ingestor.java`
-  — UPSERT/DELETE SQL переключается на трёхколоночный PK; batch
-  dedup ключ становится `(server_id, pk)`.
+  — UPSERT / DELETE SQL switches to the three-column PK; the batch dedup key becomes
+  `(server_id, pk)`.
 - `nx-tenants/src/main/java/app/l2nx/tenants/api/internal/tenant/InternalTenantsApi.java`
-  — расширение payload'а контракта.
+  — extends the contract payload.
 - `nx-tenants/src/main/java/app/l2nx/tenants/domain/tenant/TenantSummary.java`
-  — добавление поля `List<GameServerSummary> servers`.
+  — adds the field `List<GameServerSummary> servers`.
 - `nx-tenants/src/main/java/app/l2nx/tenants/infra/postgres/`
   — query JOIN `tenants × game_servers WHERE active=true`.
 
 ### Key components
 
-- **`NxHeaders` (Kafka)** (implements R1) — `app.l2nx.gs.adapter.
-api.kafka.NxHeaders` в `nx-gs-adapter-api`. Публичная константа
-  `SERVER_ID = "Server-Id"` + pure-JDK helper'ы
-  `encodeUuid(UUID): byte[]` и `decodeUuid(byte[]): UUID`. Encoding: 16 raw
-  bytes, `mostSigBits` big-endian затем `leastSigBits` big-endian.
-  `decodeUuid` кидает `IllegalArgumentException` при длине ≠ 16. Будущие
-  Kafka-headers (reply-flow correlation, observability) — добавляются
-  константами в этот же класс.
-- **Server-stamping producer wrapper** (implements R2, R3, R4) —
-  обёртка над `NxProducer` в `nx-gs-kafka`, держит `serverId` (16 байт raw,
-  предкодированных через `NxHeaders.encodeUuid` один раз) в final-поле, на
-  каждом `send(...)` достраивает `ProducerRecord.headers()`. Wrapper
-  создаётся в `nx-gs-adapter-core` после `/connect`, передаётся sync-модулям
-  и heartbeat-сервису; сами модули `serverId` напрямую не видят.
-- **`SyncEventConsumer` (header extraction)** (implements R5, R6) —
-  до `gson.fromJson(...)` читает `record.headers().lastHeader(NxHeaders.
-SERVER_ID)`, декодирует через `NxHeaders.decodeUuid`. Group key
-  dispatch'а становится pair `(tenantId, serverId)`. Missing/invalid header →
-  WARN + skip без подсчёта в byTenant. Unknown serverId для известного
-  tenantId → WARN + skip после single-flight refresh кэша.
-- **`TenantCache` extended snapshot** (implements R8) — снапшот
-  `Map<slug, TenantInfo>` через `AtomicReference`, single-flight refresh
-  через `AtomicBoolean`, hydrates из расширенного `/internal/tenants`. Метод
-  `resolveServer(tenantId, serverId): @Nullable String slug` для логирования.
-- **`InternalTenantsApi` extended payload** (implements R9) —
-  controller отдаёт `List<TenantSummary>` где каждый `TenantSummary`
-  включает `List<GameServerSummary>` с активными серверами. Repository-query
-  делает `LEFT JOIN game_servers ON game_servers.tenant_id = tenants.id AND
-game_servers.active = true` за один round-trip; mapper аггрегирует строки
-  по `tenant.id`.
-- **`nx-gameservers` schema baseline** (implements R7) —
-  `v1.0.0_baseline.sql` обновлён in-place: 6 таблиц с трёхколоночным PK
-  `(tenant_id, server_id, id)` на parent и трёхколоночным FK +
-  `ON DELETE CASCADE` на child. Без отдельной миграции — данные
-  testing-only, dev пересоздаёт БД при apply.
+- **`NxHeaders` (Kafka)** (implements R1) — `app.l2nx.gs.adapter.api.kafka.NxHeaders` in
+  `nx-gs-adapter-api`. Public constant `SERVER_ID = "Server-Id"` + pure-JDK helpers
+  `encodeUuid(UUID): byte[]` and `decodeUuid(byte[]): UUID`. Encoding: 16 raw bytes,
+  `mostSigBits` big-endian then `leastSigBits` big-endian. `decodeUuid` throws
+  `IllegalArgumentException` on a length ≠ 16. Future Kafka headers (reply-flow correlation,
+  observability) are added as constants to the same class.
+- **Server-stamping producer wrapper** (implements R2, R3, R4) — a wrapper over `NxProducer`
+  in `nx-gs-kafka`; it holds the `serverId` (16 raw bytes, pre-encoded once through
+  `NxHeaders.encodeUuid`) in a final field and completes `ProducerRecord.headers()` on every
+  `send(...)`. The wrapper is created in `nx-gs-adapter-core` after `/connect` and handed to
+  the sync modules and the heartbeat service; the modules never see `serverId` themselves.
+- **`SyncEventConsumer` (header extraction)** (implements R5, R6) — before
+  `gson.fromJson(...)` it reads `record.headers().lastHeader(NxHeaders.SERVER_ID)` and decodes
+  it through `NxHeaders.decodeUuid`. The dispatch group key becomes the pair
+  `(tenantId, serverId)`. Missing / invalid header → WARN + skip without counting it in
+  byTenant. Unknown serverId for a known tenantId → WARN + skip after a single-flight cache
+  refresh.
+- **`TenantCache` extended snapshot** (implements R8) — snapshot `Map<slug, TenantInfo>`
+  through an `AtomicReference`, single-flight refresh through an `AtomicBoolean`, hydrated
+  from the extended `/internal/tenants`. Method
+  `resolveServer(tenantId, serverId): @Nullable String slug` for logging.
+- **`InternalTenantsApi` extended payload** (implements R9) — the controller returns
+  `List<TenantSummary>` where each `TenantSummary` includes `List<GameServerSummary>` with the
+  active servers. The repository query does
+  `LEFT JOIN game_servers ON game_servers.tenant_id = tenants.id AND game_servers.active = true`
+  in one round-trip; the mapper aggregates the rows by `tenant.id`.
+- **`nx-gameservers` schema baseline** (implements R7) — `v1.0.0_baseline.sql` updated in
+  place: 6 tables with the three-column PK `(tenant_id, server_id, id)` on parents and a
+  three-column FK + `ON DELETE CASCADE` on children. No separate migration — the data is
+  testing-only, dev recreates the DB on apply.
 
 ### Data flows
 
 **Publish (adapter-side):**
 
-1. db-sync / runtime-sync / heartbeat вызывает `producer.send(topic, key, message)`.
-2. Wrapper строит `ProducerRecord(topic, partition=null, key, value)`,
-   докладывает `Server-Id` в `record.headers()`.
-3. KafkaProducer сериализует value через `GsonSerializer`, формирует
-   record-batch (headers попадают под общую batch compression).
-4. Брокер принимает; per-key partitioning сохраняет партицию через хэш
-   ключа = entityId.
+1. db-sync / runtime-sync / heartbeat calls `producer.send(topic, key, message)`.
+2. The wrapper builds `ProducerRecord(topic, partition=null, key, value)` and adds
+   `Server-Id` to `record.headers()`.
+3. KafkaProducer serializes the value through `GsonSerializer` and forms the record batch
+   (headers fall under the shared batch compression).
+4. The broker accepts; per-key partitioning keeps the partition through the hash of the
+   key = entityId.
 
 **Consume (nx-gameservers):**
 
-1. `@KafkaListener` получает `List<ConsumerRecord<Long, String>>` per poll.
-2. Для каждой записи: `tenantId = TenantResolver.resolveOrThrow(topic)`,
-   `serverId = NxHeaders.decodeUuid(record.headers().lastHeader(NxHeaders.
-SERVER_ID).value())`.
-3. Если serverId == null или length invalid → WARN + skip.
-4. `serverSlug = tenantCache.resolveServer(tenantId, serverId)`; если null
-   после single-flight refresh → WARN + skip.
-5. JSON-parse через Gson.
-6. Group by `(tenantId, serverId)` → per-group `ingestor.ingestBatch(tenantId,
-serverId, events)`.
-7. После всех групп — `ack.acknowledge()`.
+1. `@KafkaListener` receives `List<ConsumerRecord<Long, String>>` per poll.
+2. For each record: `tenantId = TenantResolver.resolveOrThrow(topic)`,
+   `serverId = NxHeaders.decodeUuid(record.headers().lastHeader(NxHeaders.SERVER_ID).value())`.
+3. If serverId == null or the length is invalid → WARN + skip.
+4. `serverSlug = tenantCache.resolveServer(tenantId, serverId)`; if null after the
+   single-flight refresh → WARN + skip.
+5. JSON parse through Gson.
+6. Group by `(tenantId, serverId)` → per group
+   `ingestor.ingestBatch(tenantId, serverId, events)`.
+7. After all groups — `ack.acknowledge()`.
 
 ### Data model
 
-- **`nx-gameservers.characters`** (R7) — PK `(tenant_id, server_id, id)`;
-  все non-PK колонки nullable как сейчас.
-- **`nx-gameservers.character_subclasses`** (R7) — PK `(tenant_id,
-server_id, char_id, class)`; FK `(tenant_id, server_id, char_id) →
-characters(tenant_id, server_id, id) ON DELETE CASCADE`.
+- **`nx-gameservers.characters`** (R7) — PK `(tenant_id, server_id, id)`; all non-PK columns
+  nullable as today.
+- **`nx-gameservers.character_subclasses`** (R7) — PK
+  `(tenant_id, server_id, char_id, class)`; FK
+  `(tenant_id, server_id, char_id) → characters(tenant_id, server_id, id) ON DELETE CASCADE`.
 - **`nx-gameservers.clans`** (R7) — PK `(tenant_id, server_id, id)`.
-- **`nx-gameservers.clan_skills`** (R7) — PK + трёхколоночный FK
-  по тому же шаблону.
+- **`nx-gameservers.clan_skills`** (R7) — PK + three-column FK on the same pattern.
 - **`nx-gameservers.items`** (R7) — PK `(tenant_id, server_id, id)`.
-- **`nx-gameservers.item_attributes`** (R7) — PK + трёхколоночный FK.
+- **`nx-gameservers.item_attributes`** (R7) — PK + three-column FK.
 
-`nx-tenants.game_servers` (существующая таблица) — без изменений; читается
-JOIN'ом из `InternalTenantsController` с фильтром `active = true`.
+`nx-tenants.game_servers` (existing table) — unchanged; read by a JOIN from
+`InternalTenantsController` filtered by `active = true`.
 
 ### Integration points
 
-- **`nx-gs-adapter` ↔ `nx-tenants`** — без изменений: handshake остаётся
-  `/api/tenants/servers/connect`, `ConnectContext.serverId` уже несёт UUID.
-- **`nx-gs-adapter` (publisher) ↔ Kafka** (R3, R4) — все publish'ы
-  идут через server-stamping wrapper; key/value serdes не меняются.
-- **`nx-gameservers` ↔ Kafka** (R5, R6) — header extraction
-  до JSON-parse; topic-pattern-based discovery новых тенантов через Kafka
-  metadata refresh не меняется.
-- **`nx-gameservers` ↔ `nx-tenants` `/internal/tenants`** (R9) —
-  расширенный payload, plain HTTP + nginx ACL (никаких shared secrets, как
-  и сейчас).
+- **`nx-gs-adapter` ↔ `nx-tenants`** — unchanged: the handshake stays
+  `/api/tenants/servers/connect`, `ConnectContext.serverId` already carries the UUID.
+- **`nx-gs-adapter` (publisher) ↔ Kafka** (R3, R4) — every publish goes through the
+  server-stamping wrapper; key / value serdes do not change.
+- **`nx-gameservers` ↔ Kafka** (R5, R6) — header extraction before the JSON parse;
+  topic-pattern-based discovery of new tenants through the Kafka metadata refresh does not
+  change.
+- **`nx-gameservers` ↔ `nx-tenants` `/internal/tenants`** (R9) — extended payload, plain HTTP
+  behind an nginx ACL (no shared secrets, as today).
 
 ### Decisions
 
-- **Decision:** identity передаётся через Kafka-header `Server-Id`, не
-  через ключ и не через payload.
-  **Why:** key currently = `entityId` (`Long`) обеспечивает per-entity FIFO
-  через partition affinity. Класть `serverId` в ключ (composite или вместо)
-  меняет partitioning без выгоды: per-server ordering уже даёт single-producer
-  FIFO независимо от партиции; за то ломается консистентный hash для same
-  entityId across servers. Класть в payload — это bump `SyncEvent<T>` schema
-  и стоимость touching контракта на каждом entity-DTO; header — чисто
-  транспортный слой, контракт `nx-gs-adapter-api` не двигается.
-- **Decision:** raw 16-byte UUID, не string.
-  **Why:** 16 байт vs 36 — фактор 2.25 на каждое сообщение, headers попадают
-  в record-batch compression так что absolute saving после gzip/zstd не
-  драматический, но raw bytes дешевле и для encode (no string formatting),
-  и для compare (memcmp). Reader/writer тривиально мала.
-- **Decision:** только один header (`Server-Id`), не четыре.
-  **Why:** `tenantSlug` уже в имени топика — single source of truth, дублировать
-  = риск рассинхрона; `tenantId` derivable из slug через `TenantCache`;
-  `serverSlug` derivable из `serverId` через расширенный кэш. Headers ценны
-  когда a) данные нельзя восстановить из топика/payload, b) consumer хочет
-  skip-path до JSON-парса. Под оба критерия попадает только `serverId`.
-- **Decision:** header-name + encoding в `nx-gs-adapter-api.NxHeaders`
-  (контракт), Kafka-binding wrapper в `nx-gs-kafka`.
-  **Why:** обе стороны (`nx-gs-adapter`, `nx-gameservers`) уже зависят от
-  `nx-gs-adapter-api` через composite build — single source of truth для
-  имени header'а и encoding'а живёт там, никакой string-duplication и
-  encoding drift между сторонами. Pure-JDK helper'ы (`UUID` + `ByteBuffer`)
-  не нарушают zero-runtime-deps правило `nx-gs-adapter-api`. `nx-gs-kafka`
-  остаётся client-side facade для adapter'а — тонкая обёртка над
-  `org.apache.kafka.common.header.Headers`, не контракт-артефакт. Будущие
-  Kafka-headers (reply-flow correlation, observability) ложатся в тот же
-  `NxHeaders` константами.
-- **Decision:** Kafka `NxHeaders` ≠ HTTP `NxHeaders` из `nx-libs/common`.
-  **Why:** разные транспорты, разные conventions (HTTP — case-insensitive
-  ASCII strings, Kafka — bytes-keyed), разные packages
-  (`app.l2nx.gs.adapter.api.kafka.NxHeaders` vs
-  `app.l2nx.common.http.NxHeaders` или аналог) — collision'а нет. Класть
-  всё в один класс — coupling без выгоды, потому что serdes тоже разные
-  (HTTP value = String, Kafka value = byte[]).
-- **Decision:** consumer warn+skip на missing/unknown `Server-Id`, не
-  fail-fast.
-  **Why:** симметрично с unknown-tenant обработкой — один bad record не
-  poison'ит остальной poll. Также упрощает rollout adapter'ов в гетерогенной
-  среде (хотя в этой фиче data — testing, no real backwards-compat
-  concern).
-- **Decision:** edit `v1.0.0_baseline.sql` in-place, не отдельная миграция.
-  **Why:** данные testing-only, реальных environments с применённым старым
-  changeset checksum'ом нет; dev пересоздаёт БД при apply. Чище: один
-  baseline без тянущегося shim'а `v1.1.0_per_server_pk` который иначе
-  повисает в репе навсегда. Платформенное правило forward-only / no
-  `--rollback` сохраняется — это про разрешённые операции в новых
-  миграциях, а не запрет на in-place edit нерелизнутого baseline'а.
-- **Decision:** `/internal/tenants` контракт меняется in-place, не через
-  versioned endpoint.
-  **Why:** единственный consumer — `nx-gameservers` в том же монорепе под
-  координируемым релизом. Versioned endpoint (`/internal/v2/tenants` или
-  `/internal/tenants/with-servers`) добавил бы code-path, который мы немедленно
-  бы выпиливали.
+- **Decision:** identity travels in the Kafka header `Server-Id`, not in the key and not in
+  the payload.
+  **Why:** the key is currently `entityId` (`Long`) and gives per-entity FIFO through
+  partition affinity. Putting `serverId` into the key (composite or instead) changes
+  partitioning for no gain: per-server ordering already comes from single-producer FIFO
+  regardless of the partition, while the consistent hash for the same entityId across
+  servers breaks. Putting it into the payload means a `SyncEvent<T>` schema bump and touching
+  the contract of every entity DTO; a header is purely the transport layer, the
+  `nx-gs-adapter-api` contract does not move.
+- **Decision:** raw 16-byte UUID, not a string.
+  **Why:** 16 bytes vs 36 is a factor of 2.25 on every record. Headers fall under record-batch
+  compression, so the absolute saving after gzip / zstd is not dramatic, but raw bytes are
+  cheaper both to encode (no string formatting) and to compare (memcmp). The reader / writer
+  is trivially small.
+- **Decision:** a single header (`Server-Id`), no tenant or server slug headers.
+  **Why:** `tenantSlug` is already in the topic name — the single source of truth, a copy
+  risks drift; `tenantId` is derivable from the slug through `TenantCache`; `serverSlug` is
+  derivable from `serverId` through the extended cache. Headers are worth it when a) the data
+  cannot be recovered from the topic / payload, b) the consumer wants a skip path before the
+  JSON parse. Only `serverId` meets both criteria.
+- **Decision:** header name + encoding in `nx-gs-adapter-api.NxHeaders` (the contract), the
+  Kafka-binding wrapper in `nx-gs-kafka`.
+  **Why:** both sides (`nx-gs-adapter`, `nx-gameservers`) already depend on
+  `nx-gs-adapter-api` through the composite build — the single source of truth for the header
+  name and the encoding lives there, with no string duplication and no encoding drift between
+  the sides. The pure-JDK helpers (`UUID` + `ByteBuffer`) do not break the zero-runtime-deps
+  rule of `nx-gs-adapter-api`. `nx-gs-kafka` stays the adapter's client-side facade — a thin
+  wrapper over `org.apache.kafka.common.header.Headers`, not a contract artifact. Future Kafka
+  headers (reply-flow correlation, observability) go into the same `NxHeaders` as constants.
+- **Decision:** Kafka `NxHeaders` ≠ HTTP `NxHeaders` from `nx-libs/common`.
+  **Why:** different transports, different conventions (HTTP — case-insensitive ASCII
+  strings, Kafka — bytes-keyed), different packages (`app.l2nx.gs.adapter.api.kafka.NxHeaders`
+  vs `app.l2nx.common.http.NxHeaders` or similar) — no collision. Putting everything into one
+  class is coupling for no gain, because the serdes differ too (HTTP value = String, Kafka
+  value = byte[]).
+- **Decision:** the consumer warns and skips on a missing / unknown `Server-Id`, no fail-fast.
+  **Why:** symmetric with the unknown-tenant handling — one bad record does not poison the
+  rest of the poll. It also eases the adapter rollout in a heterogeneous environment (although
+  in this feature the data is test-only, no real backwards-compat concern).
+- **Decision:** edit `v1.0.0_baseline.sql` in place, not a separate migration.
+  **Why:** the data is testing-only, no real environment has the old changeset checksum
+  applied; dev recreates the DB on apply. Cleaner: one baseline without a lingering
+  `v1.1.0_per_server_pk` shim that would otherwise stay in the repo forever. The platform rule
+  forward-only / no `--rollback` still holds — it is about the operations allowed in new
+  migrations, not a ban on editing an unreleased baseline in place.
+- **Decision:** the `/internal/tenants` contract changes in place, not through a versioned
+  endpoint.
+  **Why:** the only consumer is `nx-gameservers` in the same monorepo under a coordinated
+  release. A versioned endpoint (`/internal/v2/tenants` or `/internal/tenants/with-servers`)
+  would add a code path we would remove right away.
 
 ### Extension points
 
-- **Дополнительные Kafka headers** — добавляются константами в
-  `nx-gs-adapter-api.NxHeaders` (имя + encoding если custom); Kafka-binding
-  если нужен — в helper'ах `nx-gs-kafka` producer-wrapper'а (можно
-  расширить ещё одним connection-scoped header, например `Nx-Trace-Id` для
-  cross-system tracing, или per-call header для reply-flow). Sync-модули
-  не трогаются.
-- **Per-server scoped subscriptions** — в будущем consumer может фильтровать
-  события одного сервера тенанта на стороне приложения через тот же
-  `Server-Id` header (например, отдельный observability-pipeline для
-  одного «канарейкового» сервера); фильтр кладётся в `SyncEventConsumer`
-  pre-parse без изменений wire-схемы.
-- **Не-sync-каналы** — любой будущий Kafka-канал adapter'а (metrics, audit,
-  command-replies) автоматически получает `Server-Id` через тот же
-  wrapper, если использует базовый `NxProducer` через core.
+- **Additional Kafka headers** — added as constants to `nx-gs-adapter-api.NxHeaders` (name +
+  encoding if custom); Kafka binding, if needed, goes into the helpers of the `nx-gs-kafka`
+  producer wrapper (it can be extended with another connection-scoped header, e.g.
+  `traceparent` for cross-system tracing, or a per-call header for the reply flow). The sync
+  modules are not touched.
+- **Per-server scoped subscriptions** — a future consumer can filter the events of one server
+  of a tenant on the application side through the same `Server-Id` header (e.g. a separate
+  observability pipeline for one "canary" server); the filter goes into `SyncEventConsumer`
+  pre-parse without wire-schema changes.
+- **Non-sync channels** — any future Kafka channel of the adapter (metrics, audit,
+  command replies) gets `Server-Id` automatically through the same wrapper if it uses the base
+  `NxProducer` through core.
