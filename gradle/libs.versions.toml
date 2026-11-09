@@ -8,7 +8,7 @@ jspecify = "1.0.1"
 liquibase = "5.0.4"
 # tests
 junit = "5.14.4"
-jackson = "2.22.3"
+jackson = "2.23.0"
 mockito = "5.24.0"
 wiremock = "2.35.2"
 # integ tests
