@@ -74,7 +74,10 @@ final class AppSessionEngine {
     static final int MARK_BATCH = 500;
 
     static final Set<LogoutReason> HOST_END_REASONS = Collections.unmodifiableSet(EnumSet.of(
+            LogoutReason.APP_TIME_UP,
             LogoutReason.APP_OUT_OF_BAIT,
+            LogoutReason.APP_BAIT_LEVEL_MISMATCH,
+            LogoutReason.APP_NO_ROD,
             LogoutReason.APP_DAILY_LIMIT,
             LogoutReason.APP_INVENTORY_FULL,
             LogoutReason.APP_OVERWEIGHT,
@@ -477,7 +480,12 @@ final class AppSessionEngine {
             return;
         }
         slot.ops.execute(() -> {
-            if (slot.phase == Phase.RUNNING) {
+            if (reason == LogoutReason.APP_TIME_UP && slot.row.getPlannedMs() != null) {
+                log.error(
+                        "App sessions: onActionEnded({}, {}) ignored, the engine's timer owns a session with a plan",
+                        sessionId,
+                        reason);
+            } else if (slot.phase == Phase.RUNNING) {
                 close(slot, reason);
             } else {
                 log.warn(

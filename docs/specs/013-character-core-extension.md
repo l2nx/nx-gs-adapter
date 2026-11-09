@@ -81,12 +81,14 @@ online / offline mark, that drags in no build-specific extras (lock flags, block
     a plain logout included. Client values: `LOGOUT`, `DISCONNECT` (involuntary connection loss: network drop, client
     crash, DDoS), `OFFLINE_PRIVATE_STORE`, `SERVER_STOP`, `SOLD_OUT` (a native offline store sold everything,
     R17). Common to client and app sessions: `BANNED`, `KICKED` (a client session reports a kick or a ban with them, not
-    as `DISCONNECT`). App-only values: `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`,
-    `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL` (no free slot for the catch), `APP_OVERWEIGHT`
-    (the catch would overload the character), `APP_SOLD_OUT`, `APP_INTERRUPTED` (the game stopped the placed character's
-    action: a teleport, the tool or consumable vanished, the action failed to restart; not `KICKED`, not `APP_STOPPED`),
-    `APP_RESTORE_FAILED`. A new value lands in order: adapter enum (api release), then the platform enum and its CHECK,
-    then the host; `APP_INTERRUPTED` came in api 0.115.0.
+    as `DISCONNECT`). App-only values: `APP_TIME_UP` (also an app store whose paid offline time ran out, host-reported), `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`,
+    `APP_OUT_OF_BAIT`, `APP_BAIT_LEVEL_MISMATCH` (the chosen bait left the hand because the character's level left its
+    range), `APP_NO_ROD` (the rod left the hands: its conditions failed or it is gone), `APP_DAILY_LIMIT`,
+    `APP_INVENTORY_FULL` (no free slot for the catch), `APP_OVERWEIGHT` (the catch would overload the character),
+    `APP_SOLD_OUT`, `APP_INTERRUPTED` (the game stopped the placed character's action: moved off its spot, an app store
+    closed by the game, the action failed to restart; not `KICKED`, not `APP_STOPPED`), `APP_RESTORE_FAILED`. A new value
+    lands in order: adapter enum (api release), then the platform enum and its CHECK, then the host; `APP_INTERRUPTED`
+    came in api 0.115.0, `APP_BAIT_LEVEL_MISMATCH` and `APP_NO_ROD` in api 0.125.0.
 
   An `APP` event describes a character placed in the world by an app command
   ([`038-app-offline-sessions`](038-app-offline-sessions.md)):

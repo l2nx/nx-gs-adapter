@@ -35,9 +35,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -45,13 +47,16 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class AppSessionEngineTest {
 
@@ -1179,20 +1184,21 @@ class AppSessionEngineTest {
     }
 
     @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     class HostCallbacks {
 
+        Stream<LogoutReason> plannedRowHostReasons() {
+            Set<LogoutReason> reasons = EnumSet.copyOf(AppSessionEngine.HOST_END_REASONS);
+            reasons.remove(LogoutReason.APP_TIME_UP);
+            return reasons.stream();
+        }
+
+        Stream<LogoutReason> engineReasons() {
+            return EnumSet.complementOf(EnumSet.copyOf(AppSessionEngine.HOST_END_REASONS)).stream();
+        }
+
         @ParameterizedTest(name = "{0}")
-        @EnumSource(
-                value = LogoutReason.class,
-                names = {
-                    "APP_OUT_OF_BAIT",
-                    "APP_DAILY_LIMIT",
-                    "APP_INVENTORY_FULL",
-                    "APP_SOLD_OUT",
-                    "APP_INTERRUPTED",
-                    "BANNED",
-                    "KICKED"
-                })
+        @MethodSource("plannedRowHostReasons")
         void onActionEnded_shouldCloseWithTheHostsReason_whenSessionRuns(LogoutReason reason) {
             OfflineSession session = started(request().build());
 
@@ -1204,10 +1210,31 @@ class AppSessionEngineTest {
         }
 
         @Test
-        void onActionEnded_shouldBeIgnored_whenReasonBelongsToTheEngine() {
+        void onActionEnded_shouldCloseWithAppTimeUp_whenRowHasNoPlan() {
+            OfflineSession session = started(request().plannedMs(null).build());
+
+            engine.onActionEnded(session.getId(), LogoutReason.APP_TIME_UP);
+
+            assertEquals(LogoutReason.APP_TIME_UP, store.row(session.getId()).getEndReason());
+            assertTrue(host.called("stopAction:" + session.getId()));
+            assertEquals(LogoutReason.APP_TIME_UP, events.last().getLogoutReason());
+        }
+
+        @Test
+        void onActionEnded_shouldBeIgnored_whenHostSendsAppTimeUpForPlannedRow() {
             OfflineSession session = started(request().build());
 
             engine.onActionEnded(session.getId(), LogoutReason.APP_TIME_UP);
+
+            assertTrue(store.row(session.getId()).isOpen());
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("engineReasons")
+        void onActionEnded_shouldBeIgnored_whenReasonBelongsToTheEngine(LogoutReason reason) {
+            OfflineSession session = started(request().build());
+
+            engine.onActionEnded(session.getId(), reason);
 
             assertTrue(store.row(session.getId()).isOpen());
         }

@@ -24,6 +24,7 @@ public enum LogoutReason {
     /** Client or app session: the character was kicked. A client session reports a kick as this, not as {@link #DISCONNECT}. */
     KICKED,
 
+    /** App session: its plan ran out, or a store's paid offline time did (reported by the host). */
     APP_TIME_UP,
 
     APP_STOPPED,
@@ -36,6 +37,10 @@ public enum LogoutReason {
 
     APP_OUT_OF_BAIT,
 
+    APP_BAIT_LEVEL_MISMATCH,
+
+    APP_NO_ROD,
+
     APP_DAILY_LIMIT,
 
     APP_INVENTORY_FULL,
@@ -45,8 +50,8 @@ public enum LogoutReason {
     APP_SOLD_OUT,
 
     /**
-     * App session: the game stopped the placed character's action (it was moved off its spot, lost what the action
-     * needs, or the action could not resume). Not a staff kick ({@link #KICKED}) and not the player's stop
+     * App session: the game stopped the placed character's action (it was moved off its spot, the store was closed by
+     * the game, or the action could not resume). Not a staff kick ({@link #KICKED}) and not the player's stop
      * ({@link #APP_STOPPED}).
      */
     APP_INTERRUPTED,

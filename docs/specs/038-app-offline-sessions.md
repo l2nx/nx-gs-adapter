@@ -269,7 +269,7 @@ one instance, usable from JVM start; a context built without it gets a no-op. No
 ```java
 CompletableFuture<AppSessionStartOutcome> start(AppSessionStartRequest request);
 CompletableFuture<Optional<OfflineSession>> stop(int characterId, ActivityType activity);
-void onActionEnded(UUID sessionId, LogoutReason reason);   // async; APP_OUT_OF_BAIT, APP_DAILY_LIMIT, APP_INVENTORY_FULL, APP_OVERWEIGHT, APP_SOLD_OUT, APP_INTERRUPTED, BANNED, KICKED
+void onActionEnded(UUID sessionId, LogoutReason reason);   // async; APP_TIME_UP (row without plan only), APP_OUT_OF_BAIT, APP_BAIT_LEVEL_MISMATCH, APP_NO_ROD, APP_DAILY_LIMIT, APP_INVENTORY_FULL, APP_OVERWEIGHT, APP_SOLD_OUT, APP_INTERRUPTED, BANNED, KICKED
 void hostReady();                                          // the world is loaded; releases the restore, idempotent
 ClientLoginOutcome onClientLogin(int characterId);         // synchronous, bounded wait: CLOSED(session) | NONE | PENDING
 Optional<OfflineSession> findActive(int characterId);      // in-memory, game-thread safe
@@ -389,7 +389,7 @@ Table `l2nx_offline_sessions`, owned by the adapter and created by the changelog
 | `ended_at`             | `datetime` NULL               | `NULL` means active                                                                                                                                                                                                                                                                                              |
 | `end_reason`           | `varchar(32)` NULL            | end reason: the `LogoutReason` constant name                                                                                                                                                                                                                                                                     |
 | `end_published_at`     | `datetime` NULL               | when Kafka acknowledged the end event (R24); `NULL` on a closed row means the end still has to reach the platform; the flush tick republishes it                                                                                                                                                                 |
-| `result`               | `clob` NULL                   | the session's result as JSON, written by the close (R27, changeset `0014-offline-sessions-result`); `NULL` when there is none. On an open row the running block, from a graceful stop until a restore placed the character. Read only to publish the end and by a restore                                                                                                                                            |
+| `result`               | `clob` NULL                   | the session's result as JSON, written by the close (R27, changeset `0014-offline-sessions-result`); `NULL` when there is none. On an open row the running block, from a graceful stop until a restore placed the character. Read only to publish the end and by a restore                                        |
 
 Indexes: `UNIQUE(active_character_id)`, `UNIQUE(active_spot_key)`, `UNIQUE(idempotency_key)`,
 `(account_name, ended_at)`, `(hwid, ended_at)`, `(master_account_id, ended_at)`,
@@ -439,7 +439,8 @@ activity, sessionId, ip = initiator.ip, hwid, accountName`.
 2. Running: `active_ms` counts while the action runs, flushed every minute (a write never lowers the stored value and
    never touches a closed row) and on stop and shutdown (R7); a timer ends the session when `active_ms >= planned_ms`
    (`planned_ms` null: no time limit).
-3. End: by time (`APP_TIME_UP`), by stop command (`APP_STOPPED`), by `APP_LOGIN`, or by a host callback (action ended). The engine
+3. End: by time (`APP_TIME_UP`), by stop command (`APP_STOPPED`), by `APP_LOGIN`, or by a host callback (action ended; `APP_TIME_UP` from
+   the host only for a row without `planned_ms`). The engine
    calls `stopAction` (when the action ran), `removeFromWorld(returnToOrigin = active_ms < return_threshold_ms)` and
    `takeSessionResult`, fills `ended_at`, `end_reason` and `result`, clears `active_character_id` and `active_spot_key`, publishes `online = false, source = APP,
 logoutReason`. A failed close in the table is logged and retried until the table takes it (the character stays busy
@@ -462,15 +463,19 @@ resumed = true` with the same `sessionId`. A placement refused for now goes back
 
 End reasons (the `LogoutReason` values of app sessions; the set is closed):
 
-- `OFFLINE_FISHING`: `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`,
-  `APP_INVENTORY_FULL`, `APP_OVERWEIGHT`, `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`.
-- `OFFLINE_PRIVATE_STORE` (app store): `APP_SOLD_OUT`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `BANNED`, `KICKED`,
-  `APP_RESTORE_FAILED`.
+- `OFFLINE_FISHING`: `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`,
+  `APP_BAIT_LEVEL_MISMATCH`, `APP_NO_ROD`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL`, `APP_OVERWEIGHT`, `APP_INTERRUPTED`,
+  `BANNED`, `KICKED`, `APP_RESTORE_FAILED`.
+- `OFFLINE_PRIVATE_STORE` (app store): `APP_SOLD_OUT`, `APP_TIME_UP` (the host's paid offline time ran out; the row has
+  no `planned_ms`, so the host reports it through `onActionEnded`), `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`,
+  `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`.
 
 `APP_INTERRUPTED` is the game stopping the placed character's action on its own: the character was moved off its spot
-(a teleport), the tool or consumable the action needs vanished, or the action failed to restart. It is neither a staff
-kick (`KICKED`) nor the player's stop command (`APP_STOPPED`): the session log and the player's notification name the
-game as the cause, not staff or the player.
+(a teleport), the game closed the store, or the action failed to restart. It is neither a staff kick (`KICKED`) nor the
+player's stop command (`APP_STOPPED`): the session log and the player's notification name the game as the cause, not
+staff or the player. Gear the player can fix has its own reason: `APP_BAIT_LEVEL_MISMATCH` (the chosen bait left the
+hand because the character's level left its range) and `APP_NO_ROD` (the rod left the hands, its conditions failed or
+it is gone).
 
 On the wire each reason is the enum constant name in the required `logoutReason` field (R15).
 
@@ -505,8 +510,9 @@ lives on the platform, in its own private legacy mapping (see Rollout).
   - `logoutReason` (`LogoutReason`), REQUIRED on every `online = false` event, a plain logout included:
     - client: `LOGOUT`, `DISCONNECT` (involuntary connection loss: network drop, client crash, DDoS), `OFFLINE_PRIVATE_STORE`, `SERVER_STOP`, `SOLD_OUT`;
     - common to client and app sessions: `BANNED`, `KICKED` (a client session reports a kick or a ban with them, not as `DISCONNECT`);
-    - app-only: `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`, `APP_DAILY_LIMIT`,
-      `APP_INVENTORY_FULL`, `APP_OVERWEIGHT`, `APP_SOLD_OUT`, `APP_INTERRUPTED`, `APP_RESTORE_FAILED`.
+    - app-only: `APP_TIME_UP`, `APP_STOPPED`, `APP_STOPPED_BEFORE_RESTORE`, `APP_LOGIN`, `APP_OUT_OF_BAIT`,
+      `APP_BAIT_LEVEL_MISMATCH`, `APP_NO_ROD`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL`, `APP_OVERWEIGHT`, `APP_SOLD_OUT`,
+      `APP_INTERRUPTED`, `APP_RESTORE_FAILED`.
 
   `metadata.logout_reason` and its lower_snake tokens are gone. For an `APP` event `ip` is the `initiator.ip` of the
   start command (the app request IP) and `hwid` is the session's hwid snapshot (`null` when empty, never `""`);
@@ -572,7 +578,7 @@ snapshot carries.
 | `app.chat.offline-send-channels`           | list    | as above, `PARTY` invalid                                                         | `CLAN,ALLIANCE,WHISPER`       | channels the app may send to while the character is out of game (`CHANNEL_DISABLED` outside); empty: read-only. Snapshot (`chat.offlineSendChannels`)                                                                                                                                                                                      |
 | `app.restore.batch-size`                   | int     | >= 1                                                                              | `10`                          | sessions restored per batch after a restart (capped at the engine's share of the IO pool)                                                                                                                                                                                                                                                  |
 | `app.restore.batch-pause-millis`           | int     | >= 0                                                                              | `1000`                        | pause between restore batches                                                                                                                                                                                                                                                                                                              |
-| `app.shutdown.result-millis-per-session`   | int     | >= 1                                                                              | see `AppRules`                | wait per open session, added to the 5 s base, for taking and writing the running results at a graceful stop ([`043`](043-session-results.md) R9) |
+| `app.shutdown.result-millis-per-session`   | int     | >= 1                                                                              | see `AppRules`                | wait per open session, added to the 5 s base, for taking and writing the running results at a graceful stop ([`043`](043-session-results.md) R9)                                                                                                                                                                                           |
 | `app.history.retention-days`               | int     | >= 7                                                                              | `90`                          | closed sessions older than this are deleted from the adapter's table at server start (R13); bounds the session-history read                                                                                                                                                                                                                |
 
 A new session type adds one `app.<type>.enabled` key of the same form, not a new file layout. The spot pool name goes

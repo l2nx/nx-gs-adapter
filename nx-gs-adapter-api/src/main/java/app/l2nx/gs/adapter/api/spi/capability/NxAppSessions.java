@@ -44,8 +44,10 @@ public interface NxAppSessions {
 
     /**
      * The host's action ended on its own; closes asynchronously, so the game thread may call it. {@code reason} is one
-     * of {@code APP_OUT_OF_BAIT}, {@code APP_DAILY_LIMIT}, {@code APP_INVENTORY_FULL}, {@code APP_OVERWEIGHT},
-     * {@code APP_SOLD_OUT}, {@code APP_INTERRUPTED}, {@code BANNED}, {@code KICKED}.
+     * of {@code APP_TIME_UP} (a session without a plan whose host time ran out, e.g. a paid offline
+     * store), {@code APP_OUT_OF_BAIT}, {@code APP_BAIT_LEVEL_MISMATCH}, {@code APP_NO_ROD}, {@code APP_DAILY_LIMIT},
+     * {@code APP_INVENTORY_FULL}, {@code APP_OVERWEIGHT}, {@code APP_SOLD_OUT}, {@code APP_INTERRUPTED}, {@code BANNED},
+     * {@code KICKED}.
      */
     void onActionEnded(UUID sessionId, LogoutReason reason);
 
