@@ -20,7 +20,7 @@ jobs:
       version: ${{ steps.parsed.outputs.version }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -119,7 +119,7 @@ jobs:
     needs: publish
     runs-on: [ self-hosted, linux, nexus ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: l2nx/nx-dev-web
           token: ${{ secrets.NX_INFRA_PAT }}
@@ -160,7 +160,7 @@ jobs:
     runs-on: [ self-hosted, linux, nexus ]
     # No concurrency group: it cancels pending runs; sync-docs.sh serializes released-together module tags itself.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: source
           fetch-depth: 0
@@ -179,7 +179,7 @@ jobs:
           chmod +x gradlew
           ./gradlew :nx-gs-adapter-core:docsCoverageTest
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: l2nx/nx-dev-web
           token: ${{ secrets.NX_INFRA_PAT }}
