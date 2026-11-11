@@ -36,7 +36,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Parse tag → module + version
         id: parsed
@@ -170,7 +170,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       # Here, not in front of the publish: drifted docs must not block a module release.
       - name: Verify configuration docs cover the keys read in code
