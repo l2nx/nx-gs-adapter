@@ -17,16 +17,19 @@ Apache Kafka with minimal dependencies and zero impact on game server stability.
 ### Gradle
 
 <!-- @formatter:off -->
+
 ```groovy
 dependencies {
     implementation 'app.l2nx:nx-gs-kafka:0.0.1'
 }
 ```
+
 <!-- @formatter:on -->
 
 ### Maven
 
 <!-- @formatter:off -->
+
 ```xml
 <dependency>
     <groupId>app.l2nx</groupId>
@@ -34,6 +37,7 @@ dependencies {
     <version>0.0.1</version>
 </dependency>
 ```
+
 <!-- @formatter:on -->
 
 ### Drop-in JAR
@@ -46,12 +50,14 @@ Download `nx-gs-kafka-0.0.1-all.jar` and add it to your game server's classpath.
 ### Connect to Kafka
 
 <!-- @formatter:off -->
+
 ```java
 NxKafka kafka = NxKafka.configure()
     .brokers("kafka1:9092,kafka2:9092")
     .clientId("my-server")
     .build();
 ```
+
 <!-- @formatter:on -->
 
 That's it. The library connects to the broker, verifies the connection, and starts a background health check.
@@ -61,15 +67,18 @@ automatically.
 ### Check Connection State
 
 <!-- @formatter:off -->
+
 ```java
 NxKafka.instance().isConnected();  // true / false
 NxKafka.instance().state();        // KafkaState.CONNECTED
 ```
+
 <!-- @formatter:on -->
 
 ### Produce Messages
 
 <!-- @formatter:off -->
+
 ```java
 // Fire-and-forget
 NxKafka.instance().send("my.topic", new MyEvent(data));
@@ -87,11 +96,13 @@ NxKafka.instance().send("my.topic", playerId, event, (metadata, exception) -> {
     if (exception != null) log.warn("Send failed", exception);
 });
 ```
+
 <!-- @formatter:on -->
 
 ### Consume Messages
 
 <!-- @formatter:off -->
+
 ```java
 // Subscribe — creates a dedicated daemon thread per topic.
 // groupId is REQUIRED — pick a stable identifier for the consumer group.
@@ -103,6 +114,7 @@ NxKafka.instance().subscribe("my.topic", "my-server.events", MyEvent.class, even
 // Unsubscribe — stops poll thread, closes consumer
 NxKafka.instance().unsubscribe("my.topic");
 ```
+
 <!-- @formatter:on -->
 
 Manual offset commit — the consumer commits the offset synchronously after the
@@ -117,6 +129,7 @@ The library can act as a responder to requests from Spring Boot services using
 automatically extracted and forwarded in the reply.
 
 <!-- @formatter:off -->
+
 ```
 Spring Boot (ReplyingKafkaTemplate)           GS (nx-gs-kafka)
    |                                              |
@@ -141,6 +154,7 @@ NxKafka.instance().subscribe("gs.char.info.request", CharInfoRequest.class, (req
     replyTo.reply(info);  // sends to kafka_replyTopic with same correlationId
 });
 ```
+
 <!-- @formatter:on -->
 
 nx-gs-kafka is the **responder only** — reply topic management, correlation tracking, and timeouts
@@ -149,9 +163,11 @@ are handled by the Spring Boot requester side (`ReplyingKafkaTemplate`).
 ### Shutdown
 
 <!-- @formatter:off -->
+
 ```java
 NxKafka.instance().shutdown();
 ```
+
 <!-- @formatter:on -->
 
 A JVM shutdown hook is also registered automatically.
@@ -159,6 +175,7 @@ A JVM shutdown hook is also registered automatically.
 ## Configuration
 
 <!-- @formatter:off -->
+
 ```java
 NxKafka kafka = NxKafka.configure()
     .brokers("kafka1:9092,kafka2:9092")       // required
@@ -172,6 +189,7 @@ NxKafka kafka = NxKafka.configure()
     .property("security.protocol", "SASL_SSL") // any kafka-clients property
     .build();
 ```
+
 <!-- @formatter:on -->
 
 All standard `kafka-clients` properties can be passed via `.property(key, value)`.
@@ -181,15 +199,15 @@ All standard `kafka-clients` properties can be passed via `.property(key, value)
 The library pins durability-relevant producer defaults; per-property overrides via
 `.property(...)` still win on a per-key basis:
 
-| Property                                  | Default             |
-|-------------------------------------------|---------------------|
-| `acks`                                    | `all`               |
-| `enable.idempotence`                      | `true`              |
-| `max.in.flight.requests.per.connection`   | `5`                 |
-| `linger.ms`                               | `10`                |
-| `compression.type`                        | `gzip`              |
-| `retries`                                 | `Integer.MAX_VALUE` |
-| `delivery.timeout.ms`                     | `120000`            |
+| Property                                | Default             |
+| --------------------------------------- | ------------------- |
+| `acks`                                  | `all`               |
+| `enable.idempotence`                    | `true`              |
+| `max.in.flight.requests.per.connection` | `5`                 |
+| `linger.ms`                             | `10`                |
+| `compression.type`                      | `gzip`              |
+| `retries`                               | `Integer.MAX_VALUE` |
+| `delivery.timeout.ms`                   | `120000`            |
 
 Consumer side: `enable.auto.commit=false` is pinned — commits happen synchronously
 after handler success.
@@ -200,17 +218,17 @@ dispatch to game thread if needed.
 
 ## Dependencies
 
-| Dependency | Size | Required |
-|---|---|---|
-| `kafka-clients:3.6.2` | ~4.8MB | Yes |
-| `gson:2.13.2` | ~280KB | Yes |
-| `slf4j-api:2.0.17` | ~40KB | No (auto-detected) |
+| Dependency            | Size   | Required           |
+| --------------------- | ------ | ------------------ |
+| `kafka-clients:3.9.2` | ~9MB   | Yes                |
+| `gson:2.15.0`         | ~310KB | Yes                |
+| `slf4j-api:2.0.20`    | ~70KB  | No (auto-detected) |
 
-### Why kafka-clients 3.6.2?
+### Why kafka-clients 3.x?
 
-The library targets Java 8. Apache Kafka dropped Java 8 support in `kafka-clients:3.7+`. Version 3.6.2 is the
-latest Java 8 compatible client and is fully compatible with Kafka 3.7+ brokers (including Confluent 7.7.0)
-via Kafka's backward-compatible protocol.
+The library targets Java 8. `kafka-clients:4.0+` is Java 11 bytecode, so the 3.9 line is the latest Java 8
+compatible client; Renovate is capped below 4. It talks to Kafka 4.x brokers via Kafka's backward-compatible
+protocol.
 
 ### Why Gson instead of Jackson?
 
@@ -229,23 +247,25 @@ If you need compression:
 - For `lz4`/`snappy`/`zstd`, add the specific library to your classpath and configure:
 
 <!-- @formatter:off -->
+
 ```java
 NxKafka.configure()
     .brokers("kafka:9092")
     .property("compression.type", "lz4")
     .build();
 ```
+
 <!-- @formatter:on -->
 
 ## Logging
 
 The library uses its own `NxLog` facade that auto-detects the logging setup:
 
-| Classpath | Behavior |
-|---|---|
-| SLF4J + binding (logback, log4j2, etc.) | Logs via SLF4J |
-| SLF4J without binding | Console fallback |
-| No SLF4J | Console fallback |
+| Classpath                               | Behavior         |
+| --------------------------------------- | ---------------- |
+| SLF4J + binding (logback, log4j2, etc.) | Logs via SLF4J   |
+| SLF4J without binding                   | Console fallback |
+| No SLF4J                                | Console fallback |
 
 Console fallback format:
 
