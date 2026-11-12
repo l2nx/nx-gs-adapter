@@ -1,6 +1,41 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "local>l2nx/renovate-config"
+  ],
+  "packageRules": [
+    {
+      "description": "kafka-clients is an api dependency of nx-gs-kafka and runs on the Java 8 game server hosts; 4.x is Java 11 bytecode",
+      "matchPackageNames": [
+        "org.apache.kafka:kafka-clients"
+      ],
+      "allowedVersions": "<4"
+    },
+    {
+      "description": "Test source sets compile with release 8 like main, so Gradle resolves them for JVM 8; JUnit 6 is published for Java 17+ only",
+      "matchPackageNames": [
+        "org.junit.jupiter:**",
+        "org.junit.platform:**",
+        "org.junit:junit-bom"
+      ],
+      "allowedVersions": "<6"
+    },
+    {
+      "description": "Test source sets compile with release 8 like main; WireMock 3 (wiremock-jre8 3.x relocates to org.wiremock:wiremock) is Java 11 bytecode",
+      "matchPackageNames": [
+        "com.github.tomakehurst:wiremock-jre8"
+      ],
+      "allowedVersions": "<3"
+    },
+    {
+      "description": "The suggested replacement of wiremock-jre8 is org.wiremock:wiremock 3.x, Java 11 bytecode",
+      "matchPackageNames": [
+        "com.github.tomakehurst:wiremock-jre8"
+      ],
+      "matchUpdateTypes": [
+        "replacement"
+      ],
+      "enabled": false
+    }
   ]
 }
