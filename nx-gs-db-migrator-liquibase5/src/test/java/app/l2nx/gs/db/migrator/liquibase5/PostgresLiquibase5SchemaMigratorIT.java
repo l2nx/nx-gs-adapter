@@ -7,15 +7,15 @@ import app.l2nx.gs.adapter.api.spi.provider.SchemaMigrationException;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.JdbcDatabaseContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @Testcontainers
 class PostgresLiquibase5SchemaMigratorIT extends AbstractLiquibase5SchemaMigratorIT {
 
     @Container
-    private static final PostgreSQLContainer<?> DB = new PostgreSQLContainer<>("postgres:17-alpine");
+    private static final PostgreSQLContainer DB = new PostgreSQLContainer("postgres:17-alpine");
 
     @Override
     protected JdbcDatabaseContainer<?> container() {

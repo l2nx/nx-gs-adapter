@@ -42,10 +42,10 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.junit.jupiter.api.*;
-import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
+import org.testcontainers.mysql.MySQLContainer;
 
 @Tag("integration")
 @Testcontainers(disabledWithoutDocker = true)
@@ -55,7 +55,7 @@ class CdcEngineE2ETest {
     private static final Gson GSON = new Gson();
 
     @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.36")
+    static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.0.36")
             .withDatabaseName("acme")
             .withUsername("test")
             .withPassword("test");
