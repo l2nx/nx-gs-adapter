@@ -14,7 +14,7 @@ wiremock = "2.35.2"
 # integ tests
 testcontainers = "2.0.5"
 postgresql = "42.7.14"
-mariadb-java-client = "3.5.11"
+mariadb-java-client = "4.0.0"
 # formatting
 spotless = "8.11.0"
 palantir = "2.102.0"
