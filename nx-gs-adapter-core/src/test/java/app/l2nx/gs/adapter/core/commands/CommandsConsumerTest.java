@@ -8,6 +8,7 @@ import app.l2nx.gs.adapter.api.kafka.commands.CommandResult;
 import app.l2nx.gs.adapter.api.kafka.commands.CommandStatus;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
+import app.l2nx.gs.adapter.api.kafka.commands.chat.SendChatMessageCommand;
 import app.l2nx.gs.adapter.api.spi.HostExecutorTimeoutException;
 import app.l2nx.gs.adapter.api.spi.capability.CommandHandler;
 import app.l2nx.gs.adapter.api.spi.capability.NxAppRules;
@@ -63,11 +64,12 @@ class CommandsConsumerTest {
     }
 
     static final class FakeOwnerCommand implements NxCommand<Void>, OwnerVerified {
+        boolean ownerVerified;
         CommandInitiator initiator;
 
         @Override
         public boolean isOwnerVerified() {
-            return true;
+            return ownerVerified;
         }
 
         @Override
@@ -521,41 +523,81 @@ class CommandsConsumerTest {
             assertEquals(1L, consumer.handledTotal());
         }
 
-        @Test
-        void processRecord_shouldReplyInvalidInitiator_whenOwnerVerifiedCommandFromService() {
+        private <R, C extends NxCommand<R>> AtomicBoolean registerOk(Class<C> type) {
             AtomicBoolean handlerCalled = new AtomicBoolean(false);
-            registry.register(FakeOwnerCommand.class, (cmd, ctx) -> {
+            registry.register(type, (cmd, ctx) -> {
                 handlerCalled.set(true);
                 return CommandResult.ok();
             });
+            return handlerCalled;
+        }
+
+        private void process(CommandsConsumer consumer, String messageType, String json) {
+            consumer.processRecord(
+                    recordWithHeaders("in", messageType, UUID.randomUUID(), json.getBytes(StandardCharsets.UTF_8)));
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @ValueSource(
+                strings = {
+                    "{\"ownerVerified\":true,\"initiator\":{\"source\":\"nx-gameservers\"}}",
+                    "{\"ownerVerified\":false,\"initiator\":{\"source\":\"nx-gameservers\"}}",
+                    "{\"initiator\":{\"source\":\"nx-gameservers\"}}"
+                })
+        void processRecord_shouldReplyInvalidInitiator_whenOwnerScopedCommandFromService(String json) {
+            AtomicBoolean handlerCalled = registerOk(FakeOwnerCommand.class);
             CommandsConsumer consumer = build("out");
 
-            consumer.processRecord(recordWithHeaders(
-                    "in",
-                    "FakeOwnerCommand",
-                    UUID.randomUUID(),
-                    "{\"initiator\":{\"source\":\"nx-gameservers\"}}".getBytes(StandardCharsets.UTF_8)));
+            process(consumer, "FakeOwnerCommand", json);
 
             assertInvalidInitiator(consumer, handlerCalled);
         }
 
         @Test
-        void processRecord_shouldInvokeHandler_whenOwnerVerifiedCommandFromUser() {
-            AtomicBoolean handlerCalled = new AtomicBoolean(false);
-            registry.register(FakeOwnerCommand.class, (cmd, ctx) -> {
-                handlerCalled.set(true);
-                return CommandResult.ok();
-            });
+        void processRecord_shouldInvokeHandler_whenOwnerScopedCommandFromUser() {
+            AtomicBoolean handlerCalled = registerOk(FakeOwnerCommand.class);
             CommandsConsumer consumer = build("out");
 
-            consumer.processRecord(recordWithHeaders(
-                    "in",
-                    "FakeOwnerCommand",
-                    UUID.randomUUID(),
-                    ("{\"initiator\":" + USER_INITIATOR_JSON + "}").getBytes(StandardCharsets.UTF_8)));
+            process(consumer, "FakeOwnerCommand", "{\"initiator\":" + USER_INITIATOR_JSON + "}");
 
             assertTrue(handlerCalled.get());
             assertEquals(0L, consumer.validationFailedTotal());
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @ValueSource(
+                strings = {
+                    "{\"channel\":\"ANNOUNCEMENT\",\"audience\":\"ALL_ONLINE\",\"source\":\"AUTO_ANNOUNCEMENT\","
+                            + "\"ownerVerified\":false,\"initiator\":{\"source\":\"nx-gameservers\"}}",
+                    "{\"channel\":\"WHISPER\",\"audience\":\"CHARACTER\",\"source\":\"AUTO_ANNOUNCEMENT\","
+                            + "\"senderDisplayName\":\"Santa\",\"targetCharacterName\":\"Bob\","
+                            + "\"initiator\":{\"source\":\"nx-gameservers\"}}",
+                    "{\"channel\":\"CLAN\",\"audience\":\"CLAN\",\"audienceId\":7,\"source\":\"APP\","
+                            + "\"senderCharacterId\":268437001,\"initiator\":" + USER_INITIATOR_JSON + "}"
+                })
+        void processRecord_shouldInvokeHandler_whenChatMessagePassesOwnerRule(String json) {
+            AtomicBoolean handlerCalled = registerOk(SendChatMessageCommand.class);
+            CommandsConsumer consumer = build("out");
+
+            process(consumer, "SendChatMessageCommand", json);
+
+            assertTrue(handlerCalled.get());
+            assertEquals(0L, consumer.validationFailedTotal());
+        }
+
+        @Test
+        void processRecord_shouldReplyInvalidInitiator_whenChatMessageWithSenderFromService() {
+            AtomicBoolean handlerCalled = registerOk(SendChatMessageCommand.class);
+            CommandsConsumer consumer = build("out");
+
+            process(
+                    consumer,
+                    "SendChatMessageCommand",
+                    "{\"messageId\":\"019a0000-0000-7000-8000-0000000000bb\",\"channel\":\"SHOUT\","
+                            + "\"audience\":\"ALL_ONLINE\",\"source\":\"APP\",\"text\":\"hi\","
+                            + "\"senderCharacterId\":268437001,\"initiator\":{\"source\":\"nx-gameservers\"}}");
+
+            assertInvalidInitiator(consumer, handlerCalled);
         }
     }
 }

@@ -8,4 +8,12 @@ package app.l2nx.gs.adapter.api.kafka.commands;
 public interface OwnerVerified {
 
     boolean isOwnerVerified();
+
+    /**
+     * {@code true}: the initiator must be a user, whose {@code userId} is the owner. Commands a platform service can
+     * send for itself override it. Not a bean getter on purpose: Jackson would put it on the wire.
+     */
+    default boolean ownerScoped() {
+        return true;
+    }
 }

@@ -520,11 +520,12 @@ never copies the host's rules.
 - A core that has not registered the check handler answers the rail's `UNSUPPORTED_COMMAND`, as for any unknown
   `Message-Type`; the platform maps it to `501`. Nothing special to do on an old core.
 
-## Command initiator [planned]
+## Command initiator
 
 Every command carries `initiator` (`CommandInitiator`, spec R30): `source`, `userId`, `label`, `email`,
-`ip`. The consumer has already validated it when your handler runs, and an `OwnerVerified` command is
-guaranteed `source = user`.
+`ip`. The consumer has already validated it when your handler runs, and an owner-scoped command
+(`OwnerVerified.ownerScoped()`) is guaranteed `source = user`. A `SendChatMessageCommand` without `senderCharacterId`
+is not owner-scoped: it may come from a platform service, with `getUserId()` `null`.
 
 - The acting player is `cmd.getInitiator().getUserId()`; the request IP is `getIp()`. Use them for
   per-master-account and per-IP rules and write the initiator into your command log.

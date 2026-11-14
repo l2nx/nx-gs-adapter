@@ -11,6 +11,6 @@ package app.l2nx.gs.adapter.api.kafka.commands;
  */
 public interface NxCommand<R> {
 
-    /** Required; the consumer refuses a missing or invalid one with {@code VALIDATION_FAILED}, and requires {@code source = user} on an {@link OwnerVerified} command. */
+    /** Required; the consumer refuses a missing or invalid one with {@code VALIDATION_FAILED}, and requires {@code source = user} on an {@link OwnerVerified#ownerScoped() owner-scoped} command. */
     CommandInitiator getInitiator();
 }

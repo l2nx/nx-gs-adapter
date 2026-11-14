@@ -1348,7 +1348,7 @@ Commands the platform sends on behalf of a player acting with their own characte
 Every command carries `initiator` (`CommandInitiator`, spec R30): `source` (`user` or the sending platform
 service), `userId` (`UUID`, set iff `source = user`), `label`, `email`, `ip`; absent values are `null`, never empty. The
 commands consumer refuses a missing or invalid initiator with `VALIDATION_FAILED` (`error.cause = "invalid-initiator"`)
-before the handler runs; an `OwnerVerified` command also needs `source = user`. The owner of an owner-scoped command is
+before the handler runs; an owner-scoped command (`OwnerVerified.ownerScoped()`; a `SendChatMessageCommand` only with `senderCharacterId`) also needs `source = user`. The owner of an owner-scoped command is
 `initiator.userId`, its request IP `initiator.ip`: no command carries its own `masterAccountId` or `initiatorIp`. The
 api release that adds `initiator` removes those fields at once (no `@Deprecated` copy); until every game server of the
 tenant restarted on the new core the platform still writes them into the JSON of the four affected commands with its

@@ -7,6 +7,27 @@ Formal infra contract for the inbound command-RPC surface. Companions:
 [`catalog.md`](./catalog.md) — per-command business contract (inputs, result fields, error
 statuses). Neither is duplicated here.
 
+## Summary
+
+The platform sends commands to a game server over Kafka; the adapter core consumes them on one thread, routes each by
+its `Message-Type` header to the handler the host registered, and publishes one reply (typed payload or structured
+problem) correlated by `Correlation-Id`. Before a handler runs, the core rejects what it can judge alone: an unknown
+type (`UNSUPPORTED_COMMAND`), a payload that does not parse, and an invalid initiator (R30), each with a reply and no
+handler call. Handlers run off the consumer thread and hop to the game thread through the host executor.
+
+```mermaid
+flowchart TB
+    P[Platform service] -->|command + headers| K[(Kafka commands topic)]
+    K --> C[Commands consumer]
+    C -->|unknown type| U[UNSUPPORTED_COMMAND reply]
+    C -->|bad payload or initiator| V[VALIDATION_FAILED reply]
+    C -->|valid| H[Host handler]
+    H --> R[Reply to the platform]
+```
+
+Detail: requirements in §Requirements (R28 owner verification, R30 initiator), dispatch in §Technical design;
+per-command contracts in [`catalog.md`](./catalog.md).
+
 ## Problem
 
 The L2 game-server core needs a structured way to receive operational commands from the
@@ -185,8 +206,8 @@ errorDetails` triple. Dropped before first release in favour of R23 + R24: three
       extension
     - Gson `JsonSyntaxException` (or a `null` object from a non-null body) →
       `VALIDATION_FAILED` with the parse message as `detail` + `error.class`
-    - missing or invalid `initiator` (R30) → `VALIDATION_FAILED`, `error.cause = "invalid-initiator"`
-      [planned]
+    - missing or invalid `initiator`, or an owner-scoped command without a user (R30) → `VALIDATION_FAILED`,
+      `error.cause = "invalid-initiator"`
     - any other deserialization `Throwable` → `INTERNAL_ERROR`
     - `HostExecutorTimeoutException` → `UNAVAILABLE` (`error.cause = "host-executor-timeout"`,
       `timeout.ms`)
@@ -384,10 +405,12 @@ replies-published == 0}` is visible as a failure rather than as silence
   handles live in memory only — a host restart loses them and the caller gets no reply.
 
 - [done, `api/v0.92.0`; legacy constructors removed in `api/v0.93.1`] R28. **Owner verification.** `nx-gs-adapter-api.kafka.commands.OwnerVerified`
-  is an interface with one method, `boolean isOwnerVerified()`. Every command the platform issues on
+  is an interface with `boolean isOwnerVerified()` and the default `ownerScoped()` (R30). Every command the platform issues on
   behalf of a player acting with their own character MUST implement it. Today:
   `BuyFromPrivateStoreCommand`, `SellToPrivateStoreCommand`, `StartPrivateStoreSellCommand`, `StartPrivateStorePackageSellCommand`,
-  `StopPrivateStoreCommand`, `SendChatMessageCommand`, `SendPlayerMailCommand` (produced only for the owner of the sender; the host still validates the wire). A new command of that kind implements it from
+  `StopPrivateStoreCommand`, `SendChatMessageCommand`, `SendPlayerMailCommand` (produced only for the owner of the sender; the host still validates the wire),
+  `AcceptMailCommand`, `ReviveCharacterCommand`, `StartOfflineFishingCommand`, `StopOfflineFishingCommand`,
+  `CheckOfflineFishingCommand`. A new command of that kind implements it from
   its first release; the catalog marks each one (see `catalog.md` › Owner verification).
   - `true` — the platform verified, against fresh master-account data, that the acting user owns the
     character. "Fresh" is the platform's bounded-staleness guarantee, not a replica it happened to have.
@@ -418,8 +441,8 @@ replies-published == 0}` is visible as a failure rather than as silence
     character-acting command applies the host's shared ban lookup from its first release, and the catalog lists the
     two codes among its reasons.
 
-- [done] R30. **Command initiator.** Every command carries who triggered it. Implemented in the adapter, not yet
-  released.
+- [done, `api/v0.120.0`, `core/v0.51.0`; owner scope in `api/v0.128.0`, `core/v0.56.0`] R30. **Command initiator.** Every
+  command carries who triggered it.
   `nx-gs-adapter-api.kafka.commands.CommandInitiator` is a value object, and `NxCommand<R>` gains
   `CommandInitiator getInitiator()`: every command DTO has a required `initiator` field.
 
@@ -435,8 +458,14 @@ replies-published == 0}` is visible as a failure rather than as silence
   - Gson bypasses the constructor, so the commands consumer validates the deserialized initiator once, before the
     handler runs: a missing or invalid initiator is `VALIDATION_FAILED` with `error.cause = "invalid-initiator"`
     (R11). Handlers read a valid initiator and never re-check its shape.
-  - A command implementing `OwnerVerified` (R28) requires `source = user`; anything else is refused the same way.
-    The player acting on their own character is `initiator.userId`: owner-scoped commands carry no separate
+  - An owner-scoped command (`OwnerVerified.ownerScoped()`, `true` unless the command overrides it) requires
+    `source = user`; anything else is refused the same way. Its owner is `initiator.userId`, which the host records
+    and limits by, so the guarantee holds for every command acting for a player's character whatever its
+    `ownerVerified`. `SendChatMessageCommand` is owner-scoped only with a `senderCharacterId`: without one the platform
+    speaks for itself (a scheduled announcement) and any valid source passes. `ownerScoped()` is deliberately not a
+    bean getter, so Jackson producers do not put the derived value on the wire. Up to `core/v0.55.1` the rule took
+    every `OwnerVerified` type as owner-scoped and refused every service-sent announcement
+    ([#61](https://github.com/l2nx/nx-gs-adapter/issues/61)). The player acting on their own character is `initiator.userId`: owner-scoped commands carry no separate
     master-account field.
   - The initiator is context for host rules and audit (per-IP limits, per-master-account cooldowns, the host's command
     log), never authorization: the platform authorizes before sending, as with R28.
@@ -582,7 +611,7 @@ poll(pollTimeoutMs)
        2. Message-Type → CommandTypeRegistry.lookup  → miss: UNSUPPORTED_COMMAND
        3. Correlation-Id → UUID (fallback UUIDv7 on missing/malformed)
        4. gson.fromJson(value, binding.commandClass) → JsonSyntaxException: VALIDATION_FAILED
-          initiator missing / invalid (R30)        → VALIDATION_FAILED
+          initiator missing / invalid, or owner-scoped without a user (R30) → VALIDATION_FAILED
        5. handler.handle(cmd, new CommandContextImpl(...))
             HostExecutorTimeoutException → UNAVAILABLE
             RuntimeException             → INTERNAL_ERROR

@@ -266,9 +266,7 @@ public final class CommandsConsumer {
 
         if (messageType == null || messageType.isEmpty()) {
             unsupportedTotal.incrementAndGet();
-            log.warn(
-                    "Inbound command record missing {} header — replying UNSUPPORTED_COMMAND",
-                    NxHeaders.MESSAGE_TYPE);
+            log.warn("Inbound command record missing {} header — replying UNSUPPORTED_COMMAND", NxHeaders.MESSAGE_TYPE);
             sendReply(
                     correlationId,
                     FALLBACK_REPLY_TYPE_BYTES,
@@ -434,8 +432,8 @@ public final class CommandsConsumer {
         if (initiator == null) {
             return "initiator is missing";
         }
-        if (command instanceof OwnerVerified && !initiator.isUser()) {
-            return "an OwnerVerified command requires initiator source=" + CommandInitiator.USER_SOURCE + ", got "
+        if (command instanceof OwnerVerified && ((OwnerVerified) command).ownerScoped() && !initiator.isUser()) {
+            return "an owner-scoped command requires initiator source=" + CommandInitiator.USER_SOURCE + ", got "
                     + initiator.getSource();
         }
         return null;
@@ -466,8 +464,7 @@ public final class CommandsConsumer {
         }
         byte[] key = LongBytes.bigEndian(correlationId.getMostSignificantBits());
         ProducerRecord<byte[], Object> record = new ProducerRecord<byte[], Object>(repliesTopic, key, result);
-        record.headers()
-                .add(NxHeaders.CORRELATION_ID, correlationId.toString().getBytes(StandardCharsets.UTF_8));
+        record.headers().add(NxHeaders.CORRELATION_ID, correlationId.toString().getBytes(StandardCharsets.UTF_8));
         record.headers().add(NxHeaders.MESSAGE_TYPE, replyMessageTypeBytes);
 
         try {
@@ -497,9 +494,7 @@ public final class CommandsConsumer {
     private boolean targetsThisServer(Headers headers) {
         Header h = headers == null ? null : headers.lastHeader(NxHeaders.SERVER_ID);
         if (h == null || h.value() == null) {
-            log.warn(
-                    "Inbound command record missing {} header — dropping (strict contract)",
-                    NxHeaders.SERVER_ID);
+            log.warn("Inbound command record missing {} header — dropping (strict contract)", NxHeaders.SERVER_ID);
             return false;
         }
         UUID target;

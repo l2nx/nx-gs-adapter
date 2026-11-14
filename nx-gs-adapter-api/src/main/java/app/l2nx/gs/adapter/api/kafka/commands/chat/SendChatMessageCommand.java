@@ -154,6 +154,11 @@ public final class SendChatMessageCommand implements OwnerVerified, NxCommand<Se
     }
 
     @Override
+    public boolean ownerScoped() {
+        return senderCharacterId != null;
+    }
+
+    @Override
     public CommandInitiator getInitiator() {
         return initiator;
     }

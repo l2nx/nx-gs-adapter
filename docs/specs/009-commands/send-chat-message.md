@@ -6,7 +6,7 @@ Outbound half of the `chat` family (`SendChatMessageCommand`, platform → host)
 `ChatMessageEvent` and the problem statement live in [`025-chat-events.md`](../025-chat-events.md);
 requirements keep their original numbers (R8–R15) so existing references stay valid. The whisper /
 party / alliance / item-link slice continues as R22–R27 (R16–R21 live in the events spec); the server's chat
-settings, offline delivery and the delivery signal are R32–R34 (R31 lives in the events spec).
+settings, offline delivery and the delivery signal are R32–R34 (R31 lives in the events spec); R35 is the owner scope.
 
 **Counterpart spec (cross-repo):** `nx-gameservers/docs/specs/073-chat.md` — announcement-scheduler
 cutover and the platform send path.
@@ -169,6 +169,12 @@ is registered for the `Message-Type`. That is an explicit, fast, per-server nega
   until hosts with this change are restarted (platform-side follow-up), so both forms must be accepted
   and rendered as the same nameless line.
 
+- [done, `api/v0.128.0`, `core/v0.56.0`] R35. **A message without `senderCharacterId` is not owner-scoped.** No player
+  acts, so its `initiator` may be a platform service (`getUserId()` `null`); with a sender the command acts for that
+  player's character and needs `source = user` (rail R30). `SendChatMessageCommand.ownerScoped()` returns
+  `senderCharacterId != null`. Before, every chat message needed a user and the scheduled announcements were refused
+  ([#61](https://github.com/l2nx/nx-gs-adapter/issues/61)).
+
 ## Chat settings and offline delivery
 
 - R32. **`offlineDelivery` lets the platform refuse a whisper nobody would read.** `SendChatMessageCommand` gains
@@ -229,11 +235,11 @@ is `NOT_FOUND` without a reason.
 
 ## Topic & wire summary
 
-| Item              | Value                                                   |
-| ----------------- | ------------------------------------------------------- |
-| Command topic     | `<tenant>.gs.commands` (shared, routed by message type) |
+| Item           | Value                                                   |
+| -------------- | ------------------------------------------------------- |
+| Command topic  | `<tenant>.gs.commands` (shared, routed by message type) |
 | `Message-Type` | `SendChatMessageCommand`                                |
-| Idempotency       | `messageId` (UUIDv7), at-most-once delivery             |
+| Idempotency    | `messageId` (UUIDv7), at-most-once delivery             |
 
 ## Compatibility
 
