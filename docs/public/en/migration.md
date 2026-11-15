@@ -14,7 +14,7 @@ here are drop-in: bump the version and restart.
   what changed, and what to do.
 - The documentation always describes the current version.
 
-## nx-gs-adapter-api 0.129.0: ban expiry in `BanResult`, a repeated ban extends
+## nx-gs-adapter-api 0.129.1: ban expiry in `BanResult`, a repeated ban extends
 
 - `BanResult` gets `bans`: the `banIds` rows in the same order, each a `BanRecord` `{id, expiresAt}` with the expiry
   the row carries after the command (`expiresAt` `null` = permanent). The platform reads a missing `bans` as "expiry
