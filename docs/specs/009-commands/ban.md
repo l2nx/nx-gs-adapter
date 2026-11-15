@@ -28,12 +28,10 @@ schema-provider mapping.
 ## Requirements
 
 > Sibling features carry the wire + dispatch plumbing:
-> - [`commands`](spec.md) — Kafka commands topic + consumer +
-    > dispatch table + reply path + heartbeat slot. UNCHANGED by this slice.
-> - [`db-sync`](../003-db-sync/spec.md) — CDC engine + `DbSchemaProvider` SPI +
-    > per-entity sync topics carrying the up-channel `BanDbDto`. UNCHANGED.
-> - [`adapter-modules`](../002-adapter-modules/spec.md) — Tier-1 ServiceLoader
-    > `AdapterModule` discovery used to wire the host handlers.
+>
+> - [`commands`](spec.md) — Kafka commands topic + consumer + dispatch table + reply path + heartbeat slot. UNCHANGED by this slice.
+> - [`db-sync`](../003-db-sync/spec.md) — CDC engine + `DbSchemaProvider` SPI + per-entity sync topics carrying the up-channel `BanDbDto`. UNCHANGED.
+> - [`adapter-modules`](../002-adapter-modules/spec.md) — Tier-1 ServiceLoader `AdapterModule` discovery used to wire the host handlers.
 
 ### Down-channel — apply / clear
 
@@ -42,25 +40,39 @@ schema-provider mapping.
   non-null `targetType` / `targetValue` / `banType` for programmatic
   construction (wire-path Gson bypasses the constructor → the handler
   re-validates and emits `VALIDATION_FAILED`). Fields:
-    - `String targetType` — REQUIRED. A `WellKnownBanTargetTypes` value.
-    - `String targetValue` — REQUIRED. The keyed datum for `targetType` (char id
-      as a string, account login, plaintext IP, or HWID hash).
-    - `String banType` — REQUIRED. A `WellKnownBanTypes` value.
-    - `@Nullable Instant expiresAt` — instant the ban lapses; `null` = permanent.
-    - `@Nullable String reason` — human-readable reason, surfaced to the player
-      and stored on the row.
-    - `@Nullable String issuedBy` — admin display name / service id, stored for
-      audit.
+  - `String targetType` — REQUIRED. A `WellKnownBanTargetTypes` value.
+  - `String targetValue` — REQUIRED. The keyed datum for `targetType` (char id
+    as a string, account login, plaintext IP, or HWID hash).
+  - `String banType` — REQUIRED. A `WellKnownBanTypes` value.
+  - `@Nullable Instant expiresAt` — instant the ban lapses; `null` = permanent.
+  - `@Nullable String reason` — human-readable reason, surfaced to the player
+    and stored on the row.
+  - `@Nullable String issuedBy` — admin display name / service id, stored for
+    audit.
 
-  Idempotent: re-delivering the same command re-asserts the same final state; a
-  re-issued command for an already-active ban is a no-op success.
+  Idempotent without a key: the host rule of R11 makes a repeated command with
+  the same `expiresAt` return the same ban unchanged.
 
 - [done] R2. `nx-gs-adapter-api.kafka.commands.ban.BanResult` MUST ship as the
-  success payload — a single `List<Long> punishmentIds` (never `null`; empty
-  when the ban kind is not persisted as an id-bearing row). Carries the ids of
-  the punishment rows the host created / matched so the platform can correlate
-  the request with the rows that later arrive on the ban sync stream. A `HARD`
-  fan-out returns one id per concrete dimension.
+  success payload:
+  - `List<Long> banIds` — never `null`; empty when the ban kind is not
+    persisted as an id-bearing row. The ids of the ban rows the host created,
+    extended or found, so the platform can correlate the request with the rows
+    that later arrive on the ban sync stream. A `HARD` fan-out returns one id
+    per concrete dimension.
+  - `@Nullable List<BanRecord> bans` — the same rows in the same order, each
+    with its effective expiry after the command. `null` = the host does not
+    report expiries (a host built against an api before this field); never
+    `null` from a host on the current api. The constructor rejects a list whose
+    ids differ from `banIds`.
+
+  One `bans` entry is the wire record
+  `nx-gs-adapter-api.kafka.commands.ban.model.BanRecord`:
+  - `long id` — REQUIRED. Host ban row primary key, the same id as in
+    `banIds`.
+  - `@Nullable Instant expiresAt` — the term the row carries after the
+    command: the new term when the host created or extended the ban, the
+    existing one when it returned the ban as is. `null` = permanent.
 
 - [done] R3. `nx-gs-adapter-api.kafka.commands.ban.UnbanCommand` MUST ship as
   `NxCommand<UnbanResult>` — the inverse of `BanCommand`. Fields `targetType` /
@@ -70,29 +82,29 @@ schema-provider mapping.
 
 - [done] R4. `nx-gs-adapter-api.kafka.commands.ban.UnbanResult` MUST ship as the
   success payload — `boolean removed` (`false` = no matching ban existed, a
-  no-op success) + `List<Long> removedPunishmentIds` (never `null`; the cleared
+  no-op success) + `List<Long> removedBanIds` (never `null`; the cleared
   row ids, empty when nothing matched or the kind is not id-bearing).
 
 - [done] R5. `nx-gs-adapter-api.kafka.commands.ban.WellKnownBanTargetTypes` MUST
   ship the canonical `UPPER_SNAKE_CASE` open-string target-dimension vocabulary:
-    - `CHARACTER` — `targetValue` = char id as a string.
-    - `ACCOUNT` — whole login account; `targetValue` = account login.
-    - `IP` — `targetValue` = plaintext IP.
-    - `HWID` — `targetValue` = HWID hash.
-    - `HARD` — command-only fan-out marker: the host expands one `HARD` command
-      into the full concrete set (character + account + IP + HWID) for the same
-      subject. A persisted row NEVER carries `HARD` — it surfaces as the concrete
-      dimension it was expanded into, and `HARD` is not valid on `BanDbDto`.
+  - `CHARACTER` — `targetValue` = char id as a string.
+  - `ACCOUNT` — whole login account; `targetValue` = account login.
+  - `IP` — `targetValue` = plaintext IP.
+  - `HWID` — `targetValue` = HWID hash.
+  - `HARD` — command-only fan-out marker: the host expands one `HARD` command
+    into the full concrete set (character + account + IP + HWID) for the same
+    subject. A persisted row NEVER carries `HARD` — it surfaces as the concrete
+    dimension it was expanded into, and `HARD` is not valid on `BanDbDto`.
 
 - [done] R6. `nx-gs-adapter-api.kafka.commands.ban.WellKnownBanTypes` MUST ship
   the canonical `UPPER_SNAKE_CASE` open-string punishment-kind vocabulary. The
-  contract names *what is restricted*, not how the host enforces it; a host maps
+  contract names _what is restricted_, not how the host enforces it; a host maps
   its own engine enum onto these:
-    - `GAME_LOGIN` — blocks entering the game (login rejected).
-    - `CHAT` — visible chat mute (player is told chat is forbidden).
-    - `CHAT_SHADOW` — silent chat mute (messages reach only the sender).
-    - `PARTY` — blocks forming / joining a party.
-    - `JAIL` — confines to the jail zone; duration counted in online time.
+  - `GAME_LOGIN` — blocks entering the game (login rejected).
+  - `CHAT` — visible chat mute (player is told chat is forbidden).
+  - `CHAT_SHADOW` — silent chat mute (messages reach only the sender).
+  - `PARTY` — blocks forming / joining a party.
+  - `JAIL` — confines to the jail zone; duration counted in online time.
 
 ### Up-channel — persisted-ban mirror
 
@@ -101,16 +113,16 @@ schema-provider mapping.
   platform-supplied per-tenant ban sync topic). Only the primary key `id` is
   REQUIRED; everything else is `@Nullable` so a host surfaces the subset its
   schema carries. Fields:
-    - `long id` — REQUIRED. Host punishment row primary key.
-    - `@Nullable String targetType` — a `WellKnownBanTargetTypes` value
-      (`CHARACTER` / `ACCOUNT` / `IP` / `HWID`; never `HARD`).
-    - `@Nullable String targetValue` — keyed datum for `targetType`.
-    - `@Nullable String targetName` — human-readable target name (character /
-      account name) surfaced because the in-game admin UI displayed it.
-    - `@Nullable String banType` — a `WellKnownBanTypes` value.
-    - `@Nullable Instant expiresAt` — `null` = permanent (host "no expiry"
-      sentinel maps to `null`).
-    - `@Nullable String reason` / `@Nullable String issuedBy`.
+  - `long id` — REQUIRED. Host punishment row primary key.
+  - `@Nullable String targetType` — a `WellKnownBanTargetTypes` value
+    (`CHARACTER` / `ACCOUNT` / `IP` / `HWID`; never `HARD`).
+  - `@Nullable String targetValue` — keyed datum for `targetType`.
+  - `@Nullable String targetName` — human-readable target name (character /
+    account name) surfaced because the in-game admin UI displayed it.
+  - `@Nullable String banType` — a `WellKnownBanTypes` value.
+  - `@Nullable Instant expiresAt` — `null` = permanent (host "no expiry"
+    sentinel maps to `null`).
+  - `@Nullable String reason` / `@Nullable String issuedBy`.
 
   The contract carries both up-channel and down-channel directions: a ban
   applied via `BanCommand` AND a ban issued in-game (GM / anti-cheat) both
@@ -131,20 +143,35 @@ schema-provider mapping.
 - [todo] R9. The host MUST register a `BanCommand` handler and an `UnbanCommand`
   handler via `NxCommands.on(...)` (in its `HostCommandsModule.onConnect`).
   Each handler:
-    - validates `targetType` / `targetValue` / `banType` (known vocab) and emits
-      `VALIDATION_FAILED` on a missing / unrecognized value, `NOT_FOUND` when the
-      targeted character / account does not exist, `FORBIDDEN` on host policy
-      rejection;
-    - expands `HARD` into the concrete dimension set;
-    - applies / clears the ban on the host punishment engine, hopping blocking
-      JDBC onto `ctx.io()` and game-thread mutations onto `ctx.host().sync(...)`;
-    - returns `BanResult` / `UnbanResult` with the affected punishment row ids.
+  - validates `targetType` / `targetValue` / `banType` (known vocab) and emits
+    `VALIDATION_FAILED` on a missing / unrecognized value, `NOT_FOUND` when the
+    targeted character / account does not exist, `FORBIDDEN` on host policy
+    rejection;
+  - expands `HARD` into the concrete dimension set;
+  - applies / clears the ban on the host punishment engine, hopping blocking
+    JDBC onto `ctx.io()` and game-thread mutations onto `ctx.host().sync(...)`;
+  - returns `BanResult` / `UnbanResult` with the affected ban row ids;
+    `BanResult.bans` carries every returned row with its effective expiry.
 
 - [todo] R10. The host's `DbSchemaProvider` MUST add a `ban` entity mapping its
   engine's punishment columns onto `BanDbDto` in `mapEntity`, translating the
   engine's punishment enum onto the platform-canonical `WellKnownBanTypes` /
   `WellKnownBanTargetTypes` vocabulary and mapping the host's "no expiry"
   sentinel to a `null` `expiresAt`.
+
+- [host rule] R11. **A repeated ban extends, never shortens.** Every host's
+  `BanCommand` handler, per concrete dimension (after the `HARD` fan-out):
+  - an active ban of the same target and `banType` exists, and the new term
+    ends later than its term or is permanent → the host extends that ban to
+    the new term (same row, same id) and returns it with the new `expiresAt`;
+  - an active ban exists and the new term ends at or before its term → the
+    host returns it as is, with its own `expiresAt`;
+  - no active ban → the host creates a new row.
+
+  A term is never shortened by `BanCommand`; a shorter term goes through
+  `UnbanCommand` and a new `BanCommand`. So a repeated command with the same
+  `expiresAt` is idempotent without an idempotency key: the second delivery
+  returns the same ban unchanged.
 
 ## Compatibility
 
@@ -154,6 +181,13 @@ Purely additive. The `kafka.commands.ban.*` command/result/vocab types and
 required (commands route by `Message-Type`; the DTO rides the standard
 db-sync flow). A host on an older api jar simply does not register the handlers
 and does not map the `ban` entity until rebuilt against the new api.
+
+`BanResult.bans` (R2) is additive on the wire: a host built against an
+older api omits it and the platform reads `null` ("expiry not reported"). The
+`BanResult` constructor takes `bans` as a new second parameter (source-breaking
+for host code that calls the constructor; the builder is unaffected). A host on
+an older build may still return an active ban as is instead of extending it
+(R11) until it is restarted on a build that follows the rule.
 
 ## Non-goals
 

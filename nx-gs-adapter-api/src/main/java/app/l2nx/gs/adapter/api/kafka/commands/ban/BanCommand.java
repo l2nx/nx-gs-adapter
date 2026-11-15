@@ -9,12 +9,11 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Applies a ban on the game-server; the host maps target, kind and expiry onto its own ban engine. Replies with the
- * ids of the ban rows created or matched; errors {@code NOT_FOUND}, {@code VALIDATION_FAILED} (Gson leaves missing
- * fields {@code null}, so null-check), {@code FORBIDDEN}.
+ * Applies a ban on the game-server. A {@code HARD} target fans out into character, account, IP and HWID bans; its
+ * {@code targetValue} is the char id. Invariant: {@code permanent == (expiresAt == null)}.
  *
- * <p>A {@code HARD} target fans out into character, account, IP and HWID bans; its {@code targetValue} is the char
- * id. Invariant: {@code permanent == (expiresAt == null)}. Re-delivery for an active ban is a no-op success.</p>
+ * <p>An active ban of the same target and {@code banType} is extended, never shortened, so repeating a command with
+ * the same {@code expiresAt} is idempotent.</p>
  */
 public final class BanCommand implements NxCommand<BanResult> {
 
