@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: [ self-hosted, linux, nexus ]
+    runs-on: ubuntu-latest
     outputs:
       module: ${{ steps.parsed.outputs.module }}
       version: ${{ steps.parsed.outputs.version }}
@@ -117,7 +117,7 @@ jobs:
   # Separate job so "Re-run failed jobs" retries only this push, never the publish.
   release-notes:
     needs: publish
-    runs-on: [ self-hosted, linux, nexus ]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -157,7 +157,7 @@ jobs:
   # Separate job so "Re-run failed jobs" retries only the docs sync, never the publish.
   docs:
     needs: publish
-    runs-on: [ self-hosted, linux, nexus ]
+    runs-on: ubuntu-latest
     # No concurrency group: it cancels pending runs; sync-docs.sh serializes released-together module tags itself.
     steps:
       - uses: actions/checkout@v7
