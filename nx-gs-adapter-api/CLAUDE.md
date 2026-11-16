@@ -21,19 +21,19 @@ provider SPIs.
 
 Root package `app.l2nx.gs.adapter.api`.
 
-| package                        | what lives there                                                                                                                                                                  | design        |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `rest`                         | `/connect` request/response, Kafka credentials, `SyncTopics`, `MessagingTopics`                                                                                                   | 001           |
-| `kafka`                        | `NxHeaders` — the wire-level header contract                                                                                                                                      | 008           |
-| `kafka.sync.db.<entity>`       | CDC per-entity DTOs                                                                                                                                                               | 003, 005      |
-| `kafka.sync.gd.<entity>`       | static game-data catalog DTOs, payload of `GameDataSyncEvent<T>`                                                                                                                  | 030           |
-| `kafka.sync.runtime.<entity>`  | volatile runtime-state DTOs                                                                                                                                                       | 006           |
-| `kafka.sync.settings.<entity>` | host settings snapshots, payload of `SettingsSyncEvent<T>` (root of `kafka.sync.settings`)                                                                                        | 038           |
-| `kafka.events.<family>`        | outbound discrete-fact / snapshot event DTOs, grouped by family                                                                                                                   | per family    |
-| `kafka.commands.<group>`       | inbound command DTOs; the package root holds `NxCommand`, `CommandInitiator`, `CommandResult`, `CommandStatus` (+ nested `Tier`), `CommandProblem` and the `OwnerVerified` marker | 009           |
-| `kafka.ops`                    | `HeartbeatEvent`; its stats and state payloads in `kafka.ops.model`                                                                                                               | 001           |
-| `domain`                       | game vocabulary and value objects shared by wire forms; `domain.item`: `ItemSnapshot`, `ItemAugmentation`, `ItemSource`; `domain.character`: `ExperienceSource`, `ActivityType`   | 034, 042, 043 |
-| `spi`                          | `AdapterModule`, the two contexts, package-private `NoOp*`; sub-packages `provider`, `model` (+ `model.session`, `model.appsettings`, `model.receipt`), `capability`              | 002, 034      |
+| package                        | what lives there                                                                                                                                                                                                | design        |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `rest`                         | `/connect` request/response, Kafka credentials, `SyncTopics`, `MessagingTopics`                                                                                                                                 | 001           |
+| `kafka`                        | `NxHeaders` — the wire-level header contract                                                                                                                                                                    | 008           |
+| `kafka.sync.db.<entity>`       | CDC per-entity DTOs                                                                                                                                                                                             | 003, 005      |
+| `kafka.sync.gd.<entity>`       | static game-data catalog DTOs, payload of `GameDataSyncEvent<T>`                                                                                                                                                | 030           |
+| `kafka.sync.runtime.<entity>`  | volatile runtime-state DTOs                                                                                                                                                                                     | 006           |
+| `kafka.sync.settings.<entity>` | host settings snapshots, payload of `SettingsSyncEvent<T>` (root of `kafka.sync.settings`)                                                                                                                      | 038           |
+| `kafka.events.<family>`        | outbound discrete-fact / snapshot event DTOs, grouped by family                                                                                                                                                 | per family    |
+| `kafka.commands.<group>`       | inbound command DTOs; the package root holds `NxCommand`, `CommandInitiator`, `CommandResult`, `CommandStatus` (+ nested `Tier`), `CommandProblem` and the `OwnerVerified` marker                               | 009           |
+| `kafka.ops`                    | `HeartbeatEvent`; its stats and state payloads in `kafka.ops.model`                                                                                                                                             | 001           |
+| `domain`                       | game vocabulary and value objects shared by wire forms; `domain.item`: `ItemSnapshot`, `ItemAugmentation`, `ItemSource`; `domain.character`: `ExperienceSource`, `ActivityType`; `domain.world`: `LocationType` | 034, 042, 043 |
+| `spi`                          | `AdapterModule`, the two contexts, package-private `NoOp*`; sub-packages `provider`, `model` (+ `model.session`, `model.appsettings`, `model.receipt`), `capability`                                            | 002, 034      |
 
 Current entity / family / group names (the directory listing is authoritative — check it before
 assuming):
@@ -135,6 +135,9 @@ They all live here so a host provider depends on the contracts artifact alone.
 - **`characteractivityusage` is packed per character.** One row per `characterId`, payload = the COMPLETE set of that
   character's usage rows (`CharacterActivityUsagesDto`); the platform replaces the character's rows with it, so an
   empty list means "no rows", not "unchanged". At most one row per `(type, key)`.
+- **`LocationType` carries its display texts** (ru, en, uk, es) and `sortOrder()`, the only vocabulary that does:
+  the platform renders the kind of a place as `{code, name}` from several services, and this enum is the one source of
+  those texts. A new constant ships with all four texts (`LocationTypeTest`).
 - **`ServerOnlineSnapshotEvent.buckets` keys are `ServerOnlineBucket` constant names.** Buckets are independent axes
   and overlap; `TOTAL` and `UNIQUE` are required, nothing is derived by summing.
 - **Settings ride one topic.** `SyncTopics.settings` maps every settings entity to `<tenant>.gs.settings.sync`; the
