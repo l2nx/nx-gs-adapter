@@ -92,10 +92,15 @@ same `expiresAt` is therefore idempotent without a key.
 
 **Result** (`BanResult`)
 
-| Field    | Type               | Notes                                                                                                                                                                                                                             |
-| -------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `banIds` | `List<Long>`       | Ids of the ban rows created, extended or found. Never `null`; empty when the ban kind is not persisted as an id-bearing row (e.g. a char-variable-backed shadow chat ban). A `HARD` fan-out returns one id per concrete dimension |
-| `bans`   | `List<BanRecord>?` | The `banIds` rows in the same order, each `{id, expiresAt}` with its effective expiry after the command (`expiresAt` `null` = permanent). `null` when the host does not report expiries (built against an older api)              |
+| Field        | Type              | Notes                                                                                                                                                                          |
+| ------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bans`       | `List<BanRecord>` | Every ban row created, extended or found, never `null` or empty: one per concrete dimension of a `HARD` fan-out, the shadow chat ban included. Each `{source, row}` (below)    |
+| `observedAt` | `Instant`         | Host time the change was applied; the platform orders this reply against the ban sync stream (event timestamp = the engine's read instant, same host clock) by it, newest wins |
+
+`BanRecord`: `source` — required non-blank `String`, a `BanSource` token: `STANDARD` (`row.id` = host ban table row id,
+as on the `ban` sync entity) or `SHADOW` (`row.id` = char id, as on the `shadowban` sync entity); an unknown token
+reads as `null` through `BanSource.fromToken` and the consumer tolerates it. `row` — the `BanDbDto` as it stands after
+the command, the same shape the ban sync stream carries.
 
 **Errors**
 
@@ -112,7 +117,7 @@ same `expiresAt` is therefore idempotent without a key.
 **Purpose.** Lift a previously applied ban — the inverse of `BanCommand`:
 names the same target dimension and ban kind and asks the host to clear
 the matching ban(s). Clearing a ban that is not present is a no-op
-success (`removed = false`), not an error — the post-condition (no such
+success (empty `removedBans`), not an error — the post-condition (no such
 ban) already holds.
 
 **Inputs**
@@ -125,10 +130,10 @@ ban) already holds.
 
 **Result** (`UnbanResult`)
 
-| Field           | Type         | Notes                                                                                                          |
-| --------------- | ------------ | -------------------------------------------------------------------------------------------------------------- |
-| `removed`       | `boolean`    | `false` when no matching ban existed — a no-op success, not an error                                           |
-| `removedBanIds` | `List<Long>` | Ids of the ban rows cleared. Never `null`; empty when nothing matched or the ban kind is not an id-bearing row |
+| Field         | Type           | Notes                                                                                                                                                   |
+| ------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `removedBans` | `List<BanRef>` | Rows cleared as `{String source, long id}` (`BanRecord` tokens and id spaces). Never `null`; empty when nothing matched — a no-op success, not an error |
+| `observedAt`  | `Instant`      | Host time the change was applied, as in `BanResult`                                                                                                     |
 
 **Errors**
 

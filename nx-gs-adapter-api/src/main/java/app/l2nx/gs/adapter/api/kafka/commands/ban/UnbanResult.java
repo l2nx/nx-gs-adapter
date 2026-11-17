@@ -1,34 +1,38 @@
 package app.l2nx.gs.adapter.api.kafka.commands.ban;
 
-import java.util.Collections;
+import app.l2nx.gs.adapter.api.kafka.commands.ban.model.BanRef;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Success payload of {@link UnbanCommand}. {@code removed} is {@code false} for a no-op success (no matching ban);
- * {@code removedBanIds} is empty when nothing matched or the ban kind is not persisted as an id-bearing row.
+ * Success payload of {@link UnbanCommand}: every cleared row, one per dimension of a {@code HARD} target; empty for a
+ * no-op success. {@code observedAt} orders the reply as in {@link BanResult}.
  */
 public final class UnbanResult {
 
-    private final boolean removed;
-    private final List<Long> removedBanIds;
+    private final List<BanRef> removedBans;
+    private final Instant observedAt;
 
-    public UnbanResult(boolean removed, List<Long> removedBanIds) {
-        this.removed = removed;
-        this.removedBanIds =
-                removedBanIds == null ? Collections.<Long>emptyList() : Collections.unmodifiableList(removedBanIds);
+    public UnbanResult(List<BanRef> removedBans, Instant observedAt) {
+        List<BanRef> frozen = BanLists.freeze(removedBans, "removedBans");
+        if (observedAt == null) {
+            throw new IllegalArgumentException("observedAt is required");
+        }
+        this.removedBans = frozen;
+        this.observedAt = observedAt;
     }
 
-    public boolean isRemoved() {
-        return removed;
+    public List<BanRef> getRemovedBans() {
+        return removedBans;
     }
 
-    public List<Long> getRemovedBanIds() {
-        return removedBanIds;
+    public Instant getObservedAt() {
+        return observedAt;
     }
 
     public Builder toBuilder() {
-        return new Builder().removed(removed).removedBanIds(removedBanIds);
+        return new Builder().removedBans(removedBans).observedAt(observedAt);
     }
 
     public static Builder builder() {
@@ -40,35 +44,35 @@ public final class UnbanResult {
         if (this == o) return true;
         if (!(o instanceof UnbanResult)) return false;
         UnbanResult that = (UnbanResult) o;
-        return removed == that.removed && removedBanIds.equals(that.removedBanIds);
+        return Objects.equals(removedBans, that.removedBans) && Objects.equals(observedAt, that.observedAt);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(removed, removedBanIds);
+        return Objects.hash(removedBans, observedAt);
     }
 
     @Override
     public String toString() {
-        return "UnbanResult[removed=" + removed + ", removedBanIds=" + removedBanIds + "]";
+        return "UnbanResult[removedBans=" + removedBans + ", observedAt=" + observedAt + "]";
     }
 
     public static final class Builder {
-        private boolean removed;
-        private List<Long> removedBanIds;
+        private List<BanRef> removedBans;
+        private Instant observedAt;
 
-        public Builder removed(boolean removed) {
-            this.removed = removed;
+        public Builder removedBans(List<BanRef> removedBans) {
+            this.removedBans = removedBans;
             return this;
         }
 
-        public Builder removedBanIds(List<Long> removedBanIds) {
-            this.removedBanIds = removedBanIds;
+        public Builder observedAt(Instant observedAt) {
+            this.observedAt = observedAt;
             return this;
         }
 
         public UnbanResult build() {
-            return new UnbanResult(removed, removedBanIds);
+            return new UnbanResult(removedBans, observedAt);
         }
     }
 }

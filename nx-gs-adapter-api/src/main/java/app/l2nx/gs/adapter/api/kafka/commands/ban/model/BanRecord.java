@@ -1,34 +1,46 @@
 package app.l2nx.gs.adapter.api.kafka.commands.ban.model;
 
 import app.l2nx.gs.adapter.api.kafka.commands.ban.BanResult;
-import java.time.Instant;
+import app.l2nx.gs.adapter.api.kafka.sync.db.ban.BanDbDto;
 import java.util.Objects;
-import org.jspecify.annotations.Nullable;
 
 /**
- * One ban row of a {@link BanResult} with its effective expiry: the existing one when the host left the ban as is.
+ * One ban row of a {@link BanResult}, as it stands after the command, in the shape the ban sync stream carries.
+ * {@link BanDbDto#getId() row.id} lives in the id space of {@link #getSource() source}.
  */
 public final class BanRecord {
 
-    private final long id;
-    private final @Nullable Instant expiresAt;
+    private final String source;
+    private final BanDbDto row;
 
-    public BanRecord(long id, @Nullable Instant expiresAt) {
-        this.id = id;
-        this.expiresAt = expiresAt;
+    public BanRecord(String source, BanDbDto row) {
+        if (source == null) {
+            throw new IllegalArgumentException("source is required");
+        }
+        if (source.trim().isEmpty()) {
+            throw new IllegalArgumentException("source must not be blank");
+        }
+        if (row == null) {
+            throw new IllegalArgumentException("row is required");
+        }
+        this.source = source;
+        this.row = row;
     }
 
-    public long getId() {
-        return id;
+    /**
+     * A {@link BanSource} token, kept a string so a token from a later api release does not fail the whole result;
+     * {@link BanSource#fromToken} reads it as {@code null}.
+     */
+    public String getSource() {
+        return source;
     }
 
-    /** {@code null} = permanent. */
-    public @Nullable Instant getExpiresAt() {
-        return expiresAt;
+    public BanDbDto getRow() {
+        return row;
     }
 
     public Builder toBuilder() {
-        return new Builder().id(id).expiresAt(expiresAt);
+        return new Builder().source(source).row(row);
     }
 
     public static Builder builder() {
@@ -40,35 +52,40 @@ public final class BanRecord {
         if (this == o) return true;
         if (!(o instanceof BanRecord)) return false;
         BanRecord that = (BanRecord) o;
-        return id == that.id && Objects.equals(expiresAt, that.expiresAt);
+        return Objects.equals(source, that.source) && Objects.equals(row, that.row);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, expiresAt);
+        return Objects.hash(source, row);
     }
 
     @Override
     public String toString() {
-        return "BanRecord[id=" + id + ", expiresAt=" + expiresAt + "]";
+        return "BanRecord[source=" + source + ", row=" + row + "]";
     }
 
     public static final class Builder {
-        private long id;
-        private @Nullable Instant expiresAt;
+        private String source;
+        private BanDbDto row;
 
-        public Builder id(long id) {
-            this.id = id;
+        public Builder source(String source) {
+            this.source = source;
             return this;
         }
 
-        public Builder expiresAt(@Nullable Instant expiresAt) {
-            this.expiresAt = expiresAt;
+        public Builder source(BanSource source) {
+            this.source = source.name();
+            return this;
+        }
+
+        public Builder row(BanDbDto row) {
+            this.row = row;
             return this;
         }
 
         public BanRecord build() {
-            return new BanRecord(id, expiresAt);
+            return new BanRecord(source, row);
         }
     }
 }
