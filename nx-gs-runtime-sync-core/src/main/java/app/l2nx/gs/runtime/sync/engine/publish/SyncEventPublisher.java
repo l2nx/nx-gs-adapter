@@ -6,7 +6,11 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.producer.RecordMetadata;
 
-/** Emits no DELETED: a logged-out character leaving the runtime snapshot is not a deletion (db-sync owns that). */
+/**
+ * Emits no DELETED: a logged-out character leaving the runtime snapshot is not a deletion (db-sync owns that).
+ *
+ * <p>The event timestamp is the caller's snapshot read instant, never the send time; see {@link SyncEvent}.</p>
+ */
 public final class SyncEventPublisher {
 
     public static final String OP_CREATED = "CREATED";
@@ -19,13 +23,13 @@ public final class SyncEventPublisher {
     }
 
     public <T> CompletableFuture<RecordMetadata> publish(
-            RuntimeEntityMapping<T> mapping, String op, long pk, T dto, String topic) {
+            RuntimeEntityMapping<T> mapping, String op, long pk, T dto, String topic, long observedAtEpochMs) {
         SyncEvent<T> value = SyncEvent.<T>builder()
                 .entityName(mapping.entityName())
                 .pk(pk)
                 .op(op)
                 .payload(dto)
-                .timestampEpochMs(System.currentTimeMillis())
+                .timestampEpochMs(observedAtEpochMs)
                 .build();
         CompletableFuture<RecordMetadata> future = new CompletableFuture<RecordMetadata>();
         try {

@@ -511,7 +511,9 @@ design end-to-end.
     - `spi/model/EntityMapping.java` — Tier-2 SPI; one per synced entity (api/0.7.0)
     - `kafka/sync/db/SyncEvent.java` — typed wire envelope `SyncEvent<T>` with
       `String entityName`, `long pk`, `String op`, `T payload`, `long timestampEpochMs`
-      (api/0.7.0). `op=DELETED` carries `payload=null` in JSON but is NOT a Kafka
+      (api/0.7.0). `timestampEpochMs` is the observation (read) time on the host clock,
+      not the publish time (db-sync 0.14.0, [005 R12](../005-cdc-engine/spec.md)):
+      consumers order the stream against command replies by it. `op=DELETED` carries `payload=null` in JSON but is NOT a Kafka
       tombstone — db-sync topics use bounded retention, not log compaction;
       consumers MUST handle the DELETED op explicitly (Javadoc on `SyncEvent`
       reflects this).

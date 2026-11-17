@@ -9,6 +9,7 @@ import app.l2nx.gs.adapter.api.spi.model.RuntimeRow;
 import app.l2nx.gs.runtime.sync.engine.publish.KafkaSender;
 import app.l2nx.gs.runtime.sync.engine.publish.SyncEventPublisher;
 import app.l2nx.gs.runtime.sync.engine.publish.TopicResolver;
+import java.time.Clock;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,7 +37,8 @@ class EntityTickLoopTest {
                     new SyncEventPublisher(sender),
                     tracker,
                     new EngineConfig(10, 5),
-                    scheduler);
+                    scheduler,
+                    Clock.systemUTC());
 
             loop.tick();
 
@@ -72,7 +74,8 @@ class EntityTickLoopTest {
                     new SyncEventPublisher(sender),
                     new EntityStatsTracker(),
                     new EngineConfig(10, 5),
-                    scheduler);
+                    scheduler,
+                    Clock.systemUTC());
             loop.tick();
             sender.captured.clear();
 
@@ -103,7 +106,8 @@ class EntityTickLoopTest {
                     new SyncEventPublisher(sender),
                     tracker,
                     new EngineConfig(10, 5),
-                    scheduler);
+                    scheduler,
+                    Clock.systemUTC());
             loop.tick();
             sender.captured.clear();
 
@@ -124,7 +128,13 @@ class EntityTickLoopTest {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         try {
             EntityTickLoop loop = new EntityTickLoop(
-                    mapping, e -> null, new SyncEventPublisher(sender), tracker, new EngineConfig(10, 5), scheduler);
+                    mapping,
+                    e -> null,
+                    new SyncEventPublisher(sender),
+                    tracker,
+                    new EngineConfig(10, 5),
+                    scheduler,
+                    Clock.systemUTC());
 
             loop.tick();
 
@@ -168,7 +178,8 @@ class EntityTickLoopTest {
                     new SyncEventPublisher((t, k, v, cb) -> {}),
                     tracker,
                     new EngineConfig(10, 5),
-                    scheduler);
+                    scheduler,
+                    Clock.systemUTC());
 
             loop.tick();
 
@@ -223,7 +234,8 @@ class EntityTickLoopTest {
                     new SyncEventPublisher((t, k, v, cb) -> {}),
                     tracker,
                     new EngineConfig(10, 5),
-                    scheduler);
+                    scheduler,
+                    Clock.systemUTC());
 
             loop.tick();
 
@@ -247,7 +259,8 @@ class EntityTickLoopTest {
                     new SyncEventPublisher(failing),
                     tracker,
                     new EngineConfig(10, 1),
-                    scheduler);
+                    scheduler,
+                    Clock.systemUTC());
 
             loop.tick();
 
@@ -277,7 +290,8 @@ class EntityTickLoopTest {
                     new SyncEventPublisher(sender),
                     tracker,
                     new EngineConfig(10, 5),
-                    scheduler);
+                    scheduler,
+                    Clock.systemUTC());
 
             loop.tick();
             assertEquals(1, sender.captured.size());
@@ -305,7 +319,8 @@ class EntityTickLoopTest {
                     new SyncEventPublisher(sender),
                     tracker,
                     new EngineConfig(10, 1),
-                    scheduler);
+                    scheduler,
+                    Clock.systemUTC());
 
             long t0 = System.nanoTime();
             loop.tick();

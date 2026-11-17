@@ -14,6 +14,7 @@ import app.l2nx.gs.db.sync.engine.publish.KafkaSender;
 import app.l2nx.gs.db.sync.engine.publish.SyncEventPublisher;
 import app.l2nx.gs.db.sync.engine.window.WindowPlanner;
 import java.sql.Connection;
+import java.time.Clock;
 import java.sql.SQLException;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -35,7 +36,8 @@ class EntitySyncTaskTest {
                 new Phase2Fetcher(),
                 new SyncEventPublisher(neverCalledSender()),
                 entityName -> null,
-                EngineConfig.defaults());
+                EngineConfig.defaults(),
+                Clock.systemUTC());
 
         CycleResult result = task.runCycle();
 
@@ -59,7 +61,8 @@ class EntitySyncTaskTest {
                 new Phase2Fetcher(),
                 new SyncEventPublisher(neverCalledSender()),
                 entity -> "acme.gs.sync.clans",
-                EngineConfig.defaults());
+                EngineConfig.defaults(),
+                Clock.systemUTC());
 
         CycleResult result = task.runCycle();
 
@@ -80,7 +83,8 @@ class EntitySyncTaskTest {
                 new Phase2Fetcher(),
                 new SyncEventPublisher(neverCalledSender()),
                 entity -> "acme.gs.sync.clans",
-                EngineConfig.defaults());
+                EngineConfig.defaults(),
+                Clock.systemUTC());
 
         CycleResult result = task.runCycle();
 

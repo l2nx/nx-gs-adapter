@@ -13,6 +13,10 @@ import org.jspecify.annotations.Nullable;
  * {@code UPDATED}/{@code DELETED}) to avoid enum ordinal coupling; treat unknown values defensively.
  * {@code payload} is null for {@code DELETED}; topics use bounded retention, not compaction, so
  * consumers must handle {@code DELETED} explicitly. Equality delegates to {@code T.equals}.
+ *
+ * {@code timestampEpochMs} is the host-clock instant the read the event reports began, never the publish time, on
+ * both channels: db-sync stamps the start of the row's read, runtime-sync the start of the tick's snapshot read.
+ * Consumers order it against command replies (e.g. {@code BanResult.observedAt}).
  */
 public final class SyncEvent<T> {
 

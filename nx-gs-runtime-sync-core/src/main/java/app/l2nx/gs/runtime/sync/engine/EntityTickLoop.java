@@ -10,6 +10,7 @@ import app.l2nx.gs.runtime.sync.engine.publish.SyncEventPublisher;
 import app.l2nx.gs.runtime.sync.engine.publish.TopicResolver;
 import it.unimi.dsi.fastutil.longs.*;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +32,7 @@ public final class EntityTickLoop {
     private final EntityStatsTracker statsTracker;
     private final EngineConfig config;
     private final ScheduledExecutorService scheduler;
+    private final Clock clock;
     private final AtomicBoolean ticking = new AtomicBoolean(false);
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -44,7 +46,8 @@ public final class EntityTickLoop {
             SyncEventPublisher publisher,
             EntityStatsTracker statsTracker,
             EngineConfig config,
-            ScheduledExecutorService scheduler) {
+            ScheduledExecutorService scheduler,
+            Clock clock) {
         this.mapping = (RuntimeEntityMapping<Object>) mapping;
         this.entityName = mapping.entityName();
         this.topicResolver = topicResolver;
@@ -52,6 +55,7 @@ public final class EntityTickLoop {
         this.statsTracker = statsTracker;
         this.config = config;
         this.scheduler = scheduler;
+        this.clock = clock;
     }
 
     public void start() {
@@ -101,6 +105,8 @@ public final class EntityTickLoop {
 
         Long2LongMap currentSnapshot = newHashMap(0);
         Long2ObjectMap<Object> dtosByPk = new Long2ObjectOpenHashMap<Object>();
+        // Read before the snapshot is taken, so the instant never postdates the state the tick saw.
+        long readStartedMs = clock.millis();
         Iterable<RuntimeRow<Object>> rows;
         try {
             rows = mapping.snapshot();
@@ -176,7 +182,8 @@ public final class EntityTickLoop {
                 nextPrev.put(pk, currentHash);
                 continue;
             }
-            CompletableFuture<RecordMetadata> f = publisher.publish(mapping, op, pk, dtosByPk.get(pk), topic);
+            CompletableFuture<RecordMetadata> f =
+                    publisher.publish(mapping, op, pk, dtosByPk.get(pk), topic, readStartedMs);
             inFlight.put(pk, f);
         }
 

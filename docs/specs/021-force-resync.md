@@ -96,10 +96,10 @@ predates the cycle.
   for an entity, the engine MUST emit (via the `NxEvents` facade threaded
   in by `DbSyncModule` — see R12) one `ResyncCompletedEvent` per `resyncId`
   drained into that cycle, carrying `entityName`, `cycleStartedAt`, and
-  `completedAt` (adapter clock — `SyncEventPublisher` stamps
-  `SyncEvent.timestampEpochMs` from `System.currentTimeMillis()` on the
-  same thread, so the platform compares against `db_synced_at` without
-  cross-host clock skew). **Fully successful** means: no degraded window
+  `completedAt` (adapter clock — `SyncEvent.timestampEpochMs` is the
+  engine's read instant on the same host clock, taken after
+  `cycleStartedAt`, so the platform compares against `db_synced_at`
+  without cross-host clock skew). **Fully successful** means: no degraded window
   AND zero failed or still-pending publishes in the cycle. `CycleResult`
   does not carry publish failure counts today (a cycle with 100% failed
   publishes reports HEALTHY) — extending it (or the task) with

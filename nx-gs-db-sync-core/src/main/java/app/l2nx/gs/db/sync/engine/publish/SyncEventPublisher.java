@@ -10,6 +10,8 @@ import org.apache.kafka.clients.producer.RecordMetadata;
  * Builds {@link SyncEvent}s and forwards them to a {@link KafkaSender}, returning a per-PK future so the snapshot advances only for acked PKs.
  * Key is the 8-byte big-endian PK (equals {@code LongSerializer}); DELETED carries an envelope with {@code payload=null}, not a tombstone,
  * because topics use bounded retention (at most 1 day) instead of compaction.
+ *
+ * <p>The event timestamp is the caller's read instant, never the send time; see {@link SyncEvent}.</p>
  */
 public final class SyncEventPublisher {
 
@@ -24,13 +26,13 @@ public final class SyncEventPublisher {
     }
 
     public <T> CompletableFuture<RecordMetadata> publish(
-            EntityMapping<T> mapping, String op, long pk, T dto, String topic) {
+            EntityMapping<T> mapping, String op, long pk, T dto, String topic, long observedAtEpochMs) {
         SyncEvent<T> value = SyncEvent.<T>builder()
                 .entityName(mapping.entityName())
                 .pk(pk)
                 .op(op)
                 .payload(dto)
-                .timestampEpochMs(System.currentTimeMillis())
+                .timestampEpochMs(observedAtEpochMs)
                 .build();
         CompletableFuture<RecordMetadata> future = new CompletableFuture<RecordMetadata>();
         try {

@@ -465,6 +465,13 @@ per-entity state via heartbeat enrichment).
       not log compaction, so the value-null Kafka-tombstone optimization is
       intentionally not used — keeping the envelope is more useful for
       consumers that need to react to deletions and see when they happened.
+    - **Timestamp:** `timestampEpochMs` is the observation (read) time on the host
+      clock, never the publish time (db-sync 0.14.0): `CREATED` / `UPDATED` carry the
+      instant their window's Phase-2 fetch began, `DELETED` the instant the Phase-1
+      scan of the window that found the row gone began. The platform orders the stream
+      against command replies stamped with the host time of a change (`BanResult` /
+      `UnbanResult.observedAt`) by it; a publish-time stamp would let a row read before
+      a command and sent after it overwrite the command's newer state.
 
 - [wip] R13. The engine SHOULD NOT block waiting for Kafka acks per row. `NxKafka.send`
   returns immediately; the engine moves to the next row/window. A per-window
@@ -1034,8 +1041,9 @@ read by `HeartbeatService` per heartbeat tick.
   construction. Kafka key is the row's `long` PK (8 bytes via `LongSerializer`);
   topic is resolved once per entity at engine start via `TopicResolver` (delivered
   via `ConnectResponse.syncTopics`) and stored in the entity's `ResolvedEntityConfig`;
-  value is Gson-serialized `SyncEvent { entityName, pk: long, op, payload, timestamp }`
-  — `op=DELETED` carries `payload=null` in the JSON envelope but the
+  value is Gson-serialized `SyncEvent { entityName, pk: long, op, payload, timestamp }`,
+  `timestamp` being the read instant `EntitySyncTask` hands in (R12; the task reads it
+  from an injected `Clock`) — `op=DELETED` carries `payload=null` in the JSON envelope but the
   envelope itself is a non-null Kafka value (not a tombstone — db-sync
   topics use bounded retention, not log compaction). Async send via
   `NxKafka.send` — does not block. Tracks per-window in-flight
@@ -1199,6 +1207,15 @@ HeartbeatService tick   [heartbeat thread]
 
 ### Decisions
 
+- **The event timestamp is the read instant, taken before the read starts.** Consumers
+  order a row's events against command replies (`observedAt`, host time of the change),
+  so the stamp must not postdate what the read saw. The clock is read before the query
+  opens its snapshot, so a change committed during the read is never stamped as seen:
+  if the read did see it, the reply carries the same state and wins harmlessly; any
+  later change is outside the stored CRC (Phase 1 ran first) and is republished by the
+  next cycle. Payload events use the Phase-2 start (the payload's own read, fresher
+  than Phase 1); `DELETED` uses the Phase-1 start of its window, the read that found
+  the row gone. A per-cycle instant would age by the length of every earlier window.
 - **CRC32 sufficient — collision risk is per-change, not birthday.** The relevant
   collision probability is "given a row changed, what's the chance its new CRC32 equals
   its old CRC32?" — exactly `1/2^32` per change-event, NOT a birthday-paradox cross-row

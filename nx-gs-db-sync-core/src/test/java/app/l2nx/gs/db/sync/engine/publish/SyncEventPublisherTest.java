@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 class SyncEventPublisherTest {
 
     private static final String TOPIC = "acme.gs.sync.clans";
+    private static final long OBSERVED_AT_MS = 1_763_374_530_123L;
 
     @Test
     void publish_shouldEmitSyncEvent_forCreated() throws Exception {
@@ -30,7 +31,7 @@ class SyncEventPublisherTest {
 
         ClanDbDto dto = ClanDbDto.builder().id(42L).name("Hellbound").level(5).build();
         CompletableFuture<RecordMetadata> future =
-                publisher.publish(clanMapping(), SyncEventPublisher.OP_CREATED, 42L, dto, TOPIC);
+                publisher.publish(clanMapping(), SyncEventPublisher.OP_CREATED, 42L, dto, TOPIC, OBSERVED_AT_MS);
         sender.completeLast(metadata());
 
         assertEquals(TOPIC, sender.lastTopic);
@@ -42,7 +43,7 @@ class SyncEventPublisherTest {
         assertEquals(42L, event.getPk());
         assertEquals("CREATED", event.getOp());
         assertSame(dto, event.getPayload());
-        assertTrue(event.getTimestampEpochMs() > 0L);
+        assertEquals(OBSERVED_AT_MS, event.getTimestampEpochMs(), "the caller's read instant, not the send time");
         assertNotNull(future.get(1, TimeUnit.SECONDS));
     }
 
@@ -52,7 +53,7 @@ class SyncEventPublisherTest {
         SyncEventPublisher publisher = new SyncEventPublisher(sender);
 
         CompletableFuture<RecordMetadata> future =
-                publisher.publish(clanMapping(), SyncEventPublisher.OP_DELETED, 42L, null, TOPIC);
+                publisher.publish(clanMapping(), SyncEventPublisher.OP_DELETED, 42L, null, TOPIC, OBSERVED_AT_MS);
         sender.completeLast(metadata());
 
         assertEquals(TOPIC, sender.lastTopic);
@@ -64,7 +65,7 @@ class SyncEventPublisherTest {
         assertEquals(42L, event.getPk());
         assertEquals("DELETED", event.getOp());
         assertNull(event.getPayload(), "payload slot is null on DELETE — entity is gone");
-        assertTrue(event.getTimestampEpochMs() > 0L);
+        assertEquals(OBSERVED_AT_MS, event.getTimestampEpochMs(), "the caller's read instant, not the send time");
         assertNotNull(future.get(1, TimeUnit.SECONDS));
     }
 
@@ -88,7 +89,7 @@ class SyncEventPublisherTest {
 
         ClanDbDto dto = ClanDbDto.builder().id(1L).name("X").level(1).build();
         CompletableFuture<RecordMetadata> future =
-                publisher.publish(clanMapping(), SyncEventPublisher.OP_UPDATED, 1L, dto, TOPIC);
+                publisher.publish(clanMapping(), SyncEventPublisher.OP_UPDATED, 1L, dto, TOPIC, OBSERVED_AT_MS);
         sender.completeLast(new RuntimeException("kafka down"));
 
         ExecutionException ex = assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
@@ -104,7 +105,7 @@ class SyncEventPublisherTest {
 
         ClanDbDto dto = ClanDbDto.builder().id(1L).name("X").level(1).build();
         CompletableFuture<RecordMetadata> future =
-                publisher.publish(clanMapping(), SyncEventPublisher.OP_CREATED, 1L, dto, TOPIC);
+                publisher.publish(clanMapping(), SyncEventPublisher.OP_CREATED, 1L, dto, TOPIC, OBSERVED_AT_MS);
 
         ExecutionException ex = assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
         assertEquals("send rejected", ex.getCause().getMessage());
@@ -117,7 +118,7 @@ class SyncEventPublisherTest {
 
         ClanDbDto dto = ClanDbDto.builder().id(1L).name("X").level(1).build();
         CompletableFuture<RecordMetadata> future =
-                publisher.publish(clanMapping(), SyncEventPublisher.OP_CREATED, 1L, dto, TOPIC);
+                publisher.publish(clanMapping(), SyncEventPublisher.OP_CREATED, 1L, dto, TOPIC, OBSERVED_AT_MS);
 
         assertThrows(TimeoutException.class, () -> future.get(50, TimeUnit.MILLISECONDS));
     }

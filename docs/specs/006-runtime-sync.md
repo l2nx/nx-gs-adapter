@@ -124,6 +124,14 @@ state, siege participants, raid boss vitals).
   6. `CycleResult` reports `DEGRADED` (not `HEALTHY`) when any publish future
      failed or timed out — the prior behaviour of always reporting `HEALTHY`
      regardless of Kafka health hid platform-side outages.
+  - SC1. **Timestamp:** `SyncEvent.timestampEpochMs` is the instant the tick began reading
+    the snapshot (host clock, taken right before `mapping.snapshot()`), never the publish
+    time (runtime-sync 0.7.0, [#62](https://github.com/l2nx/nx-gs-adapter/issues/62)). Every
+    `CREATED` / `UPDATED` of one tick carries the same instant; a replayed publish carries
+    the read instant of the tick that replays it. Same rule as db-sync
+    ([005 R12](005-cdc-engine/spec.md)), so the platform orders both channels against
+    command replies (`observedAt`) on one host clock. The channel emits no tombstone or
+    offline event, so no other stamp exists.
   - SC2. Tick interval default = 10s. Override via
     `l2nx.runtime-sync.tick-interval-seconds`. Per-entity granularity is NOT in
     MVP — single global value applies to every mapping.
@@ -436,7 +444,8 @@ Host-side (in the reference host integration, not this monorepo):
   `NxAdapter.runtimeSync()` and `ConnectContext.runtimeSync()`, one instance, usable from JVM start; a
   context built without it gets a no-op that never fires. The public `ConnectContext` constructor
   changes arity; hosts build it through the builder.
-- **SyncEventPublisher** [done] — wraps `NxKafka` producer. Reuses the same
+- **SyncEventPublisher** [done] — wraps `NxKafka` producer and stamps the event with
+  the read instant the tick hands in; it never reads a clock itself (R5 SC1). Reuses the same
   `inFlight`-future + flush-at-tick-end mechanism `db-sync` has on a per-window basis;
   runtime-sync has no windows, so the equivalent flush boundary is the tick itself
   (parallel implementation, not literal reuse — module isolation).
@@ -468,7 +477,8 @@ End-to-end per tick (one entity, e.g. `character`):
 
 1. Tick task fires (scheduled-at-fixed-rate on the shared pool, every 10s by
    default). If `AtomicBoolean ticking` is already set → skip+WARN and exit.
-2. Calls `mapping.snapshot()` inside `try/catch (Throwable)` →
+2. Reads the read instant from the injected `Clock` (R5 SC1), then calls
+   `mapping.snapshot()` inside `try/catch (Throwable)` →
    `Iterable<RuntimeRow<CharacterRuntimeDto>>`
    (reference impl: `new ArrayList<>(onlinePlayers)`, filtered by
    `player.isOnline()`). On throw → `CycleResult.degraded(elapsed)` + WARN, no
@@ -483,8 +493,8 @@ End-to-end per tick (one entity, e.g. `character`):
    - `prev.get(pk) == MISSING_HASH` → emit `SyncEvent.create(pk, dto)`
    - PK in both, hashes differ → emit `SyncEvent.update(pk, dto)`
    - PK in prev, not in current → no-op (drop silently from tracking)
-5. For each emit: `SyncEventPublisher.publish(topic, pk, event)` → returns
-   `CompletableFuture<Void>`; future enters `inFlight: Map<pk, Future>`
+5. For each emit: `SyncEventPublisher.publish(mapping, op, pk, dto, topic, readInstant)` →
+   returns `CompletableFuture<RecordMetadata>`; future enters `inFlight: Map<pk, Future>`
 6. Walk in-flight: drain done futures first, then deadline-bounded wait on the
    pending tail up to `publish-flush-seconds`. Respects thread interrupt and
    breaks early on shutdown.
@@ -644,6 +654,15 @@ Wire DTO (Kafka payload):
   would clobber each other's `prevSnapshot` / topic mapping silently. Fail
   loudly at startup (module → `STATE_FAILED`) so the operator fixes the
   classpath rather than chasing missing data.
+
+- **Decision:** The event timestamp is the tick's read instant, taken before `mapping.snapshot()` (R5 SC1).
+  **Why:** The platform orders a row's events against command replies stamped with the host time of a change
+  (`observedAt`), so the stamp must not postdate the state the tick saw. A provider may return a lazy view, so the read
+  can last until the iteration ends; the instant before the call covers it. A change applied during the read and seen
+  by it carries the same state as the reply and wins harmlessly; a change it missed differs in hash and is published by
+  the next tick. The publish time ages by the hashing and every earlier send of the tick, and would let a state read
+  before a command overwrite the command's newer one. One instant per tick, not per row: the snapshot is one read.
+  **Rejected:** a per-row instant (the host gives no per-row read time; the tick's start bounds all of them).
 
 ### Extension points
 

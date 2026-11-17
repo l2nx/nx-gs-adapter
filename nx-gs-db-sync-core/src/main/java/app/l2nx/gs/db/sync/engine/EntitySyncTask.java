@@ -20,6 +20,7 @@ import it.unimi.dsi.fastutil.longs.*;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
+import java.time.Clock;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +43,7 @@ public final class EntitySyncTask {
     private final SyncEventPublisher publisher;
     private final TopicResolver topicResolver;
     private final EngineConfig config;
+    private final Clock clock;
 
     private final StatementRegistry statementRegistry = new StatementRegistry();
     private volatile JdbcDialect dialect;
@@ -55,7 +57,8 @@ public final class EntitySyncTask {
             Phase2Fetcher fetcher,
             SyncEventPublisher publisher,
             TopicResolver topicResolver,
-            EngineConfig config) {
+            EngineConfig config,
+            Clock clock) {
         this.mapping = mapping;
         this.jdbcSource = jdbcSource;
         this.snapshot = snapshot;
@@ -65,6 +68,7 @@ public final class EntitySyncTask {
         this.publisher = publisher;
         this.topicResolver = topicResolver;
         this.config = config;
+        this.clock = clock;
     }
 
     public CycleResult runCycle() {
@@ -129,6 +133,8 @@ public final class EntitySyncTask {
 
             for (int wIdx = 0; wIdx < windows.size(); wIdx++) {
                 Window window = windows.get(wIdx);
+                // Read before the query opens its snapshot, so the instant never postdates what the read saw.
+                long scanStartedMs = clock.millis();
                 Long2IntMap currentScan;
                 try {
                     final Window finalWindow = window;
@@ -165,6 +171,7 @@ public final class EntitySyncTask {
                 ChangeSet diff = ChangeSet.diff(currentScan, prevKeys, snapshot, entity);
 
                 LongList createUpdate = unionToList(diff.created(), diff.updated());
+                long fetchStartedMs = clock.millis();
                 Long2ObjectMap<Object> assembled;
                 if (createUpdate.isEmpty()) {
                     assembled = Long2ObjectMaps.emptyMap();
@@ -204,6 +211,8 @@ public final class EntitySyncTask {
                         assembled,
                         currentScan,
                         topic,
+                        fetchStartedMs,
+                        scanStartedMs,
                         inFlight,
                         pendingCrcAdvance,
                         pendingCreates,
@@ -332,12 +341,15 @@ public final class EntitySyncTask {
         return out;
     }
 
+    /** CREATED / UPDATED carry the instant their Phase-2 fetch began, DELETED the instant its Phase-1 scan began. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void publishChanges(
             ChangeSet diff,
             Long2ObjectMap<Object> assembled,
             Long2IntMap currentScan,
             String topic,
+            long fetchStartedMs,
+            long scanStartedMs,
             Long2ObjectMap<CompletableFuture<RecordMetadata>> inFlight,
             Long2IntMap pendingCrcAdvance,
             LongSet pendingCreates,
@@ -351,7 +363,7 @@ public final class EntitySyncTask {
                 continue;
             }
             CompletableFuture<RecordMetadata> f =
-                    publisher.publish(erased, SyncEventPublisher.OP_CREATED, pk, dto, topic);
+                    publisher.publish(erased, SyncEventPublisher.OP_CREATED, pk, dto, topic, fetchStartedMs);
             inFlight.put(pk, f);
             pendingCrcAdvance.put(pk, currentScan.get(pk));
             pendingCreates.add(pk);
@@ -364,7 +376,7 @@ public final class EntitySyncTask {
                 continue;
             }
             CompletableFuture<RecordMetadata> f =
-                    publisher.publish(erased, SyncEventPublisher.OP_UPDATED, pk, dto, topic);
+                    publisher.publish(erased, SyncEventPublisher.OP_UPDATED, pk, dto, topic, fetchStartedMs);
             inFlight.put(pk, f);
             pendingCrcAdvance.put(pk, currentScan.get(pk));
         }
@@ -372,7 +384,7 @@ public final class EntitySyncTask {
         while (deleteIt.hasNext()) {
             long pk = deleteIt.nextLong();
             CompletableFuture<RecordMetadata> f =
-                    publisher.publish(erased, SyncEventPublisher.OP_DELETED, pk, null, topic);
+                    publisher.publish(erased, SyncEventPublisher.OP_DELETED, pk, null, topic, scanStartedMs);
             inFlight.put(pk, f);
             pendingDeletes.add(pk);
         }

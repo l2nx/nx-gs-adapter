@@ -14,6 +14,7 @@ import app.l2nx.gs.db.sync.engine.window.WindowPlanner;
 import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import it.unimi.dsi.fastutil.longs.LongSet;
+import java.time.Clock;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -118,7 +119,8 @@ public final class CdcEngine {
                     phase2Fetcher,
                     publisher,
                     topicResolver,
-                    config);
+                    config,
+                    Clock.systemUTC());
             tasks.add(task);
 
             final String entity = mapping.entityName();
@@ -248,8 +250,7 @@ public final class CdcEngine {
             try {
                 result = task.runCycle(targetedPks);
             } catch (RuntimeException cycleFailure) {
-                // Record a degraded result (e.g. plan-size cap) so heartbeat and the resync completion gate don't go
-                // stale.
+                // Record a degraded result (e.g. plan-size cap) so heartbeat and the resync gate don't go stale.
                 log.warn(
                         "Entity {} cycle threw {}: {} — recording DEGRADED result",
                         entity,
@@ -274,8 +275,7 @@ public final class CdcEngine {
             }
         } finally {
             ticking.set(false);
-            // Re-submit a request/trigger that hit the ticking guard mid-cycle; release ticking first so it can win the
-            // CAS.
+            // Release ticking first so the re-submitted request can win the CAS.
             if ((slot.pendingImmediate.get() || resyncCoordinator.hasPending(entity)) && !stopped.get()) {
                 triggerEntityNow(entity);
             }
@@ -325,9 +325,7 @@ public final class CdcEngine {
         tasks.clear();
         slotsByEntity.clear();
         resyncCoordinator.clear();
-        // Persist only after all cycle threads stopped: a flush racing the single-writer Long2IntOpenHashMap mutation
-        // is UB;
-        // a stale checkpoint beats a corrupt one.
+        // Persist only after all cycle threads stopped: a flush racing the single-writer Long2IntOpenHashMap is UB.
         if (terminated) {
             try {
                 persistence.flushAll(snapshot);

@@ -136,6 +136,7 @@ discovers `JdbcConnectionSource` + `DbSchemaProvider` independently.
 │               │  │                          (NOT a Kafka tombstone — │     │    │
 │               │  │                          bounded retention topic) │     │    │
 │               │  │      key = 8-byte big-endian pk                   │     │    │
+│               │  │      ts = read start: Phase 2 (C/U), Phase 1 (D)  │     │    │
 │               │  │  })  COMMIT                                       │     │    │
 │               │  └───────────────────────────────────────────────────┘     │    │
 │               │           │                                                │    │

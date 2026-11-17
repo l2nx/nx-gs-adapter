@@ -6,6 +6,7 @@ import app.l2nx.gs.log.NxLog;
 import app.l2nx.gs.log.NxLogFactory;
 import app.l2nx.gs.runtime.sync.engine.publish.SyncEventPublisher;
 import app.l2nx.gs.runtime.sync.engine.publish.TopicResolver;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -49,8 +50,8 @@ public final class RuntimeSyncEngine {
         this.scheduler = pool;
 
         for (RuntimeEntityMapping<?> mapping : mappings) {
-            EntityTickLoop loop =
-                    new EntityTickLoop(mapping, topicResolver, publisher, statsTracker, config, scheduler);
+            EntityTickLoop loop = new EntityTickLoop(
+                    mapping, topicResolver, publisher, statsTracker, config, scheduler, Clock.systemUTC());
             loops.add(loop);
             loop.start();
             log.info(

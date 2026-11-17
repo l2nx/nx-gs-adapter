@@ -10,6 +10,7 @@ import app.l2nx.gs.db.sync.engine.phase.Phase2Fetcher;
 import app.l2nx.gs.db.sync.engine.publish.SyncEventPublisher;
 import app.l2nx.gs.db.sync.engine.window.WindowPlanner;
 import it.unimi.dsi.fastutil.longs.*;
+import java.time.Clock;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -99,6 +100,7 @@ class EntitySyncTaskPublishWalkTest {
                 }),
                 entity -> "test.gs.sync.clans",
                 // Short deadline wait for the never-completing future.
-                new EngineConfig(60, 500_000, 5, 1));
+                new EngineConfig(60, 500_000, 5, 1),
+                Clock.systemUTC());
     }
 }

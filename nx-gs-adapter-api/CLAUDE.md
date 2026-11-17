@@ -114,6 +114,9 @@ They all live here so a host provider depends on the contracts artifact alone.
 - **`SyncEvent` `DELETED` carries `payload=null`, and that is not a Kafka tombstone.** Topics use
   bounded retention, not log compaction, so consumers MUST handle the `DELETED` op explicitly rather
   than relying on the null-value tombstone protocol.
+- **`SyncEvent.timestampEpochMs` is the read instant, not the publish time, on both channels** (db-sync-core 0.14.0+,
+  spec 005 R12; runtime-sync-core 0.7.0+, spec 006 R5 SC1): consumers order the sync streams against command replies
+  stamped with the host time of a change (`BanResult.observedAt`) by it, on one host clock.
 - **Closed vocabularies are enums, constant name on the wire.** `ActivityType` (`domain.character`),
   `SessionSource`, `LogoutReason`, `ServerOnlineBucket`, `UsageUnit`, `AppSessionRefusalReason`, `ReviveRefusalReason`,
   `SendChatMessageRefusalReason`, `ItemSource`, `ExperienceSource`. A new value is an api
@@ -177,6 +180,9 @@ They all live here so a host provider depends on the contracts artifact alone.
 - **Revive refusals** carry `reason` (`ReviveRefusal.REASON`, a `ReviveRefusalReason` name), a separate vocabulary from
   the app-session one; `ReviveCharacterCommand.restartPoint` stays a `String` (open `RestartPoint`), so an older host
   refuses a newer token instead of failing to deserialize.
+- **`BanRecord.source` / `BanRef.source` are `String` tokens of the open `BanSource`**, required and non-blank, so a
+  Jackson consumer does not fail a whole `BanResult` / `UnbanResult` on a newer token. The source names the id space
+  (`STANDARD` = host ban row id, sync entity `ban`; `SHADOW` = char id, sync entity `shadowban`): a ban is source + id.
 - **`SendChatMessageCommand.offlineDelivery` is a boxed `Boolean` on purpose**: `null` (a platform older than the
   field) reads as `true`, the old behaviour; a primitive would turn every old command into a refusal. It is the last
   constructor parameter, away from the primitive `ownerVerified`. Refusals carry `reason`
