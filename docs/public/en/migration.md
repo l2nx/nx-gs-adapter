@@ -27,7 +27,8 @@ here are drop-in: bump the version and restart.
   token in the same id spaces; empty when nothing matched (the no-op success that `removed = false` used to report).
 - `source` is a string so a consumer keeps the whole result when a later host sends a token it does not know yet:
   `BanSource.fromToken` reads such a token as `null`. The builders also take the `BanSource` constant.
-- Both results get the required `observedAt`: the host time the change was applied. The platform orders the reply
+- Both results get the required `observedAt`: the host time the rows were observed, after the change was applied (for
+  a no-op, when the host found them). The platform orders the reply
   against the ban sync stream by it, so take it from the host clock right after the change, not from the command.
 - The constructors reject a missing `bans` / `removedBans` / `observedAt`, an empty `bans`, a list holding `null` and a
   missing or blank `source`.

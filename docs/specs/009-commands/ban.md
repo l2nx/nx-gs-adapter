@@ -61,7 +61,8 @@ schema-provider mapping.
     always yields at least one row. Every ban row the host created, extended or
     found, one per concrete dimension of a `HARD` fan-out, including a shadow
     chat ban.
-  - `Instant observedAt` — REQUIRED. Host time the change was applied. The
+  - `Instant observedAt` — REQUIRED. Host time the rows were observed after the
+    change was applied (for a no-op, when the host found them). The
     platform writes the rows into its ban mirror at once and gates every later
     write of the same row (this reply or the ban sync stream) by it, newest
     observation wins. The sync stream's `SyncEvent.timestampEpochMs` is the
