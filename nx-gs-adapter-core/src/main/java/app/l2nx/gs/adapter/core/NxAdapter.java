@@ -135,8 +135,7 @@ public final class NxAdapter {
 
     /**
      * Never null. The first call (or {@link #start()}) loads {@code l2nx-app.properties} synchronously and watches it, so
-     * no boot code sees defaults instead of the file; a login server keeps the defaults. While the host type is
-     * undecided every call returns the defaults, so the game thread does not re-read a broken config.
+     * no boot code sees defaults instead of the file; a login server and an undecided host type keep the defaults.
      */
     public static NxAppRules appRules() {
         if (!AppSettingsRuntime.initialized() && !appRulesUnresolved) {
@@ -480,14 +479,12 @@ public final class NxAdapter {
                     t.getClass().getName(),
                     t);
         }
-        // Under the tenant prefix so the User:<tenant> SCRAM principal's group ACL covers it
-        String commandsGroupId = active.tenantSlug() + ".gs.commands." + active.serverSlug();
         NxSync sync = startSyncFacade();
         NxGameData gameData = startGameDataFacade();
         NxCommands commands = null;
         try {
             commands = startCommandsConsumer(
-                    active.topics(), active.kafka(), clientId, commandsGroupId, active.serverId(), events, sync);
+                    active.topics(), active.kafka(), clientId, active.serverSlug(), active.serverId(), events, sync);
         } catch (Throwable t) {
             log.error(
                     "Commands consumer bootstrap failed — commands disabled, continuing with sync: {}",
@@ -575,7 +572,7 @@ public final class NxAdapter {
             MessagingTopics messagingTopics,
             KafkaCredentials kafka,
             String clientId,
-            String groupId,
+            String serverSlug,
             UUID ownServerId,
             NxEvents events,
             NxSync sync) {
@@ -606,7 +603,7 @@ public final class NxAdapter {
                     messagingTopics,
                     kafka,
                     clientId,
-                    groupId,
+                    serverSlug,
                     ownServerId,
                     hostExecutorRef.get(),
                     ioExecutor,
@@ -625,7 +622,7 @@ public final class NxAdapter {
                 messagingTopics,
                 kafka,
                 clientId,
-                groupId,
+                serverSlug,
                 ownServerId,
                 hostExecutorRef.get(),
                 ioExecutor,

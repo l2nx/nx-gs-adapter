@@ -6,8 +6,8 @@ import app.l2nx.gs.adapter.api.spi.ConnectContext;
 
 /**
  * Registration of inbound command handlers, obtained via {@link ConnectContext#commands()}; implemented by
- * adapter-core. Registration is thread-safe and allowed after the consumer started; last write wins per class.
- * Routing matches {@code Message-Type} against {@code Class.getSimpleName()}, so simple names must be unique.
+ * adapter-core. Registration is thread-safe and allowed after the consumer started. Routing matches
+ * {@code Message-Type} against {@code Class.getSimpleName()}; registering the same class again replaces its handler.
  * With no commands topic configured, registrations are accepted but never invoked.
  *
  * @see CommandHandler
@@ -15,6 +15,11 @@ import app.l2nx.gs.adapter.api.spi.ConnectContext;
  */
 public interface NxCommands {
 
-    /** Never blocks or throws; the {@code C extends NxCommand<R>} bound ties the reply payload type to the command. */
+    /**
+     * Never blocks.
+     *
+     * @throws IllegalStateException when another class already holds the {@code Message-Type} of {@code type}; that
+     *     class stays bound
+     */
     <R, C extends NxCommand<R>> void on(Class<C> type, CommandHandler<C, R> handler);
 }

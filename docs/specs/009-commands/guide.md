@@ -631,9 +631,12 @@ public final class HostCommandsModule implements AdapterModule {
 The handler `Class` is matched against the inbound `Message-Type`
 header by **simple class name**. So
 `app.l2nx.gs.adapter.api.kafka.commands.character.TransferCharacterToAccountCommand`
-matches header value `TransferCharacterToAccountCommand`. Two distinct classes with
-the same simple name would collide — keep simple names unique within
-the catalog.
+matches header value `TransferCharacterToAccountCommand`. A `Message-Type` binds once:
+registering a taken one (the same class again, or another class with the same simple
+name) throws `IllegalStateException` out of `on(...)`, which fails your module's
+`onConnect` (spec R9). Your own command classes, outside the platform catalog, carry a
+prefix specific to your host in their simple name, so they never take a platform
+command's type, today's or a future one.
 
 Late registration (after `start()` returns and the consumer is polling)
 is allowed. Records arriving before registration → `UNSUPPORTED_COMMAND`

@@ -107,6 +107,12 @@ Things that cost time to learn and are not visible from the code you are editing
   host modules cache the reference once at `start()` and never re-acquire it.
 - **The host registers its game-thread executor via `NxAdapter.hostExecutor(Executor)` BEFORE
   `start()`** — that is what backs `ctx.host().sync(...)` hops in command handlers.
+- **A `Message-Type` binds once per handshake.** `ctx.commands().on(...)` throws for a taken type (same class or same
+  simple name), and the command registry starts empty on every handshake because `onConnect` reruns on new module
+  instances. A module that goes `FAILED` loses every binding it registered, and the commands consumer starts only after
+  every module has connected and started, so nothing is polled into a half-filled registry. A host's own command
+  classes carry a host-specific prefix. The commands consumer group is `<commandsTopic>.<serverSlug>` for every host
+  type, and a topic outside the tenant prefix disables commands. See 009 R9, R10, R16, R17.
 - **Events drop-policy defaults to `newest`** (drop the incoming envelope on overflow, preserving
   queue order). `oldest` is still selectable but over-counts `dropped-total` under multi-producer
   contention: the displaced envelope is counted on the eviction path even when concurrent enqueuers
@@ -128,8 +134,12 @@ Things that cost time to learn and are not visible from the code you are editing
   changesets, abstract changes and portable types, adoption guards for tables a host created before. A game-server
   `start()` migrates on the connect thread before connecting and goes `FAILED` on error; a host reading those tables
   in its own boot calls `NxAdapter.migrateSchema()` first (once per JVM). See 037.
-- **The host never touches an `l2nx_*` table itself.** Command receipts go through `NxAdapter.commandReceipts()`
-  (`NxCommandReceipts`): no SQL and no table names in the host. Operations taking a `Connection` join the host's
+- **The prefix is not ownership: a host may keep its own `l2nx_*` tables through its OWN Liquibase changelog** with its
+  own history tables (`l2nx_host_databasechangelog` / `l2nx_host_databasechangeloglock`, for example). The adapter
+  never reads or touches the host's changelog or its tables; the host never touches the adapter's changelog, its
+  history tables or the tables it creates, and never reuses an adapter table name. See 037 R10.
+- **The host never touches an adapter-owned `l2nx_*` table itself.** Command receipts go through
+  `NxAdapter.commandReceipts()` (`NxCommandReceipts`): no SQL and no table names in the host. Operations taking a `Connection` join the host's
   transaction; every call throws until `migrateSchema()` has succeeded, never a silent no-op. See 040.
 - **The app-session engine boots before the platform connect.** Right after the schema migration, on the connect thread,
   so `NxAdapter.appSessions().onClientLogin(...)` finds a character's open session even while the platform is down;

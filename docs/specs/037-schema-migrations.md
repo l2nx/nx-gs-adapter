@@ -48,6 +48,16 @@ migration framework into the host.
 - [done] R8. The adapter MUST NOT read the host's changelogs, and the host's own database views (the `v_*` views created
   by the host's sync-view initializer) stay on the host: they are the host's schema, not the adapter's.
 - [done] R9. Re-running the migration on an up-to-date database MUST be a no-op.
+- [done] R10. **A host may keep its own `l2nx_*` tables, through its own changelog.** The `l2nx_` prefix does not make a
+  table the adapter's: the adapter owns exactly the tables its changelog creates. A host table that belongs with the
+  platform integration (an allowlist the platform writes through a host command, for example) may carry the prefix,
+  provided the host creates and evolves it with its own Liquibase changelog that keeps its own history tables, named
+  apart from the adapter's (`l2nx_host_databasechangelog` / `l2nx_host_databasechangeloglock`, for example). The two
+  changelogs never meet: the adapter never reads or touches the host's changelog, its history tables or its tables
+  (R8), and the host never touches the adapter's changelog, its `l2nx_databasechangelog` /
+  `l2nx_databasechangeloglock` or any table the adapter's changelog creates. A host table never takes the name of an
+  adapter table, present or announced in this repository's specs: a new adapter table is created without an adoption
+  guard, so a name clash fails the adapter's migration at start instead of adopting the host's table.
 
 **Non-goals:**
 
@@ -79,8 +89,9 @@ migration framework into the host.
   failure stops the start anyway). It runs once on every MariaDB/MySQL database: on a fresh `DATETIME` table the
   `ALTER` changes nothing, which is why it carries no precondition (Liquibase 5 disables `sqlCheck` by default).
   PostgreSQL skips it. See [`040`](040-command-receipts.md).
-- **Host changelog also touches `l2nx_*` tables:** unsupported. The adapter owns those tables from this spec onward and
-  does not look at the host's changelog.
+- **Host changelog also touches an adapter-owned `l2nx_*` table:** unsupported. The adapter owns the tables its
+  changelog creates from this spec onward and does not look at the host's changelog. A host's own `l2nx_*` tables
+  under its own changelog are allowed (R10).
 
 ## Technical design
 

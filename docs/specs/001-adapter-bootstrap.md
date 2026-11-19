@@ -75,7 +75,7 @@ username="<saslUsername>" password="<saslPassword>";`
     `ConnectResponse.tenantSlug` (authoritative; not parsed from `platformUrl`).
   - **Slug value-shape contract.** Both `tenantSlug` and `serverSlug` MUST be kebab-case
     identifiers (`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`) with NO `.` characters — the adapter
-    composes resource names (Kafka `client.id`, commands `group.id` = `<tenant>.gs.commands.<server>`,
+    composes resource names (Kafka `client.id`, commands `group.id` = `<commandsTopic>.<server>`,
     topic prefix `<tenant>.`) by literal interpolation, and a `.` in either slug would
     escape the per-tenant ACL prefix and silently break authorization. Validation lives
     platform-side: `nx-tenants` enforces kebab-case on `POST /servers` / `POST /internal/.../servers`,

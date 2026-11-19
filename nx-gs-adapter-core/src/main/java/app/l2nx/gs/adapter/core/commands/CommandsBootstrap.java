@@ -41,7 +41,7 @@ public final class CommandsBootstrap {
             @Nullable MessagingTopics messagingTopics,
             KafkaCredentials kafka,
             String clientIdBase,
-            String groupId,
+            String serverSlug,
             UUID ownServerId,
             @Nullable Executor hostExecutor,
             Executor ioExecutor,
@@ -64,7 +64,7 @@ public final class CommandsBootstrap {
                 messagingTopics,
                 kafka,
                 clientIdBase,
-                groupId,
+                serverSlug,
                 ownServerId,
                 hostExecutor,
                 ioExecutor,
@@ -78,8 +78,6 @@ public final class CommandsBootstrap {
     }
 
     /**
-     * @param groupId must sit under the tenant prefix ({@code <tenant>.gs.commands.<server>}) so the
-     *                tenant principal's group ACL covers it
      * @param hostExecutor {@code null} if the host registered none; {@code ctx.host().sync(...)} then
      *                     throws {@link IllegalStateException}
      */
@@ -87,7 +85,7 @@ public final class CommandsBootstrap {
             @Nullable MessagingTopics messagingTopics,
             KafkaCredentials kafka,
             String clientIdBase,
-            String groupId,
+            String serverSlug,
             UUID ownServerId,
             @Nullable Executor hostExecutor,
             Executor ioExecutor,
@@ -103,7 +101,7 @@ public final class CommandsBootstrap {
                 messagingTopics,
                 kafka,
                 clientIdBase,
-                groupId,
+                serverSlug,
                 ownServerId,
                 hostExecutor,
                 ioExecutor,
@@ -121,7 +119,7 @@ public final class CommandsBootstrap {
             @Nullable MessagingTopics messagingTopics,
             KafkaCredentials kafka,
             String clientIdBase,
-            String groupId,
+            String serverSlug,
             UUID ownServerId,
             @Nullable Executor hostExecutor,
             Executor ioExecutor,
@@ -156,7 +154,8 @@ public final class CommandsBootstrap {
         }
 
         CommandsConfig effectiveConfig = (config != null) ? config : CommandsConfig.defaults();
-        Map<String, Object> consumerProps = buildConsumerConfig(kafka, clientIdBase, groupId, effectiveConfig);
+        Map<String, Object> consumerProps =
+                buildConsumerConfig(kafka, clientIdBase, groupId(inboundTopic, serverSlug), effectiveConfig);
         Consumer<byte[], byte[]> kafkaConsumer = new KafkaConsumer<byte[], byte[]>(
                 consumerProps, new ByteArrayDeserializer(), new ByteArrayDeserializer());
 
@@ -180,6 +179,14 @@ public final class CommandsBootstrap {
                 effectiveConfig);
         consumer.start();
         return consumer;
+    }
+
+    /**
+     * The topic's {@code <tenant>.} prefix keeps the group under the tenant principal's group ACL; the slug isolates
+     * each server's offsets.
+     */
+    static String groupId(String commandsTopic, String serverSlug) {
+        return commandsTopic + "." + serverSlug;
     }
 
     private static Map<String, Object> buildConsumerConfig(

@@ -50,6 +50,41 @@ class CommandTypeRegistryTest {
         assertTrue(overwrote);
     }
 
+    static final class Other {
+        static final class FakeCommandA implements NxCommand<Void> {
+            @Override
+            public CommandInitiator getInitiator() {
+                return null;
+            }
+        }
+    }
+
+    @Test
+    void register_shouldThrow_whenAnotherClassTakesTheSameMessageType() {
+        CommandTypeRegistry registry = new CommandTypeRegistry();
+        registry.register(FakeCommandA.class, NOOP_HANDLER_A);
+        CommandHandler<Other.FakeCommandA, Void> clashing = (cmd, ctx) -> CommandResult.<Void>ok();
+
+        IllegalStateException thrown = assertThrows(
+                IllegalStateException.class, () -> registry.register(Other.FakeCommandA.class, clashing));
+
+        assertTrue(thrown.getMessage().contains("'FakeCommandA'"), thrown.getMessage());
+        assertTrue(thrown.getMessage().contains(FakeCommandA.class.getName()), thrown.getMessage());
+        assertTrue(thrown.getMessage().contains(Other.FakeCommandA.class.getName()), thrown.getMessage());
+        assertEquals(FakeCommandA.class, registry.lookup("FakeCommandA").commandClass());
+    }
+
+    @Test
+    void register_shouldReplaceTheHandler_whenTheSameClassRegistersAgain() {
+        CommandTypeRegistry registry = new CommandTypeRegistry();
+        registry.register(FakeCommandA.class, NOOP_HANDLER_A);
+        CommandHandler<FakeCommandA, Void> next = (cmd, ctx) -> CommandResult.<Void>ok();
+
+        registry.register(FakeCommandA.class, next);
+
+        assertSame(next, registry.lookup("FakeCommandA").handler());
+    }
+
     @Test
     void lookup_byMessageType_shouldReturnBoundClass() {
         CommandTypeRegistry registry = new CommandTypeRegistry();

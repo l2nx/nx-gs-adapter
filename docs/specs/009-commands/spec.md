@@ -82,6 +82,10 @@ who consume reply events.
     dropped.
   - The Phase-1 `Map<String,String> commands` placeholder is gone; a platform still emitting
     `"commands": {}` is harmless under Gson's ignore-unknown-fields default.
+  - Both names are issued per host type, and the adapter takes them as issued, never building a topic name: a game
+    server gets `<tenant>.gs.commands` with replies on `<tenant>.gs.commands.replies`, a login server
+    `<tenant>.ls.commands` (one partition) with replies on `<tenant>.ls.commands.replies`. The platform issues the
+    login-server topics only to an adapter that derives its consumer group from the topic (R16, `core/v0.57.0`).
 
 - [done] R2. One inbound Kafka topic carries every command type; routing inside the topic is by
   `Message-Type` header, never by topic name. The adapter does not read the record key —
@@ -160,14 +164,33 @@ errorDetails` triple. Dropped before first release in favour of R23 + R24: three
   rather than reaching the host thread's UEH. Every method throws `IllegalStateException` when no
   host executor is registered (R12).
 
-- [done] R9. `nx-gs-adapter-api.spi.capability.NxCommands` MUST expose
-  `<R, C extends NxCommand<R>> void on(Class<C> type, CommandHandler<C, R> handler)`, acquired via
+- [done; a taken type is refused since `core/v0.57.0`] R9. `nx-gs-adapter-api.spi.capability.NxCommands` MUST
+  expose `<R, C extends NxCommand<R>> void on(Class<C> type, CommandHandler<C, R> handler)`, acquired via
   `ConnectContext.commands()`. The bound makes handler/command reply types agree at registration
   time. The registration window opens at `onConnect(ctx)`; late registration after the consumer
-  thread has started is permitted (`ConcurrentHashMap.put`). Re-registering the same class
-  overwrites the previous handler and logs WARN. Routing key is `Class.getSimpleName()`, so simple
-  names MUST be unique across the catalog. `on(...)` never blocks longer than a map put and never
-  propagates a failure — `null` type or handler is ignored with a WARN.
+  thread has started is permitted (`ConcurrentHashMap.putIfAbsent`). Routing key is `Class.getSimpleName()`, the
+  `Message-Type`, so simple names MUST be unique across the catalog. `on(...)` never blocks longer than a map put;
+  `null` type or handler is ignored with a WARN.
+
+  **Registration of a taken `Message-Type` is refused.** A type binds once per handshake (R10): registering it again,
+  with the same class or another class of the same simple name, throws `IllegalStateException` naming the type and
+  both classes, and the first binding stays. The exception reaches the registering module's `onConnect`, which the
+  module registry turns into `FAILED` for that module (002) unless the module catches it. Before `core/v0.57.0` the
+  last registration silently replaced the first, so a host command could shadow a platform one unnoticed. The no-op
+  facade of a context without a commands runtime refuses a taken type the same way (one set of taken types per
+  `ConnectContext`), so a clash surfaces whether or not commands are wired.
+
+  **A module's bindings stand or fall with the module.** The module registry hands each module a view of the facade
+  that tags its registrations with the module name; when the module goes `FAILED` (its `onConnect` or `start` threw)
+  every binding it registered is dropped, so a module that failed halfway through registering leaves nothing behind
+  and no command reaches it. Both phases end before the consumer starts (R17), so no record is dispatched to a binding
+  that is about to be dropped. A registration through the facade itself, outside any module, has no owner and stays.
+
+  **A host's own command classes carry a host-specific prefix in their simple name.** A host may implement
+  `NxCommand` for commands the platform catalog does not carry (an internal extension its own platform code sends).
+  The `Message-Type` namespace is shared with the platform catalog, present and future, so such a class names itself
+  with a prefix specific to the host (`<HostPrefix>ResetPinCommand`), never a bare domain name a platform command
+  could take later. The prefix is the host's choice; this repository names no host.
 
 - [done] R10. `nx-gs-adapter-api.spi.ConnectContext` MUST expose `NxCommands commands()`,
   `Executor io()` and `NxSync sync()` accessors alongside `events()`. The `commands()` facade is
@@ -175,10 +198,12 @@ errorDetails` triple. Dropped before first release in favour of R23 + R24: three
   code can register unconditionally.
 
   Facade identity is **stable across reconnect cycles**: `NxAdapter` caches one `NxCommandsImpl`
-  per JVM and `CommandsBootstrap.swap(...)` rebuilds the consumer behind it, reusing the existing
-  `CommandTypeRegistry`. Handlers registered once survive every later handshake re-roll without
-  re-registration — closing the race where a host that cached the facade after the first
-  `onConnect` would keep calling a dead consumer.
+  per JVM and `CommandsBootstrap.swap(...)` rebuilds the consumer behind it — closing the race where a host that
+  cached the facade after the first `onConnect` would keep calling a dead consumer. The registry is **per
+  handshake**: `swap(...)` retargets the facade to an empty `CommandTypeRegistry`, because every handshake reruns
+  module discovery and `onConnect` (002), and the new module instances register their handlers again. Keeping the
+  old registry would leave the types bound to the previous instances and, under R9, refuse the new registrations.
+  The `NxSync` and `NxGameData` triggers reset per handshake the same way.
 
 - [done] R11. `nx-gs-adapter-core` MUST implement an internal `CommandsConsumer` with
   **at-most-once** delivery:
@@ -278,18 +303,29 @@ replies-published == 0}` is visible as a failure rather than as silence
   - defaults: `auto.offset.reset=earliest`, `max.poll.records=50`
   - pinned: `bootstrap.servers` from the connect response;
     `client.id = <clientIdBase>-commands` (broker logs only, not ACL-checked);
-    `group.id = <tenant>.gs.commands.<server>`, under the per-tenant `<tenant>.` prefix so the
-    `User:<tenant>` SCRAM principal's group ACL covers it, with per-server isolation from the
-    `<server>` suffix; `enable.auto.commit=false`; `security.protocol` / `sasl.mechanism` /
+    `group.id = <commandsTopic>.<serverSlug>` (`CommandsBootstrap.groupId`, since `core/v0.57.0`): one rule for
+    every host type, no branch by host type. A game server keeps `<tenant>.gs.commands.<server>`, the name it had
+    before; a login server gets `<tenant>.ls.commands.<login server>`. The topic's per-tenant `<tenant>.` prefix keeps
+    the group under the `User:<tenant>` SCRAM principal's group ACL, and the slug suffix isolates each server's
+    offsets. A topic outside the `<tenant>.` prefix of the connect response, or a missing server slug, fails the
+    commands bootstrap with an ERROR naming the topic, and the commands surface stays disabled (R17): such a group
+    would sit outside the tenant's ACL or be shared by every server of the tenant. Before `core/v0.57.0` every host
+    built `<tenant>.gs.commands.<server>`, so a login server would have shared a group with a game server of the same
+    slug;
+    `enable.auto.commit=false`; `security.protocol` / `sasl.mechanism` /
     `sasl.jaas.config` from the connect response
   - key/value deserializers are `ByteArrayDeserializer` (passed at construction, not via props)
 
 - [done] R17. Lifecycle integration with `NxAdapter`:
   - The host executor registered via R12 is held statically and read at each connect.
-  - After Kafka init, `CommandsBootstrap.start(...)` builds registry + facade + consumer and
+  - After Kafka init, `CommandsBootstrap.start(...)` builds registry + facade + an **unstarted** consumer and
     returns a `Started` bundle (parallel to `EventsBootstrap.Started`); later connects go
-    through `CommandsBootstrap.swap(...)`, which reuses the facade and registry (R10). The
+    through `CommandsBootstrap.swap(...)`, which reuses the facade and gives it an empty registry (R10). The
     caller stops the previous consumer first.
+  - `NxAdapter` starts the consumer only after `ModuleRegistry.connect(ctx)` has returned, on the first handshake and
+    on every later one (since `core/v0.57.0`). Offsets are committed before dispatch (R11), so a record polled while
+    the modules were still registering would have been answered `UNSUPPORTED_COMMAND` and lost; held back, it waits
+    in the topic until the handlers are bound.
   - Commands bootstrap is isolated from events bootstrap and from module discovery: a failure in
     either (e.g. `NoClassDefFoundError` from an api/core version skew on the host classpath) is
     logged and leaves that surface disabled instead of aborting sync, which is the adapter's
@@ -663,6 +699,19 @@ poll(pollTimeoutMs)
   `masterAccountId` / `initiatorIp` fields gives every command the same shape and one validation point. Its
   vocabulary (`source` + `label`) is the platform's audit vocabulary, so the host sees which part of the platform
   sent a command, not only "user or not".
+- **The consumer group is derived from the commands topic (R16).** The topic already carries the tenant and the host
+  type, so `topic + "." + serverSlug` gives every host type its own group with one rule. A branch by host type in
+  `NxAdapter` would put host-type knowledge where the topic is enough, and the next host type would need another
+  branch.
+- **A taken `Message-Type` is refused, not replaced (R9).** Hosts register their own command classes into the
+  namespace of the platform catalog; a silent last-write-wins let a host class shadow a platform command (or the
+  reverse) with only a WARN. Failing the registering module makes the clash visible at the first connect instead of
+  as misrouted commands.
+- **A failed module's bindings are dropped, not staged (R9).** Collecting a module's registrations and committing
+  them after `onConnect` would also be atomic, but `on(...)` could then no longer refuse a clash at the call, and a
+  `start` failure would still need a release. Tagging each binding with its module and releasing them on `FAILED`
+  covers both phases with one mechanism; holding the consumer until the modules are done (R17) closes the window
+  in which a binding about to be dropped could run.
 - **A check is a command, not a platform computation (R31).** The start's rules (cooldowns, limits, gear, daily
   allowance) are host rules; a platform-side estimate would duplicate them and drift. Running the start's own steps
   in check mode gives one rule set and one answer. Caching and rate limits of checks are the platform's job.
@@ -684,6 +733,13 @@ breaking-change canon (root `CLAUDE.md` › Versioning): one api release adds `i
 3. The host switches in one release: it reads only `initiator` and the core consumer requires it.
 4. Gate "every game server of the tenant restarted on the new host" (checked per server by version): the platform
    drops its legacy mapping. Nothing is left in the adapter to remove.
+
+The group from the topic and the refusal of a taken `Message-Type` (R16, R9) ship in `core/v0.57.0`. A game server's
+group name does not change, so its committed offsets carry over. A login server's commands topics are issued only to
+an adapter reporting `core/v0.57.0` or later at `/connect`: an older adapter would build
+`<tenant>.gs.commands.<login server>` and could join the group of a game server with the same slug. A host whose
+modules registered one `Message-Type` twice ran on the last registration before; on `core/v0.57.0` the second
+registration throws, so such a host removes the duplicate in the release that takes the new core.
 
 Check commands (R31) are additive: until a host registers one, the adapter replies `UNSUPPORTED_COMMAND` and the
 platform reports the check as unsupported.
