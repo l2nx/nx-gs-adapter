@@ -13,26 +13,22 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Claim-first exactly-once ledger of money-moving commands, stored in the adapter-owned receipts table: the claim
- * commits before any money or goods move, and when in doubt a command is refused. The key is the command's dedup key
- * (a transport id or an idempotency key). Every status transition is a compare-and-set on the current status.
+ * Claim-first exactly-once ledger of money-moving commands: the claim commits before any money or goods move, and
+ * when in doubt a command is refused. The key is the command's dedup key. Every status transition is a compare-and-set.
  *
  * <p>Three kinds of operation:</p>
  * <ul>
- *   <li><b>Caller's transaction</b> (take a {@link Connection}): the SQL runs on the host's connection so the receipt
- *       write commits or rolls back with the host's own game-database writes. The store never commits, rolls back,
- *       closes or reconfigures that connection. A thrown {@link SQLException} is the host's signal to roll back.</li>
- *   <li><b>{@code ...OwnTx}</b>: one write in a transaction of its own on a connection borrowed from the host's
- *       {@code JdbcConnectionSource}; a database failure is logged and reported as {@code false} (a miss).</li>
- *   <li><b>Everything else</b> also borrows its own connection, but throws {@link SQLException} on failure.</li>
+ *   <li><b>Caller's transaction</b> (take a {@link Connection}): the receipt write commits or rolls back with the
+ *       host's own writes. The store never commits, rolls back, closes or reconfigures that connection; a thrown
+ *       {@link SQLException} is the host's signal to roll back.</li>
+ *   <li><b>{@code ...OwnTx}</b>: one write in a transaction of its own; a database failure is logged and reported as
+ *       {@code false} (a miss).</li>
+ *   <li><b>Everything else</b> borrows its own connection and throws {@link SQLException} on failure.</li>
  * </ul>
  *
- * <p>Every call needs the adapter schema migrated in this JVM ({@code NxAdapter.migrateSchema()} or the adapter's own
- * start); before that, or after a failed migration, every call throws {@link IllegalStateException}, the caller-
- * transaction ones included, so no money-relevant write is ever silently dropped.</p>
- *
- * <p>Times are taken from the JVM clock and stored as UTC; ages ({@link #startedOlderThan}, {@link #pruneOld}) are
- * measured against the same clock.</p>
+ * <p>Until the adapter schema is migrated in this JVM, or after a failed migration, every call throws
+ * {@link IllegalStateException}, the caller-transaction ones included, so no money-relevant write is silently
+ * dropped. Times come from the JVM clock and are stored as UTC.</p>
  */
 public interface NxCommandReceipts {
 
@@ -40,12 +36,11 @@ public interface NxCommandReceipts {
     Duration RETENTION = Duration.ofDays(30);
 
     /**
-     * Claims {@code key} for {@code command}. A new key is inserted as {@link ReceiptStatus#STARTED} and answers
-     * {@link ClaimOutcome.Kind#CLAIMED}. An existing {@code OK} receipt answers {@code REPLAY_OK} with its stored
-     * result; an existing open one {@code IN_FLIGHT}. A {@code FAILED} receipt is reopened as {@code STARTED} (charge,
-     * result and completion cleared, creation time reset, the claim's {@code mailId} and {@code claimJson} stored; the
-     * buyer and seller stay as first claimed); losing that reopen race answers {@code IN_FLIGHT}, as does a duplicate
-     * key whose row cannot be read back.
+     * Claims {@code key}: a new key is inserted as {@link ReceiptStatus#STARTED} and answers
+     * {@link ClaimOutcome.Kind#CLAIMED}; an {@code OK} receipt answers {@code REPLAY_OK} with its stored result, an
+     * open one {@code IN_FLIGHT}. A {@code FAILED} receipt is reopened as {@code STARTED} (charge, result and completion
+     * cleared, creation time reset, {@code mailId} and {@code claimJson} replaced, buyer and seller kept); losing that
+     * race answers {@code IN_FLIGHT}, or {@code REPLAY_OK} if the winner completed; an unreadable duplicate, {@code IN_FLIGHT}.
      */
     ClaimOutcome claim(String key, String command, ReceiptClaim claim) throws SQLException;
 
@@ -58,7 +53,7 @@ public interface NxCommandReceipts {
 
     /**
      * Unconditionally moves the receipt to {@code CHARGED} with {@code chargedAdena}, in the caller's transaction. Run
-     * it in the offline debit's transaction or BEFORE an online debit: a false "charged" is operator noise, a false
+     * it in the offline debit's transaction or before an online debit: a false "charged" is operator noise, a false
      * "not charged" risks a double debit.
      *
      * @throws SQLException also when no receipt exists for {@code key}

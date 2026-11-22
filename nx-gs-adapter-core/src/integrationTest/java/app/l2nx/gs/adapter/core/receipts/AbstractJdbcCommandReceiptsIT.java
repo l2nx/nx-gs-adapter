@@ -15,6 +15,7 @@ import app.l2nx.gs.adapter.api.spi.model.receipt.ReceiptStatus;
 import app.l2nx.gs.adapter.api.spi.provider.JdbcConnectionSource;
 import app.l2nx.gs.db.migrator.liquibase5.Liquibase5SchemaMigrator;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -27,11 +28,25 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.TimeZone;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +60,7 @@ abstract class AbstractJdbcCommandReceiptsIT {
 
     private static final Instant T0 = Instant.parse("2026-10-16T12:00:00Z");
     private static final String CMD = "SEND_MAIL";
+    private static final int CONCURRENT_CLAIMS = 16;
     private static TimeZone savedZone;
 
     private final MutableClock clock = new MutableClock(T0);
@@ -81,8 +97,51 @@ abstract class AbstractJdbcCommandReceiptsIT {
         receipts = new JdbcCommandReceipts(() -> source, clock);
     }
 
+    /**
+     * A key no earlier test used: InnoDB keeps a deleted key as a delete-marked record until purge, and concurrent
+     * inserts of it deadlock upgrading their shared locks.
+     */
+    private static String freshKey() {
+        return UUID.randomUUID().toString();
+    }
+
     private void claimed(String key) throws SQLException {
         assertEquals(ClaimOutcome.claimed(), receipts.claim(key, CMD, ReceiptClaim.ofClaimJson("{\"v\":0}")));
+    }
+
+    /**
+     * Connections come from a pre-opened stock so connect latency does not spread the threads apart.
+     */
+    private List<ClaimOutcome> claimConcurrently(String key) throws Exception {
+        source.preopen(CONCURRENT_CLAIMS * 3);
+        ExecutorService pool = Executors.newFixedThreadPool(CONCURRENT_CLAIMS);
+        try {
+            CyclicBarrier start = new CyclicBarrier(CONCURRENT_CLAIMS);
+            List<Future<ClaimOutcome>> futures = new ArrayList<>();
+            for (int i = 0; i < CONCURRENT_CLAIMS; i++) {
+                futures.add(pool.submit(() -> {
+                    start.await(30, TimeUnit.SECONDS);
+                    return receipts.claim(key, CMD, ReceiptClaim.ofClaimJson("{\"v\":1}"));
+                }));
+            }
+            List<ClaimOutcome> outcomes = new ArrayList<>();
+            for (Future<ClaimOutcome> future : futures) {
+                outcomes.add(future.get(60, TimeUnit.SECONDS));
+            }
+            return outcomes;
+        } finally {
+            pool.shutdownNow();
+            source.closePreopened();
+        }
+    }
+
+    private static void assertOneWinner(List<ClaimOutcome> actual) {
+        Map<ClaimOutcome.Kind, Long> byKind =
+                actual.stream().collect(Collectors.groupingBy(ClaimOutcome::getKind, Collectors.counting()));
+        Map<ClaimOutcome.Kind, Long> expected = new EnumMap<>(ClaimOutcome.Kind.class);
+        expected.put(ClaimOutcome.Kind.CLAIMED, 1L);
+        expected.put(ClaimOutcome.Kind.IN_FLIGHT, (long) CONCURRENT_CLAIMS - 1);
+        assertEquals(expected, new EnumMap<>(byKind));
     }
 
     private String text(String sql, String key) throws SQLException {
@@ -145,6 +204,68 @@ abstract class AbstractJdbcCommandReceiptsIT {
             assertEquals("{\"v\":2}", actual.getClaimJson());
             assertEquals(10, actual.getBuyerCharacterId());
             assertTrue(receipts.startedOlderThan(CMD, Duration.ofMinutes(59)).isEmpty(), "created_at was reset");
+        }
+
+        @Test
+        void claim_shouldRunNoFailingStatement_whenTheKeyIsNew() throws SQLException {
+            source.failedStatements.clear();
+
+            claimed("k1");
+
+            assertEquals(Collections.emptyList(), source.failedStatements);
+        }
+
+        @Test
+        void claim_shouldRunNoFailingStatement_whenReopeningAFailedKey() throws SQLException {
+            claimed("k1");
+            assertTrue(receipts.markFailedOwnTx("k1"));
+            source.failedStatements.clear();
+
+            claimed("k1");
+
+            assertEquals(Collections.emptyList(), source.failedStatements);
+            assertEquals(ReceiptStatus.STARTED, receipts.status("k1"));
+        }
+
+        @Test
+        void claim_shouldReopen_whenARacingClaimInsertedAndFailedTheRowBeforeItsInsert() throws SQLException {
+            String key = freshKey();
+            source.beforeNextInsert(() -> {
+                claimed(key);
+                assertTrue(receipts.markFailedOwnTx(key));
+            });
+            source.failedStatements.clear();
+
+            assertEquals(ClaimOutcome.claimed(), receipts.claim(key, CMD, ReceiptClaim.ofClaimJson("{\"v\":1}")));
+
+            assertEquals(ReceiptStatus.STARTED, receipts.status(key));
+            assertEquals("{\"v\":1}", receipts.claimJson(key));
+            List<String> actual = source.failedStatements;
+            assertEquals(1, actual.size(), actual.toString());
+            assertTrue(
+                    actual.get(0).startsWith("executeUpdate INSERT INTO " + JdbcCommandReceipts.TABLE), actual.get(0));
+        }
+
+        @Test
+        void claim_shouldLetExactlyOneConcurrentClaimWin_whenTheKeyIsNew() throws Exception {
+            String key = freshKey();
+
+            List<ClaimOutcome> actual = claimConcurrently(key);
+
+            assertOneWinner(actual);
+            assertEquals(ReceiptStatus.STARTED, receipts.status(key));
+        }
+
+        @Test
+        void claim_shouldLetExactlyOneConcurrentClaimWin_whenTheKeyFailed() throws Exception {
+            String key = freshKey();
+            claimed(key);
+            assertTrue(receipts.markFailedOwnTx(key));
+
+            List<ClaimOutcome> actual = claimConcurrently(key);
+
+            assertOneWinner(actual);
+            assertEquals(ReceiptStatus.STARTED, receipts.status(key));
         }
 
         @Test
@@ -267,7 +388,8 @@ abstract class AbstractJdbcCommandReceiptsIT {
                 receipts.clearMailId(con, "k1");
                 con.rollback();
             }
-            assertEquals("3", text("SELECT mail_id FROM " + JdbcCommandReceipts.TABLE + " WHERE correlation_id=?", "k1"));
+            assertEquals(
+                    "3", text("SELECT mail_id FROM " + JdbcCommandReceipts.TABLE + " WHERE correlation_id=?", "k1"));
 
             try (Connection con = source.getConnection()) {
                 receipts.clearMailId(con, "k1");
@@ -493,16 +615,20 @@ abstract class AbstractJdbcCommandReceiptsIT {
             try (Connection con = source.getConnection();
                     Statement st = con.createStatement()) {
                 for (String table : new String[] {
-                    "l2nx_offline_sessions", JdbcCommandReceipts.TABLE, "l2nx_databasechangelog", "l2nx_databasechangeloglock"
+                    "l2nx_offline_sessions",
+                    JdbcCommandReceipts.TABLE,
+                    "l2nx_databasechangelog",
+                    "l2nx_databasechangeloglock"
                 }) {
                     st.execute("DROP TABLE IF EXISTS " + table);
                 }
                 st.execute("SET time_zone = '+03:00'");
-                st.execute("CREATE TABLE " + JdbcCommandReceipts.TABLE + " (correlation_id VARCHAR(36) NOT NULL PRIMARY KEY,"
-                        + " command VARCHAR(64) NOT NULL, buyer_char_id INT NULL, seller_char_id INT NULL,"
-                        + " status VARCHAR(16) NOT NULL, charged_adena BIGINT NULL, mail_id INT NULL, claim_json TEXT NULL,"
-                        + " result_json TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
-                        + " completed_at TIMESTAMP NULL DEFAULT NULL, steps_done_at TIMESTAMP NULL DEFAULT NULL)");
+                st.execute("CREATE TABLE " + JdbcCommandReceipts.TABLE
+                        + " (correlation_id VARCHAR(36) NOT NULL PRIMARY KEY, command VARCHAR(64) NOT NULL,"
+                        + " buyer_char_id INT NULL, seller_char_id INT NULL, status VARCHAR(16) NOT NULL,"
+                        + " charged_adena BIGINT NULL, mail_id INT NULL, claim_json TEXT NULL, result_json TEXT NULL,"
+                        + " created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, completed_at TIMESTAMP NULL"
+                        + " DEFAULT NULL, steps_done_at TIMESTAMP NULL DEFAULT NULL)");
                 st.execute("INSERT INTO " + JdbcCommandReceipts.TABLE + " (correlation_id, command, status, claim_json,"
                         + " completed_at) VALUES ('done', '" + CMD + "', 'OK', '{}', CURRENT_TIMESTAMP)");
                 st.execute("INSERT INTO " + JdbcCommandReceipts.TABLE
@@ -520,7 +646,8 @@ abstract class AbstractJdbcCommandReceiptsIT {
             clock.set(Instant.ofEpochSecond(writtenAtEpochSec).plus(Duration.ofMinutes(4)));
             assertTrue(receipts.startedOlderThan(CMD, Duration.ofMinutes(5)).isEmpty());
             clock.set(Instant.ofEpochSecond(writtenAtEpochSec).plus(Duration.ofMinutes(6)));
-            assertEquals(Collections.singletonList("open"), keys(receipts.startedOlderThan(CMD, Duration.ofMinutes(5))));
+            assertEquals(
+                    Collections.singletonList("open"), keys(receipts.startedOlderThan(CMD, Duration.ofMinutes(5))));
         }
     }
 
@@ -566,6 +693,15 @@ abstract class AbstractJdbcCommandReceiptsIT {
         volatile boolean lendReadOnly;
         volatile boolean lastReturnedReadOnly;
         volatile boolean lastReturnedAutoCommit;
+        final List<String> failedStatements = new CopyOnWriteArrayList<>();
+
+        private final Queue<Connection> preopened = new ConcurrentLinkedQueue<>();
+        private final AtomicReference<SqlAction> beforeNextInsert = new AtomicReference<>();
+
+        @FunctionalInterface
+        interface SqlAction {
+            void run() throws SQLException;
+        }
 
         DriverSource(String url, String user, String password) {
             this.url = url;
@@ -578,9 +714,30 @@ abstract class AbstractJdbcCommandReceiptsIT {
             return "it";
         }
 
+        void preopen(int count) throws SQLException {
+            for (int i = 0; i < count; i++) {
+                preopened.add(DriverManager.getConnection(url, user, password));
+            }
+        }
+
+        /**
+         * Runs once, just before the next receipts INSERT is prepared (after the claim's reopen committed); the action
+         * uses connections of its own.
+         */
+        void beforeNextInsert(SqlAction action) {
+            beforeNextInsert.set(action);
+        }
+
+        void closePreopened() throws SQLException {
+            for (Connection con = preopened.poll(); con != null; con = preopened.poll()) {
+                con.close();
+            }
+        }
+
         @Override
         public Connection getConnection() throws SQLException {
-            Connection raw = DriverManager.getConnection(url, user, password);
+            Connection stocked = preopened.poll();
+            Connection raw = stocked != null ? stocked : DriverManager.getConnection(url, user, password);
             raw.setReadOnly(lendReadOnly);
             return (Connection) Proxy.newProxyInstance(
                     Connection.class.getClassLoader(), new Class<?>[] {Connection.class}, (proxy, method, args) -> {
@@ -588,12 +745,45 @@ abstract class AbstractJdbcCommandReceiptsIT {
                             lastReturnedReadOnly = raw.isReadOnly();
                             lastReturnedAutoCommit = raw.getAutoCommit();
                         }
-                        try {
-                            return method.invoke(raw, args);
-                        } catch (InvocationTargetException e) {
-                            throw e.getCause();
+                        if ("prepareStatement".equals(method.getName())) {
+                            String sql = (String) args[0];
+                            if (sql.startsWith("INSERT INTO " + JdbcCommandReceipts.TABLE)) {
+                                SqlAction action = beforeNextInsert.getAndSet(null);
+                                if (action != null) {
+                                    action.run();
+                                }
+                            }
+                            return recordingFailures(invoke(raw, method, args), PreparedStatement.class, sql);
                         }
+                        Object result = invoke(raw, method, args);
+                        if ("createStatement".equals(method.getName())) {
+                            return recordingFailures(result, Statement.class, null);
+                        }
+                        return result;
                     });
+        }
+
+        private Object recordingFailures(Object statement, Class<?> type, @Nullable String preparedSql) {
+            return Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] {type}, (proxy, method, args) -> {
+                try {
+                    return invoke(statement, method, args);
+                } catch (SQLException e) {
+                    Object sql = preparedSql;
+                    if (sql == null && args != null && args.length > 0 && args[0] instanceof String) {
+                        sql = args[0];
+                    }
+                    failedStatements.add(method.getName() + " " + sql + ": " + e);
+                    throw e;
+                }
+            });
+        }
+
+        private static Object invoke(Object target, Method method, Object[] args) throws Throwable {
+            try {
+                return method.invoke(target, args);
+            } catch (InvocationTargetException e) {
+                throw e.getCause();
+            }
         }
     }
 }

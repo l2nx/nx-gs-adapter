@@ -25,10 +25,6 @@ import java.util.List;
 import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Ages are cutoffs from the injected clock bound as parameters, so no engine-specific date arithmetic is needed. A
- * borrowed connection goes back with the read-only and auto-commit modes it was lent with: the pool is the host's.
- */
 public final class JdbcCommandReceipts implements NxCommandReceipts {
 
     private static final NxLog log = NxLogFactory.getLogger(JdbcCommandReceipts.class);
@@ -87,26 +83,19 @@ public final class JdbcCommandReceipts implements NxCommandReceipts {
         }
     }
 
+    /**
+     * The reopen and the insert commit separately: under InnoDB {@code REPEATABLE READ} the reopen of an absent key
+     * takes a gap lock, and two claims of one new key holding it in one transaction each deadlock on their inserts.
+     */
     @Override
     public ClaimOutcome claim(String key, String command, ReceiptClaim claim) throws SQLException {
         JdbcConnectionSource source = sources.get();
         Instant now = clock.instant();
+        if (inOwnTx(source, con -> reopenFailed(con, key, claim, now))) {
+            return ClaimOutcome.claimed();
+        }
         try {
-            inOwnTx(source, con -> {
-                try (PreparedStatement ins = con.prepareStatement("INSERT INTO " + TABLE
-                        + " (correlation_id, command, buyer_char_id, seller_char_id, status, mail_id, claim_json,"
-                        + " created_at) VALUES (?, ?, ?, ?, '" + STARTED + "', ?, ?, ?)")) {
-                    ins.setString(1, key);
-                    ins.setString(2, command);
-                    JdbcValues.setNullableInt(ins, 3, claim.getBuyerCharacterId());
-                    JdbcValues.setNullableInt(ins, 4, claim.getSellerCharacterId());
-                    JdbcValues.setNullableInt(ins, 5, claim.getMailId());
-                    JdbcValues.setNullableString(ins, 6, claim.getClaimJson());
-                    JdbcValues.setInstant(ins, 7, now);
-                    ins.executeUpdate();
-                    return Boolean.TRUE;
-                }
-            });
+            inOwnTx(source, con -> insertStarted(con, key, command, claim, now));
             return ClaimOutcome.claimed();
         } catch (SQLException e) {
             if (!isIntegrityViolation(e)) {
@@ -114,28 +103,51 @@ public final class JdbcCommandReceipts implements NxCommandReceipts {
             }
         }
         // on PostgreSQL the failed insert aborted its transaction, so the row is read in a fresh one
-        return inOwnTx(source, con -> {
-            StoredRow existing = readRow(con, key);
-            if (existing == null) {
-                // duplicate key yet no row: refuse rather than guess
-                return ClaimOutcome.inFlight();
+        StoredRow existing = inOwnTx(source, con -> readRow(con, key));
+        if (existing != null && FAILED.equals(existing.status)) {
+            // the concurrent claim that won the insert has already failed; nothing runs, so this retry may take it
+            if (inOwnTx(source, con -> reopenFailed(con, key, claim, now))) {
+                return ClaimOutcome.claimed();
             }
-            if (!FAILED.equals(existing.status)) {
-                return outcomeForExisting(existing.status, existing.resultJson);
-            }
-            boolean reopened = cas(
-                    con,
-                    "UPDATE " + TABLE + " SET status='" + STARTED + "', mail_id=?, claim_json=?, charged_adena=NULL,"
-                            + " result_json=NULL, completed_at=NULL, created_at=? WHERE correlation_id=? AND status='"
-                            + FAILED + "'",
-                    ps -> {
-                        JdbcValues.setNullableInt(ps, 1, claim.getMailId());
-                        JdbcValues.setNullableString(ps, 2, claim.getClaimJson());
-                        JdbcValues.setInstant(ps, 3, now);
-                        ps.setString(4, key);
-                    });
-            return reopened ? ClaimOutcome.claimed() : ClaimOutcome.inFlight();
-        });
+            // another retry reopened it first and may have completed it since
+            existing = inOwnTx(source, con -> readRow(con, key));
+        }
+        if (existing == null) {
+            // duplicate key yet no row: refuse rather than guess
+            return ClaimOutcome.inFlight();
+        }
+        return outcomeForExisting(existing.status, existing.resultJson);
+    }
+
+    private static boolean reopenFailed(Connection con, String key, ReceiptClaim claim, Instant now)
+            throws SQLException {
+        return cas(
+                con,
+                "UPDATE " + TABLE + " SET status='" + STARTED + "', mail_id=?, claim_json=?, charged_adena=NULL,"
+                        + " result_json=NULL, completed_at=NULL, created_at=? WHERE correlation_id=? AND status='"
+                        + FAILED + "'",
+                ps -> {
+                    JdbcValues.setNullableInt(ps, 1, claim.getMailId());
+                    JdbcValues.setNullableString(ps, 2, claim.getClaimJson());
+                    JdbcValues.setInstant(ps, 3, now);
+                    ps.setString(4, key);
+                });
+    }
+
+    private static int insertStarted(Connection con, String key, String command, ReceiptClaim claim, Instant now)
+            throws SQLException {
+        try (PreparedStatement ps = con.prepareStatement("INSERT INTO " + TABLE
+                + " (correlation_id, command, buyer_char_id, seller_char_id, status, mail_id, claim_json,"
+                + " created_at) VALUES (?, ?, ?, ?, '" + STARTED + "', ?, ?, ?)")) {
+            ps.setString(1, key);
+            ps.setString(2, command);
+            JdbcValues.setNullableInt(ps, 3, claim.getBuyerCharacterId());
+            JdbcValues.setNullableInt(ps, 4, claim.getSellerCharacterId());
+            JdbcValues.setNullableInt(ps, 5, claim.getMailId());
+            JdbcValues.setNullableString(ps, 6, claim.getClaimJson());
+            JdbcValues.setInstant(ps, 7, now);
+            return ps.executeUpdate();
+        }
     }
 
     @Override

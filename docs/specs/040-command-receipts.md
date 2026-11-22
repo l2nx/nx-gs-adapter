@@ -2,6 +2,31 @@
 
 > Owner: @n1rmata
 
+## Summary
+
+A money-moving command handler claims a receipt keyed by the command's `idempotencyKey` before it moves anything,
+then walks it through compare-and-set status transitions (`STARTED` → `CHARGED` → `OK`, or `FAILED` on a business
+refusal). The host reaches the table only through `NxCommandReceipts`; the adapter owns the SQL and the dialects.
+A claim of a new key inserts the row; a claim of a `FAILED` key (the routine retry after a refusal, e.g. a fee
+consent) reopens it; a claim of an `OK` key replays the stored result, anything else is refused as in flight
+(Decisions).
+
+```mermaid
+flowchart TB
+    C[claim key] --> U{"reopen: UPDATE WHERE status = FAILED<br/>own transaction"}
+    U -->|1 row| CL[CLAIMED]
+    U -->|0 rows| I{"INSERT STARTED<br/>own transaction"}
+    I -->|inserted| CL
+    I -->|duplicate key: concurrent claim| R[read the row]
+    R -->|OK| RP[replay stored result]
+    R -->|FAILED: the winner already failed| U2{"reopen again<br/>own transaction"}
+    U2 -->|1 row| CL
+    U2 -->|0 rows| R2[read again]
+    R2 -->|OK| RP
+    R2 -->|anything else| IF
+    R -->|anything else| IF[IN_FLIGHT]
+```
+
 ## Problem
 
 Money-moving commands (buying from a private store, sending or accepting mail with a fee or cash-on-delivery) are
@@ -38,9 +63,14 @@ values and its engine dialect. The host must not know the adapter-owned tables a
   write into a silent no-op; the api's `NoOp` fallback for contexts built without the store throws as well.
 - [done] R6. The SQL MUST run unchanged on PostgreSQL, MariaDB and MySQL.
 - [done] R7. Status values MUST stay the stored strings `STARTED`, `CHARGED`, `OK`, `FAILED` (`ReceiptStatus`).
-- [todo] R8. The host MUST drop its own receipt SQL and call the store (host side, open).
+- [done] R8. The host MUST drop its own receipt SQL and call the store.
+- [done] R9. The routine paths of `claim` (a new key, the reopen of a `FAILED` key) MUST run no statement that fails:
+  a database error on a designed path is logged by some JDBC drivers on their own (MariaDB Connector/J logs every
+  server error) and reads as a database failure. A failing statement is left only for a real race of two concurrent
+  claims of one key ([#66](https://github.com/l2nx/nx-gs-adapter/issues/66)). A host calls `lookup` before
+  `claim`, so a claim of an `OK` key (a replay through a failing insert) is reached only by such a race.
 
-**Non-goals:**
+**Out of scope:**
 
 - Recovery and sweep logic (which command resolves an open receipt, and how). It decides game state, so it stays in
   the host; the store only answers the queries it needs.
@@ -64,9 +94,24 @@ values and its engine dialect. The host must not know the adapter-owned tables a
   adapter-owned `datetime` (037 R2); `0007` brings host-created tables to the same `DATETIME` shape. Ages (`startedOlderThan`, the 30-day retention of `pruneOld`) are cutoffs computed
   in Java and bound as parameters, so there is no engine-specific date arithmetic (`NOW() - INTERVAL ...` is not
   portable) and neither the JVM nor the database session zone leaks in.
-- **A duplicate claim is recognized by SQLState class `23`** (PostgreSQL raises no
-  `SQLIntegrityConstraintViolationException`) and read back in a fresh transaction, because the failed insert aborts
-  its transaction on PostgreSQL.
+- **Claim reopens first, inserts second, each step in a transaction of its own** (R9). Step one is
+  `UPDATE ... SET status='STARTED' ... WHERE correlation_id=? AND status='FAILED'`: one row means the key is claimed
+  again, atomically, so two concurrent retries cannot both reopen it. Zero rows → step two inserts the `STARTED` row.
+  The steps commit separately because under InnoDB `REPEATABLE READ` an `UPDATE` of an absent key takes a gap lock:
+  two concurrent claims of one new key in a single transaction each would hold it and deadlock on their `INSERT`
+  (1213 / `40001`). Rejected: insert first and treat the duplicate as the reopen signal (the previous design; every
+  fee-consent retry logged a duplicate-key error); `SELECT` first (a second read after the host's own `lookup`, and a
+  window between the read and the write); `INSERT IGNORE` / `ON CONFLICT DO NOTHING` (not portable, R6); raising the
+  driver's log level in the host (hides real SQL errors too).
+- **A duplicate on the insert is a concurrent claim** and is recognized by SQLState class `23` (PostgreSQL raises no
+  `SQLIntegrityConstraintViolationException`), then read back in a fresh transaction, because the failed insert
+  aborts its transaction on PostgreSQL: `OK` replays; `FAILED` means the winner of the insert has already failed
+  and nothing runs, so the claim tries the reopen once more (one row → `CLAIMED`; none → another retry took it, and
+  the row read again replays if that retry already completed `OK`, else `IN_FLIGHT`); anything else is `IN_FLIGHT`. A deadlock or serialization
+  failure (`40001`) is thrown to the host, which refuses the command with nothing charged. InnoDB raises one for
+  concurrent inserts of a key whose row was deleted but not purged yet (every insert takes a shared lock on the
+  delete-marked record and deadlocks upgrading it); a receipt key is derived from a request id the platform accepts
+  only within minutes of its creation, and `pruneOld` deletes rows after 30 days, so a pruned key never comes back.
 - **An unknown stored status refuses**: `claim` / `lookup` answer `IN_FLIGHT`, the row-returning queries throw.
 - **`markOk` and `markFailed` report a database failure as `false`** (logged) instead of throwing, as before; the
   readiness gate of R5 still throws. On PostgreSQL a failed statement aborts the
@@ -90,10 +135,18 @@ Additive api and core release. The host then replaces its receipt class with cal
 in one release (R8): it calls `NxAdapter.migrateSchema()` before its boot recovery, keeps its own connections for its
 game-database transactions and passes them to the caller-transaction operations.
 
+R9 changes only the statements behind `claim`: no api change, a core release and the host bump.
+
 Test plan: unit tests for the compare-and-set reporting, binding, connection hand-back and the readiness gate; Testcontainers tests on
 PostgreSQL, MariaDB and MySQL over the real changelog for every operation, including that a rollback of the caller's
 transaction rolls the receipt write back, and that host-written `TIMESTAMP` values from a `+03:00` session read back as
-the true instants after `0007`.
+the true instants after `0007`. Claim (R9): a reopen of a `FAILED` key and a claim of a new key run no failing statement; N
+concurrent claims of one new key and of one `FAILED` key give exactly one `CLAIMED` and the rest `IN_FLIGHT`, with no
+deadlock, on all three engines; a replay after `OK` returns the stored result.
+
+## Open questions
+
+None.
 
 ## Links
 

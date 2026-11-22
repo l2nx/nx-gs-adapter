@@ -10,10 +10,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +40,7 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -47,6 +52,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.InOrder;
 
 class JdbcCommandReceiptsTest {
 
@@ -211,20 +217,170 @@ class JdbcCommandReceiptsTest {
     @Nested
     class Claim {
 
+        private final PreparedStatement reopen = mock(PreparedStatement.class);
+        private final PreparedStatement insert = mock(PreparedStatement.class);
+        private final PreparedStatement read = mock(PreparedStatement.class);
+        private final ResultSet row = mock(ResultSet.class);
+
+        @BeforeEach
+        void statements() throws SQLException {
+            when(con.prepareStatement(startsWith("UPDATE"))).thenReturn(reopen);
+            when(con.prepareStatement(startsWith("INSERT"))).thenReturn(insert);
+            when(con.prepareStatement(startsWith("SELECT"))).thenReturn(read);
+            when(read.executeQuery()).thenReturn(row);
+        }
+
+        private ClaimOutcome claim() throws SQLException {
+            return receipts.claim("key", "CMD", ReceiptClaim.ofClaimJson("{\"v\":1}"));
+        }
+
+        private void duplicateOver(String status) throws SQLException {
+            when(reopen.executeUpdate()).thenReturn(0);
+            when(insert.executeUpdate()).thenThrow(new SQLException("dup", "23505"));
+            when(row.next()).thenReturn(true);
+            when(row.getString(1)).thenReturn(status);
+            when(row.getString(2)).thenReturn("{\"r\":1}");
+        }
+
+        @Test
+        void claim_shouldReopenWithoutInserting_whenTheKeyFailed() throws SQLException {
+            when(reopen.executeUpdate()).thenReturn(1);
+
+            assertEquals(ClaimOutcome.claimed(), claim());
+
+            verify(con).prepareStatement(contains("status='FAILED'"));
+            verify(reopen).setString(2, "{\"v\":1}");
+            verify(reopen).setTimestamp(eq(3), eq(Timestamp.from(NOW)), any(Calendar.class));
+            verify(reopen).setString(4, "key");
+            verify(con, never()).prepareStatement(startsWith("INSERT"));
+            verify(con).commit();
+            verify(con, never()).rollback();
+        }
+
+        @Test
+        void claim_shouldInsertInATransactionOfItsOwn_whenNoFailedRowWasReopened() throws SQLException {
+            when(reopen.executeUpdate()).thenReturn(0);
+            when(insert.executeUpdate()).thenReturn(1);
+
+            assertEquals(ClaimOutcome.claimed(), claim());
+
+            InOrder order = inOrder(source, con, reopen, insert);
+            order.verify(source).getConnection();
+            order.verify(reopen).executeUpdate();
+            order.verify(con).commit();
+            order.verify(con).close();
+            order.verify(source).getConnection();
+            order.verify(insert).executeUpdate();
+            order.verify(con).commit();
+            order.verify(con).close();
+            verify(con, never()).rollback();
+        }
+
+        private void secondReopenMissesOver(@Nullable String statusAfter) throws SQLException {
+            duplicateOver("FAILED");
+            when(reopen.executeUpdate()).thenReturn(0, 0);
+            when(row.next()).thenReturn(true, statusAfter != null);
+            when(row.getString(1)).thenReturn("FAILED", statusAfter);
+            when(row.getString(2)).thenReturn(null, "{\"r\":2}");
+        }
+
+        @Test
+        void claim_shouldReopenInATransactionOfItsOwn_whenTheInsertLostTheRaceToAClaimThatFailedSince()
+                throws SQLException {
+            duplicateOver("FAILED");
+            when(reopen.executeUpdate()).thenReturn(0, 1);
+
+            assertEquals(ClaimOutcome.claimed(), claim());
+
+            InOrder order = inOrder(source, con, reopen, insert, read);
+            order.verify(reopen).executeUpdate();
+            order.verify(insert).executeUpdate();
+            order.verify(con).rollback();
+            order.verify(con).close();
+            order.verify(source).getConnection();
+            order.verify(read).executeQuery();
+            order.verify(con).commit();
+            order.verify(con).close();
+            order.verify(source).getConnection();
+            order.verify(reopen).executeUpdate();
+            order.verify(con).commit();
+            verify(reopen, times(2)).executeUpdate();
+            verify(reopen, times(2)).setString(2, "{\"v\":1}");
+            verify(reopen, times(2)).setString(4, "key");
+        }
+
+        @Test
+        void claim_shouldReplayTheStoredResult_whenAnotherClaimReopenedTheFailedRowFirstAndCompleted()
+                throws SQLException {
+            secondReopenMissesOver("OK");
+
+            assertEquals(ClaimOutcome.replayOk("{\"r\":2}"), claim());
+
+            verify(read, times(2)).executeQuery();
+            verify(source, times(5)).getConnection();
+        }
+
+        @ParameterizedTest(name = "now {0}")
+        @ValueSource(strings = {"STARTED", "CHARGED", "FAILED"})
+        @NullSource
+        void claim_shouldRefuseAsInFlight_whenAnotherClaimReopenedTheFailedRowFirst(@Nullable String statusAfter)
+                throws SQLException {
+            secondReopenMissesOver(statusAfter);
+
+            assertEquals(ClaimOutcome.inFlight(), claim());
+
+            verify(reopen, times(2)).executeUpdate();
+            verify(read, times(2)).executeQuery();
+        }
+
+        @ParameterizedTest(name = "stored {0}")
+        @ValueSource(strings = {"STARTED", "CHARGED", "GARBAGE"})
+        void claim_shouldReadBackWithoutReopening_whenTheInsertHitsAConcurrentClaim(String status) throws SQLException {
+            duplicateOver(status);
+
+            assertEquals(ClaimOutcome.inFlight(), claim());
+
+            InOrder order = inOrder(source, con, reopen, insert, read);
+            order.verify(reopen).executeUpdate();
+            order.verify(insert).executeUpdate();
+            order.verify(con).rollback();
+            order.verify(source).getConnection();
+            order.verify(read).executeQuery();
+            verify(reopen).executeUpdate();
+            verify(source, times(3)).getConnection();
+        }
+
+        @Test
+        void claim_shouldReplayTheStoredResult_whenTheInsertHitsACompletedClaim() throws SQLException {
+            duplicateOver("OK");
+
+            assertEquals(ClaimOutcome.replayOk("{\"r\":1}"), claim());
+        }
+
         @Test
         void claim_shouldRefuseAsInFlight_whenTheDuplicateRowCannotBeRead() throws SQLException {
-            when(ps.executeUpdate()).thenThrow(new SQLIntegrityConstraintViolationException("dup"));
-            ResultSet empty = mock(ResultSet.class);
-            when(ps.executeQuery()).thenReturn(empty);
+            when(reopen.executeUpdate()).thenReturn(0);
+            when(insert.executeUpdate()).thenThrow(new SQLIntegrityConstraintViolationException("dup"));
 
-            assertEquals(ClaimOutcome.inFlight(), receipts.claim("key", "CMD", ReceiptClaim.ofClaimJson("{}")));
+            assertEquals(ClaimOutcome.inFlight(), claim());
         }
 
         @Test
         void claim_shouldRethrow_whenTheInsertFailsForAnotherReason() throws SQLException {
-            when(ps.executeUpdate()).thenThrow(new SQLException("disk full", "53100"));
+            when(reopen.executeUpdate()).thenReturn(0);
+            when(insert.executeUpdate()).thenThrow(new SQLException("disk full", "53100"));
 
-            assertThrows(SQLException.class, () -> receipts.claim("key", "CMD", ReceiptClaim.ofClaimJson("{}")));
+            assertThrows(SQLException.class, this::claim);
+            verify(read, never()).executeQuery();
+        }
+
+        @Test
+        void claim_shouldRethrowWithoutInserting_whenTheReopenFails() throws SQLException {
+            when(reopen.executeUpdate()).thenThrow(new SQLException("deadlock", "40001"));
+
+            assertThrows(SQLException.class, this::claim);
+            verify(con, never()).prepareStatement(startsWith("INSERT"));
+            verify(con).rollback();
         }
 
         @ParameterizedTest(name = "SQLState {0}")
