@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.session;
 
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AlreadyActiveScope;
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AppSessionRefusalReason;
+import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage.model.ActivityUsage;
 import java.time.Instant;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
@@ -22,6 +23,7 @@ public final class AppSessionCheckResult {
     private final @Nullable Integer freeSlots;
     private final @Nullable Long requiredWeight;
     private final @Nullable Long freeWeight;
+    private final @Nullable ActivityUsage usage;
 
     public AppSessionCheckResult(
             boolean allowed,
@@ -32,7 +34,8 @@ public final class AppSessionCheckResult {
             @Nullable Integer requiredSlots,
             @Nullable Integer freeSlots,
             @Nullable Long requiredWeight,
-            @Nullable Long freeWeight) {
+            @Nullable Long freeWeight,
+            @Nullable ActivityUsage usage) {
         if (allowed == (reason != null)) {
             throw new IllegalArgumentException("AppSessionCheckResult.reason is required exactly when not allowed");
         }
@@ -77,6 +80,7 @@ public final class AppSessionCheckResult {
         this.freeSlots = freeSlots;
         this.requiredWeight = requiredWeight;
         this.freeWeight = freeWeight;
+        this.usage = usage;
     }
 
     private static boolean requiresRetryAt(@Nullable AppSessionRefusalReason reason) {
@@ -84,12 +88,12 @@ public final class AppSessionCheckResult {
     }
 
     public static AppSessionCheckResult allowed(@Nullable Long effectiveDurationMs) {
-        return new AppSessionCheckResult(true, null, null, null, effectiveDurationMs, null, null, null, null);
+        return new AppSessionCheckResult(true, null, null, null, effectiveDurationMs, null, null, null, null, null);
     }
 
     public static AppSessionCheckResult refused(AppSessionRefusalReason reason) {
         return new AppSessionCheckResult(
-                false, Objects.requireNonNull(reason, "reason"), null, null, null, null, null, null, null);
+                false, Objects.requireNonNull(reason, "reason"), null, null, null, null, null, null, null, null);
     }
 
     public boolean isAllowed() {
@@ -136,6 +140,14 @@ public final class AppSessionCheckResult {
         return freeWeight;
     }
 
+    /**
+     * The usage row of the activity as of the answer, with everything that shifts its limit or steps for this character.
+     * Set on an allowed and on a refused check once the host has found the character.
+     */
+    public @Nullable ActivityUsage getUsage() {
+        return usage;
+    }
+
     public Builder toBuilder() {
         return new Builder()
                 .allowed(allowed)
@@ -146,7 +158,8 @@ public final class AppSessionCheckResult {
                 .requiredSlots(requiredSlots)
                 .freeSlots(freeSlots)
                 .requiredWeight(requiredWeight)
-                .freeWeight(freeWeight);
+                .freeWeight(freeWeight)
+                .usage(usage);
     }
 
     public static Builder builder() {
@@ -166,7 +179,8 @@ public final class AppSessionCheckResult {
                 && Objects.equals(requiredSlots, that.requiredSlots)
                 && Objects.equals(freeSlots, that.freeSlots)
                 && Objects.equals(requiredWeight, that.requiredWeight)
-                && Objects.equals(freeWeight, that.freeWeight);
+                && Objects.equals(freeWeight, that.freeWeight)
+                && Objects.equals(usage, that.usage);
     }
 
     @Override
@@ -180,7 +194,8 @@ public final class AppSessionCheckResult {
                 requiredSlots,
                 freeSlots,
                 requiredWeight,
-                freeWeight);
+                freeWeight,
+                usage);
     }
 
     @Override
@@ -193,7 +208,8 @@ public final class AppSessionCheckResult {
                 + ", requiredSlots=" + requiredSlots
                 + ", freeSlots=" + freeSlots
                 + ", requiredWeight=" + requiredWeight
-                + ", freeWeight=" + freeWeight + "]";
+                + ", freeWeight=" + freeWeight
+                + ", usage=" + usage + "]";
     }
 
     public static final class Builder {
@@ -206,6 +222,7 @@ public final class AppSessionCheckResult {
         private @Nullable Integer freeSlots;
         private @Nullable Long requiredWeight;
         private @Nullable Long freeWeight;
+        private @Nullable ActivityUsage usage;
 
         public Builder allowed(boolean allowed) {
             this.allowed = allowed;
@@ -252,6 +269,11 @@ public final class AppSessionCheckResult {
             return this;
         }
 
+        public Builder usage(@Nullable ActivityUsage usage) {
+            this.usage = usage;
+            return this;
+        }
+
         public AppSessionCheckResult build() {
             return new AppSessionCheckResult(
                     allowed,
@@ -262,7 +284,8 @@ public final class AppSessionCheckResult {
                     requiredSlots,
                     freeSlots,
                     requiredWeight,
-                    freeWeight);
+                    freeWeight,
+                    usage);
         }
     }
 }

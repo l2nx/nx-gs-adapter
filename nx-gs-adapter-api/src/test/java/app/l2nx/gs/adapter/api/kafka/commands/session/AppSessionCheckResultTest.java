@@ -6,14 +6,19 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AlreadyActiveScope;
 import app.l2nx.gs.adapter.api.kafka.commands.session.model.AppSessionRefusalReason;
+import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage.model.ActivityUsage;
+import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage.model.UsageStep;
+import app.l2nx.gs.adapter.api.kafka.sync.runtime.character.activity.usage.model.UsageUnit;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -31,10 +36,33 @@ class AppSessionCheckResultTest {
                     Instant.class, (JsonDeserializer<Instant>) (json, type, ctx) -> Instant.parse(json.getAsString()))
             .create();
 
+    private static ActivityUsage usage() {
+        return ActivityUsage.builder()
+                .type(ActivityType.FISHING)
+                .unit(UsageUnit.MS)
+                .used(60_000L)
+                .limit(32_400_000L)
+                .remaining(32_340_000L)
+                .resetSchedule("DTSTART:20260101T030000Z\nRRULE:FREQ=DAILY")
+                .steps(Collections.singletonList(new UsageStep(14_400_000L, 0.5)))
+                .updatedAt(RETRY_AT)
+                .build();
+    }
+
     static Stream<Arguments> validResults() {
         return Stream.of(
                 Arguments.of("allowed with duration", AppSessionCheckResult.allowed(1_800_000L)),
                 Arguments.of("allowed without duration", AppSessionCheckResult.allowed(null)),
+                Arguments.of(
+                        "allowed with the usage row",
+                        AppSessionCheckResult.allowed(1_800_000L).toBuilder()
+                                .usage(usage())
+                                .build()),
+                Arguments.of(
+                        "refused with the usage row",
+                        AppSessionCheckResult.refused(AppSessionRefusalReason.NO_BAIT).toBuilder()
+                                .usage(usage())
+                                .build()),
                 Arguments.of("refused", AppSessionCheckResult.refused(AppSessionRefusalReason.NO_FISHING_SHOT)),
                 Arguments.of(
                         "already active",

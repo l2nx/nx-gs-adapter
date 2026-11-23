@@ -58,7 +58,8 @@ The session mechanics (table, lifecycle, events, restart) are in
   `DAILY_LIMIT` carries it as the moment the daily allowance resets, when the host knows that moment.
   `ALREADY_ACTIVE` carries a `scope`. `INVENTORY_FULL` carries `requiredSlots` and `freeSlots`, `OVERWEIGHT`
   carries `requiredWeight` and `freeWeight` (R14).
-- [host rule] R7. A duration longer than what the character may still fish today (the daily stop) is not a refusal: the session
+- [host rule] R7. A duration longer than the host's daily stop allows is not a refusal (a host may count the time to its
+  daily reset plus the next day's limit when the allowance lasts to the reset): the session
   runs shorter and the result shows the effective plan. Rod and bait are the player's choice: the host checks that the
   items belong to the character, the rod is a rod, the bait is allowed for fishing and its count is above zero. When the
   chosen bait runs out the session ends with `APP_OUT_OF_BAIT`, when the game takes it off the hand because the
@@ -107,6 +108,13 @@ The session mechanics (table, lifecycle, events, restart) are in
   this check, so a `PLACEMENT_REFUSED` never carries these numbers.
 - [host rule] R15. **Capacity at a catch.** A catch that has no free slot ends the session with `APP_INVENTORY_FULL`; a
   catch that would overload the character ends it with `APP_OVERWEIGHT`. The two reasons never stand in for each other.
+- [done] R16. **Current usage in the check.** `AppSessionCheckResult.usage` (`ActivityUsage?`) carries the
+  character's `FISHING` row as of the answer: `used`, `limit`, `remaining`, `steps` and `resetSchedule`, with everything
+  that shifts the limit or the steps for this character. The host sets it on an allowed and on a refused check once it has found the character;
+  `null` when refused before that, when the row cannot be read, or from a core that predates the field. No invariant ties it to `allowed`. It exists
+  because a published usage row may be older than what the start would apply. It carries no running state
+  (`activeSince`). Consumer: nx-gameservers
+  (`nx-gameservers/docs/specs/086-offline-fishing.md` §4.8). Released in api 0.132.0.
 
 **Non-goals:**
 

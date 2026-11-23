@@ -175,7 +175,8 @@ They all live here so a host provider depends on the contracts artifact alone.
   (`ReceiptStatus`) are stored values.
 - **App-session command refusals** carry `reason` (an `AppSessionRefusalReason` name), plus `retryAt` (ISO-8601
   instant), `scope` (`AlreadyActiveScope`) or the numbers `requiredSlots` / `freeSlots`, `requiredWeight` / `freeWeight`
-  where the reason defines them; `AppSessionCheckResult` requires each pair exactly with its reason. The `CommandStatus`
+  where the reason defines them; `AppSessionCheckResult` requires each pair exactly with its reason, and carries the
+  nullable `usage` (`ActivityUsage`) on an allowed and on a refused check once the host found the character. The `CommandStatus`
   per reason is on the enum.
 - **Revive refusals** carry `reason` (`ReviveRefusal.REASON`, a `ReviveRefusalReason` name), a separate vocabulary from
   the app-session one; `ReviveCharacterCommand.restartPoint` stays a `String` (open `RestartPoint`), so an older host

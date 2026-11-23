@@ -822,6 +822,7 @@ idempotency key, nothing stored.
 | `freeSlots`           | `Integer?`                 | Set with `INVENTORY_FULL`, as on start                                                           |
 | `requiredWeight`      | `Long?`                    | Set with `OVERWEIGHT`, as on start                                                               |
 | `freeWeight`          | `Long?`                    | Set with `OVERWEIGHT`, as on start                                                               |
+| `usage`               | `ActivityUsage?`           | The activity's current usage row, on both answers, see `offline-fishing.md` R16                  |
 
 **Errors.** A refusal is `OK` with `allowed = false`, its `reason` and, for `ALREADY_ACTIVE`, its `scope`. A `CommandProblem` means the check itself failed: `COMMAND_EXPIRED`, an invalid
 initiator (`VALIDATION_FAILED`), a host timeout (`UNAVAILABLE`). A core without the check handler answers

@@ -516,6 +516,8 @@ never copies the host's rules.
 - Return `CommandResult.ok(AppSessionCheckResult)` for a refusal too (`allowed = false`, the first
   `reason`, `scope` with `ALREADY_ACTIVE`, `retryAt` where the start sets it: `DAILY_LIMIT` carries the moment the daily
   allowance resets when the host knows it). Reserve `CommandProblem` for the check itself failing.
+- Set `usage` to the activity's usage row of this character as of now, on an allowed and on a refused answer, once the
+  character is found; leave it `null` when the type has no usage or the row cannot be read (offline-fishing.md R16).
 - Do not cache: the platform caches checks and limits their rate.
 - A core that has not registered the check handler answers the rail's `UNSUPPORTED_COMMAND`, as for any unknown
   `Message-Type`; the platform maps it to `501`. Nothing special to do on an old core.
