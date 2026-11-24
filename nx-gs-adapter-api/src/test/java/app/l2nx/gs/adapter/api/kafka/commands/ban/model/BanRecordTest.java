@@ -28,9 +28,9 @@ class BanRecordTest {
     private static BanDbDto row() {
         return BanDbDto.builder()
                 .id(11L)
-                .targetType("CHARACTER")
-                .targetValue("268435457")
-                .targetName("Hero")
+                .subjectType("CHARACTER")
+                .subjectValue("268435457")
+                .subjectName("Hero")
                 .banType("CHAT")
                 .expiresAt(EXPIRES_AT)
                 .reason("spam")

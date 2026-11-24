@@ -1,21 +1,26 @@
 package app.l2nx.gs.adapter.api.kafka.sync.db.ban;
 
-import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTargetTypes;
+import app.l2nx.gs.adapter.api.kafka.commands.ban.BanCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanSubjectTypes;
 import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTypes;
 import java.time.Instant;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Wire DTO for one persisted ban row, payload of {@code SyncEvent<BanDbDto>}. Mirrors bans from any
- * origin (platform {@link app.l2nx.gs.adapter.api.kafka.commands.ban.BanCommand} or in-game).
- *
- * Only {@code id} is required. Persisted rows carry a concrete {@code targetType}, never the
- * inbound-only {@code HARD} marker.
+ * Wire DTO of one persisted ban row of any origin ({@link BanCommand} or in-game), payload of
+ * {@code SyncEvent<BanDbDto>}. Only {@code id} is required; {@code subjectType} is never {@code HARD}.
+ * The wire carries both {@code subject*} and {@code target*}; a reader takes the {@code subject*} group when
+ * {@code subjectType} is set or no {@code target*} field is, otherwise {@code target*}, so a value nulled on purpose
+ * never comes back from the other.
  */
 public final class BanDbDto {
 
     private final long id;
+    private final @Nullable String subjectType;
+    private final @Nullable String subjectValue;
+    private final @Nullable String subjectName;
+    // TODO: drop target* once the adapter of every active game server reads subject*.
     private final @Nullable String targetType;
     private final @Nullable String targetValue;
     private final @Nullable String targetName;
@@ -26,6 +31,9 @@ public final class BanDbDto {
 
     public BanDbDto(
             long id,
+            @Nullable String subjectType,
+            @Nullable String subjectValue,
+            @Nullable String subjectName,
             @Nullable String targetType,
             @Nullable String targetValue,
             @Nullable String targetName,
@@ -33,10 +41,14 @@ public final class BanDbDto {
             @Nullable Instant expiresAt,
             @Nullable String reason,
             @Nullable String issuedBy) {
+        boolean fromSubject = readsSubject(subjectType, targetType, targetValue, targetName);
         this.id = id;
-        this.targetType = targetType;
-        this.targetValue = targetValue;
-        this.targetName = targetName;
+        this.subjectType = fromSubject ? subjectType : targetType;
+        this.subjectValue = fromSubject ? subjectValue : targetValue;
+        this.subjectName = fromSubject ? subjectName : targetName;
+        this.targetType = this.subjectType;
+        this.targetValue = this.subjectValue;
+        this.targetName = this.subjectName;
         this.banType = banType;
         this.expiresAt = expiresAt;
         this.reason = reason;
@@ -47,18 +59,35 @@ public final class BanDbDto {
         return id;
     }
 
-    /** A {@link WellKnownBanTargetTypes} value. */
+    /** A {@link WellKnownBanSubjectTypes} value. */
+    public @Nullable String getSubjectType() {
+        return readsSubject() ? subjectType : targetType;
+    }
+
+    public @Nullable String getSubjectValue() {
+        return readsSubject() ? subjectValue : targetValue;
+    }
+
+    public @Nullable String getSubjectName() {
+        return readsSubject() ? subjectName : targetName;
+    }
+
+    /** @deprecated the former name of {@link #getSubjectType()}. */
+    @Deprecated
     public @Nullable String getTargetType() {
-        return targetType;
+        return getSubjectType();
     }
 
-    /** Char id (as string), account login, plaintext IP, or HWID hash, per {@link #getTargetType() targetType}. */
+    /** @deprecated the former name of {@link #getSubjectValue()}. */
+    @Deprecated
     public @Nullable String getTargetValue() {
-        return targetValue;
+        return getSubjectValue();
     }
 
+    /** @deprecated the former name of {@link #getSubjectName()}. */
+    @Deprecated
     public @Nullable String getTargetName() {
-        return targetName;
+        return getSubjectName();
     }
 
     /** A {@link WellKnownBanTypes} value. */
@@ -82,9 +111,9 @@ public final class BanDbDto {
     public Builder toBuilder() {
         return new Builder()
                 .id(id)
-                .targetType(targetType)
-                .targetValue(targetValue)
-                .targetName(targetName)
+                .subjectType(getSubjectType())
+                .subjectValue(getSubjectValue())
+                .subjectName(getSubjectName())
                 .banType(banType)
                 .expiresAt(expiresAt)
                 .reason(reason)
@@ -101,9 +130,9 @@ public final class BanDbDto {
         if (!(o instanceof BanDbDto)) return false;
         BanDbDto that = (BanDbDto) o;
         return id == that.id
-                && Objects.equals(targetType, that.targetType)
-                && Objects.equals(targetValue, that.targetValue)
-                && Objects.equals(targetName, that.targetName)
+                && Objects.equals(getSubjectType(), that.getSubjectType())
+                && Objects.equals(getSubjectValue(), that.getSubjectValue())
+                && Objects.equals(getSubjectName(), that.getSubjectName())
                 && Objects.equals(banType, that.banType)
                 && Objects.equals(expiresAt, that.expiresAt)
                 && Objects.equals(reason, that.reason)
@@ -112,26 +141,39 @@ public final class BanDbDto {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, targetType, targetValue, targetName, banType, expiresAt, reason, issuedBy);
+        return Objects.hash(
+                id, getSubjectType(), getSubjectValue(), getSubjectName(), banType, expiresAt, reason, issuedBy);
     }
 
     @Override
     public String toString() {
         return "BanDbDto[id=" + id
-                + ", targetType=" + targetType
-                + ", targetValue=" + targetValue
-                + ", targetName=" + targetName
+                + ", subjectType=" + getSubjectType()
+                + ", subjectValue=" + getSubjectValue()
+                + ", subjectName=" + getSubjectName()
                 + ", banType=" + banType
                 + ", expiresAt=" + expiresAt
                 + ", reason=" + reason
                 + ", issuedBy=" + issuedBy + "]";
     }
 
+    private boolean readsSubject() {
+        return readsSubject(subjectType, targetType, targetValue, targetName);
+    }
+
+    private static boolean readsSubject(
+            @Nullable String subjectType,
+            @Nullable String targetType,
+            @Nullable String targetValue,
+            @Nullable String targetName) {
+        return subjectType != null || (targetType == null && targetValue == null && targetName == null);
+    }
+
     public static final class Builder {
         private long id;
-        private @Nullable String targetType;
-        private @Nullable String targetValue;
-        private @Nullable String targetName;
+        private @Nullable String subjectType;
+        private @Nullable String subjectValue;
+        private @Nullable String subjectName;
         private @Nullable String banType;
         private @Nullable Instant expiresAt;
         private @Nullable String reason;
@@ -142,19 +184,37 @@ public final class BanDbDto {
             return this;
         }
 
+        public Builder subjectType(@Nullable String subjectType) {
+            this.subjectType = subjectType;
+            return this;
+        }
+
+        public Builder subjectValue(@Nullable String subjectValue) {
+            this.subjectValue = subjectValue;
+            return this;
+        }
+
+        public Builder subjectName(@Nullable String subjectName) {
+            this.subjectName = subjectName;
+            return this;
+        }
+
+        /** @deprecated the former name of {@link #subjectType(String)}. */
+        @Deprecated
         public Builder targetType(@Nullable String targetType) {
-            this.targetType = targetType;
-            return this;
+            return subjectType(targetType);
         }
 
+        /** @deprecated the former name of {@link #subjectValue(String)}. */
+        @Deprecated
         public Builder targetValue(@Nullable String targetValue) {
-            this.targetValue = targetValue;
-            return this;
+            return subjectValue(targetValue);
         }
 
+        /** @deprecated the former name of {@link #subjectName(String)}. */
+        @Deprecated
         public Builder targetName(@Nullable String targetName) {
-            this.targetName = targetName;
-            return this;
+            return subjectName(targetName);
         }
 
         public Builder banType(@Nullable String banType) {
@@ -178,7 +238,18 @@ public final class BanDbDto {
         }
 
         public BanDbDto build() {
-            return new BanDbDto(id, targetType, targetValue, targetName, banType, expiresAt, reason, issuedBy);
+            return new BanDbDto(
+                    id,
+                    subjectType,
+                    subjectValue,
+                    subjectName,
+                    subjectType,
+                    subjectValue,
+                    subjectName,
+                    banType,
+                    expiresAt,
+                    reason,
+                    issuedBy);
         }
     }
 }

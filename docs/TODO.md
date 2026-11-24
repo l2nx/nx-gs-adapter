@@ -6,6 +6,7 @@ removes its line.
 
 ## Open
 
+- [nx-gameservers#214](https://github.com/l2nx/nx-gameservers/issues/214) Remove `target*`, `HARD` and `removedBans` from the ban contract (R14 step 3 of `docs/specs/009-commands/ban.md`)
 - [#31](https://github.com/l2nx/nx-gs-adapter/issues/31) ArchUnit tests for the architecture invariants
 - [#32](https://github.com/l2nx/nx-gs-adapter/issues/32) Move the Liquibase changelog off XML (YAML or generic SQL)
 - [#33](https://github.com/l2nx/nx-gs-adapter/issues/33) Replace the remaining `WellKnown*` constant holders with enums

@@ -263,7 +263,8 @@ They all live here so a host provider depends on the contracts artifact alone.
 
 Slash-namespaced tag `api/vX.Y.Z` releases this module independently. Fallback when no
 `-Pnx-gs-adapter-api.version=...` is passed: the literal in this module's `build.gradle.kts`. Release
-flow and the breaking-change rule (one release, no `@Deprecated`) live in [`../CLAUDE.md`](../CLAUDE.md).
+flow and the breaking-change rule (one release, no `@Deprecated`) live in [`../CLAUDE.md`](../CLAUDE.md). The only
+exception is the ban command fields (owner-approved 2026-11-24, `docs/specs/009-commands/ban.md` R13, R14).
 
 ## Testing
 

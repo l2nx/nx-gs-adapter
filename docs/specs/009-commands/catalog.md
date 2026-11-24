@@ -69,21 +69,25 @@ asked to delete.
 
 ### `BanCommand`
 
-**Purpose.** Apply a ban. Build-agnostic: the contract names the target
-dimension, the ban kind, and the expiry; the host maps those onto its own
+**Purpose.** Apply a ban. Build-agnostic: the contract names the subject,
+the ban type, and the expiry; the host maps those onto its own
 ban engine and decides how the ban is enforced. Host rule, every host: when
-an active ban of the same target and ban kind already exists, the host
+an active ban of the same subject and ban type already exists, the host
 extends it to the new term and returns its id if the new term ends later or
 is permanent, and returns it as is otherwise; a term is never shortened.
 Without an active ban the host creates a new row. A repeated command with the
-same `expiresAt` is therefore idempotent without a key.
+same `expiresAt` is therefore idempotent without a key. Host rule, every host: a
+`GAME_LOGIN` ban by `IP` or `HWID` disconnects every online player connected with that value; a clientless character is reached by its own `CHARACTER` or `ACCOUNT` ban.
+
+Both names travel: `@Deprecated` `targetType` / `targetValue` are written together with
+`subjectType` / `subjectValue`; a reader takes one pair as a whole ([ban R13](ban.md)).
 
 **Inputs**
 
 | Field         | Type       | Required    | Notes                                                                                                                                                                                                                                                                 |
 | ------------- | ---------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `targetType`  | `String`   | yes         | `WellKnownBanTargetTypes` value: `CHARACTER`, `ACCOUNT`, `IP`, `HWID`, or `HARD` (fan-out marker — the host expands one `HARD` command into the full concrete set — character + account + IP + HWID — for the same subject; a persisted ban row never carries `HARD`) |
-| `targetValue` | `String`   | yes         | Keyed datum for `targetType` — char id (as a string), account login, plaintext IP, or HWID hash. For `HARD`, the subject's char id                                                                                                                                    |
+| `subjectType` | `String` | yes | `WellKnownBanSubjectTypes` value: `CHARACTER`, `ACCOUNT`, `IP`, `HWID`. `HARD` is `@Deprecated`: hosts accept it until the removal step ([ban R14](ban.md)), then answer `VALIDATION_FAILED` |
+| `subjectValue` | `String` | yes | Keyed datum for `subjectType` — char id (as a string), account login, plaintext IP, or HWID hash |
 | `banType`     | `String`   | yes         | `WellKnownBanTypes` value: `GAME_LOGIN`, `CHAT`, `CHAT_SHADOW`, `PARTY`, `JAIL`                                                                                                                                                                                       |
 | `permanent`   | `boolean`  | yes         | Drives expiry: `true` → `expiresAt` MUST be `null`; `false` → `expiresAt` required. Constructor enforces `permanent == (expiresAt == null)`                                                                                                                           |
 | `expiresAt`   | `Instant?` | conditional | Instant the ban lapses; `null` iff `permanent`                                                                                                                                                                                                                        |
@@ -94,7 +98,7 @@ same `expiresAt` is therefore idempotent without a key.
 
 | Field        | Type              | Notes                                                                                                                                                                          |
 | ------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bans`       | `List<BanRecord>` | Every ban row created, extended or found, never `null` or empty: one per concrete dimension of a `HARD` fan-out, the shadow chat ban included. Each `{source, row}` (below)    |
+| `bans`       | `List<BanRecord>` | Every ban row created, extended or found, never `null` or empty: the shadow chat ban included (one per dimension of a deprecated `HARD` fan-out). Each `{source, row}` (below)    |
 | `observedAt` | `Instant`         | Host time the change was applied; the platform orders this reply against the ban sync stream (event timestamp = the engine's read instant, same host clock) by it, newest wins |
 
 `BanRecord`: `source` — required non-blank `String`, a `BanSource` token: `STANDARD` (`row.id` = host ban table row id,
@@ -106,8 +110,8 @@ the command, the same shape the ban sync stream carries.
 
 | Status              | When                                                                                           |
 | ------------------- | ---------------------------------------------------------------------------------------------- |
-| `NOT_FOUND`         | The targeted character / account does not exist                                                |
-| `VALIDATION_FAILED` | Wire payload missing `targetType`, `targetValue`, or `banType`, or an unrecognized combination |
+| `NOT_FOUND`         | The subject character / account does not exist                                                |
+| `VALIDATION_FAILED` | Wire payload missing `subjectType`, `subjectValue`, or `banType`, or an unrecognized combination |
 | `FORBIDDEN`         | Operation rejected on host policy grounds                                                      |
 
 ---
@@ -115,31 +119,31 @@ the command, the same shape the ban sync stream carries.
 ### `UnbanCommand`
 
 **Purpose.** Lift a previously applied ban — the inverse of `BanCommand`:
-names the same target dimension and ban kind and asks the host to clear
+names the same subject and ban type and asks the host to clear
 the matching ban(s). Clearing a ban that is not present is a no-op
-success (empty `removedBans`), not an error — the post-condition (no such
+success (empty `unbannedBans`), not an error — the post-condition (no such
 ban) already holds.
 
 **Inputs**
 
 | Field         | Type     | Required | Notes                                                                                            |
 | ------------- | -------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `targetType`  | `String` | yes      | `WellKnownBanTargetTypes` value. A `HARD` target clears every concrete dimension for the subject |
-| `targetValue` | `String` | yes      | Keyed datum for `targetType`                                                                     |
-| `banType`     | `String` | yes      | `WellKnownBanTypes` value naming which ban kind to clear                                         |
+| `subjectType` | `String` | yes | `WellKnownBanSubjectTypes` value |
+| `subjectValue` | `String` | yes | Keyed datum for `subjectType` |
+| `banType`     | `String` | yes      | `WellKnownBanTypes` value naming which ban type to clear                                         |
 
 **Result** (`UnbanResult`)
 
 | Field         | Type           | Notes                                                                                                                                                   |
 | ------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `removedBans` | `List<BanRef>` | Rows cleared as `{String source, long id}` (`BanRecord` tokens and id spaces). Never `null`; empty when nothing matched — a no-op success, not an error |
+| `unbannedBans` (`@Deprecated` `removedBans`) | `List<BanRef>` | Rows cleared as `{String source, long id}` (`BanRecord` tokens and id spaces). Never `null`; empty when nothing matched — a no-op success, not an error |
 | `observedAt`  | `Instant`      | Host time the change was applied, as in `BanResult`                                                                                                     |
 
 **Errors**
 
 | Status              | When                                                           |
 | ------------------- | -------------------------------------------------------------- |
-| `VALIDATION_FAILED` | Wire payload missing `targetType`, `targetValue`, or `banType` |
+| `VALIDATION_FAILED` | Wire payload missing `subjectType`, `subjectValue`, or `banType` |
 | `FORBIDDEN`         | Operation rejected on host policy grounds                      |
 
 ---

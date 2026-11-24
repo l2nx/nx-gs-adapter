@@ -49,7 +49,7 @@ the slice's contract from its supporting types. The same smell exists inside cor
   | Slice                          | Into `model/`                                                                                                                    |
   | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
   | `kafka.commands.privatestore`  | `BoughtLine`, `BuyLine`, `DroppedLine`, `DroppedLineReason`, `PrivateStoreReason`, `SellLine`, `WantedLine`                      |
-  | `kafka.commands.ban`           | `WellKnownBanTargetTypes`, `WellKnownBanTypes`                                                                                   |
+  | `kafka.commands.ban`           | `WellKnownBanSubjectTypes`, `WellKnownBanTargetTypes`, `WellKnownBanTypes`                                                       |
   | `kafka.commands.mail`          | `ItemDeliveryError`, `MailItem`                                                                                                  |
   | `kafka.commands.captcha` (new) | `CaptchaRoundResult`, `WellKnownCaptchaOutcomes`                                                                                 |
   | `kafka.events.privatestore`    | `SellStoreLine`, `BuyStoreLine`, `StoreState`, `TradeLine`, `PrivateStoreSide`, `PrivateStoreMetadataKey`, `PrivateStoreMetadata`, `PrivateStoreFee` |

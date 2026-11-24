@@ -280,6 +280,10 @@ and its CHECK, then the host - the platform must know a value before a host can 
 Add the migration note to the release's spec with the gate spelled out. Precedent of an older, two-release shape that
 shipped before this rule: `docs/specs/029-character-class-state-sync.md` (`subclasses` -> `classes`).
 
+Owner-approved exception (2026-11-24): the ban command fields (`BanCommand`, `UnbanCommand`, `UnbanResult`,
+`BanDbDto`: `subject*` next to `@Deprecated target*` / `removedBans`, `HARD`) keep both names until the removal step of
+[`docs/specs/009-commands/ban.md`](docs/specs/009-commands/ban.md) R14.
+
 ## Commands
 
 ```bash

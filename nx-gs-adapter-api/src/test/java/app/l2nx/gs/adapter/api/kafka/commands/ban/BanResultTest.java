@@ -35,8 +35,8 @@ class BanResultTest {
                 BanSource.STANDARD.name(),
                 BanDbDto.builder()
                         .id(11L)
-                        .targetType("ACCOUNT")
-                        .targetValue("login1")
+                        .subjectType("ACCOUNT")
+                        .subjectValue("login1")
                         .banType("GAME_LOGIN")
                         .expiresAt(EXPIRES_AT)
                         .build());
@@ -47,8 +47,8 @@ class BanResultTest {
                 BanSource.SHADOW.name(),
                 BanDbDto.builder()
                         .id(268435457L)
-                        .targetType("CHARACTER")
-                        .targetValue("268435457")
+                        .subjectType("CHARACTER")
+                        .subjectValue("268435457")
                         .banType("CHAT_SHADOW")
                         .build());
     }

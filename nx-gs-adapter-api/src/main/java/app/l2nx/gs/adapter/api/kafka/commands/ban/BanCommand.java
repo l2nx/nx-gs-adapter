@@ -2,23 +2,27 @@ package app.l2nx.gs.adapter.api.kafka.commands.ban;
 
 import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
 import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
-import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTargetTypes;
+import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanSubjectTypes;
 import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTypes;
 import java.time.Instant;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Applies a ban on the game-server. A {@code HARD} target fans out into character, account, IP and HWID bans; its
- * {@code targetValue} is the char id. Invariant: {@code permanent == (expiresAt == null)}.
- *
- * <p>An active ban of the same target and {@code banType} is extended, never shortened, so repeating a command with
- * the same {@code expiresAt} is idempotent.</p>
+ * Applies a ban; an active ban of the same subject and {@code banType} is extended, never shortened. Invariant:
+ * {@code permanent == (expiresAt == null)}.
+ * The host MUST disconnect the players connected with the {@code IP} or {@code HWID} of a {@code GAME_LOGIN} ban.
+ * The deprecated {@code HARD} subject type fans out into character, account, IP and HWID bans; its value is the char id.
+ * The wire carries both {@code subject*} and {@code target*}; a reader takes the {@code subject*} pair when
+ * {@code subjectType} is set, otherwise {@code target*}.
  */
 public final class BanCommand implements NxCommand<BanResult> {
 
-    private final String targetType;
-    private final String targetValue;
+    private final @Nullable String subjectType;
+    private final @Nullable String subjectValue;
+    // TODO: drop target* once the adapter of every active game server reads subject*.
+    private final @Nullable String targetType;
+    private final @Nullable String targetValue;
     private final String banType;
     private final boolean permanent;
     private final @Nullable Instant expiresAt;
@@ -27,19 +31,23 @@ public final class BanCommand implements NxCommand<BanResult> {
     private final CommandInitiator initiator;
 
     public BanCommand(
-            String targetType,
-            String targetValue,
+            @Nullable String subjectType,
+            @Nullable String subjectValue,
+            @Nullable String targetType,
+            @Nullable String targetValue,
             String banType,
             boolean permanent,
             @Nullable Instant expiresAt,
             @Nullable String reason,
             @Nullable String issuedBy,
             CommandInitiator initiator) {
-        if (targetType == null) {
-            throw new IllegalArgumentException("targetType is required");
+        String type = subjectType != null ? subjectType : targetType;
+        String value = subjectType != null ? subjectValue : targetValue;
+        if (type == null) {
+            throw new IllegalArgumentException("subjectType is required");
         }
-        if (targetValue == null) {
-            throw new IllegalArgumentException("targetValue is required");
+        if (value == null) {
+            throw new IllegalArgumentException("subjectValue is required");
         }
         if (banType == null) {
             throw new IllegalArgumentException("banType is required");
@@ -50,8 +58,10 @@ public final class BanCommand implements NxCommand<BanResult> {
         if (!permanent && expiresAt == null) {
             throw new IllegalArgumentException("expiresAt is required for a non-permanent ban");
         }
-        this.targetType = targetType;
-        this.targetValue = targetValue;
+        this.subjectType = type;
+        this.subjectValue = value;
+        this.targetType = type;
+        this.targetValue = value;
         this.banType = banType;
         this.permanent = permanent;
         this.expiresAt = expiresAt;
@@ -60,17 +70,28 @@ public final class BanCommand implements NxCommand<BanResult> {
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
 
-    /** A {@link WellKnownBanTargetTypes} value; handler emits {@code VALIDATION_FAILED} when missing or unrecognized. */
+    /** A {@link WellKnownBanSubjectTypes} value. */
+    public String getSubjectType() {
+        return subjectType != null ? subjectType : targetType;
+    }
+
+    public String getSubjectValue() {
+        return subjectType != null ? subjectValue : targetValue;
+    }
+
+    /** @deprecated the former name of {@link #getSubjectType()}. */
+    @Deprecated
     public String getTargetType() {
-        return targetType;
+        return getSubjectType();
     }
 
-    /** Char id (as a string), account login, plaintext IP, or HWID hash. */
+    /** @deprecated the former name of {@link #getSubjectValue()}. */
+    @Deprecated
     public String getTargetValue() {
-        return targetValue;
+        return getSubjectValue();
     }
 
-    /** A {@link WellKnownBanTypes} value; handler emits {@code VALIDATION_FAILED} when missing or unrecognized. */
+    /** A {@link WellKnownBanTypes} value. */
     public String getBanType() {
         return banType;
     }
@@ -88,7 +109,7 @@ public final class BanCommand implements NxCommand<BanResult> {
         return reason;
     }
 
-    /** Admin display name or service identifier, stored for audit. */
+    /** In-game display name stored on the ban row; not attribution, see {@link #getInitiator()}. */
     public @Nullable String getIssuedBy() {
         return issuedBy;
     }
@@ -100,8 +121,8 @@ public final class BanCommand implements NxCommand<BanResult> {
 
     public Builder toBuilder() {
         return new Builder()
-                .targetType(targetType)
-                .targetValue(targetValue)
+                .subjectType(getSubjectType())
+                .subjectValue(getSubjectValue())
                 .banType(banType)
                 .permanent(permanent)
                 .expiresAt(expiresAt)
@@ -120,8 +141,8 @@ public final class BanCommand implements NxCommand<BanResult> {
         if (!(o instanceof BanCommand)) return false;
         BanCommand that = (BanCommand) o;
         return permanent == that.permanent
-                && Objects.equals(targetType, that.targetType)
-                && Objects.equals(targetValue, that.targetValue)
+                && Objects.equals(getSubjectType(), that.getSubjectType())
+                && Objects.equals(getSubjectValue(), that.getSubjectValue())
                 && Objects.equals(banType, that.banType)
                 && Objects.equals(expiresAt, that.expiresAt)
                 && Objects.equals(reason, that.reason)
@@ -131,13 +152,14 @@ public final class BanCommand implements NxCommand<BanResult> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(targetType, targetValue, banType, permanent, expiresAt, reason, issuedBy, initiator);
+        return Objects.hash(
+                getSubjectType(), getSubjectValue(), banType, permanent, expiresAt, reason, issuedBy, initiator);
     }
 
     @Override
     public String toString() {
-        return "BanCommand[targetType=" + targetType
-                + ", targetValue=" + targetValue
+        return "BanCommand[subjectType=" + getSubjectType()
+                + ", subjectValue=" + getSubjectValue()
                 + ", banType=" + banType
                 + ", permanent=" + permanent
                 + ", expiresAt=" + expiresAt
@@ -146,8 +168,8 @@ public final class BanCommand implements NxCommand<BanResult> {
     }
 
     public static final class Builder {
-        private String targetType;
-        private String targetValue;
+        private String subjectType;
+        private String subjectValue;
         private String banType;
         private boolean permanent;
         private @Nullable Instant expiresAt;
@@ -155,14 +177,26 @@ public final class BanCommand implements NxCommand<BanResult> {
         private @Nullable String issuedBy;
         private CommandInitiator initiator;
 
-        public Builder targetType(String targetType) {
-            this.targetType = targetType;
+        public Builder subjectType(String subjectType) {
+            this.subjectType = subjectType;
             return this;
         }
 
-        public Builder targetValue(String targetValue) {
-            this.targetValue = targetValue;
+        public Builder subjectValue(String subjectValue) {
+            this.subjectValue = subjectValue;
             return this;
+        }
+
+        /** @deprecated the former name of {@link #subjectType(String)}. */
+        @Deprecated
+        public Builder targetType(String targetType) {
+            return subjectType(targetType);
+        }
+
+        /** @deprecated the former name of {@link #subjectValue(String)}. */
+        @Deprecated
+        public Builder targetValue(String targetValue) {
+            return subjectValue(targetValue);
         }
 
         public Builder banType(String banType) {
@@ -196,7 +230,17 @@ public final class BanCommand implements NxCommand<BanResult> {
         }
 
         public BanCommand build() {
-            return new BanCommand(targetType, targetValue, banType, permanent, expiresAt, reason, issuedBy, initiator);
+            return new BanCommand(
+                    subjectType,
+                    subjectValue,
+                    subjectType,
+                    subjectValue,
+                    banType,
+                    permanent,
+                    expiresAt,
+                    reason,
+                    issuedBy,
+                    initiator);
         }
     }
 }

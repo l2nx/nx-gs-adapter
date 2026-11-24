@@ -1,6 +1,6 @@
 package app.l2nx.gs.db.sync.engine;
 
-import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTargetTypes;
+import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanSubjectTypes;
 import app.l2nx.gs.adapter.api.kafka.sync.db.ban.BanDbDto;
 import app.l2nx.gs.adapter.api.kafka.sync.db.character.CharacterDbDto;
 import app.l2nx.gs.adapter.api.kafka.sync.db.character.CharacterLockDbDto;
@@ -30,19 +30,19 @@ final class DbDtoIdentifiers {
     }
 
     private static BanDbDto normalizeBan(BanDbDto ban) {
-        String targetType = ban.getTargetType();
-        String raw = ban.getTargetValue();
+        String subjectType = ban.getSubjectType();
+        String raw = ban.getSubjectValue();
         String value;
-        if (WellKnownBanTargetTypes.IP.equals(targetType)) {
+        if (WellKnownBanSubjectTypes.IP.equals(subjectType)) {
             value = ClientIdentifiers.ip(raw);
-        } else if (WellKnownBanTargetTypes.HWID.equals(targetType)) {
+        } else if (WellKnownBanSubjectTypes.HWID.equals(subjectType)) {
             value = ClientIdentifiers.hwid(raw);
         } else {
             return ban;
         }
         return Objects.equals(value, raw)
                 ? ban
-                : ban.toBuilder().targetValue(value).build();
+                : ban.toBuilder().subjectValue(value).build();
     }
 
     private static CharacterDbDto normalizeCharacter(CharacterDbDto character) {

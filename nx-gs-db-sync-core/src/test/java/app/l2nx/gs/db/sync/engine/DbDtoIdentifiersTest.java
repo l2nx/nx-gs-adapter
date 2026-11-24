@@ -1,15 +1,18 @@
 package app.l2nx.gs.db.sync.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanTargetTypes;
+import app.l2nx.gs.adapter.api.kafka.commands.ban.model.WellKnownBanSubjectTypes;
 import app.l2nx.gs.adapter.api.kafka.sync.db.ban.BanDbDto;
 import app.l2nx.gs.adapter.api.kafka.sync.db.character.CharacterDbDto;
 import app.l2nx.gs.adapter.api.kafka.sync.db.character.CharacterLockDbDto;
 import app.l2nx.gs.adapter.api.kafka.sync.db.character.WellKnownCharacterLockTypes;
 import app.l2nx.gs.adapter.api.kafka.sync.db.clan.ClanDbDto;
+import app.l2nx.gs.kafka.NxGsonAdapters;
+import com.google.gson.JsonObject;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
@@ -25,44 +28,71 @@ class DbDtoIdentifiersTest {
 
         @ParameterizedTest(name = "[{index}] {0}={1}")
         @CsvSource({"IP,N/A", "IP,0.0.0.0", "IP,'::'", "IP,' '", "HWID,0", "HWID,-", "HWID,unknown"})
-        void normalize_shouldNullTargetValue_whenIdentifierIsPlaceholder(String targetType, String targetValue) {
-            BanDbDto ban = ban(targetType, targetValue);
+        void normalize_shouldNullValueInBothPairs_whenIdentifierIsPlaceholder(String subjectType, String subjectValue) {
+            BanDbDto ban = ban(subjectType, subjectValue);
 
-            BanDbDto actual = (BanDbDto) DbDtoIdentifiers.normalize(ban);
-
-            assertNull(actual.getTargetValue());
-            assertEquals(ban.toBuilder().targetValue(null).build(), actual);
+            assertNulledInBothPairs(ban, (BanDbDto) DbDtoIdentifiers.normalize(ban));
         }
 
         @Test
-        void normalize_shouldTrimTargetValue_whenIdentifierIsReal() {
-            BanDbDto actual = (BanDbDto) DbDtoIdentifiers.normalize(ban(WellKnownBanTargetTypes.IP, " 10.0.0.1 "));
+        @SuppressWarnings("deprecation")
+        void normalize_shouldNullValueInBothPairs_whenMapperUsesTargetNames() {
+            BanDbDto ban = BanDbDto.builder()
+                    .id(1L)
+                    .targetType(WellKnownBanSubjectTypes.HWID)
+                    .targetValue("0")
+                    .banType("CHAT")
+                    .build();
 
-            assertEquals("10.0.0.1", actual.getTargetValue());
+            assertNulledInBothPairs(ban, (BanDbDto) DbDtoIdentifiers.normalize(ban));
+        }
+
+        @Test
+        void normalize_shouldTrimValueInBothPairs_whenIdentifierIsReal() {
+            BanDbDto actual = (BanDbDto) DbDtoIdentifiers.normalize(ban(WellKnownBanSubjectTypes.IP, " 10.0.0.1 "));
+
+            JsonObject wire = wire(actual);
+            assertEquals("10.0.0.1", actual.getSubjectValue());
+            assertEquals("10.0.0.1", wire.get("subjectValue").getAsString());
+            assertEquals("10.0.0.1", wire.get("targetValue").getAsString());
         }
 
         @ParameterizedTest(name = "[{index}] {0}")
-        @ValueSource(strings = {WellKnownBanTargetTypes.CHARACTER, WellKnownBanTargetTypes.ACCOUNT, "CUSTOM"})
-        void normalize_shouldKeepTargetValue_whenTargetTypeIsNotAnIdentifier(String targetType) {
-            BanDbDto ban = ban(targetType, "0");
+        @ValueSource(strings = {WellKnownBanSubjectTypes.CHARACTER, WellKnownBanSubjectTypes.ACCOUNT, "CUSTOM"})
+        void normalize_shouldKeepSubjectValue_whenSubjectTypeIsNotAnIdentifier(String subjectType) {
+            BanDbDto ban = ban(subjectType, "0");
 
             assertSame(ban, DbDtoIdentifiers.normalize(ban));
         }
 
         @Test
         void normalize_shouldReturnSameInstance_whenIdentifierIsClean() {
-            BanDbDto ban = ban(WellKnownBanTargetTypes.HWID, "a1b2c3");
+            BanDbDto ban = ban(WellKnownBanSubjectTypes.HWID, "a1b2c3");
 
             assertSame(ban, DbDtoIdentifiers.normalize(ban));
         }
 
-        private BanDbDto ban(String targetType, String targetValue) {
+        private BanDbDto ban(String subjectType, String subjectValue) {
             return BanDbDto.builder()
                     .id(1L)
-                    .targetType(targetType)
-                    .targetValue(targetValue)
+                    .subjectType(subjectType)
+                    .subjectValue(subjectValue)
                     .banType("CHAT")
                     .build();
+        }
+
+        private void assertNulledInBothPairs(BanDbDto ban, BanDbDto actual) {
+            JsonObject wire = wire(actual);
+            assertNull(actual.getSubjectValue());
+            assertEquals(ban.toBuilder().subjectValue(null).build(), actual);
+            assertEquals(ban.getSubjectType(), wire.get("subjectType").getAsString());
+            assertEquals(ban.getSubjectType(), wire.get("targetType").getAsString());
+            assertFalse(wire.has("subjectValue"));
+            assertFalse(wire.has("targetValue"));
+        }
+
+        private JsonObject wire(BanDbDto ban) {
+            return NxGsonAdapters.builder().create().toJsonTree(ban).getAsJsonObject();
         }
     }
 
