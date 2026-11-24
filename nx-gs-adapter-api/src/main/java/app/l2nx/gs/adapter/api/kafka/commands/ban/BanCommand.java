@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
  * The host MUST disconnect the players connected with the {@code IP} or {@code HWID} of a {@code GAME_LOGIN} ban.
  * The deprecated {@code HARD} subject type fans out into character, account, IP and HWID bans; its value is the char id.
  * The wire carries both {@code subject*} and {@code target*}; a reader takes the {@code subject*} pair when
- * {@code subjectType} is set, otherwise {@code target*}.
+ * {@code subjectType} is set, otherwise {@code target*}. The same for {@code publicReason} and {@code reason}.
  */
 public final class BanCommand implements NxCommand<BanResult> {
 
@@ -26,6 +26,8 @@ public final class BanCommand implements NxCommand<BanResult> {
     private final String banType;
     private final boolean permanent;
     private final @Nullable Instant expiresAt;
+    private final @Nullable String publicReason;
+    // TODO: drop reason together with target*.
     private final @Nullable String reason;
     private final @Nullable String issuedBy;
     private final CommandInitiator initiator;
@@ -38,6 +40,7 @@ public final class BanCommand implements NxCommand<BanResult> {
             String banType,
             boolean permanent,
             @Nullable Instant expiresAt,
+            @Nullable String publicReason,
             @Nullable String reason,
             @Nullable String issuedBy,
             CommandInitiator initiator) {
@@ -65,7 +68,8 @@ public final class BanCommand implements NxCommand<BanResult> {
         this.banType = banType;
         this.permanent = permanent;
         this.expiresAt = expiresAt;
-        this.reason = reason;
+        this.publicReason = publicReason != null ? publicReason : reason;
+        this.reason = this.publicReason;
         this.issuedBy = issuedBy;
         this.initiator = Objects.requireNonNull(initiator, "initiator");
     }
@@ -104,9 +108,15 @@ public final class BanCommand implements NxCommand<BanResult> {
         return expiresAt;
     }
 
-    /** Surfaced to the player and stored on the ban row. */
+    /** Shown to the player and stored on the ban row. */
+    public @Nullable String getPublicReason() {
+        return publicReason != null ? publicReason : reason;
+    }
+
+    /** @deprecated the former name of {@link #getPublicReason()}. */
+    @Deprecated
     public @Nullable String getReason() {
-        return reason;
+        return getPublicReason();
     }
 
     /** In-game display name stored on the ban row; not attribution, see {@link #getInitiator()}. */
@@ -126,7 +136,7 @@ public final class BanCommand implements NxCommand<BanResult> {
                 .banType(banType)
                 .permanent(permanent)
                 .expiresAt(expiresAt)
-                .reason(reason)
+                .publicReason(getPublicReason())
                 .issuedBy(issuedBy)
                 .initiator(initiator);
     }
@@ -145,7 +155,7 @@ public final class BanCommand implements NxCommand<BanResult> {
                 && Objects.equals(getSubjectValue(), that.getSubjectValue())
                 && Objects.equals(banType, that.banType)
                 && Objects.equals(expiresAt, that.expiresAt)
-                && Objects.equals(reason, that.reason)
+                && Objects.equals(getPublicReason(), that.getPublicReason())
                 && Objects.equals(issuedBy, that.issuedBy)
                 && Objects.equals(initiator, that.initiator);
     }
@@ -153,7 +163,14 @@ public final class BanCommand implements NxCommand<BanResult> {
     @Override
     public int hashCode() {
         return Objects.hash(
-                getSubjectType(), getSubjectValue(), banType, permanent, expiresAt, reason, issuedBy, initiator);
+                getSubjectType(),
+                getSubjectValue(),
+                banType,
+                permanent,
+                expiresAt,
+                getPublicReason(),
+                issuedBy,
+                initiator);
     }
 
     @Override
@@ -163,7 +180,7 @@ public final class BanCommand implements NxCommand<BanResult> {
                 + ", banType=" + banType
                 + ", permanent=" + permanent
                 + ", expiresAt=" + expiresAt
-                + ", reason=" + reason
+                + ", publicReason=" + getPublicReason()
                 + ", issuedBy=" + issuedBy + ", initiator=" + initiator + "]";
     }
 
@@ -173,7 +190,7 @@ public final class BanCommand implements NxCommand<BanResult> {
         private String banType;
         private boolean permanent;
         private @Nullable Instant expiresAt;
-        private @Nullable String reason;
+        private @Nullable String publicReason;
         private @Nullable String issuedBy;
         private CommandInitiator initiator;
 
@@ -214,9 +231,15 @@ public final class BanCommand implements NxCommand<BanResult> {
             return this;
         }
 
-        public Builder reason(@Nullable String reason) {
-            this.reason = reason;
+        public Builder publicReason(@Nullable String publicReason) {
+            this.publicReason = publicReason;
             return this;
+        }
+
+        /** @deprecated the former name of {@link #publicReason(String)}. */
+        @Deprecated
+        public Builder reason(@Nullable String reason) {
+            return publicReason(reason);
         }
 
         public Builder issuedBy(@Nullable String issuedBy) {
@@ -238,7 +261,8 @@ public final class BanCommand implements NxCommand<BanResult> {
                     banType,
                     permanent,
                     expiresAt,
-                    reason,
+                    publicReason,
+                    publicReason,
                     issuedBy,
                     initiator);
         }

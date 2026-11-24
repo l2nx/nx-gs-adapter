@@ -16,13 +16,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @SuppressWarnings("deprecation")
 class BanCommandTest {
 
     private static final Instant EXPIRES_AT = Instant.parse("2026-12-01T00:00:00Z");
     private static final String REST = "'banType':'GAME_LOGIN','permanent':false,'expiresAt':'2026-12-01T00:00:00Z',"
-            + "'reason':'bot','issuedBy':'gm','initiator':" + TestInitiators.USER_JSON + "}";
+            + "'publicReason':'bot','reason':'bot','issuedBy':'gm','initiator':" + TestInitiators.USER_JSON + "}";
 
     private static BanCommand.Builder valid() {
         return BanCommand.builder()
@@ -30,7 +31,7 @@ class BanCommandTest {
                 .subjectValue("a1b2c3")
                 .banType("GAME_LOGIN")
                 .expiresAt(EXPIRES_AT)
-                .reason("bot")
+                .publicReason("bot")
                 .issuedBy("gm")
                 .initiator(TestInitiators.USER);
     }
@@ -45,6 +46,7 @@ class BanCommandTest {
                 false,
                 EXPIRES_AT,
                 "bot",
+                null,
                 "gm",
                 TestInitiators.USER);
     }
@@ -185,6 +187,40 @@ class BanCommandTest {
             assertEquals(expected.hashCode(), actual.hashCode());
             assertEquals(expected.toString(), actual.toString());
             assertEquals(expected, actual.toBuilder().build());
+        }
+    }
+
+    @Nested
+    class PublicReason {
+
+        @ParameterizedTest
+        @ValueSource(strings = {"'reason':'%1$s'", "'publicReason':'%1$s'", "'publicReason':'%1$s','reason':'other'"})
+        void readers_shouldReadItThroughBothNames(String field) throws Exception {
+            String wire = json("{'subjectType':'HWID','subjectValue':'a1b2c3','banType':'GAME_LOGIN','permanent':true,"
+                    + String.format(field, "bot") + ",'initiator':" + TestInitiators.USER_JSON + "}");
+
+            BanCommand byGson = GSON.fromJson(wire, BanCommand.class);
+            BanCommand byJackson = JACKSON.readValue(wire, BanCommand.class);
+
+            assertEquals("bot", byGson.getPublicReason());
+            assertEquals("bot", byGson.getReason());
+            assertEquals(byGson, byJackson);
+        }
+
+        @Test
+        void writers_shouldWriteBothNames_whenSetByEither() throws Exception {
+            BanCommand byOldName = valid().reason("bot").build();
+            BanCommand byNewName = valid().publicReason("bot").build();
+
+            assertEquals(byNewName, byOldName);
+            assertWritesBothNames(GSON.toJson(byOldName));
+            assertWritesBothNames(JACKSON.writeValueAsString(byNewName));
+        }
+
+        private void assertWritesBothNames(String wire) {
+            JsonObject actual = GSON.fromJson(wire, JsonObject.class);
+            assertEquals("bot", actual.get("publicReason").getAsString());
+            assertEquals("bot", actual.get("reason").getAsString());
         }
     }
 }

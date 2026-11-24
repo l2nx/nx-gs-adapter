@@ -12,7 +12,8 @@ import org.jspecify.annotations.Nullable;
  * {@code SyncEvent<BanDbDto>}. Only {@code id} is required; {@code subjectType} is never {@code HARD}.
  * The wire carries both {@code subject*} and {@code target*}; a reader takes the {@code subject*} group when
  * {@code subjectType} is set or no {@code target*} field is, otherwise {@code target*}, so a value nulled on purpose
- * never comes back from the other.
+ * never comes back from the other. {@code publicReason} and {@code reason} travel the same way, {@code publicReason}
+ * first.
  */
 public final class BanDbDto {
 
@@ -26,6 +27,8 @@ public final class BanDbDto {
     private final @Nullable String targetName;
     private final @Nullable String banType;
     private final @Nullable Instant expiresAt;
+    private final @Nullable String publicReason;
+    // TODO: drop reason together with target*.
     private final @Nullable String reason;
     private final @Nullable String issuedBy;
 
@@ -39,6 +42,7 @@ public final class BanDbDto {
             @Nullable String targetName,
             @Nullable String banType,
             @Nullable Instant expiresAt,
+            @Nullable String publicReason,
             @Nullable String reason,
             @Nullable String issuedBy) {
         boolean fromSubject = readsSubject(subjectType, targetType, targetValue, targetName);
@@ -51,7 +55,8 @@ public final class BanDbDto {
         this.targetName = this.subjectName;
         this.banType = banType;
         this.expiresAt = expiresAt;
-        this.reason = reason;
+        this.publicReason = publicReason != null ? publicReason : reason;
+        this.reason = this.publicReason;
         this.issuedBy = issuedBy;
     }
 
@@ -100,8 +105,15 @@ public final class BanDbDto {
         return expiresAt;
     }
 
+    /** Shown to the player. */
+    public @Nullable String getPublicReason() {
+        return publicReason != null ? publicReason : reason;
+    }
+
+    /** @deprecated the former name of {@link #getPublicReason()}. */
+    @Deprecated
     public @Nullable String getReason() {
-        return reason;
+        return getPublicReason();
     }
 
     public @Nullable String getIssuedBy() {
@@ -116,7 +128,7 @@ public final class BanDbDto {
                 .subjectName(getSubjectName())
                 .banType(banType)
                 .expiresAt(expiresAt)
-                .reason(reason)
+                .publicReason(getPublicReason())
                 .issuedBy(issuedBy);
     }
 
@@ -135,14 +147,21 @@ public final class BanDbDto {
                 && Objects.equals(getSubjectName(), that.getSubjectName())
                 && Objects.equals(banType, that.banType)
                 && Objects.equals(expiresAt, that.expiresAt)
-                && Objects.equals(reason, that.reason)
+                && Objects.equals(getPublicReason(), that.getPublicReason())
                 && Objects.equals(issuedBy, that.issuedBy);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                id, getSubjectType(), getSubjectValue(), getSubjectName(), banType, expiresAt, reason, issuedBy);
+                id,
+                getSubjectType(),
+                getSubjectValue(),
+                getSubjectName(),
+                banType,
+                expiresAt,
+                getPublicReason(),
+                issuedBy);
     }
 
     @Override
@@ -153,7 +172,7 @@ public final class BanDbDto {
                 + ", subjectName=" + getSubjectName()
                 + ", banType=" + banType
                 + ", expiresAt=" + expiresAt
-                + ", reason=" + reason
+                + ", publicReason=" + getPublicReason()
                 + ", issuedBy=" + issuedBy + "]";
     }
 
@@ -176,7 +195,7 @@ public final class BanDbDto {
         private @Nullable String subjectName;
         private @Nullable String banType;
         private @Nullable Instant expiresAt;
-        private @Nullable String reason;
+        private @Nullable String publicReason;
         private @Nullable String issuedBy;
 
         public Builder id(long id) {
@@ -227,9 +246,15 @@ public final class BanDbDto {
             return this;
         }
 
-        public Builder reason(@Nullable String reason) {
-            this.reason = reason;
+        public Builder publicReason(@Nullable String publicReason) {
+            this.publicReason = publicReason;
             return this;
+        }
+
+        /** @deprecated the former name of {@link #publicReason(String)}. */
+        @Deprecated
+        public Builder reason(@Nullable String reason) {
+            return publicReason(reason);
         }
 
         public Builder issuedBy(@Nullable String issuedBy) {
@@ -248,7 +273,8 @@ public final class BanDbDto {
                     subjectName,
                     banType,
                     expiresAt,
-                    reason,
+                    publicReason,
+                    publicReason,
                     issuedBy);
         }
     }

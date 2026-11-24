@@ -14,12 +14,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @SuppressWarnings("deprecation")
 class BanDbDtoTest {
 
     private static final String REST =
-            "'banType':'CHAT','expiresAt':'2026-12-01T00:00:00Z','reason':'spam','issuedBy':'gm'}";
+            "'banType':'CHAT','expiresAt':'2026-12-01T00:00:00Z','publicReason':'spam','reason':'spam','issuedBy':'gm'}";
     private static final String SUBJECT = "'subjectType':'CHARACTER','subjectValue':'268435457','subjectName':'Hero',";
     private static final String TARGET = "'targetType':'CHARACTER','targetValue':'268435457','targetName':'Hero',";
 
@@ -31,7 +32,7 @@ class BanDbDtoTest {
                 .subjectName("Hero")
                 .banType("CHAT")
                 .expiresAt(Instant.parse("2026-12-01T00:00:00Z"))
-                .reason("spam")
+                .publicReason("spam")
                 .issuedBy("gm");
     }
 
@@ -62,8 +63,10 @@ class BanDbDtoTest {
 
         @Test
         void constructor_shouldWriteBothPairs_whenGivenEither() {
-            BanDbDto bySubject = new BanDbDto(1L, "IP", "10.0.0.1", "pc", null, null, null, null, null, null, null);
-            BanDbDto byTarget = new BanDbDto(1L, null, null, null, "IP", "10.0.0.1", "pc", null, null, null, null);
+            BanDbDto bySubject =
+                    new BanDbDto(1L, "IP", "10.0.0.1", "pc", null, null, null, null, null, null, null, null);
+            BanDbDto byTarget =
+                    new BanDbDto(1L, null, null, null, "IP", "10.0.0.1", "pc", null, null, null, null, null);
 
             assertEquals(GSON.toJsonTree(bySubject), GSON.toJsonTree(byTarget));
             assertEquals(
@@ -199,6 +202,39 @@ class BanDbDtoTest {
             assertFalse(wire.has("subjectValue"));
             assertFalse(wire.has("targetValue"));
             assertEquals("HWID", wire.get("targetType").getAsString());
+        }
+    }
+
+    @Nested
+    class PublicReason {
+
+        @ParameterizedTest
+        @ValueSource(strings = {"'reason':'%1$s'", "'publicReason':'%1$s'", "'publicReason':'%1$s','reason':'other'"})
+        void readers_shouldReadItThroughBothNames(String field) throws Exception {
+            String wire = json("{'id':11," + String.format(field, "spam") + "}");
+
+            BanDbDto byGson = GSON.fromJson(wire, BanDbDto.class);
+            BanDbDto byJackson = JACKSON.readValue(wire, BanDbDto.class);
+
+            assertEquals("spam", byGson.getPublicReason());
+            assertEquals("spam", byGson.getReason());
+            assertEquals(byGson, byJackson);
+        }
+
+        @Test
+        void writers_shouldWriteBothNames_whenSetByEither() throws Exception {
+            BanDbDto byOldName = valid().reason("spam").build();
+            BanDbDto byNewName = valid().publicReason("spam").build();
+
+            assertEquals(byNewName, byOldName);
+            assertWritesBothNames(GSON.toJson(byOldName));
+            assertWritesBothNames(JACKSON.writeValueAsString(byNewName));
+        }
+
+        private void assertWritesBothNames(String wire) {
+            JsonObject actual = GSON.fromJson(wire, JsonObject.class);
+            assertEquals("spam", actual.get("publicReason").getAsString());
+            assertEquals("spam", actual.get("reason").getAsString());
         }
     }
 }

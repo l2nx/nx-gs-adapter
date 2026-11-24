@@ -33,7 +33,7 @@ class BanRecordTest {
                 .subjectName("Hero")
                 .banType("CHAT")
                 .expiresAt(EXPIRES_AT)
-                .reason("spam")
+                .publicReason("spam")
                 .issuedBy("gm")
                 .build();
     }

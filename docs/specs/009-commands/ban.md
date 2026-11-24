@@ -2,8 +2,8 @@
 
 > Owner: @n1rmata
 > Counterpart: `nx-gameservers/docs/specs/030-bans/spec.md`. Design of the `subject*` pair approved 2026-11-24
-> (l2nx/nx-gameservers#214), implemented in the api and db-sync-core, not released: steps 1 and 2 of R14 are done in
-> code, the platform wiring (R8) and the removal (R14 step 3) are [todo].
+> (l2nx/nx-gameservers#214), released in api 0.133.0 (`subject*`) and 0.134.0 (`publicReason`): steps 1 and 2 of R14 are done, the removal
+> (R14 step 3) is [todo].
 
 ## Problem
 
@@ -51,8 +51,8 @@ schema-provider mapping.
   - `boolean permanent` — REQUIRED. `true` iff `expiresAt` is `null` (the constructor
     rejects any other pairing).
   - `@Nullable Instant expiresAt` — instant the ban lapses; `null` = permanent.
-  - `@Nullable String reason` — human-readable reason, surfaced to the player
-    and stored on the row.
+  - `@Nullable String publicReason` — human-readable reason, shown to the player
+    and stored on the row. `@Deprecated reason` — the former name (R13).
   - `@Nullable String issuedBy` — admin display name / service id, stored for
     audit.
 
@@ -152,7 +152,7 @@ schema-provider mapping.
   - `@Nullable String banType` — a `WellKnownBanTypes` value.
   - `@Nullable Instant expiresAt` — `null` = permanent (host "no expiry"
     sentinel maps to `null`).
-  - `@Nullable String reason` / `@Nullable String issuedBy`.
+  - `@Nullable String publicReason` (`@Deprecated reason`, R13) / `@Nullable String issuedBy`.
 
   The contract carries both up-channel and down-channel directions: a ban
   applied via `BanCommand` AND a ban issued in-game (GM / anti-cheat) both
@@ -220,6 +220,7 @@ schema-provider mapping.
     back a value nulled on purpose (db-sync-core nulls placeholder HWID / IP values);
   - getters are symmetric: the old name without `target*` returns `subject*`;
   - `unbannedBans` / `removedBans` follow the same rule, at least one is required;
+  - `publicReason` / `reason` (`BanCommand`, `BanDbDto`): `publicReason` when it is set, otherwise `reason`;
   - `BanRecord.source` / `BanRef.source` are unchanged.
 
   db-sync-core writes both pairs, so mixed module versions stay correct.
@@ -228,15 +229,15 @@ schema-provider mapping.
   (2) The platform stops sending `HARD`; hosts keep accepting it. (3) Once the
   `adapterVersion` of every active adapter of every tenant is at least the core
   version of step 1: the platform and every other producer drop the old fields,
-  then `target*`, `removedBans`, `WellKnownBanTargetTypes` and `HARD` leave the api,
+  then `target*`, `reason`, `removedBans`, `WellKnownBanTargetTypes` and `HARD` leave the api,
   then the host drops its `HARD` branch and answers `VALIDATION_FAILED`.
 
 ## Compatibility
 
 Step 1 (R13, R14) is additive on the wire and breaking for source and binary:
 
-- **Wire.** Both name pairs travel together (`subject*` and `target*`, `unbannedBans` and `removedBans`) and a reader
-  takes one pair as a whole, so a host and a platform on either version understand each other. The R12 rule is new host
+- **Wire.** Both name pairs travel together (`subject*` and `target*`, `unbannedBans` and `removedBans`, `publicReason` and `reason`) and a reader
+  takes one of each as a whole, so a host and a platform on either version understand each other. The R12 rule is new host
   behaviour; a host that does not follow it yet enforces such a ban from the next login.
 - **Source and binary.** The positional constructors of `BanCommand`, `UnbanCommand`, `UnbanResult` and `BanDbDto` with
   only the former fields are removed. The one constructor left takes the fields of both pairs and is meant for JSON
