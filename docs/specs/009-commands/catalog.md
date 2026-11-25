@@ -79,19 +79,16 @@ Without an active ban the host creates a new row. A repeated command with the
 same `expiresAt` is therefore idempotent without a key. Host rule, every host: a
 `GAME_LOGIN` ban by `IP` or `HWID` disconnects every online player connected with that value; a clientless character is reached by its own `CHARACTER` or `ACCOUNT` ban.
 
-Both names travel: `@Deprecated` `targetType` / `targetValue` are written together with
-`subjectType` / `subjectValue`; a reader takes one pair as a whole ([ban R13](ban.md)).
-
 **Inputs**
 
 | Field         | Type       | Required    | Notes                                                                                                                                                                                                                                                                 |
 | ------------- | ---------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `subjectType` | `String` | yes | `WellKnownBanSubjectTypes` value: `CHARACTER`, `ACCOUNT`, `IP`, `HWID`. `HARD` is `@Deprecated`: hosts accept it until the removal step ([ban R14](ban.md)), then answer `VALIDATION_FAILED` |
+| `subjectType` | `String` | yes | `WellKnownBanSubjectTypes` value: `CHARACTER`, `ACCOUNT`, `IP`, `HWID`. Any other value is answered with `VALIDATION_FAILED` |
 | `subjectValue` | `String` | yes | Keyed datum for `subjectType` — char id (as a string), account login, plaintext IP, or HWID hash |
 | `banType`     | `String`   | yes         | `WellKnownBanTypes` value: `GAME_LOGIN`, `CHAT`, `CHAT_SHADOW`, `PARTY`, `JAIL`                                                                                                                                                                                       |
 | `permanent`   | `boolean`  | yes         | Drives expiry: `true` → `expiresAt` MUST be `null`; `false` → `expiresAt` required. Constructor enforces `permanent == (expiresAt == null)`                                                                                                                           |
 | `expiresAt`   | `Instant?` | conditional | Instant the ban lapses; `null` iff `permanent`                                                                                                                                                                                                                        |
-| `publicReason` | `String?` | no          | Human-readable ban reason, shown to the player and stored on the ban row; `@Deprecated reason` is its former name                                                                                                                                                                                           |
+| `publicReason` | `String?` | no          | Human-readable ban reason, shown to the player and stored on the ban row                                                                                                                                                                                           |
 | `issuedBy`    | `String?`  | no          | Admin display name or service identifier, stored on the ban row for audit                                                                                                                                                                                             |
 
 **Result** (`BanResult`)
@@ -136,7 +133,7 @@ ban) already holds.
 
 | Field         | Type           | Notes                                                                                                                                                   |
 | ------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `unbannedBans` (`@Deprecated` `removedBans`) | `List<BanRef>` | Rows cleared as `{String source, long id}` (`BanRecord` tokens and id spaces). Never `null`; empty when nothing matched — a no-op success, not an error |
+| `unbannedBans` | `List<BanRef>` | Rows cleared as `{String source, long id}` (`BanRecord` tokens and id spaces). Never `null`; empty when nothing matched — a no-op success, not an error |
 | `observedAt`  | `Instant`      | Host time the change was applied, as in `BanResult`                                                                                                     |
 
 **Errors**

@@ -807,7 +807,7 @@ static @Nullable String ip(@Nullable String raw);
 | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `CharacterPresenceEvent.ip`, `.hwid` (client and app events)                  | core events path, before the event is queued (the event is rebuilt when a value changes) |
 | `AccountAuthAttemptEvent.hwid`                                                | core events path, as above                                                               |
-| `BanDbDto.subjectValue` and `.targetValue` when the type is `IP` or `HWID`    | db-sync, right after the row is mapped, before it is published                           |
+| `BanDbDto.subjectValue` when the type is `IP` or `HWID`                       | db-sync, right after the row is mapped, before it is published                           |
 | `CharacterLockDbDto.lockValue` when `lockType` is `IP`, `HWID` or `ITEM`      | db-sync, as above                                                                        |
 | `l2nx_offline_sessions.hwid`, `.initiator_ip` (and the `OfflineSession` view) | the engine, on insert and on reading a row                                               |
 | `CommandInitiator.ip`                                                         | commands consumer, at deserialization                                                    |

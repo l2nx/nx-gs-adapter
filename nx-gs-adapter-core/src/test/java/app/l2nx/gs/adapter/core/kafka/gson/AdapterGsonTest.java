@@ -17,9 +17,9 @@ class AdapterGsonTest {
 
         @Test
         void create_shouldDecodeInstantExpiresAt_onNonPermanentBan() {
-            String wire = "{\"targetType\":\"CHARACTER\",\"targetValue\":\"269234946\","
+            String wire = "{\"subjectType\":\"CHARACTER\",\"subjectValue\":\"269234946\","
                     + "\"banType\":\"GAME_LOGIN\",\"permanent\":false,"
-                    + "\"expiresAt\":\"2026-07-03T01:34:33.873516885Z\",\"reason\":null,"
+                    + "\"expiresAt\":\"2026-07-03T01:34:33.873516885Z\",\"publicReason\":null,"
                     + "\"issuedBy\":\"01988063-1582-7c13-a4dd-d9db4eeeaa21\"}";
 
             BanCommand cmd = gson.fromJson(wire, BanCommand.class);
@@ -31,9 +31,9 @@ class AdapterGsonTest {
 
         @Test
         void create_shouldDecodeNullExpiresAt_onPermanentJailBan() {
-            String wire = "{\"targetType\":\"CHARACTER\",\"targetValue\":\"269234946\","
+            String wire = "{\"subjectType\":\"CHARACTER\",\"subjectValue\":\"269234946\","
                     + "\"banType\":\"JAIL\",\"permanent\":true,\"expiresAt\":null,"
-                    + "\"reason\":null,\"issuedBy\":\"01988063-1582-7c13-a4dd-d9db4eeeaa21\"}";
+                    + "\"publicReason\":null,\"issuedBy\":\"01988063-1582-7c13-a4dd-d9db4eeeaa21\"}";
 
             BanCommand cmd = gson.fromJson(wire, BanCommand.class);
 

@@ -28,33 +28,19 @@ class DbDtoIdentifiersTest {
 
         @ParameterizedTest(name = "[{index}] {0}={1}")
         @CsvSource({"IP,N/A", "IP,0.0.0.0", "IP,'::'", "IP,' '", "HWID,0", "HWID,-", "HWID,unknown"})
-        void normalize_shouldNullValueInBothPairs_whenIdentifierIsPlaceholder(String subjectType, String subjectValue) {
+        void normalize_shouldNullSubjectValue_whenIdentifierIsPlaceholder(String subjectType, String subjectValue) {
             BanDbDto ban = ban(subjectType, subjectValue);
 
-            assertNulledInBothPairs(ban, (BanDbDto) DbDtoIdentifiers.normalize(ban));
+            assertNulled(ban, (BanDbDto) DbDtoIdentifiers.normalize(ban));
         }
 
         @Test
-        @SuppressWarnings("deprecation")
-        void normalize_shouldNullValueInBothPairs_whenMapperUsesTargetNames() {
-            BanDbDto ban = BanDbDto.builder()
-                    .id(1L)
-                    .targetType(WellKnownBanSubjectTypes.HWID)
-                    .targetValue("0")
-                    .banType("CHAT")
-                    .build();
-
-            assertNulledInBothPairs(ban, (BanDbDto) DbDtoIdentifiers.normalize(ban));
-        }
-
-        @Test
-        void normalize_shouldTrimValueInBothPairs_whenIdentifierIsReal() {
+        void normalize_shouldTrimSubjectValue_whenIdentifierIsReal() {
             BanDbDto actual = (BanDbDto) DbDtoIdentifiers.normalize(ban(WellKnownBanSubjectTypes.IP, " 10.0.0.1 "));
 
             JsonObject wire = wire(actual);
             assertEquals("10.0.0.1", actual.getSubjectValue());
             assertEquals("10.0.0.1", wire.get("subjectValue").getAsString());
-            assertEquals("10.0.0.1", wire.get("targetValue").getAsString());
         }
 
         @ParameterizedTest(name = "[{index}] {0}")
@@ -81,14 +67,12 @@ class DbDtoIdentifiersTest {
                     .build();
         }
 
-        private void assertNulledInBothPairs(BanDbDto ban, BanDbDto actual) {
+        private void assertNulled(BanDbDto ban, BanDbDto actual) {
             JsonObject wire = wire(actual);
             assertNull(actual.getSubjectValue());
             assertEquals(ban.toBuilder().subjectValue(null).build(), actual);
             assertEquals(ban.getSubjectType(), wire.get("subjectType").getAsString());
-            assertEquals(ban.getSubjectType(), wire.get("targetType").getAsString());
             assertFalse(wire.has("subjectValue"));
-            assertFalse(wire.has("targetValue"));
         }
 
         private JsonObject wire(BanDbDto ban) {

@@ -2,8 +2,8 @@
 
 > Owner: @n1rmata
 > Counterpart: `nx-gameservers/docs/specs/030-bans/spec.md`. Design of the `subject*` pair approved 2026-11-24
-> (l2nx/nx-gameservers#214), released in api 0.133.0 (`subject*`) and 0.134.0 (`publicReason`): steps 1 and 2 of R14 are done, the removal
-> (R14 step 3) is [todo].
+> (l2nx/nx-gameservers#214), released in api 0.133.0 (`subject*`) and 0.134.0 (`publicReason`); the former names
+> left the api in 0.135.0 (R13).
 
 ## Problem
 
@@ -46,13 +46,12 @@ schema-provider mapping.
   - `String subjectType` — REQUIRED. A `WellKnownBanSubjectTypes` value.
   - `String subjectValue` — REQUIRED. The keyed datum for `subjectType` (char id
     as a string, account login, plaintext IP, or HWID hash).
-  - `@Deprecated String targetType` / `targetValue` — the former names (R13).
   - `String banType` — REQUIRED. A `WellKnownBanTypes` value.
   - `boolean permanent` — REQUIRED. `true` iff `expiresAt` is `null` (the constructor
     rejects any other pairing).
   - `@Nullable Instant expiresAt` — instant the ban lapses; `null` = permanent.
   - `@Nullable String publicReason` — human-readable reason, shown to the player
-    and stored on the row. `@Deprecated reason` — the former name (R13).
+    and stored on the row.
   - `@Nullable String issuedBy` — admin display name / service id, stored for
     audit.
 
@@ -63,8 +62,7 @@ schema-provider mapping.
   success payload:
   - `List<BanRecord> bans` — REQUIRED, never `null` or empty: a successful ban
     always yields at least one row. Every ban row the host created, extended or
-    found, a shadow chat ban included (one per concrete
-    dimension of a `HARD` fan-out until R14 step 3).
+    found, a shadow chat ban included.
   - `Instant observedAt` — REQUIRED. Host time the rows were observed after the
     change was applied (for a no-op, when the host found them). The
     platform writes the rows into its ban mirror at once and gates every later
@@ -90,15 +88,15 @@ schema-provider mapping.
 
 - [done] R3. `nx-gs-adapter-api.kafka.commands.ban.UnbanCommand` MUST ship as
   `NxCommand<UnbanResult>` — the inverse of `BanCommand`. Fields `subjectType` /
-  `subjectValue` / `banType`, all REQUIRED (same vocab + null-check contract and
-  deprecated pair as R1; `HARD` by R14). Clearing
+  `subjectValue` / `banType`, all REQUIRED (same vocab + null-check contract as R1).
+  Clearing
   a ban that is not present is a no-op success, not an error.
 
 - [done] R4. `nx-gs-adapter-api.kafka.commands.ban.UnbanResult` MUST ship as the
   success payload:
   - `List<BanRef> unbannedBans` — REQUIRED, never `null`; the cleared rows, empty
     when no matching ban existed (a no-op success). No separate flag: it would only
-    repeat `!unbannedBans.isEmpty()`. `@Deprecated removedBans` is the former name (R13).
+    repeat `!unbannedBans.isEmpty()`.
   - `Instant observedAt` — REQUIRED, as in R2.
 
   One `unbannedBans` entry is `nx-gs-adapter-api.kafka.commands.ban.model.BanRef`:
@@ -112,9 +110,6 @@ schema-provider mapping.
   - `ACCOUNT` — whole login account; `subjectValue` = account login.
   - `IP` — `subjectValue` = plaintext IP.
   - `HWID` — `subjectValue` = HWID hash.
-
-  `@Deprecated WellKnownBanTargetTypes` keeps the same values plus `HARD`, the
-  command-only fan-out marker (R14); a persisted row NEVER carries `HARD`.
 
 - [done] R6. `nx-gs-adapter-api.kafka.commands.ban.WellKnownBanTypes` MUST ship
   the canonical `UPPER_SNAKE_CASE` open-string ban-kind vocabulary. The
@@ -144,15 +139,14 @@ schema-provider mapping.
   `@Nullable` so a host surfaces the subset its schema carries. Fields:
   - `long id` — REQUIRED. Row id in the space of the entity / source above.
   - `@Nullable String subjectType` — a `WellKnownBanSubjectTypes` value
-    (`CHARACTER` / `ACCOUNT` / `IP` / `HWID`; never `HARD`).
+    (`CHARACTER` / `ACCOUNT` / `IP` / `HWID`).
   - `@Nullable String subjectValue` — keyed datum for `subjectType`.
   - `@Nullable String subjectName` — human-readable subject name (character /
     account name) surfaced because the in-game admin UI displayed it.
-  - `@Deprecated targetType` / `targetValue` / `targetName` — the former names (R13).
   - `@Nullable String banType` — a `WellKnownBanTypes` value.
   - `@Nullable Instant expiresAt` — `null` = permanent (host "no expiry"
     sentinel maps to `null`).
-  - `@Nullable String publicReason` (`@Deprecated reason`, R13) / `@Nullable String issuedBy`.
+  - `@Nullable String publicReason` / `@Nullable String issuedBy`.
 
   The contract carries both up-channel and down-channel directions: a ban
   applied via `BanCommand` AND a ban issued in-game (GM / anti-cheat) both
@@ -177,7 +171,6 @@ schema-provider mapping.
     `VALIDATION_FAILED` on a missing / unrecognized value, `NOT_FOUND` when the
     subject character / account does not exist, `FORBIDDEN` on host policy
     rejection;
-  - expands `HARD` into the concrete dimension set until R14 step 3;
   - applies / clears the ban on the host ban engine, hopping blocking
     JDBC onto `ctx.io()` and game-thread mutations onto `ctx.host().sync(...)`;
   - returns `BanResult` / `UnbanResult` with every affected row (R2, R4) and
@@ -190,7 +183,7 @@ schema-provider mapping.
   sentinel to a `null` `expiresAt`.
 
 - [host rule] R11. **A repeated ban extends, never shortens.** Every host's
-  `BanCommand` handler, per concrete dimension (after the `HARD` fan-out):
+  `BanCommand` handler:
   - an active ban of the same subject and `banType` exists, and the new term
     ends later than its term or is permanent → the host extends that ban to
     the new term (same row, same id) and returns it with the new `expiresAt`;
@@ -209,43 +202,18 @@ schema-provider mapping.
   is not matched by such a ban; its own `CHARACTER` or `ACCOUNT` ban reaches it. A
   host that does not follow the rule yet enforces such a ban from the next login.
 
-- [done] R13. **Both names on the wire, read as a whole pair.** `BanCommand`,
-  `UnbanCommand`, `BanDbDto` and `UnbanResult` carry the new and the deprecated
-  fields at once:
-  - one constructor takes the fields of both pairs (the platform reads with
-    Jackson); the former positional constructors are gone, the replacement is the
-    builder, whose setter of either name writes both;
-  - getters pick a pair as a whole, never field by field: `subject*` when
-    `subjectType` is set, otherwise `target*`. A field-by-field fallback would bring
-    back a value nulled on purpose (db-sync-core nulls placeholder HWID / IP values);
-  - getters are symmetric: the old name without `target*` returns `subject*`;
-  - `unbannedBans` / `removedBans` follow the same rule, at least one is required;
-  - `publicReason` / `reason` (`BanCommand`, `BanDbDto`): `publicReason` when it is set, otherwise `reason`;
-  - `BanRecord.source` / `BanRef.source` are unchanged.
-
-  db-sync-core writes both pairs, so mixed module versions stay correct.
-
-- [todo] R14. **Removal by step.** (1) This release: both forms, `HARD` deprecated.
-  (2) The platform stops sending `HARD`; hosts keep accepting it. (3) Once the
-  `adapterVersion` of every active adapter of every tenant is at least the core
-  version of step 1: the platform and every other producer drop the old fields,
-  then `target*`, `reason`, `removedBans`, `WellKnownBanTargetTypes` and `HARD` leave the api,
-  then the host drops its `HARD` branch and answers `VALIDATION_FAILED`.
+- [done] R13. **One name per field.** The former `target*`, `reason`, `removedBans`,
+  `WellKnownBanTargetTypes` and its `HARD` fan-out travelled next to the new names in
+  api 0.133.0 and 0.134.0, read as a whole pair, and were removed in 0.135.0 once
+  every production game server ran core 0.57.3 (2026-11-25). A reader ignores the
+  former fields an older host still writes. `HARD` is an unknown `subjectType`
+  (`VALIDATION_FAILED`, R9): the platform sends one command per subject.
 
 ## Compatibility
 
-Step 1 (R13, R14) is additive on the wire and breaking for source and binary:
-
-- **Wire.** Both name pairs travel together (`subject*` and `target*`, `unbannedBans` and `removedBans`, `publicReason` and `reason`) and a reader
-  takes one of each as a whole, so a host and a platform on either version understand each other. The R12 rule is new host
-  behaviour; a host that does not follow it yet enforces such a ban from the next login.
-- **Source and binary.** The positional constructors of `BanCommand`, `UnbanCommand`, `UnbanResult` and `BanDbDto` with
-  only the former fields are removed. The one constructor left takes the fields of both pairs and is meant for JSON
-  binding; the replacement is `builder()`.
-- **Documentation.** Steps 1 and 3 each need a section in `docs/public/{en,ru}/migration.md`: step 1 names the R12 rule,
-  the new fields and the removed positional constructors, step 3 the removed names.
-- **Owner-approved exception.** The `@Deprecated` fields and the two-release removal contradict the one-release rule of
-  the repo `CLAUDE.md` (owner, 2026-11-24); the exception covers only these ban fields, and R14 step 3 ends it.
+The removal of the former names (R13) is breaking for source, binary and wire: a host on api 0.134.0 or newer reads the
+commands of the platform, and the platform reads the new names every such host writes. The steps for a host are in
+`docs/public/{en,ru}/migration.md`.
 
 The ban command, result and vocabulary types and `BanDbDto` themselves are older (`api/v0.67.0`); no adapter-core change
 is required (commands route by `Message-Type`; the DTO rides the standard db-sync flow). A host on an older api jar

@@ -6,9 +6,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Success payload of {@link BanCommand}: ban rows created, extended or found, one per dimension of a deprecated
- * {@code HARD} fan-out. {@code observedAt} (host time) orders this reply against the ban sync stream; the newest
- * observation of a row wins.
+ * Success payload of {@link BanCommand}: ban rows created, extended or found. {@code observedAt} (host time)
+ * orders this reply against the ban sync stream; the newest observation of a row wins.
  */
 public final class BanResult {
 
