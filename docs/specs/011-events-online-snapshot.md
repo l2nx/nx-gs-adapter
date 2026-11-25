@@ -56,7 +56,7 @@ Audience: platform consumers (dashboards, time-series ingest) and host authors w
   Optional (a host publishes them when the concept applies; consumers tolerate absence):
   - `OFFLINE_PRIVATE_STORE` - characters whose activity is `OFFLINE_PRIVATE_STORE`: stores left by a disconnected client
     and app private stores alike.
-  - `FISHING` - characters fishing at a client (live fishing only).
+  - `FISHING` - characters fishing at a client (game fishing only).
   - `APP` - every character placed in the world by an app command without a client
     ([`038`](038-app-offline-sessions.md)). How the platform combines it with the real count is a platform decision.
   - `OFFLINE_FISHING` - app-loaded fishers (app sessions with activity `OFFLINE_FISHING`).

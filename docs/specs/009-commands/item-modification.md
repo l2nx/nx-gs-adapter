@@ -559,7 +559,7 @@ enforced where → test.
 | `idle-seconds` without a command                            | `APP_IDLE`, return to origin, `active_ms` not published                                                                                          | R10                  | component    |
 | Hot reload of `app.phantom.idle-seconds`                    | applies from the next `touch`                                                                                                                    | R10                  | unit         |
 | Client login during an in-flight command                    | refused once, the next attempt → `APP_LOGIN`                                                                                                     | host login closer    | component    |
-| Client login without a command                              | the session closes with `APP_LOGIN` before the live character loads                                                                              | 038                  | holds        |
+| Client login without a command                              | the session closes with `APP_LOGIN` before the game character loads                                                                              | 038                  | holds        |
 | Kick / ban of the phantom                                   | `KICKED` / `BANNED`, the next command is refused by the start rules (sanction)                                                                   | 038                  | holds        |
 | Exit without the lock after its timeout during an operation | the exit takes the inventory write lock the operation holds; the operation reads `ending` under it → no item row lost                            | Host semantics       | component    |
 | Restart with an open phantom                                | `SERVER_STOP` at boot before commands, origin, `endedAt = startedAt + activeMs`, no loaded world                                                 | R13                  | integration  |
@@ -669,7 +669,7 @@ unique key with `REPLAY_OK` for `OK`, `IN_FLIGHT` for an open row, `FAILED` reop
 executes nothing. The consumer's at-most-once (commit before dispatch) rules out a Kafka redelivery. Two commands of one
 character with different `requestId`s are serialized by the host's character lock: the second is `CHARACTER_BUSY` or
 runs after — two legitimate attempts, not a duplicate. A login under a phantom without a command closes the session with
-`APP_LOGIN` before the live character loads. Kick or ban of a phantom ends the session `KICKED` / `BANNED`. A crash
+`APP_LOGIN` before the game character loads. Kick or ban of a phantom ends the session `KICKED` / `BANNED`. A crash
 mid-placement or mid-removal is closed by `SERVER_STOP` at boot with an idempotent position update; pending writes keep
 the character busy until the end is written. `supersede` on a `STARTING` slot is not lost (serial slot queue). The
 engine writes levels, counts, augmentation and element rows synchronously, so the database is authoritative at boot and

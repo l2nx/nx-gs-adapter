@@ -50,7 +50,7 @@ shows it to the player.
     echoes the canonical numeric text).
   - `@Nullable String previousAccessLevel` — the level before the write, `null` when the host
     could not read it.
-  - `boolean wasOnline` — `true` when the change was applied to a live session (takes full effect
+  - `boolean wasOnline` — `true` when the change was applied to a game session (takes full effect
     on next login, as with the in-game command); `false` when written to the offline row.
 
 ### Kick

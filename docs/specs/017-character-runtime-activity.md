@@ -76,12 +76,12 @@ Audience: platform-side dashboard and command-flow consumers; host-side authors 
   CHECK, then the host. The same enum types the presence `activity` field ([`013`](013-character-core-extension.md)).
   An app private store and a `.offline` store both use `OFFLINE_PRIVATE_STORE`; the presence `source` tells them apart.
 
-  Fishing rows: the `FISHING` row carries `used` / `limit` / `steps` / `resetSchedule` shared by live and offline
+  Fishing rows: the `FISHING` row carries `used` / `limit` / `steps` / `resetSchedule` shared by game and offline
   fishing, and `activeSince` while any fishing runs. The `OFFLINE_FISHING` row carries `activeSince` of an app fishing
   session and no usage numbers; its `metadata` describes the running session (R17).
 
   Consumption and limits are named `usage`, not `quota`. Fishing notifications are a deferred, separate task; the platform
-  can later derive "fishing ended" from a fishing row (live or offline) whose `activeSince` clears (for an offline session
+  can later derive "fishing ended" from a fishing row (game or offline) whose `activeSince` clears (for an offline session
   the session itself is described by [`038`](038-app-offline-sessions.md)). After a host restart (the fishing thresholds,
   daily ceiling and reset change only with the host's own configuration) the host republishes every usage row.
 
