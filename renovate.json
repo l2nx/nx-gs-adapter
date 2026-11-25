@@ -1,9 +1,28 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "local>l2nx/renovate-config"
+    "github>l2nx/renovate-config-public"
   ],
   "packageRules": [
+    {
+      "description": "The adapter runs on Java 8 hosts and has no Spring",
+      "matchPackageNames": [
+        "java",
+        "jdk",
+        "adoptium-jdk",
+        "org.springframework:**",
+        "org.springframework.boot",
+        "org.springframework.boot:**"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "JDK/Java version datasources stay put: Java 8",
+      "matchDatasources": [
+        "java-version"
+      ],
+      "enabled": false
+    },
     {
       "description": "kafka-clients is an api dependency of nx-gs-kafka and runs on the Java 8 game server hosts; 4.x is Java 11 bytecode",
       "matchPackageNames": [
