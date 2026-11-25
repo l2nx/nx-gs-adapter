@@ -14,7 +14,7 @@ description: Шаги обновления адаптера через breaking 
   что изменилось и что делать.
 - Документация всегда описывает текущую версию.
 
-## nx-gs-adapter-api 0.137.0: `blockedByCharacterId`, группа настроек `fishing`
+## nx-gs-adapter-api 0.137.1: `blockedByCharacterId`, группа настроек `fishing`
 
 - `AppSessionCheckResult` и `extensions` отказа команды сессии из приложения получили `blockedByCharacterId`: персонаж,
   который занимает слот. `GameSettings` получил nullable-группу `fishing` с действующими лимитами рыбалки.
