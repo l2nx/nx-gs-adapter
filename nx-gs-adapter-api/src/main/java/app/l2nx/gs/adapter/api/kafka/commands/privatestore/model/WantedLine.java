@@ -43,7 +43,7 @@ public final class WantedLine {
         return count;
     }
 
-    /** Per unit; {@code 0} is valid. */
+    /** Per unit. */
     public long getPriceAdena() {
         return priceAdena;
     }

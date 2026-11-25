@@ -10,6 +10,7 @@ public enum DroppedLineReason {
     ITEM_BLOCKED,
     EQUIPPED,
     BAD_COUNT,
+    BAD_PRICE,
     PRICE_OVERFLOW,
     ADENA,
     PET_CONTROL_ITEM,

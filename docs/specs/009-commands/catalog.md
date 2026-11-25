@@ -885,7 +885,7 @@ it (sell, package sell, buy); `StopPrivateStoreCommand` never waits for it.
 | ------------------ | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `characterId`      | `int`            | yes      | Character to open the store for                                                                                                                                                                                                                                                                                                                                                                                      |
 | `title`            | `String?`        | no       | Store banner text shown above the seller, max 29 characters, host-sanitized. `null` falls back to the host's default                                                                                                                                                                                                                                                                                                 |
-| `lines`            | `List<SellLine>` | yes      | Offered stacks, non-empty. Each `SellLine`: `itemId` (`int`, inventory instance object-id), `count` (`long`, positive), `priceAdena` (`long`, non-negative — `0` is a valid give-away price; engine charges `count * priceAdena` for the whole stack)                                                                                                                                                                |
+| `lines`            | `List<SellLine>` | yes      | Offered stacks, non-empty. Each `SellLine`: `itemId` (`int`, inventory instance object-id), `count` (`long`, positive), `priceAdena` (`long`, non-negative on the wire, the host refuses what its store rules forbid; engine charges `count * priceAdena` for the whole stack)                                                                                                                                                                |
 | `sellerFeePercent` | `Integer?`       | no       | Seller fee, whole percent, not negative; `null` = no fee. The platform decides the rate; the host rejects a negative percent and one above `100` (proceeds cannot go negative). Declared on the sell branch (the abstract class shared by `StartPrivateStoreSellCommand` and `StartPrivateStorePackageSellCommand`), not on the base `StartPrivateStoreCommand`: a buy store has no seller. See **Seller fee** below |
 | `offlineAllowed`   | `Boolean`        | no       | Platform's verdict on the offline-store quota, taken before dispatch. `false`: the host refuses with `OFFLINE_QUOTA_EXCEEDED` (`INVALID_STATE`) before loading anything. `null` (older platform) reads as allowed                                                                                                                                                                                                    |
 | `ownerVerified`    | `boolean`        | no       | `true` only when the platform verified, against fresh master-account data, that the acting user owns the character; absent reads as `false`. See Cross-cutting › Owner verification                                                                                                                                                                                                                                  |
@@ -917,6 +917,7 @@ instance, so its `itemId` is `null`. Known reasons (buy lines use the subset in
 | `NOT_TRADEABLE`        | The item cannot be traded                                                                |
 | `ITEM_BLOCKED`         | The item is blocked from private stores by host policy                                   |
 | `EQUIPPED`             | The item is currently equipped                                                           |
+| `BAD_PRICE`            | `priceAdena` is below the lowest price the host's store rules allow                      |
 | `BAD_COUNT`            | The count is not available in the stack                                                  |
 | `PRICE_OVERFLOW`       | `count * priceAdena` exceeds the host's adena limit                                      |
 | `ADENA`                | The item is the host's currency and cannot be listed                                     |
@@ -1040,7 +1041,7 @@ deserialization bypasses the constructor check, so the host re-validates it. The
 Reasons a buy line can get (meanings in the table under `StartPrivateStoreSellCommand`): `NOT_FOUND` (unknown template,
 or the owner holds none of it: the game client offers a buy line only for a template in the inventory, so the host
 requires one held when the store opens; a restored store with such a line, or with adena, is closed whole), `NOT_TRADEABLE` (quest items included), `BAD_COUNT` (a non-stackable template
-with `count > 1`), `PRICE_OVERFLOW`, `ADENA` (the currency item cannot be wanted), `NOT_AVAILABLE`. The stack-bound
+with `count > 1`, or a count over the host's stack limit), `BAD_PRICE`, `PRICE_OVERFLOW`, `ADENA` (the currency item cannot be wanted), `NOT_AVAILABLE`. The stack-bound
 reasons (`EQUIPPED`, `PET_CONTROL_ITEM`, ...) do not apply: a buy line holds no stack, only proof that one is held. The tokens are the constants of
 the enum `DroppedLineReason` (lenient `fromToken`; the problem extension name is `DroppedLine.EXTENSION`).
 
@@ -1521,3 +1522,10 @@ to players yet, so the contract is changed directly, with no deprecated fields a
   `privateStoreBuySlots` (`@Nullable Integer`, the maximum number of lines of a private buy store, independent of
   `privateStoreSellSlots`; `null` = not reported); callers and builders-by-constructor must pass it
   ([`028`](../028-character-inventory-capacity.md)).
+
+### Changes of api `0.136.0` (private store line bounds)
+
+- Added (additive): `DroppedLineReason.BAD_PRICE` — the line's price is below what the host's store rules allow. The wire
+  stays open to `0`: the lowest price and the highest count are host and platform rules, not an api constant. The former
+  javadoc that called `0` a valid give-away price is gone.
+- Rollout: any order, the vocabulary is open.

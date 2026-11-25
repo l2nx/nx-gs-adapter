@@ -33,7 +33,7 @@ public final class SellLine {
         return count;
     }
 
-    /** The engine charges {@code count * priceAdena} for the stack; {@code 0} is a valid give-away price. */
+    /** The engine charges {@code count * priceAdena} for the stack. */
     public long getPriceAdena() {
         return priceAdena;
     }
