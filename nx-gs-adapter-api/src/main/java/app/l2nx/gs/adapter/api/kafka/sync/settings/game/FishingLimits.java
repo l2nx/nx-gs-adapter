@@ -27,14 +27,6 @@ public final class FishingLimits {
         return ipLimit;
     }
 
-    public Builder toBuilder() {
-        return new Builder().accountLimit(accountLimit).hwidLimit(hwidLimit).ipLimit(ipLimit);
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -51,30 +43,5 @@ public final class FishingLimits {
     @Override
     public String toString() {
         return "FishingLimits[accountLimit=" + accountLimit + ", hwidLimit=" + hwidLimit + ", ipLimit=" + ipLimit + "]";
-    }
-
-    public static final class Builder {
-        private boolean accountLimit;
-        private boolean hwidLimit;
-        private boolean ipLimit;
-
-        public Builder accountLimit(boolean accountLimit) {
-            this.accountLimit = accountLimit;
-            return this;
-        }
-
-        public Builder hwidLimit(boolean hwidLimit) {
-            this.hwidLimit = hwidLimit;
-            return this;
-        }
-
-        public Builder ipLimit(boolean ipLimit) {
-            this.ipLimit = ipLimit;
-            return this;
-        }
-
-        public FishingLimits build() {
-            return new FishingLimits(accountLimit, hwidLimit, ipLimit);
-        }
     }
 }

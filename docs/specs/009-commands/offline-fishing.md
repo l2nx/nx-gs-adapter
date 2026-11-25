@@ -88,15 +88,15 @@ The session mechanics (table, lifecycle, events, restart) are in
   and `spotId` ([`017`](../017-character-runtime-activity.md) R17), so every device of the player sees the plan and the
   gear, not only the one that started it. Released in api 0.120.0 / core 0.51.0.
 - [done] R12. **IP limit.** The app session counts in the host's per-IP fishing limit (scope `IP`, a new
-  `AlreadyActiveScope` value) under `initiator.ip` of the start. Live fishing counts app sessions under that IP too.
+  `AlreadyActiveScope` value) under `initiator.ip` of the start. Game fishing counts app sessions under that IP too.
   The IP passes `ClientIdentifiers`; a placeholder limits nothing. The limit itself is a host rule, off
   when the host's per-IP limit is off. Released in api 0.120.0 / core 0.51.0.
-- [host rule] R13. **Parity with live fishing.** A start MUST be refused where live fishing with the same gear is refused.
+- [host rule] R13. **Parity with game fishing.** A start MUST be refused where game fishing with the same gear is refused.
   A character without the fishing skill is refused with `NO_FISHING_EXPERTISE`; a bait whose character level range
   excludes the character with `BAIT_LEVEL_MISMATCH`; any other item condition of the bait with `INVALID_BAIT` and of the
   rod with `INVALID_ROD`, which also cover an item the character may not use and a hero or quest item. Registration for
   the olympiad and an event count as `UNSAFE_LOGOUT_LOCATION`. Check gets the same answer at once. These are start
-  checks: a restore does not run them, as a live player who leaves the bait's level range goes on fishing with the bait
+  checks: a restore does not run them, as a game player who leaves the bait's level range goes on fishing with the bait
   on. The level range the frontend shows comes from the fishing catalog
   ([`fishing-gear-contract.md`](../030-gamedata-sync/fishing-gear-contract.md),
   `FishingBait.minCharacterLevel` / `maxCharacterLevel`), with no adapter change.
@@ -163,10 +163,10 @@ Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 | Scope            | Limit                                                                                                                                                        |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `CHARACTER`      | the character already has an open app session of any type (the engine's `CHARACTER_BUSY`, one active session per character)                                  |
-| `MASTER_ACCOUNT` | another fishing app session of the same master account is open; counts app sessions only, because the host does not know the master account of a live player |
-| `ACCOUNT`        | the game account already fishes, live or through the app                                                                                                     |
-| `HWID`           | the device (the session's hwid snapshot) already fishes, live or through the app; a missing or placeholder hwid is `null` and limits nothing                 |
-| `IP`             | the IP already fishes, live or through the app (R12); an app session counts under the start's `initiator.ip`                                                 |
+| `MASTER_ACCOUNT` | another fishing app session of the same master account is open; counts app sessions only, because the host does not know the master account of a game player |
+| `ACCOUNT`        | the game account already fishes, in game or through the app                                                                                                     |
+| `HWID`           | the device (the session's hwid snapshot) already fishes, in game or through the app; a missing or placeholder hwid is `null` and limits nothing                 |
+| `IP`             | the IP already fishes, in game or through the app (R12); an app session counts under the start's `initiator.ip`                                                 |
 
 `blockedByCharacterId` (`AppSessionRefusal.BLOCKED_BY_CHARACTER_ID`, `int`, positive) names the character that holds the
 slot, in the game client or from the app. Optional, only with `ALREADY_ACTIVE`: absent for `CHARACTER` (it is the
@@ -187,9 +187,9 @@ R29). The set of codes is the design's. The `CommandStatus` carrying each follow
 | `FORBIDDEN`         | `CHARACTER_BANNED`, `CHARACTER_JAILED`                                                                                                         |
 
 A character that is already fishing in the game client counts for the account and device limits as an offline session
-does (those limits cover live and offline fishing together); the master-account limit sees app sessions only. A live login
-of the fishing character closes its session (`APP_LOGIN`, login is never blocked); a live login of another character of
-the same account keeps the session, and that character's own live fishing is then refused by the account limit.
+does (those limits cover game and offline fishing together); the master-account limit sees app sessions only. A game login
+of the fishing character closes its session (`APP_LOGIN`, login is never blocked); a game login of another character of
+the same account keeps the session, and that character's own game fishing is then refused by the account limit.
 
 ### Edge-flow table
 
@@ -201,7 +201,7 @@ the same account keeps the session, and that character's own live fishing is the
 | Start within N minutes of leaving the game                                                  | `RECENTLY_LOGGED_OUT` + `retryAt`                                                                                                                                                                                                                                                                                                                                                                          |
 | Start before the cooldown has passed                                                        | `COOLDOWN` + `retryAt`                                                                                                                                                                                                                                                                                                                                                                                     |
 | Start close to a scheduled restart                                                          | `RESTART_SOON`                                                                                                                                                                                                                                                                                                                                                                                             |
-| Login of the character mid-session                                                          | Session closes with `APP_LOGIN` before the live character loads; the end presence event is emitted ([`038`](../038-app-offline-sessions.md) R9)                                                                                                                                                                                                                                                            |
+| Login of the character mid-session                                                          | Session closes with `APP_LOGIN` before the game character loads; the end presence event is emitted ([`038`](../038-app-offline-sessions.md) R9)                                                                                                                                                                                                                                                            |
 | Login of another character of the same account                                              | Session continues                                                                                                                                                                                                                                                                                                                                                                                          |
 | Restart mid-session                                                                         | Session restored once the host's world is loaded (`hostReady`), on the same spot (or a free one of the pool); presence event with `resumed = true`. No free spot: `APP_RESTORE_FAILED`. Until the restore reaches it the session keeps its account and device limit slots and its spot: the host reads every open fishing session with `NxAppSessions.findOpen` right before `hostReady` and reserves them |
 | Bait runs out                                                                               | Session ends `APP_OUT_OF_BAIT`                                                                                                                                                                                                                                                                                                                                                                             |
@@ -233,7 +233,7 @@ There is no dedicated end event. On every end the adapter emits the existing `Ch
 `APP_NO_ROD`, `APP_DAILY_LIMIT`, `APP_INVENTORY_FULL`, `APP_OVERWEIGHT`, `APP_INTERRUPTED`, `BANNED`, `KICKED`, `APP_RESTORE_FAILED`). A new reason goes out in order:
 adapter enum, then the platform enum and its CHECK, then the host. The event carries the session's catch,
 consumption and experience in `result` ([`043-session-results`](../043-session-results.md)). Fishing notifications are a deferred, separate task: the platform can later derive "fishing ended" from the
-activity usage (the `FISHING` row's `activeSince` clears, for live and offline fishing alike).
+activity usage (the `FISHING` row's `activeSince` clears, for game and offline fishing alike).
 
 ## Technical design
 
@@ -274,8 +274,8 @@ in check mode and maps the first refusal into `AppSessionCheckResult` instead of
 `AppSessionRefusal` has `REQUIRED_SLOTS`, `FREE_SLOTS`, `REQUIRED_WEIGHT` and `FREE_WEIGHT` with the values of
 `WellKnownAcceptMailReasons`, and `AppSessionCheckResult` has `requiredSlots`, `freeSlots` (`Integer?`), `requiredWeight`,
 `freeWeight` (`Long?`). Its constructor requires each pair exactly with its reason, as it does `scope` with
-`ALREADY_ACTIVE`, so these two refusals need the builder, not `refused(reason)`. `blockedByCharacterId` (`Integer?`) is
-accepted only with `ALREADY_ACTIVE` of a scope other than `CHARACTER`.
+`ALREADY_ACTIVE`, so these two refusals need the builder, not `refused(reason)`. A `blockedByCharacterId` (`Integer?`)
+that breaks its rule (see the scope table) is read as `null`: a diagnostic value never fails the check.
 
 ## Rollout
 

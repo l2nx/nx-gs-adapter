@@ -2,7 +2,6 @@ package app.l2nx.gs.adapter.api.kafka.commands.session;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -82,12 +81,6 @@ class AppSessionCheckResultTest {
                         "already active with the blocking character",
                         blocked(AlreadyActiveScope.HWID, 268_500_001).build()),
                 Arguments.of(
-                        "already active for the character itself",
-                        AppSessionCheckResult.builder()
-                                .reason(AppSessionRefusalReason.ALREADY_ACTIVE)
-                                .scope(AlreadyActiveScope.CHARACTER)
-                                .build()),
-                Arguments.of(
                         "cooldown",
                         AppSessionCheckResult.builder()
                                 .reason(AppSessionRefusalReason.COOLDOWN)
@@ -132,19 +125,6 @@ class AppSessionCheckResultTest {
                         AppSessionCheckResult.builder()
                                 .reason(AppSessionRefusalReason.DEAD)
                                 .scope(AlreadyActiveScope.HWID)),
-                Arguments.of(
-                        "blocking character with the CHARACTER scope",
-                        blocked(AlreadyActiveScope.CHARACTER, 268_500_001)),
-                Arguments.of("zero blocking character", blocked(AlreadyActiveScope.ACCOUNT, 0)),
-                Arguments.of("negative blocking character", blocked(AlreadyActiveScope.ACCOUNT, -1)),
-                Arguments.of(
-                        "blocking character on another reason",
-                        AppSessionCheckResult.builder()
-                                .reason(AppSessionRefusalReason.DEAD)
-                                .blockedByCharacterId(268_500_001)),
-                Arguments.of(
-                        "blocking character on an allowed check",
-                        AppSessionCheckResult.builder().allowed(true).blockedByCharacterId(268_500_001)),
                 Arguments.of(
                         "cooldown without retryAt",
                         AppSessionCheckResult.builder().reason(AppSessionRefusalReason.COOLDOWN)),
@@ -212,6 +192,21 @@ class AppSessionCheckResultTest {
                                 .freeSlots(0)));
     }
 
+    static Stream<Arguments> invalidBlockingCharacters() {
+        return Stream.of(
+                Arguments.of("CHARACTER scope", blocked(AlreadyActiveScope.CHARACTER, 268_500_001)),
+                Arguments.of("zero", blocked(AlreadyActiveScope.ACCOUNT, 0)),
+                Arguments.of("negative", blocked(AlreadyActiveScope.ACCOUNT, -1)),
+                Arguments.of(
+                        "another reason",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.DEAD)
+                                .blockedByCharacterId(268_500_001)),
+                Arguments.of(
+                        "allowed check",
+                        AppSessionCheckResult.builder().allowed(true).blockedByCharacterId(268_500_001)));
+    }
+
     @Nested
     class Build {
 
@@ -242,24 +237,16 @@ class AppSessionCheckResultTest {
         }
 
         @ParameterizedTest(name = "{0}")
+        @MethodSource(
+                "app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionCheckResultTest#invalidBlockingCharacters")
+        void build_shouldDropTheBlockingCharacter_whenItIsInvalid(String name, AppSessionCheckResult.Builder builder) {
+            assertNull(builder.build().getBlockedByCharacterId());
+        }
+
+        @ParameterizedTest(name = "{0}")
         @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionCheckResultTest#validResults")
         void toBuilder_shouldRoundtrip(String name, AppSessionCheckResult expected) {
             assertEquals(expected, expected.toBuilder().build());
-        }
-    }
-
-    @Nested
-    class Equality {
-
-        @Test
-        void equals_shouldDiffer_whenTheBlockingCharacterDiffers() {
-            AppSessionCheckResult result =
-                    blocked(AlreadyActiveScope.HWID, 268_500_001).build();
-
-            assertNotEquals(
-                    result, result.toBuilder().blockedByCharacterId(268_500_002).build());
-            assertNotEquals(
-                    result, result.toBuilder().blockedByCharacterId(null).build());
         }
     }
 

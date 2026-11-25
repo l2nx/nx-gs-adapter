@@ -44,12 +44,6 @@ public final class AppSessionCheckResult {
         if ((reason == AppSessionRefusalReason.ALREADY_ACTIVE) != (scope != null)) {
             throw new IllegalArgumentException("AppSessionCheckResult.scope is required exactly with ALREADY_ACTIVE");
         }
-        if (blockedByCharacterId != null
-                && (scope == null || scope == AlreadyActiveScope.CHARACTER || blockedByCharacterId <= 0)) {
-            throw new IllegalArgumentException(
-                    "AppSessionCheckResult.blockedByCharacterId must be positive and only with"
-                            + " ALREADY_ACTIVE of a scope other than CHARACTER");
-        }
         if (requiresRetryAt(reason) && retryAt == null) {
             throw new IllegalArgumentException(
                     "AppSessionCheckResult.retryAt is required with RECENTLY_LOGGED_OUT and COOLDOWN");
@@ -82,7 +76,7 @@ public final class AppSessionCheckResult {
         this.allowed = allowed;
         this.reason = reason;
         this.scope = scope;
-        this.blockedByCharacterId = blockedByCharacterId;
+        this.blockedByCharacterId = namesBlockingCharacter(scope, blockedByCharacterId) ? blockedByCharacterId : null;
         this.retryAt = retryAt;
         this.effectiveDurationMs = effectiveDurationMs;
         this.requiredSlots = requiredSlots;
@@ -94,6 +88,15 @@ public final class AppSessionCheckResult {
 
     private static boolean requiresRetryAt(@Nullable AppSessionRefusalReason reason) {
         return reason == AppSessionRefusalReason.RECENTLY_LOGGED_OUT || reason == AppSessionRefusalReason.COOLDOWN;
+    }
+
+    // A wrong diagnostic value must not turn a refusal into a failed check.
+    private static boolean namesBlockingCharacter(
+            @Nullable AlreadyActiveScope scope, @Nullable Integer blockedByCharacterId) {
+        return scope != null
+                && scope != AlreadyActiveScope.CHARACTER
+                && blockedByCharacterId != null
+                && blockedByCharacterId > 0;
     }
 
     public static AppSessionCheckResult allowed(@Nullable Long effectiveDurationMs) {

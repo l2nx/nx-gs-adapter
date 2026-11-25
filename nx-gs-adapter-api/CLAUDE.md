@@ -174,7 +174,7 @@ They all live here so a host provider depends on the contracts artifact alone.
   `false`. Every call throws `IllegalStateException` until the schema is migrated in the JVM. Status names
   (`ReceiptStatus`) are stored values.
 - **App-session command refusals** carry `reason` (an `AppSessionRefusalReason` name), plus `retryAt` (ISO-8601
-  instant), `scope` (`AlreadyActiveScope`) with the optional `blockedByCharacterId` (both staff-only) or the numbers `requiredSlots` / `freeSlots`, `requiredWeight` / `freeWeight`
+  instant), `scope` (`AlreadyActiveScope`) with the optional `blockedByCharacterId` or the numbers `requiredSlots` / `freeSlots`, `requiredWeight` / `freeWeight`
   where the reason defines them; `AppSessionCheckResult` requires each pair exactly with its reason, and carries the
   nullable `usage` (`ActivityUsage`) on an allowed and on a refused check once the host found the character. The `CommandStatus`
   per reason is on the enum.

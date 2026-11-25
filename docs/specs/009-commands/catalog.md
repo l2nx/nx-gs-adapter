@@ -313,7 +313,7 @@ state.
 ### `SetCharacterAccessLevelCommand`
 
 **Purpose.** Set a character's access level to an absolute value, mirroring the in-game
-`//changelvl` command. Applies to a live session on the game thread when the target is online,
+`//changelvl` command. Applies to a game session on the game thread when the target is online,
 or to the offline row otherwise. `staffNotes` is a staff-only note (see
 [`guide.md`](./guide.md)); the host never shows it to the player.
 
@@ -332,7 +332,7 @@ or to the offline row otherwise. `staffNotes` is a staff-only note (see
 | `characterId`         | `Long`    | Echo                                                                                                       |
 | `accessLevel`         | `String`  | The level as the host stored it, in the same vocabulary                                                    |
 | `previousAccessLevel` | `String?` | The level before the write, `null` when the host could not read it                                         |
-| `wasOnline`           | `boolean` | `true` when applied to a live session (full effect on next login); `false` when written to the offline row |
+| `wasOnline`           | `boolean` | `true` when applied to a game session (full effect on next login); `false` when written to the offline row |
 
 **Errors**
 
@@ -783,7 +783,7 @@ bait. The host decides every rule; the reply carries a reason code from the shar
 `NO_ROD`, `NO_BAIT`, `INVALID_ROD`, `INVALID_BAIT`, `INVALID_DURATION`, `FEATURE_DISABLED`, `DAILY_LIMIT` (with `retryAt` = the
 moment the daily allowance resets, when the host knows it), `RESTART_SOON`,
 `NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope` `CHARACTER` / `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`, `IP`, and an optional
-`blockedByCharacterId` for every scope but `CHARACTER`; both are staff diagnostics, never shown to players), `COMMAND_EXPIRED`;
+`blockedByCharacterId` for every scope but `CHARACTER`), `COMMAND_EXPIRED`;
 `NO_FISHING_SHOT`, `INVALID_FISHING_SHOT`, `FISHING_SHOT_GRADE_MISMATCH`; `NO_FISHING_EXPERTISE`,
 `BAIT_LEVEL_MISMATCH`, `INVENTORY_FULL` (with `requiredSlots`, `freeSlots`), `OVERWEIGHT` (with `requiredWeight`,
 `freeWeight`). Status per reason: `NO_ROD` / `NO_BAIT` / `NO_FISHING_SHOT` / `NO_FISHING_EXPERTISE` / `INVENTORY_FULL` /
@@ -1069,7 +1069,7 @@ subsystem on the character's game thread. No separate stop exists for a buy stor
 started by `StartPrivateStoreBuyCommand` (`previousStoreType = "BUY"`).
 
 The command closes ANY private store of the player's own character: an app `OFFLINE_PRIVATE_STORE` session, a native `.offline`
-store or a live player's store. Only the start is offline-only and only the start waits for the start cooldown: a stop
+store or a game player's store. Only the start is offline-only and only the start waits for the start cooldown: a stop
 is never refused with `COOLDOWN`. For an app session the stop closes the session (reason
 `APP_STOPPED`) and applies the return rule (origin only if the session lasted less than the return threshold `app.session.return-threshold-minutes` of the app settings file, the same as for fishing; otherwise the character stays at the store spot); for a store not started from the app it just closes the store.
 

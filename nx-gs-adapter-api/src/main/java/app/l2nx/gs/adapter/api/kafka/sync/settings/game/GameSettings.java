@@ -51,10 +51,7 @@ public final class GameSettings {
         return privateStore;
     }
 
-    /**
-     * Staff diagnostics, never shown to players. {@code null} also from a host that does not publish the group: the rules
-     * are unknown, not off.
-     */
+    /** {@code null} also from a host that does not publish the group: the rules are unknown, not off. */
     public @Nullable FishingSettings getFishing() {
         return fishing;
     }
