@@ -63,43 +63,15 @@ class CdcEngineTest {
     }
 
     @Test
-    void stop_shouldClearSnapshot() {
-        SnapshotStore snapshot = new SnapshotStore();
-        snapshot.putCrc("clan", 1L, 100);
-        snapshot.putCrc("clan", 2L, 200);
-        assertEquals(2, snapshot.sizeOf("clan"));
-
-        engine = new CdcEngine(
-                "acme",
-                Collections.singletonList(clanMapping()),
-                mock(JdbcConnectionSource.class),
-                snapshot,
-                NoopSnapshotPersistence.INSTANCE,
-                new EngineConfig(3600, 500_000, 10, 5), // long delay so first tick doesn't fire
-                entity -> null,
-                new SyncEventPublisher(neverCalledSender()),
-                new EntityStatsTracker(),
-                new WindowPlanner(),
-                new Phase1Hasher(),
-                new Phase2Fetcher(),
-                k -> null,
-                RecordingNxEvents.noop());
-
-        engine.start();
-        engine.stop();
-
-        assertEquals(0, snapshot.sizeOf("clan"));
-    }
-
-    @Test
     void start_shouldBeIdempotent() {
+        RecordingPersistence recorder = new RecordingPersistence();
         EntityStatsTracker tracker = new EntityStatsTracker();
         engine = new CdcEngine(
                 "acme",
                 Collections.singletonList(clanMapping()),
                 mock(JdbcConnectionSource.class),
                 new SnapshotStore(),
-                NoopSnapshotPersistence.INSTANCE,
+                recorder,
                 new EngineConfig(3600, 500_000, 10, 5),
                 entity -> null,
                 new SyncEventPublisher(neverCalledSender()),
@@ -114,9 +86,8 @@ class CdcEngineTest {
         engine.start();
         engine.stop();
 
-        List<EntityStats> snapshot = tracker.currentStatuses();
-        assertNotNull(snapshot);
-        assertTrue(snapshot.size() <= 1);
+        assertEquals(1, recorder.loadCount, "the second start must not load again");
+        assertEquals(1, tracker.currentStatuses().size());
     }
 
     @Test

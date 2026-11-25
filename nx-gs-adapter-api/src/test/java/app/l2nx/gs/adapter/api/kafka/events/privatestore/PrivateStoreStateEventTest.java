@@ -10,10 +10,14 @@ import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.SellStoreLine;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.StoreState;
 import com.google.gson.Gson;
 import java.util.*;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class PrivateStoreStateEventTest {
@@ -52,23 +56,33 @@ class PrivateStoreStateEventTest {
                 .build();
     }
 
+    private static Stream<StoreState.Builder> wrongSideStores() {
+        return Stream.of(
+                StoreState.builder()
+                        .type(CharacterPrivateStore.SELL)
+                        .buyLines(Collections.singletonList(buyLine(1L, 1L))),
+                StoreState.builder()
+                        .type(CharacterPrivateStore.PACKAGE_SELL)
+                        .buyLines(Collections.singletonList(buyLine(1L, 1L))),
+                StoreState.builder()
+                        .type(CharacterPrivateStore.BUY)
+                        .sellLines(Collections.singletonList(sellLine(1L, 1L))));
+    }
+
     @Nested
     class StoreStateRules {
 
         @ParameterizedTest
+        @NullSource
         @EnumSource(
                 value = CharacterPrivateStore.class,
                 names = {"SELL", "PACKAGE_SELL", "BUY"},
                 mode = EnumSource.Mode.EXCLUDE)
-        void constructor_shouldReject_whenNotMarketType(CharacterPrivateStore type) {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> StoreState.builder().type(type).build());
-        }
+        void constructor_shouldReject_whenTypeNullOrNotMarket(CharacterPrivateStore type) {
+            Class<? extends RuntimeException> expected =
+                    type == null ? NullPointerException.class : IllegalArgumentException.class;
 
-        @Test
-        void constructor_shouldReject_whenTypeNull() {
-            assertThrows(NullPointerException.class, () -> StoreState.builder().build());
+            assertThrows(expected, () -> StoreState.builder().type(type).build());
         }
 
         @Test
@@ -87,22 +101,8 @@ class PrivateStoreStateEventTest {
         }
 
         @ParameterizedTest
-        @EnumSource(
-                value = CharacterPrivateStore.class,
-                names = {"SELL", "PACKAGE_SELL"})
-        void constructor_shouldReject_whenBuyLinesInASellStore(CharacterPrivateStore type) {
-            StoreState.Builder builder =
-                    StoreState.builder().type(type).buyLines(Collections.singletonList(buyLine(1L, 1L)));
-
-            assertThrows(IllegalArgumentException.class, builder::build);
-        }
-
-        @Test
-        void constructor_shouldReject_whenSellLinesInABuyStore() {
-            StoreState.Builder builder = StoreState.builder()
-                    .type(CharacterPrivateStore.BUY)
-                    .sellLines(Collections.singletonList(sellLine(1L, 1L)));
-
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreStateEventTest#wrongSideStores")
+        void constructor_shouldReject_whenLinesOfTheOtherSide(StoreState.Builder builder) {
             assertThrows(IllegalArgumentException.class, builder::build);
         }
 
@@ -167,16 +167,19 @@ class PrivateStoreStateEventTest {
         assertEquals(original, copy);
         assertEquals(original.hashCode(), copy.hashCode());
         assertNotSame(original, copy);
+        assertEquals(ID, copy.getEventId());
+        assertEquals(7L, copy.getCharacterId());
+        assertEquals(store(), copy.getStore());
+        assertEquals(Collections.singletonMap("k", "v"), copy.getMetadata());
+        assertEquals(CharacterPrivateStore.SELL, store().getType());
+        assertEquals("selling", store().getTitle());
+        assertTrue(store().isOffline());
+        assertEquals(Arrays.asList(sellLine(10L, 2L), sellLine(11L, 1L)), store().getSellLines());
     }
 
     @Test
-    void equals_shouldDistinguishCharacterId() {
-        PrivateStoreStateEvent a =
-                PrivateStoreStateEvent.builder().eventId(ID).characterId(1L).build();
-        PrivateStoreStateEvent b =
-                PrivateStoreStateEvent.builder().eventId(ID).characterId(2L).build();
-
-        assertNotEquals(a, b);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(PrivateStoreStateEvent.class).verify();
     }
 
     @Test

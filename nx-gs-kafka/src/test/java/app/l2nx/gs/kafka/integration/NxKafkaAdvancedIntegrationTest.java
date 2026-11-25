@@ -109,6 +109,7 @@ class NxKafkaAdvancedIntegrationTest {
                 .build();
 
         assertTrue(kafka.isConnected());
+        assertEquals(KafkaState.CONNECTED, kafka.state());
         assertTrue(states.contains(KafkaState.CONNECTED));
     }
 
@@ -123,8 +124,12 @@ class NxKafkaAdvancedIntegrationTest {
                 .onStateChange(states::add)
                 .build();
 
+        assertTrue(kafka.isConnected());
+
         kafka.shutdown();
 
+        assertEquals(KafkaState.CLOSED, kafka.state());
+        assertThrows(KafkaException.class, NxKafka::instance);
         assertTrue(states.contains(KafkaState.CLOSED));
     }
 

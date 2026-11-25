@@ -4,7 +4,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.skill.SkillEnchant;
 import app.l2nx.gs.adapter.api.domain.skill.effect.SkillEffectCategory;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class CharacterEffectTest {
 
@@ -18,19 +23,20 @@ class CharacterEffectTest {
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
-        CharacterEffect original = haste().build();
-
-        assertEquals(original, original.toBuilder().build());
-        assertEquals(original.hashCode(), original.toBuilder().build().hashCode());
-    }
-
-    @Test
-    void toBuilder_shouldKeepEnchant() {
+    void toBuilder_shouldRoundtripEveryField() {
         CharacterEffect original = haste().enchant(new SkillEnchant(2, 3)).build();
 
-        assertEquals(new SkillEnchant(2, 3), original.toBuilder().build().getEnchant());
-        assertEquals(original, original.toBuilder().build());
+        CharacterEffect actual = original.toBuilder().build();
+
+        assertEquals(original, actual);
+        assertEquals(original.hashCode(), actual.hashCode());
+        assertEquals(1086, actual.getSkillId());
+        assertEquals(2, actual.getSkillLevel());
+        assertEquals(SkillEffectCategory.BUFF, actual.getCategory());
+        assertEquals(Integer.valueOf(1180), actual.getRemainingSec());
+        assertEquals(CharacterEffectOffline.FROZEN, actual.getOffline());
+        assertEquals(new SkillEnchant(2, 3), actual.getEnchant());
+        assertEquals(haste().build(), haste().build().toBuilder().build());
     }
 
     @Test
@@ -39,13 +45,8 @@ class CharacterEffectTest {
     }
 
     @Test
-    void equals_shouldDiffer_whenEnchantDiffers() {
-        CharacterEffect plain = haste().build();
-        CharacterEffect enchanted = haste().enchant(new SkillEnchant(1, 1)).build();
-
-        assertNotEquals(plain, enchanted);
-        assertNotEquals(enchanted, haste().enchant(new SkillEnchant(1, 2)).build());
-        assertNotEquals(enchanted, haste().enchant(new SkillEnchant(2, 1)).build());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(CharacterEffect.class).verify();
     }
 
     @Test
@@ -56,13 +57,14 @@ class CharacterEffectTest {
                 .getRemainingSec());
     }
 
-    @Test
-    void build_shouldReject_whenCategoryMissing() {
-        assertThrows(NullPointerException.class, () -> haste().category(null).build());
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("missingFields")
+    void build_shouldReject_whenRequiredFieldIsMissing(String field, CharacterEffect.Builder builder) {
+        assertThrows(NullPointerException.class, builder::build);
     }
 
-    @Test
-    void build_shouldReject_whenOfflineMissing() {
-        assertThrows(NullPointerException.class, () -> haste().offline(null).build());
+    static Stream<Arguments> missingFields() {
+        return Stream.of(
+                Arguments.of("category", haste().category(null)), Arguments.of("offline", haste().offline(null)));
     }
 }

@@ -53,17 +53,11 @@ class SellToPrivateStoreResultTest {
         assertEquals(items - sellerFee, result.getReceivedTotalAdena());
     }
 
-    @ParameterizedTest(name = "sellerFee={0}")
-    @CsvSource({"-1", "101"})
-    void constructor_shouldReject_whenSellerFeeOutsideZeroToItemsTotal(long sellerFee) {
+    @ParameterizedTest(name = "sellerFee={0}, received={1}, buyerFee={2}")
+    @CsvSource({"-1, 101, 10", "101, -1, 10", "5, 95, -1"})
+    void constructor_shouldReject_whenAFeeIsOutOfRange(long sellerFee, long received, long buyerFee) {
         SellToPrivateStoreResult.Builder builder =
-                valid().sellerFeeAdena(sellerFee).receivedTotalAdena(100L - sellerFee);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenBuyerFeeNegative() {
-        SellToPrivateStoreResult.Builder builder = valid().buyerFeeAdena(-1L);
+                valid().sellerFeeAdena(sellerFee).receivedTotalAdena(received).buyerFeeAdena(buyerFee);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
@@ -98,12 +92,15 @@ class SellToPrivateStoreResultTest {
 
     @Test
     void toBuilder_shouldRoundtripAllFields() {
-        SellToPrivateStoreResult original = valid().build();
+        SellToPrivateStoreResult original = valid().storeClosed(true).build();
 
         SellToPrivateStoreResult copy = original.toBuilder().build();
 
         assertEquals(original, copy);
         assertNotSame(original, copy);
+        assertEquals(100L, original.getItemsTotalAdena());
+        assertEquals(5L, original.getSellerFeeAdena());
+        assertEquals(42L, original.getMailId());
     }
 
     @Test

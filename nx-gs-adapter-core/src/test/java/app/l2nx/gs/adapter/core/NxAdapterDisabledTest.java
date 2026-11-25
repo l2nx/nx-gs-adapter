@@ -32,6 +32,9 @@ class NxAdapterDisabledTest {
     @AfterEach
     void restoreSysprops() {
         NxAdapter.resetForTesting();
+        for (String key : L2NX_PROPS) {
+            System.clearProperty(key);
+        }
         for (Map.Entry<String, String> e : savedProps.entrySet()) {
             System.setProperty(e.getKey(), e.getValue());
         }
@@ -43,26 +46,15 @@ class NxAdapterDisabledTest {
         System.setProperty("l2nx.gs-key", "nx_sk_" + repeat('a', 32));
         System.setProperty("l2nx.platform-url", "https://acme.api.l2nx.app");
         System.setProperty("l2nx.enabled", "false");
-
-        NxAdapter.start();
-
-        assertEquals(AdapterState.DISABLED, NxAdapter.state());
-        assertFalse(hasAdapterDaemonThread(), "No nx-adapter-* threads must be running after a disabled-path start()");
-    }
-
-    @Test
-    void start_shouldFireSingleDisabledCallback_whenEnabledFalse() {
-        System.setProperty("l2nx.gs-key", "nx_sk_" + repeat('b', 32));
-        System.setProperty("l2nx.platform-url", "https://acme.api.l2nx.app");
-        System.setProperty("l2nx.enabled", "false");
-
         List<AdapterState> captured = new ArrayList<>();
         NxAdapter.onStateChange(captured::add);
 
         NxAdapter.start();
 
+        assertEquals(AdapterState.DISABLED, NxAdapter.state());
         assertEquals(1, captured.size(), "exactly one transition must fire");
         assertEquals(AdapterState.DISABLED, captured.get(0));
+        assertFalse(hasAdapterDaemonThread(), "No nx-adapter-* threads must be running after a disabled-path start()");
     }
 
     private static boolean hasAdapterDaemonThread() {

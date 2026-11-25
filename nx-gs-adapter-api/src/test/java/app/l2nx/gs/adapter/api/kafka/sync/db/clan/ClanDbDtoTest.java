@@ -5,7 +5,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ClanDbDtoTest {
 
@@ -22,6 +27,7 @@ class ClanDbDtoTest {
                 .leaderId(67890L)
                 .allyId(42L)
                 .skills(skills)
+                .icon(new byte[] {1, 2, 3})
                 .build();
 
         assertEquals(12345L, clan.getId());
@@ -30,13 +36,54 @@ class ClanDbDtoTest {
         assertEquals(Long.valueOf(67890L), clan.getLeaderId());
         assertEquals(Long.valueOf(42L), clan.getAllyId());
         assertEquals(skills, clan.getSkills());
+        assertArrayEquals(new byte[] {1, 2, 3}, clan.getIcon());
+        assertEquals(clan, clan.toBuilder().build());
+        assertEquals(101, clan.getSkills().get(0).getId());
+        assertEquals(3, clan.getSkills().get(0).getLevel());
     }
 
     @Test
-    void level_shouldBeNullable_whenTenantDoesNotSurfaceIt() {
-        ClanDbDto clan = ClanDbDto.builder().id(1L).name("X").build();
+    void toBuilder_shouldRoundtrip_whenClanHasNoAlly() {
+        List<ClanSkillDbDto> skills = Collections.singletonList(
+                ClanSkillDbDto.builder().id(1).level(2).build());
+        ClanDbDto original = ClanDbDto.builder()
+                .id(1L)
+                .name("X")
+                .level(5)
+                .leaderId(2L)
+                .skills(skills)
+                .icon(new byte[] {1, 2, 3})
+                .build();
 
-        assertNull(clan.getLevel());
+        ClanDbDto copy = original.toBuilder().build();
+
+        assertEquals(original, copy);
+        assertNull(copy.getAllyId());
+    }
+
+    private static Stream<Arguments> withoutOptionalFields() {
+        return Stream.of(
+                Arguments.of(ClanDbDto.builder().id(1L).name("X").build(), null),
+                Arguments.of(
+                        ClanDbDto.builder()
+                                .id(1L)
+                                .name("LonelyClan")
+                                .level(0)
+                                .leaderId(null)
+                                .allyId(null)
+                                .build(),
+                        0),
+                Arguments.of(ClanDbDto.builder().id(1L).name("X").level(1).build(), 1));
+    }
+
+    @ParameterizedTest
+    @MethodSource("withoutOptionalFields")
+    void optionalFields_shouldBeNull_whenTenantOmitsThem(ClanDbDto clan, Integer level) {
+        assertEquals(level, clan.getLevel());
+        assertNull(clan.getLeaderId());
+        assertNull(clan.getAllyId());
+        assertNull(clan.getSkills());
+        assertNull(clan.getIcon());
     }
 
     @Test
@@ -44,27 +91,6 @@ class ClanDbDtoTest {
         ClanDbDto.Builder b = ClanDbDto.builder().id(1L);
 
         assertThrows(NullPointerException.class, b::build);
-    }
-
-    @Test
-    void leaderAndAlly_shouldBeNullable_forSentinelZeroSourceValue() {
-        ClanDbDto clan = ClanDbDto.builder()
-                .id(1L)
-                .name("LonelyClan")
-                .level(0)
-                .leaderId(null)
-                .allyId(null)
-                .build();
-
-        assertNull(clan.getLeaderId());
-        assertNull(clan.getAllyId());
-    }
-
-    @Test
-    void skills_shouldBeNull_whenTenantDoesNotSyncThem() {
-        ClanDbDto clan = ClanDbDto.builder().id(1L).name("X").level(1).build();
-
-        assertNull(clan.getSkills());
     }
 
     @Test
@@ -81,49 +107,7 @@ class ClanDbDtoTest {
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
-        List<ClanSkillDbDto> skills = Collections.singletonList(
-                ClanSkillDbDto.builder().id(1).level(2).build());
-        ClanDbDto original = ClanDbDto.builder()
-                .id(1L)
-                .name("X")
-                .level(5)
-                .leaderId(2L)
-                .skills(skills)
-                .icon(new byte[] {1, 2, 3})
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
-    }
-
-    @Test
-    void icon_shouldBeNull_whenTenantDoesNotSyncCrests() {
-        ClanDbDto clan = ClanDbDto.builder().id(1L).name("X").level(1).build();
-        assertNull(clan.getIcon());
-    }
-
-    @Test
-    void equals_shouldCompareIconBytes() {
-        ClanDbDto a = ClanDbDto.builder()
-                .id(1L)
-                .name("X")
-                .level(1)
-                .icon(new byte[] {1, 2})
-                .build();
-        ClanDbDto b = ClanDbDto.builder()
-                .id(1L)
-                .name("X")
-                .level(1)
-                .icon(new byte[] {1, 2})
-                .build();
-        ClanDbDto c = ClanDbDto.builder()
-                .id(1L)
-                .name("X")
-                .level(1)
-                .icon(new byte[] {1, 3})
-                .build();
-        assertEquals(a, b);
-        assertEquals(a.hashCode(), b.hashCode());
-        assertNotEquals(a, c);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(ClanDbDto.class).withNonnullFields("name").verify();
     }
 }

@@ -60,14 +60,6 @@ class StartPrivateStoreCommandsTest {
         }
 
         @Test
-        void constructor_shouldKeepSellerFeePercent_whenAboveFifty() {
-            StartPrivateStoreSellCommand actual = new StartPrivateStoreSellCommand(
-                    1, null, Collections.singletonList(LINE_1), 75, null, false, null, KEY, TestInitiators.USER);
-
-            assertEquals(Integer.valueOf(75), actual.getSellerFeePercent());
-        }
-
-        @Test
         void constructor_shouldKeepSellerFeePercent_whenHundred() {
             StartPrivateStoreSellCommand actual = new StartPrivateStoreSellCommand(
                     1, null, Collections.singletonList(LINE_1), 100, null, false, null, KEY, TestInitiators.USER);

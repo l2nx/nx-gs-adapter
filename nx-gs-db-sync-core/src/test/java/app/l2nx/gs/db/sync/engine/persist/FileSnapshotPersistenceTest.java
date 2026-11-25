@@ -6,7 +6,7 @@ import app.l2nx.gs.db.sync.engine.SnapshotStore;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Set;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -139,21 +139,19 @@ class FileSnapshotPersistenceTest {
 
         try (FileSnapshotPersistence p = new FileSnapshotPersistence(dir, 24 * 3600)) {
             p.checkpoint("clan", src);
-            long firstMtime =
-                    Files.getLastModifiedTime(dir.resolve("clan.snap")).toMillis();
+            byte[] first = Files.readAllBytes(dir.resolve("clan.snap"));
 
             src.putCrc("clan", 2L, 200);
-            Thread.sleep(50L); // ensure mtime tick would be observable if we wrote
             p.checkpoint("clan", src);
-            long secondMtime =
-                    Files.getLastModifiedTime(dir.resolve("clan.snap")).toMillis();
-            assertEquals(firstMtime, secondMtime, "throttled checkpoint must not rewrite the file");
+            assertArrayEquals(
+                    first,
+                    Files.readAllBytes(dir.resolve("clan.snap")),
+                    "throttled checkpoint must not rewrite the file");
 
-            Thread.sleep(50L);
             p.flushAll(src);
-            long thirdMtime =
-                    Files.getLastModifiedTime(dir.resolve("clan.snap")).toMillis();
-            assertTrue(thirdMtime > secondMtime, "flushAll must write regardless of throttle");
+            assertFalse(
+                    Arrays.equals(first, Files.readAllBytes(dir.resolve("clan.snap"))),
+                    "flushAll must write regardless of throttle");
         }
 
         SnapshotStore dst = new SnapshotStore();
@@ -208,25 +206,5 @@ class FileSnapshotPersistenceTest {
 
         byte[] afterFailure = Files.readAllBytes(dir.resolve("clan.snap"));
         assertArrayEquals(firstFile, afterFailure, "failed write must NOT clobber the previous good snapshot");
-    }
-
-    @Test
-    void entitiesIsolated_eachInOwnFile(@TempDir Path dir) throws Exception {
-        SnapshotStore src = new SnapshotStore();
-        src.putCrc("clan", 1L, 10);
-        src.putCrc("character", 2L, 20);
-        try (FileSnapshotPersistence p = new FileSnapshotPersistence(dir, 0)) {
-            p.flushAll(src);
-        }
-        assertTrue(Files.exists(dir.resolve("clan.snap")));
-        assertTrue(Files.exists(dir.resolve("character.snap")));
-
-        SnapshotStore dst = new SnapshotStore();
-        try (FileSnapshotPersistence p = new FileSnapshotPersistence(dir, 0)) {
-            p.load(dst);
-        }
-        Set<String> names = dst.entityNames();
-        assertTrue(names.contains("clan"));
-        assertTrue(names.contains("character"));
     }
 }

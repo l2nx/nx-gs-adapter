@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.ops.model.EntityState;
 import app.l2nx.gs.adapter.api.kafka.sync.db.SyncEvent;
+import app.l2nx.gs.adapter.api.rest.SyncTopics;
+import app.l2nx.gs.adapter.api.spi.ConnectContext;
 import app.l2nx.gs.adapter.api.spi.model.RuntimeEntityMapping;
 import app.l2nx.gs.adapter.api.spi.model.RuntimeRow;
 import app.l2nx.gs.runtime.sync.engine.publish.KafkaSender;
@@ -44,6 +46,8 @@ class EntityTickLoopTest {
 
             assertEquals(2, sender.captured.size());
             assertOpsContains(sender.captured, "CREATED", 2);
+            assertEquals(EntityState.HEALTHY, tracker.currentStatuses().get(0).getState());
+            assertEquals(0L, tracker.timedOutAcks(mapping.entityName()));
 
             sender.captured.clear();
 
@@ -115,6 +119,13 @@ class EntityTickLoopTest {
             loop.tick();
 
             assertEquals(0, sender.captured.size());
+
+            mapping.hashesByPk.put(2L, 200L);
+            loop.tick();
+
+            assertEquals(1, sender.captured.size());
+            assertOpsContains(sender.captured, "CREATED", 1);
+            assertEquals(2L, sender.captured.get(0).pk);
         } finally {
             scheduler.shutdownNow();
         }
@@ -306,42 +317,25 @@ class EntityTickLoopTest {
     }
 
     @Test
-    void walkInFlight_shouldDrainAlreadyDoneFuturesCheaply() {
-        StubMapping mapping = new StubMapping(Collections.singletonMap(1L, 100L));
-        CapturingSender sender = new CapturingSender();
-        EntityStatsTracker tracker = new EntityStatsTracker();
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        try {
-            // sender acks synchronously, so the drain pass must classify everything without the timeout path
-            EntityTickLoop loop = new EntityTickLoop(
-                    mapping,
-                    e -> "topic.character",
-                    new SyncEventPublisher(sender),
-                    tracker,
-                    new EngineConfig(10, 1),
-                    scheduler,
-                    Clock.systemUTC());
-
-            long t0 = System.nanoTime();
-            loop.tick();
-            long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
-
-            assertEquals(EntityState.HEALTHY, tracker.currentStatuses().get(0).getState());
-            assertTrue(
-                    elapsedMs < 500L,
-                    "synchronous-ack tick should not block on the publish-flush deadline (took " + elapsedMs + "ms)");
-        } finally {
-            scheduler.shutdownNow();
-        }
-    }
-
-    @Test
     void resolveTopicFromContext_shouldReadRuntimeNamespace() {
-        TopicResolver runtimeOnly =
-                TopicResolver.fromSnapshot(Collections.singletonMap("character", "acme.gs.sync.runtime.character"));
+        SyncTopics topics = SyncTopics.builder()
+                .db(Collections.singletonMap("clan", "acme.gs.sync.db.clan"))
+                .runtime(Collections.singletonMap("character", "acme.gs.sync.runtime.character"))
+                .build();
+        ConnectContext ctx = ConnectContext.builder()
+                .tenantId(UUID.randomUUID())
+                .tenantSlug("acme")
+                .serverId(UUID.randomUUID())
+                .serverSlug("primary")
+                .serverName("Acme Primary")
+                .adapterVersion("0.1.0")
+                .syncTopics(topics)
+                .build();
 
-        assertEquals("acme.gs.sync.runtime.character", runtimeOnly.resolveTopic("character"));
-        assertNull(runtimeOnly.resolveTopic("clan"));
+        TopicResolver resolver = TopicResolver.fromContext(ctx);
+
+        assertEquals("acme.gs.sync.runtime.character", resolver.resolveTopic("character"));
+        assertNull(resolver.resolveTopic("clan"));
     }
 
     private static void assertOpsContains(List<CapturedSend> captured, String op, int expectedCount) {

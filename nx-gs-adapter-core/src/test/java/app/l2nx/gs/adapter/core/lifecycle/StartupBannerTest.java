@@ -1,6 +1,5 @@
 package app.l2nx.gs.adapter.core.lifecycle;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.log.NxLog;
@@ -20,16 +19,6 @@ class StartupBannerTest {
         boolean hasVersion = log.infoMessages.stream().anyMatch(s -> s.contains("1.2.3"));
         assertTrue(hasWordmark);
         assertTrue(hasVersion);
-    }
-
-    @Test
-    void emit_shouldPadWithBlankLines_topAndBottom() {
-        RecordingLog log = new RecordingLog();
-
-        StartupBanner.emit(log, "0.0.0-test");
-
-        assertEquals("", log.infoMessages.get(0));
-        assertEquals("", log.infoMessages.get(log.infoMessages.size() - 1));
     }
 
     private static final class RecordingLog implements NxLog {

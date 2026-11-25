@@ -1,6 +1,7 @@
 package app.l2nx.gs.db.sync.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.db.sync.engine.phase.Phase1Hasher;
@@ -24,17 +25,13 @@ class SnapshotStoreSentinelTest {
     void snapshotStore_defaultReturnValue_shouldBeMissingHashSentinel() {
         SnapshotStore store = new SnapshotStore();
         assertEquals(Phase1Hasher.MISSING_HASH, store.getCrc("nope", 1L));
+        assertFalse(store.containsCrc("nope", 1L));
 
         store.putCrc("clan", 1L, 0);
         store.removeCrc("clan", 1L);
         assertEquals(Phase1Hasher.MISSING_HASH, store.getCrc("clan", 1L));
-    }
 
-    @Test
-    void getCrc_shouldReturnSentinel_whenPkAbsent() {
-        SnapshotStore store = new SnapshotStore();
         store.putCrc("clan", 1L, 100);
-
         assertEquals(Phase1Hasher.MISSING_HASH, store.getCrc("clan", 2L));
     }
 

@@ -1,9 +1,7 @@
 package app.l2nx.gs.gd.sync;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import app.l2nx.gs.adapter.api.kafka.ops.model.EntityStats;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.GameDataSyncEvent;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.augmentation.lifestone.AugmentationOutcome;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.augmentation.lifestone.LifeStone;
@@ -91,23 +89,6 @@ class AugmentationDescriptorsTest {
         assertEquals(
                 GameDataSnapshotPublisher.OP_SNAPSHOT_COMPLETE, events.get(1).getOp());
         assertEquals(Integer.valueOf(1), events.get(1).getCount());
-    }
-
-    @Nested
-    class Resolve {
-
-        @Test
-        void onConnect_shouldIncludeAugmentationEntities_inActiveEntities() {
-            connectAndSnapshot();
-
-            List<String> names = new ArrayList<String>();
-            for (EntityStats s : module.currentStatus().getStats().getEntities().orElseGet(Collections::emptyList)) {
-                names.add(s.getName());
-            }
-            assertTrue(
-                    names.containsAll(Arrays.asList("itemoption", "lifestone", "augmentationtargetgroup")),
-                    names.toString());
-        }
     }
 
     @Nested

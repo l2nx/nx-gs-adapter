@@ -5,8 +5,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import app.l2nx.gs.kafka.KafkaException;
 import app.l2nx.gs.kafka.NxKafka;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -89,19 +92,29 @@ class NxConsumerIntegrationTest {
         NxKafka kafka = buildKafka("test-consumer-unsub");
 
         CountDownLatch latch = new CountDownLatch(1);
+        List<String> seenBefore = new CopyOnWriteArrayList<>();
 
-        kafka.subscribe(topic, "g-" + topic, TestEvent.class, event -> latch.countDown());
+        kafka.subscribe(topic, "g-" + topic, TestEvent.class, event -> {
+            seenBefore.add(event.name);
+            latch.countDown();
+        });
 
         publishJson(topic, "{\"name\":\"first\",\"score\":1}");
         assertTrue(latch.await(10, TimeUnit.SECONDS), "First message not received");
 
         kafka.unsubscribe(topic);
 
-        CountDownLatch latch2 = new CountDownLatch(1);
-        kafka.subscribe(topic, "g-" + topic, TestEvent.class, event -> latch2.countDown());
-
+        // Published while nobody is subscribed: a consumer left running would take it before the resubscribe.
         publishJson(topic, "{\"name\":\"second\",\"score\":2}");
+        CountDownLatch latch2 = new CountDownLatch(1);
+        kafka.subscribe(topic, "g-" + topic, TestEvent.class, event -> {
+            if ("second".equals(event.name)) {
+                latch2.countDown();
+            }
+        });
+
         assertTrue(latch2.await(10, TimeUnit.SECONDS), "Second message not received after resubscribe");
+        assertEquals(Collections.singletonList("first"), seenBefore);
     }
 
     @Test
@@ -124,13 +137,38 @@ class NxConsumerIntegrationTest {
         NxKafka kafka = buildKafka("test-consumer-shutdown");
 
         CountDownLatch latch = new CountDownLatch(1);
-        kafka.subscribe("test.consumer.shut1", "g-shut", TestEvent.class, event -> latch.countDown());
-        kafka.subscribe("test.consumer.shut2", "g-shut", TestEvent.class, event -> {});
+        List<String> seenBefore = new CopyOnWriteArrayList<>();
+        kafka.subscribe("test.consumer.shut1", "g-shut", TestEvent.class, event -> {
+            seenBefore.add(event.name);
+            latch.countDown();
+        });
+        kafka.subscribe("test.consumer.shut2", "g-shut", TestEvent.class, event -> seenBefore.add(event.name));
 
         publishJson("test.consumer.shut1", "{\"name\":\"p\",\"score\":1}");
         assertTrue(latch.await(10, TimeUnit.SECONDS));
 
         assertDoesNotThrow(kafka::shutdown);
+
+        // Published after the shutdown: a consumer left running would take them before the new subscriptions.
+        publishJson("test.consumer.shut1", "{\"name\":\"late1\",\"score\":2}");
+        publishJson("test.consumer.shut2", "{\"name\":\"late2\",\"score\":3}");
+        NxKafka next = buildKafka("test-consumer-shutdown-next");
+        CountDownLatch late1 = new CountDownLatch(1);
+        CountDownLatch late2 = new CountDownLatch(1);
+        next.subscribe("test.consumer.shut1", "g-shut", TestEvent.class, event -> {
+            if ("late1".equals(event.name)) {
+                late1.countDown();
+            }
+        });
+        next.subscribe("test.consumer.shut2", "g-shut", TestEvent.class, event -> {
+            if ("late2".equals(event.name)) {
+                late2.countDown();
+            }
+        });
+
+        assertTrue(late1.await(15, TimeUnit.SECONDS), "Message of the first topic not received after shutdown");
+        assertTrue(late2.await(15, TimeUnit.SECONDS), "Message of the second topic not received after shutdown");
+        assertEquals(Collections.singletonList("p"), seenBefore);
     }
 
     private NxKafka buildKafka(String clientId) {

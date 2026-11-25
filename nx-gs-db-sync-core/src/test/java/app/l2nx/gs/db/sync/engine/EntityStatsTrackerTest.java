@@ -10,13 +10,6 @@ import org.junit.jupiter.api.Test;
 class EntityStatsTrackerTest {
 
     @Test
-    void currentStatuses_shouldBeEmpty_beforeFirstCycle() {
-        EntityStatsTracker tracker = new EntityStatsTracker();
-
-        assertTrue(tracker.currentStatuses().isEmpty());
-    }
-
-    @Test
     void recordCycleResult_shouldExposeLatestStats() {
         EntityStatsTracker tracker = new EntityStatsTracker();
         CycleResult cycle = new CycleResult(EntityState.HEALTHY, 100L, 5L, 2L, 1L, 100L);

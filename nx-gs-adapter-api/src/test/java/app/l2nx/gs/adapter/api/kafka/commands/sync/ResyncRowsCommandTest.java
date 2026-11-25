@@ -2,17 +2,21 @@ package app.l2nx.gs.adapter.api.kafka.commands.sync;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import java.util.*;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ResyncRowsCommandTest {
 
     private static final UUID RESYNC_ID = UUID.fromString("018f0000-0000-7000-8000-000000000002");
 
     @Test
-    void builder_shouldRoundtripFields() {
+    void toBuilder_shouldRoundtripAllFields() {
         ResyncRowsCommand cmd = ResyncRowsCommand.builder()
                 .resyncId(RESYNC_ID)
                 .entityName("character")
@@ -25,6 +29,8 @@ class ResyncRowsCommandTest {
         assertEquals("character", cmd.getEntityName());
         assertEquals(Arrays.asList(1L, 2L, 3L), cmd.getPks());
         assertTrue(cmd.isCascade());
+        assertEquals(cmd, cmd.toBuilder().build());
+        assertEquals(TestInitiators.USER, cmd.getInitiator());
     }
 
     @Test
@@ -39,50 +45,33 @@ class ResyncRowsCommandTest {
         assertFalse(cmd.isCascade());
     }
 
-    @Test
-    void constructor_shouldRejectNullResyncId() {
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> new ResyncRowsCommand(
-                        null, "character", Collections.singletonList(1L), false, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("resyncId"));
-    }
-
-    @Test
-    void constructor_shouldRejectNullEntityName() {
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> new ResyncRowsCommand(
-                        RESYNC_ID, null, Collections.singletonList(1L), false, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("entityName"));
-    }
-
-    @Test
-    void constructor_shouldRejectNullPks() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new ResyncRowsCommand(RESYNC_ID, "character", null, false, TestInitiators.USER));
-    }
-
-    @Test
-    void constructor_shouldRejectEmptyPks() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new ResyncRowsCommand(
-                        RESYNC_ID, "character", Collections.<Long>emptyList(), false, TestInitiators.USER));
-    }
-
-    @Test
-    void constructor_shouldRejectPksOverCap() {
+    static Stream<Arguments> invalidCommands() {
+        List<Long> pk = Collections.singletonList(1L);
         List<Long> oversized = new ArrayList<Long>(ResyncRowsCommand.MAX_PKS + 1);
         for (long i = 0; i <= ResyncRowsCommand.MAX_PKS; i++) {
             oversized.add(i);
         }
+        return Stream.of(
+                Arguments.of("resyncId null", null, "character", pk, "resyncId"),
+                Arguments.of("entityName null", RESYNC_ID, null, pk, "entityName"),
+                Arguments.of("pks null", RESYNC_ID, "character", null, "pks"),
+                Arguments.of("pks empty", RESYNC_ID, "character", Collections.<Long>emptyList(), "pks"),
+                Arguments.of(
+                        "pks over the cap",
+                        RESYNC_ID,
+                        "character",
+                        oversized,
+                        String.valueOf(ResyncRowsCommand.MAX_PKS)));
+    }
 
-        IllegalArgumentException ex = assertThrows(
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidCommands")
+    void constructor_shouldReject_whenCommandInvalid(
+            String name, UUID resyncId, String entityName, List<Long> pks, String messagePart) {
+        IllegalArgumentException actual = assertThrows(
                 IllegalArgumentException.class,
-                () -> new ResyncRowsCommand(RESYNC_ID, "character", oversized, false, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains(String.valueOf(ResyncRowsCommand.MAX_PKS)));
+                () -> new ResyncRowsCommand(resyncId, entityName, pks, false, TestInitiators.USER));
+        assertTrue(actual.getMessage().contains(messagePart), actual.getMessage());
     }
 
     @Test
@@ -108,33 +97,9 @@ class ResyncRowsCommandTest {
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
-        ResyncRowsCommand original = ResyncRowsCommand.builder()
-                .resyncId(RESYNC_ID)
-                .entityName("character")
-                .pks(Arrays.asList(7L, 8L))
-                .cascade(true)
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
-    }
-
-    @Test
-    void equals_shouldDistinguishOnCascade() {
-        ResyncRowsCommand a =
-                new ResyncRowsCommand(RESYNC_ID, "character", Collections.singletonList(1L), true, TestInitiators.USER);
-        ResyncRowsCommand b = new ResyncRowsCommand(
-                RESYNC_ID, "character", Collections.singletonList(1L), false, TestInitiators.USER);
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void implementsNxCommandMarker() {
-        assertInstanceOf(
-                NxCommand.class,
-                new ResyncRowsCommand(
-                        RESYNC_ID, "character", Collections.singletonList(1L), false, TestInitiators.USER));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(ResyncRowsCommand.class)
+                .withNonnullFields("resyncId", "entityName", "pks")
+                .verify();
     }
 }

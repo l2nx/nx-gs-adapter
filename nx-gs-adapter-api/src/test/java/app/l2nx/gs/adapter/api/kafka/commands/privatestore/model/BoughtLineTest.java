@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class BoughtLineTest {
@@ -33,10 +34,13 @@ class BoughtLineTest {
 
         assertEquals(original, copy);
         assertNotSame(original, copy);
+        assertEquals(3L, original.getCount());
+        assertEquals(1_500_000L, original.getUnitPriceAdena());
+        assertEquals(268437521L, original.getItem().getItemId());
     }
 
     @Test
-    void equals_shouldDistinguishUnitPriceAdena() {
-        assertNotEquals(valid().build(), valid().unitPriceAdena(101L).build());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(BoughtLine.class).verify();
     }
 }

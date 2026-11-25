@@ -2,10 +2,18 @@ package app.l2nx.gs.kafka;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.time.Duration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import org.apache.kafka.common.metrics.KafkaMetric;
+import org.apache.kafka.common.metrics.MetricsReporter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class KafkaConfigTest {
 
@@ -17,56 +25,33 @@ class KafkaConfigTest {
         }
     }
 
-    @Test
-    void build_shouldThrow_whenBrokersNotSet() {
-        KafkaConfig.Builder builder = NxKafka.configure().clientId("test");
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = "   ")
+    void build_shouldThrow_whenBrokersNullOrBlank(String brokers) {
+        KafkaConfig.Builder builder = NxKafka.configure().brokers(brokers).clientId("test");
 
         KafkaException ex = assertThrows(KafkaException.class, builder::build);
         assertTrue(ex.getMessage().contains("Brokers"));
     }
 
     @Test
-    void build_shouldThrow_whenBrokersEmpty() {
-        KafkaConfig.Builder builder = NxKafka.configure().brokers("   ").clientId("test");
+    void build_shouldPassCustomPropertiesToClients() {
+        RecordingReporter.SECURITY_PROTOCOL_BY_CLIENT_ID.clear();
 
-        assertThrows(KafkaException.class, builder::build);
-    }
-
-    @Test
-    void build_shouldUseDefaults_whenOnlyBrokersSet() {
-        NxKafka kafka = NxKafka.configure()
-                .brokers("localhost:19999")
-                .connectTimeout(1, TimeUnit.SECONDS)
-                .reconnect(false)
-                .build();
-
-        assertNotNull(kafka);
-        assertEquals(KafkaState.DISCONNECTED, kafka.state());
-    }
-
-    @Test
-    void build_shouldAcceptCustomProperties() {
-        NxKafka kafka = NxKafka.configure()
+        NxKafka.configure()
                 .brokers("localhost:19999")
                 .clientId("custom-id")
                 .connectTimeout(1, TimeUnit.SECONDS)
                 .reconnect(false)
                 .property("security.protocol", "PLAINTEXT")
+                .property("metric.reporters", RecordingReporter.class.getName())
                 .build();
 
-        assertNotNull(kafka);
-    }
-
-    @Test
-    void build_shouldConvertTimeUnits() {
-        NxKafka kafka = NxKafka.configure()
-                .brokers("localhost:19999")
-                .connectTimeout(2, TimeUnit.SECONDS)
-                .reconnectInterval(1, TimeUnit.MINUTES)
-                .reconnect(false)
-                .build();
-
-        assertNotNull(kafka);
+        Map<Object, Object> expected = new HashMap<>();
+        expected.put("custom-id-admin", "PLAINTEXT");
+        expected.put("custom-id-producer", "PLAINTEXT");
+        assertEquals(expected, RecordingReporter.SECURITY_PROTOCOL_BY_CLIENT_ID);
     }
 
     @Test
@@ -90,15 +75,26 @@ class KafkaConfigTest {
         assertThrows(KafkaException.class, builder::build);
     }
 
-    @Test
-    void build_shouldAccept_customProducerCloseTimeout() {
-        NxKafka kafka = NxKafka.configure()
-                .brokers("localhost:19999")
-                .connectTimeout(1, TimeUnit.SECONDS)
-                .reconnect(false)
-                .producerCloseTimeout(Duration.ofSeconds(2))
-                .build();
+    /** Instantiated by the Kafka clients with the configuration each of them was built from. */
+    public static class RecordingReporter implements MetricsReporter {
 
-        assertNotNull(kafka);
+        static final Map<Object, Object> SECURITY_PROTOCOL_BY_CLIENT_ID = new ConcurrentHashMap<>();
+
+        @Override
+        public void configure(Map<String, ?> configs) {
+            SECURITY_PROTOCOL_BY_CLIENT_ID.put(configs.get("client.id"), configs.get("security.protocol"));
+        }
+
+        @Override
+        public void init(List<KafkaMetric> metrics) {}
+
+        @Override
+        public void metricChange(KafkaMetric metric) {}
+
+        @Override
+        public void metricRemoval(KafkaMetric metric) {}
+
+        @Override
+        public void close() {}
     }
 }

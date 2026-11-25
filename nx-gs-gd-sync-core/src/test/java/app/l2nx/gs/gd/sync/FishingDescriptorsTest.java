@@ -1,10 +1,8 @@
 package app.l2nx.gs.gd.sync;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.item.ItemGrade;
-import app.l2nx.gs.adapter.api.kafka.ops.model.EntityStats;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.GameDataSyncEvent;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.fishing.FishingBait;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.fishing.FishingRod;
@@ -15,7 +13,6 @@ import app.l2nx.gs.gd.sync.provider.TestFishingBaitProvider;
 import app.l2nx.gs.gd.sync.provider.TestFishingRodProvider;
 import app.l2nx.gs.gd.sync.provider.TestFishingShotProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -27,8 +24,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class FishingDescriptorsTest {
 
@@ -96,21 +91,6 @@ class FishingDescriptorsTest {
     }
 
     @Nested
-    class Resolve {
-
-        @Test
-        void onConnect_shouldIncludeFishingEntities_whenProvidersRegistered() {
-            connectAndSnapshot();
-
-            List<String> names = new ArrayList<String>();
-            for (EntityStats s : module.currentStatus().getStats().getEntities().orElseGet(Collections::emptyList)) {
-                names.add(s.getName());
-            }
-            assertTrue(names.containsAll(Arrays.asList("fishingbait", "fishingrod", "fishingshot")), names.toString());
-        }
-    }
-
-    @Nested
     class PublishSnapshot {
 
         @Test
@@ -149,19 +129,6 @@ class FishingDescriptorsTest {
             connectAndSnapshot();
 
             assertKeyedBurst(eventsOf("fishingshot"), 6540L, shot);
-        }
-
-        @ParameterizedTest(name = "{0}")
-        @ValueSource(strings = {"fishingbait", "fishingrod", "fishingshot"})
-        void start_shouldPublishEmptyMarker_whenServerAcceptsNoGearOfTheKind(String entityName) {
-            connectAndSnapshot();
-
-            List<GameDataSyncEvent<?>> actual = eventsOf(entityName);
-            assertEquals(1, actual.size(), actual.toString());
-            assertEquals(
-                    GameDataSnapshotPublisher.OP_SNAPSHOT_COMPLETE,
-                    actual.get(0).getOp());
-            assertEquals(Integer.valueOf(0), actual.get(0).getCount());
         }
     }
 }

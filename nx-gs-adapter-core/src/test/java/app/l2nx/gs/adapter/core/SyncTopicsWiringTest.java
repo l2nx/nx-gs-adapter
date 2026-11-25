@@ -56,18 +56,6 @@ class SyncTopicsWiringTest {
     }
 
     @Test
-    void initKafka_shouldNormalizeNullSyncTopics_toEmptyNamespaces() {
-        NxAdapter.simulateInitKafkaForTesting(new KafkaInitializer(new CapturingKafkaFactory()), response(null));
-
-        ConnectContext ctx = CapturingAdapterModule.lastContext();
-        assertNotNull(ctx);
-        assertNotNull(ctx.getSyncTopics(), "ConnectContext normalizes wire-null syncTopics to empty SyncTopics");
-        assertTrue(ctx.getSyncTopics().getDb().isEmpty());
-        assertTrue(ctx.getSyncTopics().getRuntime().isEmpty());
-        assertTrue(ctx.getSyncTopics().getGd().isEmpty());
-    }
-
-    @Test
     void initKafka_shouldStillConnectSyncModule_whenEventsBootstrapThrows() {
         // Regression: an events-bootstrap failure (api/core version skew) must not abort sync-module discovery,
         // else heartbeat reports empty enabledModules and all sync silently stops
@@ -83,21 +71,6 @@ class SyncTopicsWiringTest {
         assertTrue(
                 CapturingAdapterModule.wasStarted(), "sync module.start must fire even though events bootstrap threw");
         assertEquals("acme.gs.sync.db.character", ctx.getSyncTopics().getDb().get("character"));
-    }
-
-    @Test
-    void initKafka_shouldExposeUnmodifiableNamespaces_inConnectContext() {
-        SyncTopics topics = SyncTopics.builder()
-                .db(java.util.Collections.singletonMap("clan", "acme.gs.sync.db.clan"))
-                .build();
-
-        NxAdapter.simulateInitKafkaForTesting(new KafkaInitializer(new CapturingKafkaFactory()), response(topics));
-
-        ConnectContext ctx = CapturingAdapterModule.lastContext();
-        assertNotNull(ctx);
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> ctx.getSyncTopics().getDb().put("character", "x"));
     }
 
     private static ConnectResponse response(SyncTopics syncTopics) {

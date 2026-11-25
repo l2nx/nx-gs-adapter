@@ -18,22 +18,13 @@ class RaidKillEventTest {
     }
 
     @Test
-    void getParticipants_shouldReturnEmptyList_whenBuilderOmits() {
+    void getParticipantsAndDrops_shouldReturnEmptyList_whenBuilderOmits() {
         RaidKillEvent event = RaidKillEvent.builder()
                 .eventId(UUID.randomUUID())
                 .bossNpcId(29028)
                 .build();
 
         assertTrue(event.getParticipants().isEmpty());
-    }
-
-    @Test
-    void getDrops_shouldReturnEmptyList_whenBuilderOmits() {
-        RaidKillEvent event = RaidKillEvent.builder()
-                .eventId(UUID.randomUUID())
-                .bossNpcId(29028)
-                .build();
-
         assertTrue(event.getDrops().isEmpty());
     }
 
@@ -52,33 +43,7 @@ class RaidKillEventTest {
     }
 
     @Test
-    void getParticipants_shouldBeUnmodifiable() {
-        RaidKillEvent event = RaidKillEvent.builder()
-                .eventId(UUID.randomUUID())
-                .bossNpcId(29028)
-                .participants(Collections.singletonList(
-                        RaidActor.builder().characterId(1L).damageDealt(100L).build()))
-                .build();
-
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> event.getParticipants().add(null));
-    }
-
-    @Test
-    void getDrops_shouldBeUnmodifiable() {
-        RaidKillEvent event = RaidKillEvent.builder()
-                .eventId(UUID.randomUUID())
-                .bossNpcId(29028)
-                .drops(Collections.singletonList(
-                        RaidDropItem.builder().itemTemplateId(57L).count(1L).build()))
-                .build();
-
-        assertThrows(UnsupportedOperationException.class, () -> event.getDrops().add(null));
-    }
-
-    @Test
-    void constructor_shouldDefensivelyCopyParticipantsList() {
+    void constructor_shouldDefensivelyCopyAndFreezeParticipantsList() {
         List<RaidActor> source = new ArrayList<>();
         source.add(RaidActor.builder().characterId(1L).damageDealt(100L).build());
 
@@ -91,10 +56,13 @@ class RaidKillEventTest {
         source.add(RaidActor.builder().characterId(2L).damageDealt(200L).build());
 
         assertEquals(1, event.getParticipants().size());
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> event.getParticipants().add(null));
     }
 
     @Test
-    void constructor_shouldDefensivelyCopyDropsList() {
+    void constructor_shouldDefensivelyCopyAndFreezeDropsList() {
         List<RaidDropItem> source = new ArrayList<>();
         source.add(RaidDropItem.builder().itemTemplateId(57L).count(1L).build());
 
@@ -107,31 +75,48 @@ class RaidKillEventTest {
         source.add(RaidDropItem.builder().itemTemplateId(6660L).count(1L).build());
 
         assertEquals(1, event.getDrops().size());
+        assertThrows(UnsupportedOperationException.class, () -> event.getDrops().add(null));
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
-        UUID partyId = UUID.randomUUID();
-        UUID ccId = UUID.randomUUID();
+    void toBuilder_shouldRoundtripAllFields() {
+        UUID eventId = UUID.randomUUID();
         RaidActor killer = RaidActor.builder()
                 .characterId(268415943L)
                 .clanId(268440117L)
-                .partyId(partyId)
-                .commandChannelId(ccId)
+                .partyId(UUID.randomUUID())
+                .commandChannelId(UUID.randomUUID())
                 .damageDealt(145820L)
                 .build();
+        RaidActor dropOwner =
+                RaidActor.builder().characterId(268415944L).damageDealt(1L).build();
+        RaidDropItem drop =
+                RaidDropItem.builder().itemTemplateId(6660L).count(1L).build();
         RaidKillEvent original = RaidKillEvent.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(eventId)
                 .bossNpcId(29028)
                 .bossName("Valakas")
                 .bossLevel(85)
+                .instanceId(7L)
                 .lastHit(killer)
-                .dropOwner(killer)
+                .dropOwner(dropOwner)
                 .participants(Collections.singletonList(killer))
-                .drops(Collections.singletonList(
-                        RaidDropItem.builder().itemTemplateId(6660L).count(1L).build()))
+                .drops(Collections.singletonList(drop))
+                .metadata(Collections.singletonMap("k", "v"))
                 .build();
 
-        assertEquals(original, original.toBuilder().build());
+        RaidKillEvent copy = original.toBuilder().build();
+
+        assertEquals(original, copy);
+        assertEquals(eventId, copy.getEventId());
+        assertEquals(29028, copy.getBossNpcId());
+        assertEquals("Valakas", copy.getBossName());
+        assertEquals(Integer.valueOf(85), copy.getBossLevel());
+        assertEquals(Long.valueOf(7L), copy.getInstanceId());
+        assertEquals(killer, copy.getLastHit());
+        assertEquals(dropOwner, copy.getDropOwner());
+        assertEquals(Collections.singletonList(killer), copy.getParticipants());
+        assertEquals(Collections.singletonList(drop), copy.getDrops());
+        assertEquals(Collections.singletonMap("k", "v"), copy.getMetadata());
     }
 }

@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -21,15 +21,28 @@ class SerialExecutorTest {
         try {
             SerialExecutor serial = new SerialExecutor(pool);
             List<Boolean> inside = new ArrayList<Boolean>();
-            Future<Boolean> fromOtherThread =
-                    Executors.newSingleThreadExecutor().submit(serial::runsOnCurrentThread);
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
 
-            serial.execute(() -> inside.add(serial.runsOnCurrentThread()));
-            pool.submit(() -> {}).get(5, TimeUnit.SECONDS);
+            serial.execute(() -> {
+                inside.add(serial.runsOnCurrentThread());
+                entered.countDown();
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            boolean onAnotherThreadDuringTheTask = serial.runsOnCurrentThread();
+            release.countDown();
+            boolean onTheSameThreadAfterTheTask =
+                    pool.submit(serial::runsOnCurrentThread).get(5, TimeUnit.SECONDS);
 
             assertEquals(1, inside.size());
             assertTrue(inside.get(0));
-            assertFalse(fromOtherThread.get(5, TimeUnit.SECONDS));
+            assertFalse(onAnotherThreadDuringTheTask);
+            assertFalse(onTheSameThreadAfterTheTask);
             assertFalse(serial.runsOnCurrentThread());
         } finally {
             pool.shutdownNow();

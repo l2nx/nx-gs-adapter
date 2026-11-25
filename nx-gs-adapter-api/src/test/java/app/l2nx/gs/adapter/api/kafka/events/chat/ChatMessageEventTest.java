@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -30,29 +31,56 @@ class ChatMessageEventTest {
                 .build();
     }
 
+    private static final UUID EVENT_ID = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000000");
+
     private static ChatMessageEvent.Builder base() {
         return ChatMessageEvent.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(EVENT_ID)
                 .characterId(268437521L)
                 .characterName("Vasya")
                 .channel(ChatChannel.GENERAL)
                 .text("hi");
     }
 
+    @Test
+    void roundtrip_shouldPreserveAllFields() {
+        ChatMessageEvent minimal = base().build();
+        ChatMessageEvent original = base().targetCharacterId(268437522L)
+                .targetCharacterName("Petya")
+                .metadata(Collections.singletonMap("k", "v"))
+                .senderDisplayName("Vasya*")
+                .recipientCharacterIds(Arrays.asList(1L, 2L))
+                .items(Collections.singletonList(snapshot()))
+                .clanId(7L)
+                .allianceId(3L)
+                .build();
+
+        assertEquals("Vasya*", original.getSenderDisplayName());
+        assertEquals(Arrays.asList(1L, 2L), original.getRecipientCharacterIds());
+        assertEquals(Collections.singletonList(snapshot()), original.getItems());
+        assertEquals(7L, original.getClanId());
+        assertEquals(3L, original.getAllianceId());
+        assertEquals(original, original.toBuilder().build());
+        assertEquals(original, GSON.fromJson(GSON.toJson(original), ChatMessageEvent.class));
+        assertEquals(minimal, minimal.toBuilder().build());
+        assertEquals(minimal, GSON.fromJson(GSON.toJson(minimal), ChatMessageEvent.class));
+        assertEquals(268437521L, original.getCharacterId());
+        assertEquals("Vasya", original.getCharacterName());
+        assertEquals(ChatChannel.GENERAL.name(), original.getChannel());
+        assertEquals(268437522L, original.getTargetCharacterId());
+        assertEquals("Petya", original.getTargetCharacterName());
+        assertEquals(Collections.singletonMap("k", "v"), original.getMetadata());
+        assertEquals(EVENT_ID, original.getEventId());
+        assertEquals("hi", original.getText());
+    }
+
+    @Test
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(ChatMessageEvent.class).verify();
+    }
+
     @Nested
     class NewFields {
-
-        @Test
-        void builder_shouldCarryNewFields() {
-            ChatMessageEvent event = base().senderDisplayName("Vasya*")
-                    .recipientCharacterIds(Arrays.asList(1L, 2L))
-                    .items(Collections.singletonList(snapshot()))
-                    .build();
-
-            assertEquals("Vasya*", event.getSenderDisplayName());
-            assertEquals(Arrays.asList(1L, 2L), event.getRecipientCharacterIds());
-            assertEquals(Collections.singletonList(snapshot()), event.getItems());
-        }
 
         @Test
         void getters_shouldReturnNull_whenOmitted() {
@@ -79,54 +107,10 @@ class ChatMessageEventTest {
             assertThrows(
                     UnsupportedOperationException.class, () -> event.getItems().add(snapshot()));
         }
-
-        @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            ChatMessageEvent original = base().senderDisplayName("Vasya*")
-                    .recipientCharacterIds(Arrays.asList(1L, 2L))
-                    .items(Collections.singletonList(snapshot()))
-                    .build();
-
-            assertEquals(original, original.toBuilder().build());
-        }
-
-        @Test
-        void equals_shouldDistinguishSenderDisplayName() {
-            UUID id = UUID.randomUUID();
-            ChatMessageEvent a = base().eventId(id).senderDisplayName("Vasya").build();
-            ChatMessageEvent b = base().eventId(id).senderDisplayName("Vasya*").build();
-
-            assertNotEquals(a, b);
-        }
     }
 
     @Nested
     class ClanFields {
-
-        @Test
-        void builder_shouldCarryClanAndAlliance() {
-            ChatMessageEvent event = base().clanId(7L).allianceId(3L).build();
-
-            assertEquals(7L, event.getClanId());
-            assertEquals(3L, event.getAllianceId());
-            assertEquals(event, event.toBuilder().build());
-        }
-
-        @Test
-        void equals_shouldDistinguishClanId() {
-            UUID id = UUID.randomUUID();
-
-            assertNotEquals(
-                    base().eventId(id).clanId(1L).build(),
-                    base().eventId(id).clanId(2L).build());
-        }
-
-        @Test
-        void roundtrip_shouldPreserveClanAndAlliance() {
-            ChatMessageEvent original = base().clanId(7L).allianceId(3L).build();
-
-            assertEquals(original, GSON.fromJson(GSON.toJson(original), ChatMessageEvent.class));
-        }
 
         @Test
         void fromJson_shouldReadClanFieldsAsNull_whenAbsent() {
@@ -142,18 +126,6 @@ class ChatMessageEventTest {
 
     @Nested
     class GsonRoundtrip {
-
-        @Test
-        void roundtrip_shouldPreserveNewFields() {
-            ChatMessageEvent original = base().senderDisplayName("Vasya*")
-                    .recipientCharacterIds(Arrays.asList(1L, 2L))
-                    .items(Collections.singletonList(snapshot()))
-                    .build();
-
-            ChatMessageEvent parsed = GSON.fromJson(GSON.toJson(original), ChatMessageEvent.class);
-
-            assertEquals(original, parsed);
-        }
 
         @Test
         void fromJson_shouldReadNewFieldsAsNull_whenOldPayload() {

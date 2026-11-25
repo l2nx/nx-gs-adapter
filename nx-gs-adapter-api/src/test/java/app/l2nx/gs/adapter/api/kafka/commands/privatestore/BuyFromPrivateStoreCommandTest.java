@@ -13,7 +13,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -62,31 +64,37 @@ class BuyFromPrivateStoreCommandTest {
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @Test
-    void constructor_shouldReject_whenBuyerEqualsSeller() {
-        BuyFromPrivateStoreCommand.Builder builder = valid().buyerCharacterId(5).sellerCharacterId(5);
-        assertThrows(IllegalArgumentException.class, builder::build);
+    private static Stream<Arguments> invalidFields() {
+        return Stream.of(
+                Arguments.of("buyer equals seller", IllegalArgumentException.class, (Consumer<
+                                BuyFromPrivateStoreCommand.Builder>)
+                        b -> b.buyerCharacterId(5).sellerCharacterId(5)),
+                Arguments.of(
+                        "lines null", IllegalArgumentException.class, (Consumer<BuyFromPrivateStoreCommand.Builder>)
+                                b -> b.lines(null)),
+                Arguments.of(
+                        "lines empty", IllegalArgumentException.class, (Consumer<BuyFromPrivateStoreCommand.Builder>)
+                                b -> b.lines(Collections.emptyList())),
+                Arguments.of("lines contain null", IllegalArgumentException.class, (Consumer<
+                                BuyFromPrivateStoreCommand.Builder>)
+                        b -> b.lines(Arrays.asList(line(1), null))),
+                Arguments.of("itemId duplicated across lines", IllegalArgumentException.class, (Consumer<
+                                BuyFromPrivateStoreCommand.Builder>)
+                        b -> b.lines(Arrays.asList(line(1), line(1)))),
+                Arguments.of("buyerFeePercent null", IllegalArgumentException.class, (Consumer<
+                                BuyFromPrivateStoreCommand.Builder>)
+                        b -> b.buyerFeePercent(null)),
+                Arguments.of("deadline null", NullPointerException.class, (Consumer<BuyFromPrivateStoreCommand.Builder>)
+                        b -> b.deadline(null)));
     }
 
-    @Test
-    void constructor_shouldReject_whenLinesNull() {
-        BuyFromPrivateStoreCommand.Builder builder = valid().lines(null);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenLinesEmpty() {
-        BuyFromPrivateStoreCommand.Builder builder = valid().lines(Collections.emptyList());
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenLinesContainNull() {
-        List<BuyLine> lines = new ArrayList<>();
-        lines.add(line(1));
-        lines.add(null);
-        BuyFromPrivateStoreCommand.Builder builder = valid().lines(lines);
-        assertThrows(IllegalArgumentException.class, builder::build);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidFields")
+    void constructor_shouldReject_whenFieldInvalid(
+            String reason, Class<? extends Throwable> expected, Consumer<BuyFromPrivateStoreCommand.Builder> change) {
+        BuyFromPrivateStoreCommand.Builder builder = valid();
+        change.accept(builder);
+        assertThrows(expected, builder::build);
     }
 
     @Test
@@ -97,13 +105,6 @@ class BuyFromPrivateStoreCommandTest {
         }
         BuyFromPrivateStoreCommand command = valid().lines(lines).build();
         assertEquals(100, command.getLines().size());
-    }
-
-    @Test
-    void constructor_shouldReject_whenItemIdDuplicatedAcrossLines() {
-        List<BuyLine> lines = Arrays.asList(line(1), line(1));
-        BuyFromPrivateStoreCommand.Builder builder = valid().lines(lines);
-        assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @ParameterizedTest(name = "buyerFeePercent={0}")
@@ -119,18 +120,6 @@ class BuyFromPrivateStoreCommandTest {
         BuyFromPrivateStoreCommand command =
                 valid().buyerFeePercent(buyerFeePercent).build();
         assertEquals(buyerFeePercent, command.getBuyerFeePercent().intValue());
-    }
-
-    @Test
-    void constructor_shouldReject_whenBuyerFeePercentNull() {
-        BuyFromPrivateStoreCommand.Builder builder = valid().buyerFeePercent(null);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenDeadlineNull() {
-        BuyFromPrivateStoreCommand.Builder builder = valid().deadline(null);
-        assertThrows(NullPointerException.class, builder::build);
     }
 
     static Stream<Arguments> blankMailText() {
@@ -166,7 +155,7 @@ class BuyFromPrivateStoreCommandTest {
 
     @Test
     void toBuilder_shouldRoundtripAllFields() {
-        BuyFromPrivateStoreCommand original = valid().build();
+        BuyFromPrivateStoreCommand original = valid().ownerVerified(true).build();
 
         BuyFromPrivateStoreCommand copy = original.toBuilder().build();
 
@@ -175,20 +164,15 @@ class BuyFromPrivateStoreCommandTest {
         assertEquals(MAIL_SENDER, copy.getMailSender());
         assertEquals(MAIL_SUBJECT, copy.getMailSubject());
         assertEquals(MAIL_BODY, copy.getMailBody());
+        assertTrue(copy.isOwnerVerified());
+        assertEquals(1, original.getBuyerCharacterId());
+        assertEquals(2, original.getSellerCharacterId());
+        assertEquals(DEADLINE, original.getDeadline());
+        assertEquals(TestInitiators.USER, original.getInitiator());
     }
 
     @Test
-    void equals_shouldDistinguishDeadline() {
-        BuyFromPrivateStoreCommand a = valid().deadline(DEADLINE).build();
-        BuyFromPrivateStoreCommand b = valid().deadline(DEADLINE.plusSeconds(1)).build();
-        assertTrue(!a.equals(b));
-    }
-
-    @Test
-    void equals_shouldDistinguishMailBody() {
-        BuyFromPrivateStoreCommand a = valid().mailBody(MAIL_BODY).build();
-        BuyFromPrivateStoreCommand b = valid().mailBody(MAIL_BODY + " ...").build();
-        assertTrue(!a.equals(b));
-        assertTrue(a.hashCode() != b.hashCode());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(BuyFromPrivateStoreCommand.class).verify();
     }
 }

@@ -2,6 +2,9 @@ package app.l2nx.gs.db.sync;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.commands.CommandInitiator;
+import app.l2nx.gs.adapter.api.kafka.commands.CommandStatus;
+import app.l2nx.gs.adapter.api.kafka.commands.sync.ResyncEntitiesCommand;
 import app.l2nx.gs.adapter.api.kafka.ops.model.ModuleStatus;
 import app.l2nx.gs.adapter.api.kafka.ops.model.PoolStats;
 import app.l2nx.gs.adapter.api.kafka.sync.db.clan.ClanDbDto;
@@ -14,6 +17,7 @@ import app.l2nx.gs.db.sync.engine.publish.KafkaSender;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -31,16 +35,12 @@ class DbSyncModuleTest {
     };
 
     @Test
-    void name_shouldBe_dbSync() {
-        assertEquals("db-sync", new DbSyncModule().name());
-    }
-
-    @Test
     void currentStatus_beforeOnConnect_shouldReportInitWithEmptyStats() {
         DbSyncModule module = build(emptyJdbc(), emptySchema(), passSmoke());
 
         ModuleStatus status = module.currentStatus();
 
+        assertEquals("db-sync", module.name());
         assertEquals("INIT", status.getState());
         assertSame(ModuleStatus.Stats.empty(), status.getStats());
     }
@@ -104,23 +104,20 @@ class DbSyncModuleTest {
     @Test
     void onConnect_shouldBecomeDegraded_whenSmokeCheckFails() {
         PoolStats pool = new PoolStats(0, 4, 4, null);
-        DbSyncModule module = build(singleJdbc(stub("a", pool)), singleSchema(clanProvider()), failSmoke());
+        JdbcConnectionSource src = stub("a", pool);
+        AtomicReference<JdbcConnectionSource> seen = new AtomicReference<JdbcConnectionSource>();
+        Predicate<JdbcConnectionSource> failingSmoke = s -> {
+            seen.set(s);
+            return false;
+        };
+        DbSyncModule module = build(singleJdbc(src), singleSchema(clanProvider()), failingSmoke);
 
         module.onConnect(CTX_WITH_TOPICS);
 
         ModuleStatus status = module.currentStatus();
         assertEquals("DEGRADED", status.getState());
         assertEquals(Optional.of(pool), status.getStats().getPool());
-    }
-
-    @Test
-    void currentStatus_shouldSurfacePoolStats_whenSourceProvidesThem() {
-        PoolStats pool = new PoolStats(2, 6, 8, null);
-        DbSyncModule module = build(singleJdbc(stub("a", pool)), singleSchema(clanProvider()), passSmoke());
-
-        module.onConnect(CTX_WITH_TOPICS);
-
-        assertEquals(Optional.of(pool), module.currentStatus().getStats().getPool());
+        assertSame(src, seen.get());
     }
 
     @Test
@@ -162,22 +159,6 @@ class DbSyncModuleTest {
     }
 
     @Test
-    void smokeChecker_shouldReceiveResolvedSource() {
-        JdbcConnectionSource src = stub("seen", null);
-        java.util.concurrent.atomic.AtomicReference<JdbcConnectionSource> seen =
-                new java.util.concurrent.atomic.AtomicReference<JdbcConnectionSource>();
-        Predicate<JdbcConnectionSource> spy = s -> {
-            seen.set(s);
-            return true;
-        };
-        DbSyncModule module = build(singleJdbc(src), singleSchema(clanProvider()), spy);
-
-        module.onConnect(CTX_WITH_TOPICS);
-
-        assertSame(src, seen.get());
-    }
-
-    @Test
     void stop_shouldBeNoOp_whenEngineNeverStarted() {
         DbSyncModule module = build(emptyJdbc(), emptySchema(), passSmoke());
 
@@ -191,12 +172,22 @@ class DbSyncModuleTest {
     void start_shouldBeNoOp_whenStateDisabled() {
         DbSyncModule module = build(singleJdbc(stub("a", null)), singleSchema(clanProvider()), passSmoke());
 
+        // The first connect resolves every dependency, so only the state guard can stop the engine.
+        module.onConnect(CTX_WITH_TOPICS);
         module.onConnect(CTX_NO_TOPICS);
         module.start();
 
         ModuleStatus status = module.currentStatus();
         assertEquals("DISABLED", status.getState());
         assertFalse(status.getStats().getEntities().isPresent());
+        ResyncEntitiesCommand command = ResyncEntitiesCommand.builder()
+                .resyncId(UUID.randomUUID())
+                .initiator(CommandInitiator.builder().source("nx-gameservers").build())
+                .build();
+        assertEquals(
+                CommandStatus.UNAVAILABLE,
+                module.handleResyncEntities(command, null).getStatus(),
+                "engine must not run");
     }
 
     private static DbSyncModule build(
@@ -240,10 +231,6 @@ class DbSyncModuleTest {
 
     private static Predicate<JdbcConnectionSource> passSmoke() {
         return s -> true;
-    }
-
-    private static Predicate<JdbcConnectionSource> failSmoke() {
-        return s -> false;
     }
 
     private static JdbcConnectionSource stub(String name, PoolStats pool) {

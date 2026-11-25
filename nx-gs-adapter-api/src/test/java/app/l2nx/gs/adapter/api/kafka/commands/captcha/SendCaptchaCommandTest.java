@@ -19,6 +19,9 @@ class SendCaptchaCommandTest {
         assertEquals(42L, cmd.getCharacterId().longValue());
         assertEquals("sac-sentinel", cmd.getIssuedBy());
         assertEquals("episode 7", cmd.getStaffNotes());
+        assertEquals(cmd, cmd.toBuilder().build());
+        assertEquals(cmd.hashCode(), cmd.toBuilder().build().hashCode());
+        assertEquals(TestInitiators.USER, cmd.getInitiator());
     }
 
     @Test
@@ -26,17 +29,5 @@ class SendCaptchaCommandTest {
         IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class, () -> new SendCaptchaCommand(null, null, null, TestInitiators.USER));
         assertTrue(ex.getMessage().contains("characterId"));
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        SendCaptchaCommand original = SendCaptchaCommand.builder()
-                .characterId(1L)
-                .issuedBy("gm")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
-        assertEquals(original.hashCode(), original.toBuilder().build().hashCode());
     }
 }

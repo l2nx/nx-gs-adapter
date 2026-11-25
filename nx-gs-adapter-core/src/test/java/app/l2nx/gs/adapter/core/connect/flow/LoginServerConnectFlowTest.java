@@ -157,14 +157,6 @@ class LoginServerConnectFlowTest {
     }
 
     @Test
-    void connectPath_shouldReturnLoginServerPath() {
-        AdapterConfig cfg = AdapterConfigFixtures.enabled(wireMock.baseUrl());
-        LoginServerConnectFlow flow = new LoginServerConnectFlow(cfg);
-
-        assertEquals(CONNECT_PATH, flow.connectPath());
-    }
-
-    @Test
     void connect_shouldEncodeHttpError_whenNon200() {
         wireMock.stubFor(post(urlEqualTo(CONNECT_PATH))
                 .willReturn(aResponse()

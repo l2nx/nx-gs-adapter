@@ -2,9 +2,14 @@ package app.l2nx.gs.adapter.api.kafka.events.gameevents;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.events.schedule.RecurringSchedule;
+import app.l2nx.gs.adapter.api.kafka.events.schedule.RecurringSlot;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.OffsetTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -44,18 +49,7 @@ class GameEventSnapshotEventTest {
     }
 
     @Test
-    void getEvents_shouldBeUnmodifiable() {
-        GameEventSnapshotEvent event = GameEventSnapshotEvent.builder()
-                .eventId(id())
-                .events(new ArrayList<>(Collections.singletonList(tvt())))
-                .build();
-
-        assertThrows(
-                UnsupportedOperationException.class, () -> event.getEvents().add(tvt()));
-    }
-
-    @Test
-    void constructor_shouldDefensivelyCopyEventsList() {
+    void constructor_shouldDefensivelyCopyAndFreezeEventsList() {
         List<GameEventEntry> source = new ArrayList<>();
         source.add(tvt());
 
@@ -65,6 +59,8 @@ class GameEventSnapshotEventTest {
         source.add(tvt());
 
         assertEquals(1, event.getEvents().size());
+        assertThrows(
+                UnsupportedOperationException.class, () -> event.getEvents().add(tvt()));
     }
 
     @Test
@@ -78,6 +74,9 @@ class GameEventSnapshotEventTest {
         GameEventSnapshotEvent copy = original.toBuilder().build();
         assertEquals(original, copy);
         assertNotSame(original, copy);
+        assertEquals(id(), copy.getEventId());
+        assertEquals(Collections.singletonList(tvt()), copy.getEvents());
+        assertEquals(Collections.singletonMap("source", "fighteventmanager"), copy.getMetadata());
     }
 
     @Test
@@ -106,13 +105,25 @@ class GameEventSnapshotEventTest {
     }
 
     @Test
-    void entry_toBuilder_shouldRoundtrip() {
-        GameEventEntry original = tvt();
+    void entry_toBuilder_shouldRoundtripAllFields() {
+        RecurringSchedule schedule = new RecurringSchedule(Collections.singletonList(
+                new RecurringSlot(EnumSet.of(DayOfWeek.TUESDAY), OffsetTime.parse("19:00:00+03:00"), 30)));
+        GameEventEntry original = tvt().toBuilder().schedule(schedule).build();
         GameEventEntry copy = original.toBuilder().build();
 
         assertEquals(original, copy);
         assertEquals(original.hashCode(), copy.hashCode());
         assertNotSame(original, copy);
+        assertEquals("1", copy.getCode());
+        assertEquals("Team vs Team", copy.getName());
+        assertTrue(copy.isEnabled());
+        assertEquals(WellKnownGameEventStatuses.WAITING, copy.getStatus());
+        assertEquals(Instant.parse("2026-05-30T20:00:00Z"), copy.getNextStartAt());
+        assertEquals(
+                Collections.singletonMap(
+                        WellKnownGameEventMetadata.EVENT_KIND, WellKnownGameEventMetadata.EVENT_KIND_TVT),
+                copy.getMetadata());
+        assertEquals(schedule, copy.getSchedule());
     }
 
     @Test

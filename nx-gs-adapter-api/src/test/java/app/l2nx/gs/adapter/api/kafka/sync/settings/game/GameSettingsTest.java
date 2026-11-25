@@ -1,6 +1,7 @@
 package app.l2nx.gs.adapter.api.kafka.sync.settings.game;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -36,34 +37,6 @@ class GameSettingsTest {
     @Test
     void build_shouldRejectNullUpdatedAt() {
         assertThrows(NullPointerException.class, () -> GameSettings.builder().build());
-    }
-
-    @Test
-    void build_shouldKeepGroupsNull_whenOmitted() {
-        GameSettings actual = GameSettings.builder().updatedAt(NOW).build();
-
-        assertNull(actual.getEnchant());
-        assertNull(actual.getAttribute());
-        assertNull(actual.getMail());
-        assertNull(actual.getPrivateStore());
-        assertNull(actual.getFishing());
-        assertEquals(NOW, actual.getUpdatedAt());
-    }
-
-    @Test
-    void toBuilder_shouldRoundtripAllFields() {
-        GameSettings original = GameSettings.builder()
-                .enchant(new EnchantSettings(16, null, 12))
-                .attribute(AttributeSettings.builder().maxWeaponAttributes(1).build())
-                .mail(new MailSettings(100, 10))
-                .privateStore(new PrivateStoreSettings(57, 1000L, 24))
-                .fishing(FISHING)
-                .updatedAt(NOW)
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
-        assertNotEquals(original, original.toBuilder().mail(null).build());
-        assertNotEquals(original, original.toBuilder().fishing(null).build());
     }
 
     @Test
@@ -121,37 +94,70 @@ class GameSettingsTest {
         }
 
         @Test
-        void readValue_shouldRoundTrip_whenGroupsAreNull() throws IOException {
-            GameSettings expected = GameSettings.builder().updatedAt(NOW).build();
-
-            GameSettings actual = mapper().readValue(mapper().writeValueAsString(expected), GameSettings.class);
-
-            assertEquals(expected, actual);
-        }
-
-        @Test
         void readValue_shouldRoundTripEveryGroup() throws IOException {
+            AttributeSettings attribute = AttributeSettings.builder()
+                    .maxWeaponAttributes(1)
+                    .maxArmorAttributes(3)
+                    .oppositePairs(
+                            Collections.singletonList(new AttributeOppositePair(Attribute.FIRE, Attribute.WATER)))
+                    .chances(Arrays.asList(
+                            new AttributeChance(null, AttributeItemType.STONE, null, 50.0),
+                            new AttributeChance(ItemGrade.S, AttributeItemType.CRYSTAL, AttributeTarget.ARMOR, 30.0)))
+                    .limits(Collections.singletonList(
+                            new AttributeLimit(ItemGrade.C, AttributeItemType.STONE, AttributeTarget.WEAPON, 150)))
+                    .build();
             GameSettings expected = GameSettings.builder()
                     .enchant(new EnchantSettings(16, null, 12))
-                    .attribute(AttributeSettings.builder()
-                            .maxWeaponAttributes(1)
-                            .maxArmorAttributes(3)
-                            .oppositePairs(Collections.singletonList(
-                                    new AttributeOppositePair(Attribute.FIRE, Attribute.WATER)))
-                            .chances(Collections.singletonList(
-                                    new AttributeChance(null, AttributeItemType.STONE, null, 50.0)))
-                            .limits(Collections.singletonList(new AttributeLimit(
-                                    ItemGrade.C, AttributeItemType.STONE, AttributeTarget.WEAPON, 150)))
-                            .build())
+                    .attribute(attribute)
                     .mail(new MailSettings(100, 10))
                     .privateStore(new PrivateStoreSettings(57, 1000L, 24))
                     .fishing(FISHING)
                     .updatedAt(NOW)
                     .build();
+            GameSettings withoutGroups = GameSettings.builder().updatedAt(NOW).build();
 
             GameSettings actual = mapper().readValue(mapper().writeValueAsString(expected), GameSettings.class);
 
             assertEquals(expected, actual);
+            assertEquals(expected, expected.toBuilder().build());
+            assertEquals(new EnchantSettings(16, null, 12), actual.getEnchant());
+            assertEquals(attribute, actual.getAttribute());
+            assertEquals(new MailSettings(100, 10), actual.getMail());
+            assertEquals(new PrivateStoreSettings(57, 1000L, 24), actual.getPrivateStore());
+            assertEquals(FISHING, actual.getFishing());
+            assertEquals(NOW, actual.getUpdatedAt());
+            assertNotEquals(expected, expected.toBuilder().mail(null).build());
+            assertNotEquals(expected, expected.toBuilder().fishing(null).build());
+            assertEquals(
+                    withoutGroups, mapper().readValue(mapper().writeValueAsString(withoutGroups), GameSettings.class));
+            assertEquals(1, attribute.getMaxWeaponAttributes());
+            assertEquals(3, attribute.getMaxArmorAttributes());
+            assertEquals(16, actual.getEnchant().getMaxWeapon());
+            assertNull(actual.getEnchant().getMaxArmor());
+            assertEquals(12, actual.getEnchant().getMaxJewelry());
+            assertEquals(Attribute.FIRE, attribute.getOppositePairs().get(0).getAttribute());
+            assertEquals(Attribute.WATER, attribute.getOppositePairs().get(0).getOpposite());
+            assertNull(attribute.getChances().get(0).getGrade());
+            assertEquals(AttributeItemType.STONE, attribute.getChances().get(0).getType());
+            assertNull(attribute.getChances().get(0).getTarget());
+            assertEquals(50.0, attribute.getChances().get(0).getChancePercent());
+            assertEquals(ItemGrade.S, attribute.getChances().get(1).getGrade());
+            assertEquals(AttributeTarget.ARMOR, attribute.getChances().get(1).getTarget());
+            assertEquals(ItemGrade.C, attribute.getLimits().get(0).getGrade());
+            assertEquals(AttributeItemType.STONE, attribute.getLimits().get(0).getType());
+            assertEquals(AttributeTarget.WEAPON, attribute.getLimits().get(0).getTarget());
+            assertEquals(150, attribute.getLimits().get(0).getMaxPower());
+            assertEquals(100, actual.getMail().getFeeAdena());
+            assertEquals(10, actual.getMail().getFeeAdenaPerAttachment());
+            assertEquals(57, actual.getPrivateStore().getOfflineFeeItemTemplateId());
+            assertEquals(1000L, actual.getPrivateStore().getOfflineFeeItemTemplateCount());
+            assertEquals(24, actual.getPrivateStore().getOfflineFeePeriodHours());
+            assertEquals(10, FISHING.getGameReleaseDelaySeconds());
+            assertEquals(new FishingLimits(true, true, false), FISHING.getApp());
+            FishingLimits game = FISHING.getGame();
+            assertTrue(game.isAccountLimit());
+            assertFalse(game.isHwidLimit());
+            assertTrue(game.isIpLimit());
         }
     }
 }

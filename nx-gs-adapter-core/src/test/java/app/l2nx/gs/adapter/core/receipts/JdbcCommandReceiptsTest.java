@@ -96,6 +96,7 @@ class JdbcCommandReceiptsTest {
         void markFailedOwnTx_shouldReportAMiss_whenTheRowIsAlreadySettled() throws SQLException {
             when(ps.executeUpdate()).thenReturn(0);
 
+            assertFalse(receipts.markFailed(con, "key"));
             assertFalse(receipts.markFailedOwnTx("key"));
         }
 
@@ -191,13 +192,6 @@ class JdbcCommandReceiptsTest {
             when(ps.executeUpdate()).thenReturn(0);
 
             assertFalse(receipts.markOkIfStarted(con, "key", "{}"));
-        }
-
-        @Test
-        void markFailed_shouldSwallowTheMiss() throws SQLException {
-            when(ps.executeUpdate()).thenReturn(0);
-
-            assertFalse(receipts.markFailed(con, "key"));
         }
 
         @Test

@@ -6,13 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.kafka.ops.model.EntityStats;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.GameDataSyncEvent;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.experiencelevel.ExperienceLevel;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.gearscore.GearScoreRuleset;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.ConnectContext;
+import app.l2nx.gs.gd.sync.provider.TestExperienceLevelProvider;
 import app.l2nx.gs.gd.sync.provider.TestGearScoreRulesetProvider;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.kafka.clients.producer.Callback;
@@ -21,6 +26,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Drives the {@code gearscore} entity through the production descriptor registry via a real ServiceLoader impl. */
 class GearScoreDescriptorTest {
@@ -40,12 +47,19 @@ class GearScoreDescriptorTest {
     @AfterEach
     void tearDown() {
         TestGearScoreRulesetProvider.snapshot = Optional.empty();
+        TestExperienceLevelProvider.snapshot = Collections.emptyList();
     }
 
     private void connectAndSnapshot() {
-        SyncTopics topics = SyncTopics.builder()
-                .gd(Collections.singletonMap("gearscore", TOPIC))
-                .build();
+        connectAndSnapshot(Collections.singletonList("gearscore"));
+    }
+
+    private void connectAndSnapshot(List<String> entityNames) {
+        Map<String, String> gd = new HashMap<String, String>();
+        for (String entityName : entityNames) {
+            gd.put(entityName, TOPIC);
+        }
+        SyncTopics topics = SyncTopics.builder().gd(gd).build();
         ConnectContext ctx = ConnectContext.builder()
                 .tenantId(UUID.randomUUID())
                 .tenantSlug("kbt")
@@ -73,12 +87,22 @@ class GearScoreDescriptorTest {
     @Nested
     class Resolve {
 
-        @Test
-        void onConnect_shouldIncludeGearscore_inResyncEntities() {
+        @ParameterizedTest
+        @ValueSource(
+                strings = {
+                    "gearscore",
+                    "experiencelevel",
+                    "itemoption,lifestone,augmentationtargetgroup",
+                    "fishingbait,fishingrod,fishingshot"
+                })
+        void onConnect_shouldIncludeEntitiesWithProvider_inResyncEntities(String entityNames) {
             TestGearScoreRulesetProvider.snapshot =
                     Optional.of(GearScoreRuleset.builder().enabled(true).build());
+            TestExperienceLevelProvider.snapshot = Collections.singletonList(
+                    ExperienceLevel.builder().level(1).requiredExp(0L).build());
+            List<String> expected = Arrays.asList(entityNames.split(","));
 
-            connectAndSnapshot();
+            connectAndSnapshot(expected);
 
             List<EntityStats> entities =
                     module.currentStatus().getStats().getEntities().orElseGet(Collections::emptyList);
@@ -86,9 +110,7 @@ class GearScoreDescriptorTest {
             for (EntityStats s : entities) {
                 resyncEntities.add(s.getName());
             }
-            assertTrue(
-                    resyncEntities.contains("gearscore"),
-                    "gearscore must appear among the active entities (resync path)");
+            assertTrue(resyncEntities.containsAll(expected), resyncEntities.toString());
         }
     }
 

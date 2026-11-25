@@ -2,7 +2,11 @@ package app.l2nx.gs.adapter.api.spi.model;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import nl.jqno.equalsverifier.EqualsVerifier;
+import nl.jqno.equalsverifier.Warning;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class ParentRefTest {
 
@@ -14,35 +18,14 @@ class ParentRefTest {
         assertEquals("owner_id", ref.fkColumn());
     }
 
-    @Test
-    void of_shouldRejectNullParentEntityName() {
-        assertThrows(NullPointerException.class, () -> ParentRef.of(null, "owner_id"));
+    @ParameterizedTest(name = "{0}, {1}")
+    @CsvSource({",owner_id", "character,"})
+    void of_shouldRejectNull(String parentEntityName, String fkColumn) {
+        assertThrows(NullPointerException.class, () -> ParentRef.of(parentEntityName, fkColumn));
     }
 
     @Test
-    void of_shouldRejectNullFkColumn() {
-        assertThrows(NullPointerException.class, () -> ParentRef.of("character", null));
-    }
-
-    @Test
-    void equals_shouldMatchOnBothFields() {
-        assertEquals(ParentRef.of("character", "owner_id"), ParentRef.of("character", "owner_id"));
-        assertNotEquals(ParentRef.of("character", "owner_id"), ParentRef.of("clan", "owner_id"));
-        assertNotEquals(ParentRef.of("character", "owner_id"), ParentRef.of("character", "clan_id"));
-    }
-
-    @Test
-    void hashCode_shouldMatchEquals() {
-        assertEquals(
-                ParentRef.of("character", "owner_id").hashCode(),
-                ParentRef.of("character", "owner_id").hashCode());
-    }
-
-    @Test
-    void toString_shouldExposeBothFields() {
-        String s = ParentRef.of("character", "owner_id").toString();
-
-        assertTrue(s.contains("character"));
-        assertTrue(s.contains("owner_id"));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(ParentRef.class).suppress(Warning.NULL_FIELDS).verify();
     }
 }

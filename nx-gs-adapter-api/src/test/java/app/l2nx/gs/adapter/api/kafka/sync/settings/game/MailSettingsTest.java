@@ -4,13 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class MailSettingsTest {
 
-    @Test
-    void build_shouldRejectNegativeFee() {
-        assertThrows(IllegalArgumentException.class, () -> new MailSettings(-1, 0));
-        assertThrows(IllegalArgumentException.class, () -> new MailSettings(0, -1));
+    @ParameterizedTest(name = "{0}/{1}")
+    @CsvSource({"-1,0", "0,-1"})
+    void build_shouldRejectNegativeFee(long feeAdena, long feeAdenaPerAttachment) {
+        assertThrows(IllegalArgumentException.class, () -> new MailSettings(feeAdena, feeAdenaPerAttachment));
     }
 
     @Test

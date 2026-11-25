@@ -19,6 +19,7 @@ final class TestConnectionSource implements JdbcConnectionSource {
     boolean lendReadOnly;
     volatile Connection lastConnection;
     volatile boolean lastAutoCommitOnClose;
+    volatile boolean lastReadOnlyOnClose;
     volatile String sessionTimeZone;
     volatile String lastTimeZoneOnClose;
 
@@ -48,6 +49,7 @@ final class TestConnectionSource implements JdbcConnectionSource {
                 Connection.class.getClassLoader(), new Class<?>[] {Connection.class}, (proxy, method, args) -> {
                     if ("close".equals(method.getName()) && !raw.isClosed()) {
                         lastAutoCommitOnClose = raw.getAutoCommit();
+                        lastReadOnlyOnClose = raw.isReadOnly();
                         if (sessionTimeZone != null) {
                             try (Statement st = raw.createStatement();
                                     ResultSet rs = st.executeQuery("SELECT @@session.time_zone")) {

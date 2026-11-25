@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.sync.db;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class SyncEventTest {
@@ -25,6 +26,7 @@ class SyncEventTest {
         assertEquals("UPDATED", event.getOp());
         assertEquals(payload, event.getPayload());
         assertEquals(TS, event.getTimestampEpochMs());
+        assertEquals(event, event.toBuilder().build());
     }
 
     @Test
@@ -40,36 +42,8 @@ class SyncEventTest {
     }
 
     @Test
-    void equals_shouldRespectGenericPayload() {
-        SyncEvent<Payload> a = SyncEvent.<Payload>builder()
-                .entityName("clan")
-                .pk(1L)
-                .op("CREATED")
-                .payload(new Payload("Hellbound", 80))
-                .timestampEpochMs(TS)
-                .build();
-        SyncEvent<Payload> b = SyncEvent.<Payload>builder()
-                .entityName("clan")
-                .pk(1L)
-                .op("CREATED")
-                .payload(new Payload("Hellbound", 81))
-                .timestampEpochMs(TS)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        SyncEvent<Payload> original = SyncEvent.<Payload>builder()
-                .entityName("clan")
-                .pk(1L)
-                .op("CREATED")
-                .payload(new Payload("X", 1))
-                .timestampEpochMs(TS)
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(SyncEvent.class).verify();
     }
 
     private static final class Payload {

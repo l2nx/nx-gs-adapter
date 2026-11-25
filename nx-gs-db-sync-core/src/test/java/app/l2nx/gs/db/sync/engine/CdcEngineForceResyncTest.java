@@ -132,14 +132,17 @@ class CdcEngineForceResyncTest {
     }
 
     @Test
-    void requestPkRepublishNoEvent_shouldBeNoOp_whenEntityUnknownOrPksEmpty() {
-        engine = buildEngine();
+    void requestPkRepublishNoEvent_shouldBeNoOp_whenEntityUnknownOrPksEmpty() throws Exception {
+        // One worker runs cycles in submission order, so any cycle of these requests ends before the scheduled one.
+        engine = buildEngine(1);
         engine.start();
 
         engine.requestPkRepublishNoEvent("nope", pks(PK));
         engine.requestPkRepublishNoEvent("clan", pks());
         engine.requestPkRepublishNoEvent("clan", null);
 
+        engine.runScheduledTickNow("clan").get(10, TimeUnit.SECONDS);
+        assertEquals(1, source.crcAtBorrow.size(), "only the scheduled cycle may run");
         assertTrue(published.isEmpty());
     }
 
@@ -195,6 +198,10 @@ class CdcEngineForceResyncTest {
     }
 
     private CdcEngine buildEngine() {
+        return buildEngine(EngineConfig.DEFAULT_WORKERS);
+    }
+
+    private CdcEngine buildEngine(int workers) {
         KafkaSender sender = (topic, key, value, callback) -> {
             if (failPublishes.get()) {
                 callback.onCompletion(null, new RuntimeException("publish boom"));
@@ -223,7 +230,7 @@ class CdcEngineForceResyncTest {
                 source,
                 snapshot,
                 persistence,
-                new EngineConfig(3600, 500_000, 5, 2),
+                new EngineConfig(3600, 500_000, 5, 2, EngineConfig.DEFAULT_FETCH_SIZE, workers),
                 entity -> "test.gs.sync.clans",
                 new SyncEventPublisher(sender),
                 statsTracker,

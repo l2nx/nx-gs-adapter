@@ -9,33 +9,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 
 class TopicResolverTest {
 
-    @Test
-    void fromSnapshot_shouldReturnTopic_forKnownEntity() {
-        TopicResolver resolver = TopicResolver.fromSnapshot(Collections.singletonMap("clan", "acme.gs.sync.clans"));
-
-        assertEquals("acme.gs.sync.clans", resolver.resolveTopic("clan"));
-    }
-
-    @Test
-    void fromSnapshot_shouldReturnNull_forMissingEntity() {
-        TopicResolver resolver = TopicResolver.fromSnapshot(Collections.singletonMap("clan", "acme.gs.sync.clans"));
-
-        assertNull(resolver.resolveTopic("character"));
-    }
-
-    @Test
-    void fromSnapshot_shouldReturnNull_whenSourceNull() {
-        TopicResolver resolver = TopicResolver.fromSnapshot(null);
-
-        assertNull(resolver.resolveTopic("clan"));
-    }
-
-    @Test
-    void fromSnapshot_shouldReturnNull_whenSourceEmpty() {
-        TopicResolver resolver = TopicResolver.fromSnapshot(Collections.emptyMap());
+    @ParameterizedTest
+    @NullAndEmptySource
+    void fromSnapshot_shouldReturnNull_whenSourceNullOrEmpty(Map<String, String> source) {
+        TopicResolver resolver = TopicResolver.fromSnapshot(source);
 
         assertNull(resolver.resolveTopic("clan"));
     }

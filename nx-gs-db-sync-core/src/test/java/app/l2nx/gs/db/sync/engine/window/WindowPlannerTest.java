@@ -19,8 +19,13 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class WindowPlannerTest {
 
@@ -29,20 +34,13 @@ class WindowPlannerTest {
         assertTrue(WindowPlanner.divideRange(10, 5, 100).isEmpty());
     }
 
-    @Test
-    void divideRange_shouldReturnSingleWindow_whenSpanFitsInOneChunk() {
-        List<Window> windows = WindowPlanner.divideRange(1, 100, 1000);
+    @ParameterizedTest
+    @CsvSource({"1, 100", "42, 42"})
+    void divideRange_shouldReturnSingleWindow_whenSpanFitsInOneChunk(long minPk, long maxPk) {
+        List<Window> windows = WindowPlanner.divideRange(minPk, maxPk, 1000);
 
         assertEquals(1, windows.size());
-        assertEquals(new Window(1, 100), windows.get(0));
-    }
-
-    @Test
-    void divideRange_shouldReturnSingleRowWindow_whenMinEqualsMax() {
-        List<Window> windows = WindowPlanner.divideRange(42, 42, 1000);
-
-        assertEquals(1, windows.size());
-        assertEquals(new Window(42, 42), windows.get(0));
+        assertEquals(new Window(minPk, maxPk), windows.get(0));
     }
 
     @Test
@@ -51,33 +49,6 @@ class WindowPlannerTest {
 
         assertEquals(2, windows.size());
         assertEquals(Arrays.asList(new Window(1, 5), new Window(6, 10)), windows);
-    }
-
-    @Test
-    void divideRange_shouldHandleRemainder_whenSpanNotMultiple() {
-        List<Window> windows = WindowPlanner.divideRange(1, 12, 5);
-
-        assertEquals(3, windows.size());
-        assertEquals(Arrays.asList(new Window(1, 5), new Window(6, 10), new Window(11, 12)), windows);
-    }
-
-    @Test
-    void divideRange_shouldChunk12MItemsInto10Windows_whenRowsPerWindowMatches() {
-        long min = 1L;
-        long max = 12_200_000L;
-        int rowsPerWindow = 1_220_000;
-
-        List<Window> windows = WindowPlanner.divideRange(min, max, rowsPerWindow);
-
-        assertEquals(10, windows.size());
-        assertEquals(min, windows.get(0).fromPk());
-        assertEquals(max, windows.get(windows.size() - 1).toPk());
-        for (int i = 1; i < windows.size(); i++) {
-            assertEquals(
-                    windows.get(i - 1).toPk() + 1L,
-                    windows.get(i).fromPk(),
-                    "window " + i + " not adjacent to predecessor");
-        }
     }
 
     @Test
@@ -91,16 +62,17 @@ class WindowPlannerTest {
         assertEquals(max, windows.get(windows.size() - 1).toPk());
     }
 
-    @Test
-    void divideRange_shouldNotReturnSingleWindow_whenSpanOverflowsLongAddition() {
-        // Must not collapse to one window over the whole BIGINT range; chunking or the plan cap are both acceptable.
-        Throwable thrown = null;
-        try {
-            WindowPlanner.divideRange(Long.MIN_VALUE, Long.MAX_VALUE, Integer.MAX_VALUE);
-        } catch (IllegalStateException ex) {
-            thrown = ex;
-        }
-        assertNotNull(thrown, "full-BIGINT range must hit the windows cap, never collapse to a single window");
+    @ParameterizedTest
+    @MethodSource("rangesAboveTheWindowsCap")
+    void divideRange_shouldThrow_whenWindowCountExceedsCap(long minPk, long maxPk, int rowsPerWindow) {
+        assertThrows(IllegalStateException.class, () -> WindowPlanner.divideRange(minPk, maxPk, rowsPerWindow));
+    }
+
+    private static Stream<Arguments> rangesAboveTheWindowsCap() {
+        return Stream.of(
+                Arguments.of(0L, WindowPlanner.MAX_WINDOWS_PER_PLAN + 100L, 1),
+                // The span overflows a long and must not collapse to one window over the whole BIGINT range.
+                Arguments.of(Long.MIN_VALUE, Long.MAX_VALUE, Integer.MAX_VALUE));
     }
 
     @Test
@@ -137,11 +109,11 @@ class WindowPlannerTest {
 
     @Test
     void plan_shouldUseSnapshotMin_whenDeletedExtremeWouldShrinkDbRange() throws SQLException {
-        // Deleted PK=12 shrinks DB MAX to 11; the snapshot envelope must still cover it so its DELETE fires.
+        // Deleted PK=1 lifts DB MIN to 2; the snapshot envelope must still cover it so its DELETE fires.
         SnapshotStore snap = new SnapshotStore();
         snap.putCrc("clan", 1L, 100);
         snap.putCrc("clan", 12L, 200);
-        Connection conn = mockMinMax(1L, 11L);
+        Connection conn = mockMinMax(2L, 12L);
 
         List<Window> windows = new WindowPlanner().plan(clanMapping(), conn, snap, 100, 5);
 
@@ -177,13 +149,6 @@ class WindowPlannerTest {
 
         assertEquals(1, windows.size());
         assertEquals(new Window(1, 20), windows.get(0));
-    }
-
-    @Test
-    void divideRange_shouldThrow_whenWindowCountExceedsCap() {
-        Throwable t =
-                assertThrowsOrNull(() -> WindowPlanner.divideRange(0L, WindowPlanner.MAX_WINDOWS_PER_PLAN + 100L, 1));
-        assertNotNull(t, "expected IllegalStateException at cap");
     }
 
     @Nested
@@ -276,14 +241,5 @@ class WindowPlannerTest {
 
     private static EntityMapping<ClanDbDto> clanMapping() {
         return TestMappings.clanOnly();
-    }
-
-    private static Throwable assertThrowsOrNull(Runnable r) {
-        try {
-            r.run();
-            return null;
-        } catch (Throwable t) {
-            return t;
-        }
     }
 }

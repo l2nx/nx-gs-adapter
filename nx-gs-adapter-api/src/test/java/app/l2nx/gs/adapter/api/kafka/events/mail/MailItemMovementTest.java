@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.events.mail;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class MailItemMovementTest {
@@ -28,14 +29,6 @@ class MailItemMovementTest {
     }
 
     @Test
-    void getNewItemId_shouldRoundtripDistinctFromItemId() {
-        MailItemMovement actual = valid().build();
-
-        assertEquals(268437521L, actual.getItem().getItemId());
-        assertEquals(268437522L, actual.getNewItemId());
-    }
-
-    @Test
     void getCount_shouldStayApartFromTheStackSizeOfTheItem() {
         MailItemMovement actual = valid().build();
 
@@ -52,18 +45,14 @@ class MailItemMovementTest {
         assertEquals(original, copy);
         assertEquals(original.hashCode(), copy.hashCode());
         assertNotSame(original, copy);
+        assertEquals(item(), copy.getItem());
+        assertEquals(268437521L, copy.getItem().getItemId());
+        assertEquals(268437522L, copy.getNewItemId());
+        assertEquals(5L, copy.getCount());
     }
 
     @Test
-    void equals_shouldDistinguishNewItemId() {
-        assertNotEquals(valid().build(), valid().newItemId(3L).build());
-    }
-
-    @Test
-    void equals_shouldDistinguishItem() {
-        MailItemMovement other =
-                valid().item(item().toBuilder().enchantLevel(1).build()).build();
-
-        assertNotEquals(valid().build(), other);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(MailItemMovement.class).verify();
     }
 }

@@ -2,33 +2,23 @@ package app.l2nx.gs.adapter.api.kafka.ops.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class ChangesSummaryTest {
 
-    @Test
-    void builder_shouldMapEachFieldToConstructorPosition() {
-        ChangesSummary summary =
-                ChangesSummary.builder().created(3L).updated(7L).deleted(1L).build();
+    @ParameterizedTest
+    @CsvSource({"3, 7, 1", "2, 5, 0"})
+    void builder_shouldMapEachFieldToConstructorPosition(long created, long updated, long deleted) {
+        ChangesSummary summary = ChangesSummary.builder()
+                .created(created)
+                .updated(updated)
+                .deleted(deleted)
+                .build();
 
-        assertEquals(3L, summary.getCreated());
-        assertEquals(7L, summary.getUpdated());
-        assertEquals(1L, summary.getDeleted());
-    }
-
-    @Test
-    void builder_shouldDefaultEachFieldToZero_whenOmitted() {
-        ChangesSummary summary = ChangesSummary.builder().build();
-
-        assertEquals(0L, summary.getCreated());
-        assertEquals(0L, summary.getUpdated());
-        assertEquals(0L, summary.getDeleted());
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        ChangesSummary original = new ChangesSummary(2L, 5L, 0L);
-
-        assertEquals(original, original.toBuilder().build());
+        assertEquals(created, summary.getCreated());
+        assertEquals(updated, summary.getUpdated());
+        assertEquals(deleted, summary.getDeleted());
+        assertEquals(summary, summary.toBuilder().build());
     }
 }

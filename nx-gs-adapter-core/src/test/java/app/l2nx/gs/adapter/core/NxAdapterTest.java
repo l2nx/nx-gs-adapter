@@ -9,6 +9,8 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class NxAdapterTest {
 
@@ -31,14 +33,24 @@ class NxAdapterTest {
     @AfterEach
     void restoreSysprops() {
         NxAdapter.resetForTesting();
+        for (String key : L2NX_PROPS) {
+            System.clearProperty(key);
+        }
         for (Map.Entry<String, String> e : savedProps.entrySet()) {
             System.setProperty(e.getKey(), e.getValue());
         }
         savedProps.clear();
     }
 
-    @Test
-    void start_shouldEnterFailedState_whenConfigResolutionFails() {
+    @ParameterizedTest(name = "gs-key={0}")
+    @CsvSource(
+            nullValues = "NONE",
+            value = {"NONE, NONE", "wrong-prefix, https://acme.api.l2nx.app"})
+    void start_shouldEnterFailedState_whenConfigResolutionFails(String gsKey, String platformUrl) {
+        if (gsKey != null) {
+            System.setProperty("l2nx.gs-key", gsKey);
+            System.setProperty("l2nx.platform-url", platformUrl);
+        }
         List<AdapterState> captured = new ArrayList<>();
         NxAdapter.onStateChange(captured::add);
 
@@ -48,22 +60,6 @@ class NxAdapterTest {
         assertEquals(AdapterState.FAILED, NxAdapter.state());
         assertEquals(1, captured.size());
         assertEquals(AdapterState.FAILED, captured.get(0));
-    }
-
-    @Test
-    void start_shouldNotPropagateException_whenServerKeyFormatInvalid() {
-        System.setProperty("l2nx.gs-key", "wrong-prefix");
-        System.setProperty("l2nx.platform-url", "https://acme.api.l2nx.app");
-
-        NxAdapter result = assertDoesNotThrow(NxAdapter::start);
-
-        assertNotNull(result);
-        assertEquals(AdapterState.FAILED, NxAdapter.state());
-    }
-
-    @Test
-    void state_shouldDefaultToInit_beforeStart() {
-        assertEquals(AdapterState.INIT, NxAdapter.state());
     }
 
     @Test

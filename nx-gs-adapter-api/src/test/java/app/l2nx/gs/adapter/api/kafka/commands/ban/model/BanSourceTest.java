@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -15,9 +15,9 @@ class BanSourceTest {
     class FromToken {
 
         @ParameterizedTest(name = "{0}")
-        @EnumSource(BanSource.class)
-        void fromToken_shouldResolveConstant_whenTokenIsItsName(BanSource expected) {
-            assertEquals(expected, BanSource.fromToken(expected.name()));
+        @CsvSource({"STANDARD, STANDARD", "SHADOW, SHADOW"})
+        void fromToken_shouldResolveConstant_whenTokenIsItsName(String token, BanSource expected) {
+            assertEquals(expected, BanSource.fromToken(token));
         }
 
         @ParameterizedTest(name = "[{0}]")

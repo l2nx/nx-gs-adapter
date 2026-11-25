@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.Collections;
 import java.util.UUID;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class PrivateTradeFinishedEventTest {
@@ -27,51 +28,22 @@ class PrivateTradeFinishedEventTest {
                 .tradeId(tradeId)
                 .partyA(a)
                 .partyB(b)
+                .metadata(Collections.singletonMap("k", "v"))
                 .build();
 
-        assertEquals(original, original.toBuilder().build());
+        PrivateTradeFinishedEvent copy = original.toBuilder().build();
+
+        assertEquals(original, copy);
+        assertEquals(eventId, copy.getEventId());
+        assertEquals(tradeId, copy.getTradeId());
+        assertEquals(a, copy.getPartyA());
+        assertEquals(b, copy.getPartyB());
+        assertEquals(Collections.singletonMap("k", "v"), copy.getMetadata());
     }
 
     @Test
-    void equals_shouldDistinguishEventId() {
-        UUID tradeId = UUID.randomUUID();
-        TradeParty empty = TradeParty.builder().characterId(1L).build();
-
-        PrivateTradeFinishedEvent a = PrivateTradeFinishedEvent.builder()
-                .eventId(UUID.randomUUID())
-                .tradeId(tradeId)
-                .partyA(empty)
-                .partyB(empty)
-                .build();
-        PrivateTradeFinishedEvent b = PrivateTradeFinishedEvent.builder()
-                .eventId(UUID.randomUUID())
-                .tradeId(tradeId)
-                .partyA(empty)
-                .partyB(empty)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishTradeId() {
-        UUID eventId = UUID.randomUUID();
-        TradeParty empty = TradeParty.builder().characterId(1L).build();
-
-        PrivateTradeFinishedEvent a = PrivateTradeFinishedEvent.builder()
-                .eventId(eventId)
-                .tradeId(UUID.randomUUID())
-                .partyA(empty)
-                .partyB(empty)
-                .build();
-        PrivateTradeFinishedEvent b = PrivateTradeFinishedEvent.builder()
-                .eventId(eventId)
-                .tradeId(UUID.randomUUID())
-                .partyA(empty)
-                .partyB(empty)
-                .build();
-
-        assertNotEquals(a, b);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(PrivateTradeFinishedEvent.class).verify();
     }
 
     @Test
@@ -91,24 +63,6 @@ class PrivateTradeFinishedEventTest {
 
         assertEquals(1, event.getPartyA().getItems().size());
         assertTrue(event.getPartyB().getItems().isEmpty());
-    }
-
-    @Test
-    void toString_shouldRenderIds() {
-        UUID eventId = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000000");
-        UUID tradeId = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000001");
-        TradeParty empty = TradeParty.builder().characterId(11L).build();
-
-        PrivateTradeFinishedEvent event = PrivateTradeFinishedEvent.builder()
-                .eventId(eventId)
-                .tradeId(tradeId)
-                .partyA(empty)
-                .partyB(empty)
-                .build();
-
-        String s = event.toString();
-        assertTrue(s.contains("eventId=" + eventId));
-        assertTrue(s.contains("tradeId=" + tradeId));
     }
 
     private static TradeItemMovement stub(long template, long itemId, long newItemId, long count) {

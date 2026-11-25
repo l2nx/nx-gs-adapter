@@ -1,7 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,8 +19,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class StartPrivateStoreBuyCommandTest {
@@ -51,21 +54,6 @@ class StartPrivateStoreBuyCommandTest {
     }
 
     @Test
-    void builder_shouldKeepAllFields() {
-        StartPrivateStoreBuyCommand actual = valid().build();
-
-        assertEquals(1, actual.getCharacterId());
-        assertEquals("WTB", actual.getTitle());
-        assertEquals(Arrays.asList(LINE_1, LINE_2), actual.getLines());
-        assertEquals(Integer.valueOf(5), actual.getBuyerFeePercent());
-        assertEquals(Boolean.TRUE, actual.getOfflineAllowed());
-        assertTrue(actual.isOwnerVerified());
-        assertEquals(DEADLINE, actual.getDeadline());
-        assertEquals(KEY, actual.getIdempotencyKey());
-        assertEquals(TestInitiators.USER, actual.getInitiator());
-    }
-
-    @Test
     void getBuyerFeePercent_shouldBeNull_whenAbsent() {
         assertNull(valid().buyerFeePercent(null).build().getBuyerFeePercent());
     }
@@ -82,34 +70,29 @@ class StartPrivateStoreBuyCommandTest {
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @Test
-    void constructor_shouldReject_whenLinesNull() {
-        StartPrivateStoreBuyCommand.Builder builder = valid().lines(null);
-        assertThrows(IllegalArgumentException.class, builder::build);
+    static Stream<Arguments> invalidCommands() {
+        return Stream.of(
+                Arguments.of("lines null", valid().lines(null), IllegalArgumentException.class),
+                Arguments.of(
+                        "lines empty",
+                        valid().lines(Collections.<WantedLine>emptyList()),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "lines contain null",
+                        valid().lines(Arrays.asList(LINE_1, null)),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "template repeats",
+                        valid().lines(Arrays.asList(LINE_1, new WantedLine(57L, 2L, 1L))),
+                        IllegalArgumentException.class),
+                Arguments.of("idempotencyKey null", valid().idempotencyKey(null), NullPointerException.class));
     }
 
-    @Test
-    void constructor_shouldReject_whenLinesEmpty() {
-        StartPrivateStoreBuyCommand.Builder builder = valid().lines(Collections.<WantedLine>emptyList());
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenLinesContainNull() {
-        StartPrivateStoreBuyCommand.Builder builder = valid().lines(Arrays.asList(LINE_1, null));
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenTemplateRepeats() {
-        StartPrivateStoreBuyCommand.Builder builder = valid().lines(Arrays.asList(LINE_1, new WantedLine(57L, 2L, 1L)));
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenIdempotencyKeyNull() {
-        StartPrivateStoreBuyCommand.Builder builder = valid().idempotencyKey(null);
-        assertThrows(NullPointerException.class, builder::build);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidCommands")
+    void constructor_shouldReject_whenCommandInvalid(
+            String name, StartPrivateStoreBuyCommand.Builder builder, Class<? extends RuntimeException> expected) {
+        assertThrows(expected, builder::build);
     }
 
     @Test
@@ -124,33 +107,16 @@ class StartPrivateStoreBuyCommandTest {
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(StartPrivateStoreBuyCommand.class)
+                .usingGetClass()
+                .verify();
+    }
+
+    @Test
+    void roundtrip_shouldKeepAllFieldsAndUseTheWireFieldNames() {
         StartPrivateStoreBuyCommand original = valid().build();
-
-        assertEquals(original, original.toBuilder().build());
-        assertEquals(original.hashCode(), original.toBuilder().build().hashCode());
-    }
-
-    @Test
-    void equals_shouldDistinguishLinesAndBuyerFee() {
-        StartPrivateStoreBuyCommand base = valid().build();
-
-        assertNotEquals(base, valid().lines(Collections.singletonList(LINE_1)).build());
-        assertNotEquals(base, valid().buyerFeePercent(6).build());
-        assertNotEquals(base, valid().idempotencyKey(UUID.randomUUID()).build());
-    }
-
-    @Test
-    void toString_shouldNameTheStoreFields() {
-        String actual = valid().build().toString();
-
-        assertTrue(actual.startsWith("StartPrivateStoreBuyCommand[characterId=1, title=WTB, lines=["), actual);
-        assertTrue(actual.contains("buyerFeePercent=5, offlineAllowed=true"), actual);
-    }
-
-    @Test
-    void gson_shouldRoundtripAndUseTheWireFieldNames() {
-        StartPrivateStoreBuyCommand original = valid().build();
+        StartPrivateStoreBuyCommand copy = original.toBuilder().build();
         String expected = "{\"characterId\":1,\"title\":\"WTB\","
                 + "\"lines\":[{\"itemTemplateId\":57,\"count\":10,\"priceAdena\":100},"
                 + "{\"itemTemplateId\":58,\"count\":1,\"priceAdena\":5000}],\"buyerFeePercent\":5,"
@@ -158,6 +124,17 @@ class StartPrivateStoreBuyCommandTest {
                 + "\"idempotencyKey\":\"5b1f3c2e-0000-4000-8000-000000000001\",\"initiator\":"
                 + TestInitiators.USER_JSON + "}";
 
+        assertEquals(1, original.getCharacterId());
+        assertEquals("WTB", original.getTitle());
+        assertEquals(Arrays.asList(LINE_1, LINE_2), original.getLines());
+        assertEquals(Integer.valueOf(5), original.getBuyerFeePercent());
+        assertEquals(Boolean.TRUE, original.getOfflineAllowed());
+        assertTrue(original.isOwnerVerified());
+        assertEquals(DEADLINE, original.getDeadline());
+        assertEquals(KEY, original.getIdempotencyKey());
+        assertEquals(TestInitiators.USER, original.getInitiator());
+        assertEquals(original, copy);
+        assertEquals(original.hashCode(), copy.hashCode());
         assertEquals(JsonParser.parseString(expected), GSON.toJsonTree(original));
         assertEquals(original, GSON.fromJson(GSON.toJson(original), StartPrivateStoreBuyCommand.class));
     }

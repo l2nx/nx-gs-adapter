@@ -1,13 +1,10 @@
 package app.l2nx.gs.adapter.api.kafka.commands.mail;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
-import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import java.time.Instant;
 import java.util.UUID;
@@ -35,49 +32,40 @@ class AcceptMailCommandTest {
                 .initiator(TestInitiators.USER);
     }
 
-    static Stream<Arguments> missingRequired() {
+    static Stream<Arguments> invalidFields() {
         return Stream.of(
-                Arguments.of("receiverCharacterId", (Consumer<AcceptMailCommand.Builder>) b -> b.receiverCharacterId(null)),
-                Arguments.of("mailId", (Consumer<AcceptMailCommand.Builder>) b -> b.mailId(null)),
-                Arguments.of("expectedSenderCharacterId", (Consumer<AcceptMailCommand.Builder>)
+                Arguments.of(
+                        "receiverCharacterId", IllegalArgumentException.class, (Consumer<AcceptMailCommand.Builder>)
+                                b -> b.receiverCharacterId(null)),
+                Arguments.of("mailId", IllegalArgumentException.class, (Consumer<AcceptMailCommand.Builder>)
+                        b -> b.mailId(null)),
+                Arguments.of("expectedSenderCharacterId", IllegalArgumentException.class, (Consumer<
+                                AcceptMailCommand.Builder>)
                         b -> b.expectedSenderCharacterId(null)),
-                Arguments.of("expectedCodAdena", (Consumer<AcceptMailCommand.Builder>) b -> b.expectedCodAdena(null)));
+                Arguments.of("expectedCodAdena", IllegalArgumentException.class, (Consumer<AcceptMailCommand.Builder>)
+                        b -> b.expectedCodAdena(null)),
+                Arguments.of("idempotencyKey", NullPointerException.class, (Consumer<AcceptMailCommand.Builder>)
+                        b -> b.idempotencyKey(null)),
+                Arguments.of("deadline", NullPointerException.class, (Consumer<AcceptMailCommand.Builder>)
+                        b -> b.deadline(null)),
+                Arguments.of("expectedCodAdena", IllegalArgumentException.class, (Consumer<AcceptMailCommand.Builder>)
+                        b -> b.expectedCodAdena(-1L)),
+                Arguments.of("acceptedFeeAdena", IllegalArgumentException.class, (Consumer<AcceptMailCommand.Builder>)
+                        b -> b.acceptedFeeAdena(-1L)));
     }
 
     @Nested
     class Constructor {
 
-        @ParameterizedTest(name = "{0}")
-        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.mail.AcceptMailCommandTest#missingRequired")
-        void constructor_shouldReject_whenRequiredFieldNull(String field, Consumer<AcceptMailCommand.Builder> nullOut) {
+        @ParameterizedTest(name = "[{index}] {0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.mail.AcceptMailCommandTest#invalidFields")
+        void constructor_shouldReject_whenFieldInvalid(
+                String field, Class<? extends Throwable> expected, Consumer<AcceptMailCommand.Builder> change) {
             AcceptMailCommand.Builder builder = valid();
-            nullOut.accept(builder);
+            change.accept(builder);
 
-            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, builder::build);
-            assertTrue(ex.getMessage().contains(field));
-        }
-
-        @Test
-        void constructor_shouldReject_whenIdempotencyKeyOrDeadlineNull() {
-            assertThrows(
-                    NullPointerException.class,
-                    () -> valid().idempotencyKey(null).build());
-            assertThrows(
-                    NullPointerException.class, () -> valid().deadline(null).build());
-        }
-
-        @Test
-        void constructor_shouldReject_whenCodNegative() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> valid().expectedCodAdena(-1L).build());
-        }
-
-        @Test
-        void constructor_shouldReject_whenAcceptedFeeNegative() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> valid().acceptedFeeAdena(-1L).build());
+            Throwable actual = assertThrows(expected, builder::build);
+            assertTrue(actual.getMessage().contains(field));
         }
 
         @Test
@@ -94,15 +82,17 @@ class AcceptMailCommandTest {
                 .ownerVerified(true)
                 .build();
 
-        assertEquals(original, original.toBuilder().build());
-        assertEquals(original.hashCode(), original.toBuilder().build().hashCode());
-    }
+        AcceptMailCommand copy = original.toBuilder().build();
 
-    @Test
-    void command_shouldBeOwnerVerifiedNxCommand() {
-        AcceptMailCommand command = valid().ownerVerified(true).build();
-
-        assertTrue(assertInstanceOf(OwnerVerified.class, command).isOwnerVerified());
-        assertInstanceOf(NxCommand.class, command);
+        assertEquals(original, copy);
+        assertEquals(original.hashCode(), copy.hashCode());
+        assertTrue(copy.isOwnerVerified());
+        assertEquals(1L, original.getReceiverCharacterId());
+        assertEquals(10L, original.getMailId());
+        assertEquals(2L, original.getExpectedSenderCharacterId());
+        assertEquals(900L, original.getExpectedCodAdena());
+        assertEquals(KEY, original.getIdempotencyKey());
+        assertEquals(DEADLINE, original.getDeadline());
+        assertEquals(TestInitiators.USER, original.getInitiator());
     }
 }

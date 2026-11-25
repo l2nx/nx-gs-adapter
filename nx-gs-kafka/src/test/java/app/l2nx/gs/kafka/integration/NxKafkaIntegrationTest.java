@@ -5,7 +5,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import app.l2nx.gs.kafka.KafkaException;
 import app.l2nx.gs.kafka.KafkaState;
 import app.l2nx.gs.kafka.NxKafka;
+import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -30,44 +33,37 @@ class NxKafkaIntegrationTest {
     }
 
     @Test
-    void build_shouldConnect_whenBrokerRunning() {
+    void shutdown_shouldWaitNoLongerThanProducerCloseTimeout_whenBrokerHangs() throws Exception {
         NxKafka kafka = NxKafka.configure()
                 .brokers(KAFKA.getBootstrapServers())
-                .clientId("test-connect")
+                .clientId("test-close-timeout")
                 .reconnect(false)
+                .producerCloseTimeout(Duration.ofSeconds(2))
                 .build();
+        CountDownLatch delivered = new CountDownLatch(1);
+        kafka.send("test.close-timeout", "warm-up", (metadata, exception) -> delivered.countDown());
+        assertTrue(delivered.await(15, TimeUnit.SECONDS), "the topic metadata must be known before the broker hangs");
 
-        assertTrue(kafka.isConnected());
-        assertEquals(KafkaState.CONNECTED, kafka.state());
-    }
+        AtomicReference<Exception> pendingFailure = new AtomicReference<>();
+        long elapsedMs;
+        DockerClientFactory.instance()
+                .client()
+                .pauseContainerCmd(KAFKA.getContainerId())
+                .exec();
+        try {
+            kafka.send("test.close-timeout", "pending", (metadata, exception) -> pendingFailure.set(exception));
+            long startedNanos = System.nanoTime();
+            kafka.shutdown();
+            elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
+        } finally {
+            DockerClientFactory.instance()
+                    .client()
+                    .unpauseContainerCmd(KAFKA.getContainerId())
+                    .exec();
+        }
 
-    @Test
-    void build_shouldSetDisconnected_whenBrokerUnavailable() {
-        NxKafka kafka = NxKafka.configure()
-                .brokers("localhost:19999")
-                .clientId("test-unavailable")
-                .connectTimeout(2, TimeUnit.SECONDS)
-                .reconnect(false)
-                .build();
-
-        assertFalse(kafka.isConnected());
-        assertEquals(KafkaState.DISCONNECTED, kafka.state());
-    }
-
-    @Test
-    void shutdown_shouldCloseCleanly_whenConnected() {
-        NxKafka kafka = NxKafka.configure()
-                .brokers(KAFKA.getBootstrapServers())
-                .clientId("test-shutdown")
-                .reconnect(false)
-                .build();
-
-        assertTrue(kafka.isConnected());
-
-        kafka.shutdown();
-
-        assertEquals(KafkaState.CLOSED, kafka.state());
-        assertThrows(KafkaException.class, NxKafka::instance);
+        assertNotNull(pendingFailure.get(), "the pending record must be dropped by the forced close");
+        assertTrue(elapsedMs < 8000L, "shutdown took " + elapsedMs + "ms with a 2s close timeout");
     }
 
     @Test

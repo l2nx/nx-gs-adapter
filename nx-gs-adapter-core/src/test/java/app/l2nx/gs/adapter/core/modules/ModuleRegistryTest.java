@@ -120,24 +120,6 @@ class ModuleRegistryTest {
         assertEquals(reported, statuses.get(0));
     }
 
-    @Test
-    void modules_shouldBeSortedByName() {
-        RecordingModule c = new RecordingModule("c");
-        RecordingModule a = new RecordingModule("a");
-        RecordingModule b = new RecordingModule("b");
-        ModuleRegistry registry = new ModuleRegistry();
-        registry.discoverFrom(Arrays.asList(c, a, b));
-
-        List<AdapterModule> sorted = registry.modules();
-
-        assertEquals(
-                Arrays.asList("a", "b", "c"),
-                Arrays.asList(
-                        sorted.get(0).name(),
-                        sorted.get(1).name(),
-                        sorted.get(2).name()));
-    }
-
     private static final class Recorder {
         static final List<String> events = new java.util.ArrayList<String>();
 

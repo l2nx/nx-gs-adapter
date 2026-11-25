@@ -4,91 +4,70 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.*;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class MailReturnedEventTest {
 
-    @Test
-    void getAttachments_shouldReturnEmptyList_whenBuilderOmits() {
-        MailReturnedEvent event = MailReturnedEvent.builder()
+    private static MailReturnedEvent.Builder valid() {
+        return MailReturnedEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .returnedToSenderId(268437520L)
-                .build();
+                .returnedToSenderId(268437520L);
+    }
 
-        assertTrue(event.getAttachments().isEmpty());
+    private static Stream<MailReturnedEvent.Builder> withoutAttachments() {
+        return Stream.of(valid(), valid().attachments(null));
+    }
+
+    @ParameterizedTest
+    @MethodSource("withoutAttachments")
+    void getAttachments_shouldReturnEmptyList_whenBuilderOmitsOrPassesNull(MailReturnedEvent.Builder builder) {
+        assertTrue(builder.build().getAttachments().isEmpty());
     }
 
     @Test
-    void getAttachments_shouldReturnEmptyList_whenBuilderPassesNull() {
-        MailReturnedEvent event = MailReturnedEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .returnedToSenderId(268437520L)
-                .attachments(null)
-                .build();
+    void constructor_shouldDefensivelyCopyAndFreezeAttachmentsList() {
+        List<MailItemMovement> source = new ArrayList<MailItemMovement>();
+        source.add(stub(1L));
 
-        assertTrue(event.getAttachments().isEmpty());
-    }
+        MailReturnedEvent event = valid().attachments(source).build();
 
-    @Test
-    void getAttachments_shouldBeUnmodifiable() {
-        MailReturnedEvent event = MailReturnedEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .returnedToSenderId(268437520L)
-                .attachments(Collections.singletonList(stub(1L)))
-                .build();
+        source.add(stub(2L));
 
+        assertEquals(1, event.getAttachments().size());
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> event.getAttachments().add(stub(2L)));
     }
 
     @Test
-    void constructor_shouldDefensivelyCopyAttachmentsList() {
-        List<MailItemMovement> source = new ArrayList<MailItemMovement>();
-        source.add(stub(1L));
-
-        MailReturnedEvent event = MailReturnedEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .returnedToSenderId(268437520L)
-                .attachments(source)
-                .build();
-
-        source.add(stub(2L));
-
-        assertEquals(1, event.getAttachments().size());
-    }
-
-    @Test
     void toBuilder_shouldRoundtripAllFields() {
+        UUID eventId = UUID.randomUUID();
         MailReturnedEvent original = MailReturnedEvent.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(eventId)
                 .mailId(42L)
                 .returnedToSenderId(268437520L)
                 .attachments(Arrays.asList(stub(1L), stub(2L)))
+                .metadata(Collections.singletonMap("k", "v"))
                 .build();
 
-        assertEquals(original, original.toBuilder().build());
+        MailReturnedEvent copy = original.toBuilder().build();
+
+        assertEquals(original, copy);
+        assertEquals(eventId, copy.getEventId());
+        assertEquals(42L, copy.getMailId());
+        assertEquals(268437520L, copy.getReturnedToSenderId());
+        assertEquals(Arrays.asList(stub(1L), stub(2L)), copy.getAttachments());
+        assertEquals(Collections.singletonMap("k", "v"), copy.getMetadata());
     }
 
     @Test
-    void equals_shouldDistinguishReturnedToSenderId() {
-        UUID id = UUID.randomUUID();
-        MailReturnedEvent a = MailReturnedEvent.builder()
-                .eventId(id)
-                .mailId(1L)
-                .returnedToSenderId(10L)
-                .build();
-        MailReturnedEvent b = MailReturnedEvent.builder()
-                .eventId(id)
-                .mailId(1L)
-                .returnedToSenderId(11L)
-                .build();
-
-        assertNotEquals(a, b);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(MailReturnedEvent.class).verify();
     }
 
     private static MailItemMovement stub(long itemId) {

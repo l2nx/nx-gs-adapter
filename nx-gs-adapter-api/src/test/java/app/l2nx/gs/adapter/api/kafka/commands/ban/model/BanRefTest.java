@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.ban.model;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.google.gson.Gson;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -36,11 +37,17 @@ class BanRefTest {
     class Builder {
 
         @Test
-        void source_shouldWriteConstantName_whenGivenAsEnum() {
-            BanRef actual =
+        void builder_shouldRoundtripAllFields_whenSourceGivenAsEnum() {
+            BanRef original =
                     BanRef.builder().source(BanSource.SHADOW).id(268435457L).build();
 
-            assertEquals("SHADOW", actual.getSource());
+            BanRef copy = original.toBuilder().build();
+
+            assertEquals("SHADOW", original.getSource());
+            assertEquals(268435457L, original.getId());
+            assertEquals(original, copy);
+            assertEquals(original.hashCode(), copy.hashCode());
+            assertNotSame(original, copy);
         }
     }
 
@@ -48,20 +55,8 @@ class BanRefTest {
     class ValueSemantics {
 
         @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            BanRef original =
-                    BanRef.builder().source(BanSource.SHADOW).id(268435457L).build();
-
-            BanRef copy = original.toBuilder().build();
-
-            assertEquals(original, copy);
-            assertEquals(original.hashCode(), copy.hashCode());
-            assertNotSame(original, copy);
-        }
-
-        @Test
-        void equals_shouldDistinguishIdSpaces() {
-            assertNotEquals(new BanRef("STANDARD", 11L), new BanRef("SHADOW", 11L));
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(BanRef.class).verify();
         }
     }
 

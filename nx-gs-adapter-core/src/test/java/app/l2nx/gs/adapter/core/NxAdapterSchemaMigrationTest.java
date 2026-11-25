@@ -75,6 +75,8 @@ class NxAdapterSchemaMigrationTest {
             NxAdapter.start();
 
             assertTrue(failed.await(10, TimeUnit.SECONDS), "adapter must reach FAILED");
+            // Joins the connect thread before it drops the callback: a connect after FAILED would be captured by then.
+            NxAdapter.resetForTesting();
             assertEquals(Collections.singletonList(AdapterState.FAILED), captured);
         }
 
@@ -128,19 +130,29 @@ class NxAdapterSchemaMigrationTest {
 
         @Test
         void migrateSchema_shouldMigrateOnce_whenHostCalledItBeforeStart() throws Exception {
+            configure("gs", "true");
             CountingMigrator migrator = new CountingMigrator();
             NxAdapter.setSchemaMigrationForTesting(migrationOf(migrator));
+            CountDownLatch registering = new CountDownLatch(1);
+            NxAdapter.onStateChange(state -> {
+                if (state == AdapterState.REGISTERING) {
+                    registering.countDown();
+                }
+            });
 
             NxAdapter.migrateSchema();
             NxAdapter.migrateSchema();
+            NxAdapter.start();
 
+            assertTrue(registering.await(10, TimeUnit.SECONDS), "start must get past the migration and connect");
             assertEquals(1, migrator.calls.get());
         }
     }
 
     private static void configure(String hostType, String enabled) {
         System.setProperty("l2nx.gs-key", "nx_sk_" + repeat('c', 32));
-        System.setProperty("l2nx.platform-url", "https://127.0.0.1:1");
+        // An impossible port fails a connect at once, so a test that gets that far leaves no thread behind.
+        System.setProperty("l2nx.platform-url", "https://127.0.0.1:99999");
         System.setProperty("l2nx.enabled", enabled);
         System.setProperty("l2nx.host-type", hostType);
     }

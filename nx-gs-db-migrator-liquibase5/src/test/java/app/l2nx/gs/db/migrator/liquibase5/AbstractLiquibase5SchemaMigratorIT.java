@@ -130,6 +130,7 @@ abstract class AbstractLiquibase5SchemaMigratorIT {
 
             assertTrue(source.lastConnection.isClosed());
             assertTrue(source.lastAutoCommitOnClose);
+            assertTrue(source.lastReadOnlyOnClose);
         }
     }
 

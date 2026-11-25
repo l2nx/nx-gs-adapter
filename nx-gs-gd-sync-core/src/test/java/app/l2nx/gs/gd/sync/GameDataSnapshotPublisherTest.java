@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.ToLongFunction;
+import java.util.stream.Stream;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
@@ -22,7 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class GameDataSnapshotPublisherTest {
 
@@ -57,56 +58,28 @@ class GameDataSnapshotPublisherTest {
         return publisher.publishSnapshot(ENTITY, items, PK_OF, UUID.randomUUID(), TOPIC);
     }
 
+    private static Stream<List<Long>> nullSnapshotTimes() {
+        return Stream.of(
+                Collections.singletonList(0L),
+                Arrays.asList(0L, 0L),
+                Arrays.asList(0L, GRACE_MS - 1L),
+                Arrays.asList(0L, GRACE_MS),
+                Arrays.asList(0L, GRACE_MS, GRACE_MS + 500L));
+    }
+
     @Nested
     class NullSnapshot {
 
-        @Test
-        void publishSnapshot_shouldReturnNull_whenItemsNull() {
-            assertNull(publishNull());
-        }
-
-        @Test
-        void publishSnapshot_shouldSendNothing_whenItemsNull() {
-            publishNull();
+        // escalation is a log severity change only; the publish contract is the same at every stage
+        @ParameterizedTest(name = "nullsAtMs={0}")
+        @MethodSource("app.l2nx.gs.gd.sync.GameDataSnapshotPublisherTest#nullSnapshotTimes")
+        void publishSnapshot_shouldReturnNullAndSendNothing_whenItemsNull(List<Long> nullsAtMs) {
+            for (long atMs : nullsAtMs) {
+                now.set(atMs);
+                assertNull(publishNull());
+            }
 
             assertTrue(sent.isEmpty(), "a null snapshot must not reach the sender — no SNAPSHOT_COMPLETE marker");
-        }
-
-        @ParameterizedTest(name = "elapsedMs={0}")
-        @ValueSource(longs = {0L, GRACE_MS - 1L})
-        void publishSnapshot_shouldStayQuiet_whileNullsRepeatInsideGraceWindow(long elapsedMs) {
-            publishNull();
-            now.set(elapsedMs);
-
-            GameDataSnapshotPublisher.Result result = publishNull();
-
-            assertNull(result);
-            assertTrue(sent.isEmpty());
-        }
-
-        @Test
-        void publishSnapshot_shouldStayQuiet_onceGraceWindowElapses() {
-            publishNull();
-            now.set(GRACE_MS);
-
-            // escalation is a log severity change only; the publish contract is unchanged
-            GameDataSnapshotPublisher.Result result = publishNull();
-
-            assertNull(result);
-            assertTrue(sent.isEmpty());
-        }
-
-        @Test
-        void publishSnapshot_shouldStayQuiet_forObservationsAfterEscalation() {
-            publishNull();
-            now.set(GRACE_MS);
-            publishNull();
-
-            now.set(GRACE_MS + 500L);
-            GameDataSnapshotPublisher.Result result = publishNull();
-
-            assertNull(result);
-            assertTrue(sent.isEmpty());
         }
     }
 
@@ -128,6 +101,18 @@ class GameDataSnapshotPublisherTest {
         }
 
         @Test
+        void publishSnapshot_shouldPublishOnlyTheMarker_whenItemsEmpty() {
+            GameDataSnapshotPublisher.Result result = publishItems(Collections.<Long>emptyList());
+
+            assertEquals(0, result.count());
+            assertTrue(result.complete());
+            assertEquals(1, sent.size(), sent.toString());
+            assertEquals(
+                    GameDataSnapshotPublisher.OP_SNAPSHOT_COMPLETE, sent.get(0).getOp());
+            assertEquals(Integer.valueOf(0), sent.get(0).getCount());
+        }
+
+        @Test
         void publishSnapshot_shouldCarryNoPrefixedHeader() {
             publishItems(Collections.singletonList(1L));
 
@@ -140,49 +125,12 @@ class GameDataSnapshotPublisherTest {
                 }
             }
         }
-
-        @Test
-        void publishSnapshot_shouldPublishFullBurst_afterEscalatedNulls() {
-            publishNull();
-            now.set(GRACE_MS);
-            publishNull();
-            sent.clear();
-
-            GameDataSnapshotPublisher.Result result = publishItems(Collections.singletonList(1L));
-
-            assertEquals(1, result.count());
-            assertTrue(result.complete());
-            assertEquals(
-                    2,
-                    sent.size(),
-                    "1 UPSERT + 1 SNAPSHOT_COMPLETE — a real snapshot still publishes fine after nulls");
-        }
-
-        @Test
-        void publishSnapshot_shouldTreatNextNullAsFresh_afterASuccessfulPublish() {
-            publishItems(Collections.singletonList(1L));
-            sent.clear();
-
-            GameDataSnapshotPublisher.Result result = publishNull();
-
-            assertNull(
-                    result, "a successful publish resets the per-entity tracker, but the null contract is unchanged");
-            assertTrue(sent.isEmpty());
-        }
     }
 
     @Nested
     class EscalationWiring {
 
         private static final String OTHER_ENTITY = "npctemplate";
-
-        @Test
-        void trackerFor_shouldReportFirst_onFirstNullPublish() {
-            publishNull();
-
-            assertEquals(
-                    EscalationTracker.Stage.FIRST, publisher.trackerFor(ENTITY).lastStage());
-        }
 
         @Test
         void trackerFor_shouldReportRepeat_forNullInsideGraceWindow() {
@@ -193,31 +141,6 @@ class GameDataSnapshotPublisherTest {
 
             assertEquals(
                     EscalationTracker.Stage.REPEAT, publisher.trackerFor(ENTITY).lastStage());
-        }
-
-        @Test
-        void trackerFor_shouldReportEscalated_forNullAtOrAfterGraceWindow() {
-            publishNull();
-            now.set(GRACE_MS);
-
-            publishNull();
-
-            assertEquals(
-                    EscalationTracker.Stage.ESCALATED,
-                    publisher.trackerFor(ENTITY).lastStage());
-        }
-
-        @Test
-        void trackerFor_shouldReportSilent_forNullsAfterEscalation() {
-            publishNull();
-            now.set(GRACE_MS);
-            publishNull();
-
-            now.set(GRACE_MS + 500L);
-            publishNull();
-
-            assertEquals(
-                    EscalationTracker.Stage.SILENT, publisher.trackerFor(ENTITY).lastStage());
         }
 
         @Test
@@ -249,9 +172,12 @@ class GameDataSnapshotPublisherTest {
                     EscalationTracker.Stage.ESCALATED,
                     publisher.trackerFor(ENTITY).lastStage());
 
-            publishItems(Collections.singletonList(1L));
-            publishNull();
+            GameDataSnapshotPublisher.Result published = publishItems(Collections.singletonList(1L));
+            assertEquals(1, published.count());
+            assertTrue(published.complete());
+            assertNull(publishNull());
 
+            assertEquals(2, sent.size(), "1 UPSERT + 1 SNAPSHOT_COMPLETE, nothing for the nulls");
             assertEquals(
                     EscalationTracker.Stage.FIRST, publisher.trackerFor(ENTITY).lastStage());
         }

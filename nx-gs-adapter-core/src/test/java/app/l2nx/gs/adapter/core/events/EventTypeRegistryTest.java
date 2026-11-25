@@ -6,13 +6,21 @@ import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import app.l2nx.gs.adapter.api.kafka.NxHeaders;
 import app.l2nx.gs.adapter.api.kafka.events.account.AccountAuthAttemptEvent;
 import app.l2nx.gs.adapter.api.kafka.events.account.AuthOutcomes;
+import app.l2nx.gs.adapter.api.kafka.events.castle.CastleSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.castle.SiegeFinishedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.AppSessionsSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.character.CharacterDeathEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.LogoutReason;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
 import app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResult;
+import app.l2nx.gs.adapter.api.kafka.events.characterlog.CharacterLogEvent;
+import app.l2nx.gs.adapter.api.kafka.events.chat.ChatMessageEvent;
+import app.l2nx.gs.adapter.api.kafka.events.gameevents.GameEventSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailAcceptedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailCancelledEvent;
+import app.l2nx.gs.adapter.api.kafka.events.mail.MailDeletedEvent;
+import app.l2nx.gs.adapter.api.kafka.events.mail.MailReadEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailReturnedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.mail.MailSentEvent;
 import app.l2nx.gs.adapter.api.kafka.events.olympiad.*;
@@ -26,20 +34,28 @@ import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.PrivateStoreSide;
 import app.l2nx.gs.adapter.api.kafka.events.privatetrade.PrivateTradeFinishedEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatetrade.TradeParty;
 import app.l2nx.gs.adapter.api.kafka.events.raid.kill.RaidKillEvent;
+import app.l2nx.gs.adapter.api.kafka.events.raid.respawn.BossRespawnSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerOnlineSnapshotEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerStartedEvent;
+import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerStoppingEvent;
 import app.l2nx.gs.adapter.api.kafka.events.server.online.model.ServerOnlineBucket;
 import app.l2nx.gs.adapter.api.kafka.events.sync.ResyncCompletedEvent;
 import app.l2nx.gs.commons.UUIDv7;
-import app.l2nx.gs.commons.bytes.LongBytes;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class EventTypeRegistryTest {
@@ -51,13 +67,44 @@ class EventTypeRegistryTest {
         return buckets;
     }
 
-    @Test
-    void lookup_shouldResolvePremiumPurchaseEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PremiumPurchaseEvent.class);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("routes")
+    void lookup_shouldReturnTheFamilyAndTheMessageType(Class<?> type, String family, String messageType) {
+        EventTypeBinding binding = new EventTypeRegistry().lookup(type);
 
         assertNotNull(binding);
-        assertEquals("premiumpurchase", binding.familyKey());
-        assertEquals("PremiumPurchaseEvent", binding.messageType());
+        assertEquals(family, binding.familyKey());
+        assertEquals(messageType, binding.messageType());
+    }
+
+    private static Stream<Arguments> routes() {
+        return Stream.of(
+                Arguments.of(PremiumPurchaseEvent.class, "premiumpurchase", "PremiumPurchaseEvent"),
+                Arguments.of(ServerOnlineSnapshotEvent.class, "serveronline", "ServerOnlineSnapshotEvent"),
+                Arguments.of(ServerStartedEvent.class, "serveronline", "ServerStartedEvent"),
+                Arguments.of(ServerStoppingEvent.class, "serveronline", "ServerStoppingEvent"),
+                Arguments.of(GameEventSnapshotEvent.class, "gameevents", "GameEventSnapshotEvent"),
+                Arguments.of(PrivateStorePurchaseEvent.class, "privatestore", "PrivateStorePurchaseEvent"),
+                Arguments.of(PrivateStoreStateEvent.class, "privatestore", "PrivateStoreStateEvent"),
+                Arguments.of(CharacterPresenceEvent.class, "character", "CharacterPresenceEvent"),
+                Arguments.of(CharacterDeathEvent.class, "character", "CharacterDeathEvent"),
+                Arguments.of(CharacterLogEvent.class, "characterlog", "CharacterLogEvent"),
+                Arguments.of(RaidKillEvent.class, "raid", "RaidKillEvent"),
+                Arguments.of(BossRespawnSnapshotEvent.class, "raid", "BossRespawnSnapshotEvent"),
+                Arguments.of(CastleSnapshotEvent.class, "castle", "CastleSnapshotEvent"),
+                Arguments.of(SiegeFinishedEvent.class, "castle", "SiegeFinishedEvent"),
+                Arguments.of(MailSentEvent.class, "mail", "MailSentEvent"),
+                Arguments.of(MailAcceptedEvent.class, "mail", "MailAcceptedEvent"),
+                Arguments.of(MailCancelledEvent.class, "mail", "MailCancelledEvent"),
+                Arguments.of(MailReturnedEvent.class, "mail", "MailReturnedEvent"),
+                Arguments.of(MailReadEvent.class, "mail", "MailReadEvent"),
+                Arguments.of(MailDeletedEvent.class, "mail", "MailDeletedEvent"),
+                Arguments.of(PrivateTradeFinishedEvent.class, "privatetrade", "PrivateTradeFinishedEvent"),
+                Arguments.of(OlympiadMatchResultEvent.class, "olympiad", "OlympiadMatchResultEvent"),
+                Arguments.of(HeroGrantedEvent.class, "olympiad", "HeroGrantedEvent"),
+                Arguments.of(ResyncCompletedEvent.class, "sync", "ResyncCompletedEvent"),
+                Arguments.of(ChatMessageEvent.class, "chat", "ChatMessageEvent"),
+                Arguments.of(AccountAuthAttemptEvent.class, "account", "AccountAuthAttemptEvent"));
     }
 
     @Test
@@ -65,106 +112,165 @@ class EventTypeRegistryTest {
         assertNull(new EventTypeRegistry().lookup(String.class));
     }
 
-    @Test
-    void partitionKeyExtractor_shouldReturnCharacterIdAsLongBytes() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PremiumPurchaseEvent.class);
-        PremiumPurchaseEvent event = PremiumPurchaseEvent.builder()
-                .eventId(UUIDv7.generate())
-                .characterId(0xDEADBEEFL)
-                .build();
+    @ParameterizedTest(name = "{0} by {2}")
+    @MethodSource("keyedEvents")
+    void partitionKeyExtractor_shouldReturnTheIdAsLongBytes(String type, Object event, long expectedId) {
+        EventTypeBinding binding = new EventTypeRegistry().lookup(event.getClass());
 
         byte[] key = binding.partitionKeyExtractor().apply(event);
 
         assertEquals(8, key.length);
-        long extracted = ByteBuffer.wrap(key).getLong();
-        assertEquals(0xDEADBEEFL, extracted);
+        assertEquals(expectedId, ByteBuffer.wrap(key).getLong());
     }
 
-    @Test
-    void knownFamilies_shouldContainPremiumPurchase() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("premiumpurchase"));
+    private static Stream<Arguments> keyedEvents() {
+        return Stream.of(
+                keyed(
+                        PremiumPurchaseEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .characterId(0xDEADBEEFL)
+                                .build(),
+                        0xDEADBEEFL),
+                keyed(
+                        PrivateStoreStateEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .characterId(42L)
+                                .build(),
+                        42L),
+                keyed(
+                        CharacterPresenceEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .characterId(0xCAFEBABEL)
+                                .online(true)
+                                .source(SessionSource.CLIENT)
+                                .build(),
+                        0xCAFEBABEL),
+                keyed(
+                        RaidKillEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .bossNpcId(29028)
+                                .build(),
+                        29028L),
+                keyed(
+                        MailSentEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .mailId(0xCAFEBABEL)
+                                .senderCharacterId(0L)
+                                .receiverCharacterId(2L)
+                                .subject("s")
+                                .expiresAt(Instant.EPOCH)
+                                .build(),
+                        0xCAFEBABEL),
+                keyed(
+                        MailAcceptedEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .mailId(0xBEEFL)
+                                .claimedByCharacterId(1L)
+                                .build(),
+                        0xBEEFL),
+                keyed(
+                        MailCancelledEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .mailId(0xBEEFL)
+                                .cancelledByCharacterId(1L)
+                                .build(),
+                        0xBEEFL),
+                keyed(
+                        MailReturnedEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .mailId(0xBEEFL)
+                                .returnedToSenderId(1L)
+                                .build(),
+                        0xBEEFL),
+                keyed(
+                        OlympiadMatchResultEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .matchId(UUIDv7.generate())
+                                .olympiadCycle(7)
+                                .gameType(OlympiadGameType.CLASSED)
+                                .characterId(0xCAFEBABEL)
+                                .classId(88)
+                                .opponentCharacterId(1L)
+                                .opponentClassId(92)
+                                .result(OlympiadMatchResult.WIN)
+                                .reason(OlympiadMatchReason.NORMAL)
+                                .pointsBefore(40)
+                                .pointsAfter(43)
+                                .build(),
+                        0xCAFEBABEL),
+                keyed(
+                        HeroGrantedEvent.builder()
+                                .eventId(UUIDv7.generate())
+                                .characterId(0xCAFEBABEL)
+                                .classId(88)
+                                .olympiadCycle(7)
+                                .build(),
+                        0xCAFEBABEL));
     }
 
-    @Test
-    void lookup_shouldResolveServerOnlineSnapshotEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(ServerOnlineSnapshotEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("serveronline", binding.familyKey());
-        assertEquals("ServerOnlineSnapshotEvent", binding.messageType());
+    private static Arguments keyed(Object event, long expectedId) {
+        return Arguments.of(event.getClass().getSimpleName(), event, expectedId);
     }
 
-    @Test
-    void partitionKeyExtractor_shouldReturnNull_forServerOnlineSnapshotEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(ServerOnlineSnapshotEvent.class);
-        ServerOnlineSnapshotEvent event = ServerOnlineSnapshotEvent.builder()
-                .eventId(UUIDv7.generate())
-                .buckets(buckets(100L))
-                .build();
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unkeyedEvents")
+    void partitionKeyExtractor_shouldReturnNull_whenTheTypeIsUnkeyed(String type, Object event) {
+        EventTypeBinding binding = new EventTypeRegistry().lookup(event.getClass());
 
         assertNull(binding.partitionKeyExtractor().apply(event));
     }
 
-    @Test
-    void knownFamilies_shouldContainServerOnline() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("serveronline"));
+    private static Stream<Arguments> unkeyedEvents() {
+        TradeParty empty = TradeParty.builder().characterId(1L).build();
+        return Stream.of(
+                unkeyed(ServerOnlineSnapshotEvent.builder()
+                        .eventId(UUIDv7.generate())
+                        .buckets(buckets(100L))
+                        .build()),
+                unkeyed(PrivateStorePurchaseEvent.builder()
+                        .eventId(UUIDv7.generate())
+                        .storeType(PrivateStoreSide.ASK)
+                        .sellerId(1L)
+                        .buyerId(2L)
+                        .build()),
+                unkeyed(PrivateTradeFinishedEvent.builder()
+                        .eventId(UUIDv7.generate())
+                        .tradeId(UUIDv7.generate())
+                        .partyA(empty)
+                        .partyB(empty)
+                        .build()),
+                unkeyed(ResyncCompletedEvent.builder()
+                        .eventId(UUIDv7.generate())
+                        .resyncId(UUIDv7.generate())
+                        .entityName("item")
+                        .cycleStartedAt(Instant.parse("2026-06-12T10:00:00Z"))
+                        .completedAt(Instant.parse("2026-06-12T10:05:00Z"))
+                        .build()));
+    }
+
+    private static Arguments unkeyed(Object event) {
+        return Arguments.of(event.getClass().getSimpleName(), event);
     }
 
     @Test
-    void lookup_shouldResolvePrivateStorePurchaseEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateStorePurchaseEvent.class);
+    void knownFamilies_shouldListEveryFamily() {
+        Set<String> expected = new HashSet<String>(Arrays.asList(
+                "premiumpurchase",
+                "serveronline",
+                "gameevents",
+                "privatestore",
+                "character",
+                "characterlog",
+                "raid",
+                "castle",
+                "mail",
+                "privatetrade",
+                "olympiad",
+                "sync",
+                "chat",
+                "account"));
 
-        assertNotNull(binding);
-        assertEquals("privatestore", binding.familyKey());
-        assertEquals("PrivateStorePurchaseEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKeyExtractor_shouldReturnNull_forPrivateStorePurchaseEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateStorePurchaseEvent.class);
-        PrivateStorePurchaseEvent event = PrivateStorePurchaseEvent.builder()
-                .eventId(UUIDv7.generate())
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .build();
-
-        assertNull(binding.partitionKeyExtractor().apply(event));
-    }
-
-    @Test
-    void lookup_shouldResolvePrivateStoreStateEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateStoreStateEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("privatestore", binding.familyKey());
-        assertEquals("PrivateStoreStateEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKeyExtractor_shouldReturnCharacterIdAsLongBytes_forPrivateStoreStateEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateStoreStateEvent.class);
-        PrivateStoreStateEvent event = PrivateStoreStateEvent.builder()
-                .eventId(UUIDv7.generate())
-                .characterId(42L)
-                .build();
-
-        assertArrayEquals(
-                LongBytes.bigEndian(42L), binding.partitionKeyExtractor().apply(event));
-    }
-
-    @Test
-    void knownFamilies_shouldContainPrivateStore() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("privatestore"));
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forCharacterPresenceEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(CharacterPresenceEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("character", binding.familyKey());
-        assertEquals("CharacterPresenceEvent", binding.messageType());
+        assertEquals(expected, new EventTypeRegistry().knownFamilies());
     }
 
     @Nested
@@ -219,256 +325,6 @@ class EventTypeRegistryTest {
     }
 
     @Test
-    void partitionKey_shouldEncodeCharacterId_forCharacterPresenceEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(CharacterPresenceEvent.class);
-        CharacterPresenceEvent event = CharacterPresenceEvent.builder()
-                .eventId(UUIDv7.generate())
-                .characterId(0xCAFEBABEL)
-                .online(true)
-                .source(SessionSource.CLIENT)
-                .build();
-
-        byte[] key = binding.partitionKeyExtractor().apply(event);
-
-        assertEquals(8, key.length);
-        assertEquals(0xCAFEBABEL, ByteBuffer.wrap(key).getLong());
-    }
-
-    @Test
-    void knownFamilies_shouldContainCharacter() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("character"));
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forRaidKillEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(RaidKillEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("raid", binding.familyKey());
-        assertEquals("RaidKillEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKey_shouldEncodeBossNpcId_forRaidKillEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(RaidKillEvent.class);
-        RaidKillEvent event = RaidKillEvent.builder()
-                .eventId(UUIDv7.generate())
-                .bossNpcId(29028)
-                .build();
-
-        byte[] key = binding.partitionKeyExtractor().apply(event);
-
-        assertEquals(8, key.length);
-        assertEquals(29028L, ByteBuffer.wrap(key).getLong());
-    }
-
-    @Test
-    void knownFamilies_shouldContainRaid() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("raid"));
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forMailSentEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(MailSentEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("mail", binding.familyKey());
-        assertEquals("MailSentEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKey_shouldEncodeMailId_forMailSentEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(MailSentEvent.class);
-        MailSentEvent event = MailSentEvent.builder()
-                .eventId(UUIDv7.generate())
-                .mailId(0xCAFEBABEL)
-                .senderCharacterId(0L)
-                .receiverCharacterId(2L)
-                .subject("s")
-                .expiresAt(Instant.EPOCH)
-                .build();
-
-        byte[] key = binding.partitionKeyExtractor().apply(event);
-
-        assertEquals(8, key.length);
-        assertEquals(0xCAFEBABEL, ByteBuffer.wrap(key).getLong());
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forMailAcceptedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(MailAcceptedEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("mail", binding.familyKey());
-        assertEquals("MailAcceptedEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKey_shouldEncodeMailId_forMailAcceptedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(MailAcceptedEvent.class);
-        MailAcceptedEvent event = MailAcceptedEvent.builder()
-                .eventId(UUIDv7.generate())
-                .mailId(0xBEEFL)
-                .claimedByCharacterId(1L)
-                .build();
-
-        byte[] key = binding.partitionKeyExtractor().apply(event);
-
-        assertEquals(0xBEEFL, ByteBuffer.wrap(key).getLong());
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forMailCancelledEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(MailCancelledEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("mail", binding.familyKey());
-        assertEquals("MailCancelledEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKey_shouldEncodeMailId_forMailCancelledEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(MailCancelledEvent.class);
-        MailCancelledEvent event = MailCancelledEvent.builder()
-                .eventId(UUIDv7.generate())
-                .mailId(0xBEEFL)
-                .cancelledByCharacterId(1L)
-                .build();
-
-        byte[] key = binding.partitionKeyExtractor().apply(event);
-
-        assertEquals(0xBEEFL, ByteBuffer.wrap(key).getLong());
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forMailReturnedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(MailReturnedEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("mail", binding.familyKey());
-        assertEquals("MailReturnedEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKey_shouldEncodeMailId_forMailReturnedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(MailReturnedEvent.class);
-        MailReturnedEvent event = MailReturnedEvent.builder()
-                .eventId(UUIDv7.generate())
-                .mailId(0xBEEFL)
-                .returnedToSenderId(1L)
-                .build();
-
-        byte[] key = binding.partitionKeyExtractor().apply(event);
-
-        assertEquals(0xBEEFL, ByteBuffer.wrap(key).getLong());
-    }
-
-    @Test
-    void knownFamilies_shouldContainMail() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("mail"));
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forPrivateTradeFinishedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateTradeFinishedEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("privatetrade", binding.familyKey());
-        assertEquals("PrivateTradeFinishedEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKey_shouldReturnNull_forPrivateTradeFinishedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PrivateTradeFinishedEvent.class);
-        TradeParty empty = TradeParty.builder().characterId(1L).build();
-        PrivateTradeFinishedEvent event = PrivateTradeFinishedEvent.builder()
-                .eventId(UUIDv7.generate())
-                .tradeId(UUIDv7.generate())
-                .partyA(empty)
-                .partyB(empty)
-                .build();
-
-        assertNull(binding.partitionKeyExtractor().apply(event));
-    }
-
-    @Test
-    void knownFamilies_shouldContainPrivateTrade() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("privatetrade"));
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forOlympiadMatchResultEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(OlympiadMatchResultEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("olympiad", binding.familyKey());
-        assertEquals("OlympiadMatchResultEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKey_shouldEncodeCharacterId_forOlympiadMatchResultEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(OlympiadMatchResultEvent.class);
-        OlympiadMatchResultEvent event = OlympiadMatchResultEvent.builder()
-                .eventId(UUIDv7.generate())
-                .matchId(UUIDv7.generate())
-                .olympiadCycle(7)
-                .gameType(OlympiadGameType.CLASSED)
-                .characterId(0xCAFEBABEL)
-                .classId(88)
-                .opponentCharacterId(1L)
-                .opponentClassId(92)
-                .result(OlympiadMatchResult.WIN)
-                .reason(OlympiadMatchReason.NORMAL)
-                .pointsBefore(40)
-                .pointsAfter(43)
-                .build();
-
-        byte[] key = binding.partitionKeyExtractor().apply(event);
-
-        assertEquals(8, key.length);
-        assertEquals(0xCAFEBABEL, ByteBuffer.wrap(key).getLong());
-    }
-
-    @Test
-    void knownFamilies_shouldContainOlympiad() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("olympiad"));
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forHeroGrantedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(HeroGrantedEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("olympiad", binding.familyKey());
-        assertEquals("HeroGrantedEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKey_shouldEncodeCharacterId_forHeroGrantedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(HeroGrantedEvent.class);
-        HeroGrantedEvent event = HeroGrantedEvent.builder()
-                .eventId(UUIDv7.generate())
-                .characterId(0xCAFEBABEL)
-                .classId(88)
-                .olympiadCycle(7)
-                .build();
-
-        byte[] key = binding.partitionKeyExtractor().apply(event);
-
-        assertEquals(8, key.length);
-        assertEquals(0xCAFEBABEL, ByteBuffer.wrap(key).getLong());
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forAccountAuthAttemptEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(AccountAuthAttemptEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("account", binding.familyKey());
-        assertEquals("AccountAuthAttemptEvent", binding.messageType());
-    }
-
-    @Test
     void partitionKey_shouldEncodeLowercasedAccountNameAsUtf8_forAccountAuthAttemptEvent() {
         EventTypeBinding binding = new EventTypeRegistry().lookup(AccountAuthAttemptEvent.class);
         AccountAuthAttemptEvent event = AccountAuthAttemptEvent.builder()
@@ -500,39 +356,6 @@ class EventTypeRegistryTest {
         byte[] key = binding.partitionKeyExtractor().apply(event);
 
         assertArrayEquals("олья".getBytes(java.nio.charset.StandardCharsets.UTF_8), key);
-    }
-
-    @Test
-    void knownFamilies_shouldContainAccount() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("account"));
-    }
-
-    @Test
-    void lookup_shouldReturnBinding_forResyncCompletedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(ResyncCompletedEvent.class);
-
-        assertNotNull(binding);
-        assertEquals("sync", binding.familyKey());
-        assertEquals("ResyncCompletedEvent", binding.messageType());
-    }
-
-    @Test
-    void partitionKey_shouldReturnNull_forResyncCompletedEvent() {
-        EventTypeBinding binding = new EventTypeRegistry().lookup(ResyncCompletedEvent.class);
-        ResyncCompletedEvent event = ResyncCompletedEvent.builder()
-                .eventId(UUIDv7.generate())
-                .resyncId(UUIDv7.generate())
-                .entityName("item")
-                .cycleStartedAt(Instant.parse("2026-06-12T10:00:00Z"))
-                .completedAt(Instant.parse("2026-06-12T10:05:00Z"))
-                .build();
-
-        assertNull(binding.partitionKeyExtractor().apply(event));
-    }
-
-    @Test
-    void knownFamilies_shouldContainSync() {
-        assertTrue(new EventTypeRegistry().knownFamilies().contains("sync"));
     }
 
     @Nested

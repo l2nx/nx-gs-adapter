@@ -5,21 +5,32 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import app.l2nx.gs.adapter.api.domain.item.AttributeItemType;
-import org.junit.jupiter.api.Test;
+import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class AttributeChanceTest {
 
-    @ParameterizedTest
-    @ValueSource(doubles = {-0.01, 100.01, Double.NaN})
-    void build_shouldRejectPercentOutOfRange(double chancePercent) {
+    @ParameterizedTest(name = "{0} at {1} percent")
+    @MethodSource("invalidChances")
+    void build_shouldReject_whenPercentIsOutOfRangeOrTypeIsNull(
+            AttributeItemType type, double chancePercent, Class<? extends Exception> expected) {
         assertThrows(
-                IllegalArgumentException.class,
+                expected,
                 () -> AttributeChance.builder()
-                        .type(AttributeItemType.STONE)
+                        .type(type)
                         .chancePercent(chancePercent)
                         .build());
+    }
+
+    static Stream<Arguments> invalidChances() {
+        return Stream.of(
+                Arguments.of(AttributeItemType.STONE, -0.01, IllegalArgumentException.class),
+                Arguments.of(AttributeItemType.STONE, 100.01, IllegalArgumentException.class),
+                Arguments.of(AttributeItemType.STONE, Double.NaN, IllegalArgumentException.class),
+                Arguments.of(null, 1.0, NullPointerException.class));
     }
 
     @ParameterizedTest
@@ -33,12 +44,5 @@ class AttributeChanceTest {
         assertNull(actual.getGrade());
         assertNull(actual.getTarget());
         assertEquals(chancePercent, actual.getChancePercent());
-    }
-
-    @Test
-    void build_shouldRejectNullType() {
-        assertThrows(
-                NullPointerException.class,
-                () -> AttributeChance.builder().chancePercent(1).build());
     }
 }

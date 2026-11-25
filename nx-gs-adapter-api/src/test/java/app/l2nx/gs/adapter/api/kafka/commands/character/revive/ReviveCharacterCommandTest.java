@@ -2,7 +2,6 @@ package app.l2nx.gs.adapter.api.kafka.commands.character.revive;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.character.revive.model.RestartPoint;
 import app.l2nx.gs.adapter.api.kafka.commands.character.revive.model.ReviveRefusalReason;
@@ -16,10 +15,11 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -48,45 +48,40 @@ class ReviveCharacterCommandTest {
                 .initiator(TestInitiators.USER);
     }
 
-    static Stream<Arguments> missingRequired() {
-        return Stream.of(
-                missing("initiator", b -> b.initiator(null)),
-                missing("restartPoint", b -> b.restartPoint((String) null)),
-                missing("deadline", b -> b.deadline(null)),
-                missing("idempotencyKey", b -> b.idempotencyKey(null)));
+    private static ReviveCharacterResult.Builder result() {
+        return ReviveCharacterResult.builder()
+                .restartPoint("TOWN")
+                .x(82_698)
+                .y(148_638)
+                .z(-3_473)
+                .clientDisconnected(true);
     }
 
-    private static Arguments missing(String name, UnaryOperator<ReviveCharacterCommand.Builder> change) {
-        return Arguments.of(name, change);
+    static Stream<Arguments> missingRequired() {
+        return Stream.of(
+                missing("command initiator", () -> command().initiator(null).build()),
+                missing(
+                        "command restartPoint",
+                        () -> command().restartPoint((String) null).build()),
+                missing("command deadline", () -> command().deadline(null).build()),
+                missing(
+                        "command idempotencyKey",
+                        () -> command().idempotencyKey(null).build()),
+                missing("result restartPoint", () -> result().restartPoint(null).build()));
+    }
+
+    private static Arguments missing(String name, Executable build) {
+        return Arguments.of(name, build);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("missingRequired")
+    void build_shouldThrow_whenARequiredFieldIsNull(String name, Executable build) {
+        assertThrows(NullPointerException.class, build);
     }
 
     @Nested
     class Command {
-
-        @Test
-        void build_shouldRoundtripFields() {
-            ReviveCharacterCommand actual = command().build();
-
-            assertEquals(5, actual.getCharacterId());
-            assertEquals(TestInitiators.USER, actual.getInitiator());
-            assertEquals("TOWN", actual.getRestartPoint());
-            assertTrue(actual.isDisconnectClient());
-            assertTrue(actual.isOwnerVerified());
-            assertEquals(DEADLINE, actual.getDeadline());
-            assertEquals(KEY, actual.getIdempotencyKey());
-            assertEquals(actual, actual.toBuilder().build());
-            assertEquals(actual.hashCode(), actual.toBuilder().build().hashCode());
-        }
-
-        @ParameterizedTest(name = "{0}")
-        @MethodSource(
-                "app.l2nx.gs.adapter.api.kafka.commands.character.revive.ReviveCharacterCommandTest#missingRequired")
-        void build_shouldThrow_whenARequiredFieldIsNull(
-                String name, UnaryOperator<ReviveCharacterCommand.Builder> change) {
-            ReviveCharacterCommand.Builder builder = change.apply(command());
-
-            assertThrows(NullPointerException.class, builder::build);
-        }
 
         @ParameterizedTest(name = "[{0}]")
         @ValueSource(strings = {"", "  "})
@@ -102,36 +97,29 @@ class ReviveCharacterCommandTest {
         }
 
         @Test
-        void equals_shouldDistinguishDisconnectClientAndRestartPoint() {
-            assertNotEquals(command().build(), command().disconnectClient(false).build());
-            assertNotEquals(
-                    command().build(), command().restartPoint("CLAN_HALL").build());
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(ReviveCharacterCommand.class).verify();
         }
 
         @Test
-        void command_shouldBeOwnerVerified() {
-            assertTrue(command().build() instanceof OwnerVerified);
-        }
-
-        @Test
-        void gson_shouldRoundtrip() {
+        void gson_shouldRoundtripAllFields() {
             ReviveCharacterCommand expected = command().build();
 
+            assertEquals(5, expected.getCharacterId());
+            assertEquals(TestInitiators.USER, expected.getInitiator());
+            assertEquals("TOWN", expected.getRestartPoint());
+            assertTrue(expected.isDisconnectClient());
+            assertTrue(expected.isOwnerVerified());
+            assertEquals(DEADLINE, expected.getDeadline());
+            assertEquals(KEY, expected.getIdempotencyKey());
+            assertEquals(expected, expected.toBuilder().build());
+            assertEquals(expected.hashCode(), expected.toBuilder().build().hashCode());
             assertEquals(expected, GSON.fromJson(GSON.toJson(expected), ReviveCharacterCommand.class));
         }
     }
 
     @Nested
     class Result {
-
-        private ReviveCharacterResult.Builder result() {
-            return ReviveCharacterResult.builder()
-                    .restartPoint("TOWN")
-                    .x(82_698)
-                    .y(148_638)
-                    .z(-3_473)
-                    .clientDisconnected(true);
-        }
 
         @Test
         void build_shouldRoundtripFields() {
@@ -144,13 +132,6 @@ class ReviveCharacterCommandTest {
             assertTrue(actual.isClientDisconnected());
             assertEquals(actual, actual.toBuilder().build());
             assertEquals(actual, GSON.fromJson(GSON.toJson(actual), ReviveCharacterResult.class));
-        }
-
-        @Test
-        void build_shouldThrow_whenRestartPointIsNull() {
-            ReviveCharacterResult.Builder builder = result().restartPoint(null);
-
-            assertThrows(NullPointerException.class, builder::build);
         }
     }
 

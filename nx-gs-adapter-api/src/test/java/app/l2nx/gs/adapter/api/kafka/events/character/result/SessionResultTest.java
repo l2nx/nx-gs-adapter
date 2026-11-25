@@ -21,8 +21,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -35,7 +37,7 @@ class SessionResultTest {
                 .itemTemplateId(6411L)
                 .source(ItemSource.FISHING)
                 .delta(37L)
-                .events(37L);
+                .events(36L);
     }
 
     private static SessionResultUnique.Builder unique() {
@@ -83,27 +85,64 @@ class SessionResultTest {
 
     static Stream<Arguments> invalidRows() {
         return Stream.of(
-                Arguments.of("negative overflow", (Runnable)
-                        () -> SessionResult.builder().overflow(-1L).build()),
-                Arguments.of("item template 0", (Runnable)
-                        () -> item().itemTemplateId(0L).build()),
-                Arguments.of("item without events", (Runnable)
-                        () -> item().events(0L).build()),
-                Arguments.of("unique with delta 0", (Runnable)
-                        () -> unique().delta(0L).build()),
-                Arguments.of("kill with neither victim", (Runnable)
-                        () -> SessionResultKill.builder().count(1L).build()),
-                Arguments.of("kill with both victims", (Runnable) () -> SessionResultKill.builder()
-                        .sourceNpcId(1L)
-                        .sourceCharacterId(2L)
-                        .count(1L)
-                        .build()),
-                Arguments.of("kill count 0", (Runnable)
-                        () -> SessionResultKill.builder().sourceNpcId(1L).build()),
-                Arguments.of("death count 0", (Runnable)
-                        () -> SessionResultDeath.builder().build()),
-                Arguments.of("untracked template 0", (Runnable)
-                        () -> SessionResultUntracked.builder().delta(1L).build()));
+                Arguments.of(
+                        "negative overflow",
+                        (Executable) () -> SessionResult.builder().overflow(-1L).build(),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "item template 0",
+                        (Executable) () -> item().itemTemplateId(0L).build(),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "item without events",
+                        (Executable) () -> item().events(0L).build(),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "unique with delta 0",
+                        (Executable) () -> unique().delta(0L).build(),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "kill with neither victim",
+                        (Executable) () -> SessionResultKill.builder().count(1L).build(),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "kill with both victims",
+                        (Executable) () -> SessionResultKill.builder()
+                                .sourceNpcId(1L)
+                                .sourceCharacterId(2L)
+                                .count(1L)
+                                .build(),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "kill count 0",
+                        (Executable) () ->
+                                SessionResultKill.builder().sourceNpcId(1L).build(),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "death count 0",
+                        (Executable) () -> SessionResultDeath.builder().build(),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "untracked template 0",
+                        (Executable)
+                                () -> SessionResultUntracked.builder().delta(1L).build(),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "item without source",
+                        (Executable) () -> item().source(null).build(),
+                        NullPointerException.class),
+                Arguments.of(
+                        "unique without source",
+                        (Executable) () -> unique().source(null).build(),
+                        NullPointerException.class),
+                Arguments.of(
+                        "unique without item",
+                        (Executable) () -> unique().item(null).build(),
+                        NullPointerException.class),
+                Arguments.of(
+                        "experience without source",
+                        (Executable) () -> SessionResultExperience.builder().build(),
+                        NullPointerException.class));
     }
 
     @Nested
@@ -111,21 +150,8 @@ class SessionResultTest {
 
         @ParameterizedTest(name = "{0}")
         @MethodSource("app.l2nx.gs.adapter.api.kafka.events.character.result.SessionResultTest#invalidRows")
-        void constructor_shouldReject(String name, Runnable build) {
-            assertThrows(IllegalArgumentException.class, build::run);
-        }
-
-        @Test
-        void constructor_shouldRequireTheSources() {
-            SessionResultItem.Builder withoutItemSource = item().source(null);
-            SessionResultUnique.Builder withoutUniqueSource = unique().source(null);
-            SessionResultUnique.Builder withoutItem = unique().item(null);
-            SessionResultExperience.Builder withoutExperienceSource = SessionResultExperience.builder();
-
-            assertThrows(NullPointerException.class, withoutItemSource::build);
-            assertThrows(NullPointerException.class, withoutUniqueSource::build);
-            assertThrows(NullPointerException.class, withoutItem::build);
-            assertThrows(NullPointerException.class, withoutExperienceSource::build);
+        void constructor_shouldReject(String name, Executable build, Class<? extends RuntimeException> expected) {
+            assertThrows(expected, build);
         }
 
         @Test
@@ -207,21 +233,12 @@ class SessionResultTest {
     class Value {
 
         @Test
-        void toBuilder_shouldRoundtrip() {
-            assertEquals(full(), full().toBuilder().build());
-            assertEquals(full().hashCode(), full().toBuilder().build().hashCode());
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(SessionResult.class).verify();
         }
 
         @Test
-        void equals_shouldDiffer_whenAnySectionDiffers() {
-            assertNotEquals(full(), full().toBuilder().partial(false).build());
-            assertNotEquals(full(), full().toBuilder().overflow(0L).build());
-            assertNotEquals(full(), full().toBuilder().items(null).build());
-            assertNotEquals(full(), full().toBuilder().untracked(null).build());
-        }
-
-        @Test
-        void gson_shouldRoundtripAndWriteConstantNames() {
+        void roundtrip_shouldKeepEverySectionAndWriteConstantNames() {
             Gson gson = new Gson();
 
             String json = gson.toJson(full());
@@ -229,6 +246,8 @@ class SessionResultTest {
             assertTrue(json.contains("\"source\":\"FISHING\""), json);
             assertTrue(json.contains("\"source\":\"KILL\""), json);
             assertEquals(full(), gson.fromJson(json, SessionResult.class));
+            assertEquals(full(), full().toBuilder().build());
+            assertEquals(full().hashCode(), full().toBuilder().build().hashCode());
         }
 
         @Test
@@ -255,5 +274,45 @@ class SessionResultTest {
     @Test
     void maxJsonBytes_shouldLeaveRoomInsideTheProducerLimit() {
         assertEquals(800_000, SessionResult.MAX_JSON_BYTES);
+    }
+
+    @Test
+    void build_shouldPlaceEveryRowValueOnItsField() {
+        SessionResult actual = full();
+
+        SessionResultItem item = actual.getItems().get(0);
+        assertEquals(6411L, item.getItemTemplateId());
+        assertEquals(ItemSource.FISHING, item.getSource());
+        assertEquals(37L, item.getDelta());
+        assertEquals(36L, item.getEvents());
+        assertEquals("90817", item.toBuilder().sourceRefId("90817").build().getSourceRefId());
+        SessionResultUnique unique = actual.getUniques().get(0);
+        assertEquals(1073812L, unique.getItem().getItemId());
+        assertEquals(ItemSource.TRADE, unique.getSource());
+        assertEquals(1L, unique.getDelta());
+        assertEquals(268470002L, unique.getSourceCharacterId());
+        assertEquals("01973b1f-6d02-7b8e-a4c1-77e0d2f4a903", unique.getSourceRefId());
+        SessionResultExperience experience = actual.getExperience().get(0);
+        assertEquals(ExperienceSource.KILL, experience.getSource());
+        assertEquals(20432L, experience.getSourceNpcId());
+        assertEquals(18230L, experience.getExp());
+        assertEquals(910L, experience.getSp());
+        SessionResultKill kill = actual.getKills().get(0);
+        assertEquals(20432L, kill.getSourceNpcId());
+        assertEquals(12L, kill.getCount());
+        assertEquals(
+                268470003L,
+                SessionResultKill.builder()
+                        .sourceCharacterId(268470003L)
+                        .count(1L)
+                        .build()
+                        .getSourceCharacterId());
+        SessionResultDeath death = actual.getDeaths().get(0);
+        assertEquals(268470003L, death.getSourceCharacterId());
+        assertEquals(1L, death.getCount());
+        SessionResultUntracked untracked = actual.getUntracked().get(0);
+        assertEquals(1864L, untracked.getItemTemplateId());
+        assertEquals(-5L, untracked.getDelta());
+        assertEquals("SomeEngineProcess", untracked.getProcess());
     }
 }

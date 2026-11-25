@@ -3,16 +3,19 @@ package app.l2nx.gs.adapter.api.kafka.events.olympiad;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.character.clazz.CharacterClass;
+import java.util.Collections;
 import java.util.UUID;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class HeroGrantedEventTest {
 
     @Test
-    void getClanId_shouldBeNullable_forOfflineWinnerOrNoClan() {
+    void build_shouldLeaveOptionalFieldsNull_whenAbsent() {
         HeroGrantedEvent event = newBuilder().clanId(null).build();
 
         assertNull(event.getClanId());
+        assertNull(event.getClazz());
     }
 
     @Test
@@ -25,54 +28,34 @@ class HeroGrantedEventTest {
 
     @Test
     void toBuilder_shouldRoundtripAllFields() {
+        UUID eventId = UUID.randomUUID();
         HeroGrantedEvent original = HeroGrantedEvent.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(eventId)
                 .characterId(268437521L)
                 .classId(88)
                 .clazz(CharacterClass.DUELIST)
                 .clanId(101L)
                 .olympiadCycle(7)
+                .metadata(Collections.singletonMap("k", "v"))
                 .build();
 
         HeroGrantedEvent copy = original.toBuilder().build();
         assertEquals(original, copy);
-        assertEquals(CharacterClass.DUELIST, copy.getClazz());
         assertNotSame(original, copy);
+        assertEquals(eventId, copy.getEventId());
+        assertEquals(268437521L, copy.getCharacterId());
+        assertEquals(88, copy.getClassId());
+        assertEquals(CharacterClass.DUELIST, copy.getClazz());
+        assertEquals(Long.valueOf(101L), copy.getClanId());
+        assertEquals(7, copy.getOlympiadCycle());
+        assertEquals(Collections.singletonMap("k", "v"), copy.getMetadata());
     }
 
     @Test
-    void equals_shouldDistinguishClassId() {
-        HeroGrantedEvent.Builder base = newBuilder();
-
-        assertNotEquals(base.classId(88).build(), base.classId(89).build());
-    }
-
-    @Test
-    void equals_shouldDistinguishClazz() {
-        assertNotEquals(
-                newBuilder().clazz(CharacterClass.DUELIST).build(),
-                newBuilder().clazz(CharacterClass.ADVENTURER).build());
-    }
-
-    @Test
-    void getClazz_shouldBeNull_whenLegacyNumericOnly() {
-        assertNull(newBuilder().build().getClazz());
-    }
-
-    @Test
-    void equals_shouldDistinguishOlympiadCycle() {
-        HeroGrantedEvent.Builder base = newBuilder();
-
-        assertNotEquals(base.olympiadCycle(7).build(), base.olympiadCycle(8).build());
-    }
-
-    @Test
-    void toString_shouldRenderCharacterIdAndClassId() {
-        HeroGrantedEvent event = newBuilder().characterId(268437521L).classId(88).build();
-
-        String s = event.toString();
-        assertTrue(s.contains("characterId=268437521"));
-        assertTrue(s.contains("classId=88"));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(HeroGrantedEvent.class)
+                .withNonnullFields("eventId")
+                .verify();
     }
 
     private static HeroGrantedEvent.Builder newBuilder() {

@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.sync.db.alliance;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class AllianceDbDtoTest {
@@ -15,6 +16,7 @@ class AllianceDbDtoTest {
         assertEquals(42L, alliance.getId());
         assertEquals("Crusaders", alliance.getName());
         assertArrayEquals(icon, alliance.getIcon());
+        assertEquals(alliance, alliance.toBuilder().build());
     }
 
     @Test
@@ -24,26 +26,8 @@ class AllianceDbDtoTest {
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
-        AllianceDbDto original = AllianceDbDto.builder()
-                .id(7L)
-                .name("RoundTrip")
-                .icon(new byte[] {9})
-                .build();
-        assertEquals(original, original.toBuilder().build());
-    }
-
-    @Test
-    void equals_shouldCompareIconBytes() {
-        AllianceDbDto a =
-                AllianceDbDto.builder().id(1L).name("X").icon(new byte[] {1}).build();
-        AllianceDbDto b =
-                AllianceDbDto.builder().id(1L).name("X").icon(new byte[] {1}).build();
-        AllianceDbDto c =
-                AllianceDbDto.builder().id(1L).name("X").icon(new byte[] {2}).build();
-        assertEquals(a, b);
-        assertEquals(a.hashCode(), b.hashCode());
-        assertNotEquals(a, c);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(AllianceDbDto.class).withNonnullFields("name").verify();
     }
 
     @Test

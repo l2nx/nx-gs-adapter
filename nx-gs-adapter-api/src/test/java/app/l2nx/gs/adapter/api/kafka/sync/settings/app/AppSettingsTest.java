@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -47,35 +48,44 @@ class AppSettingsTest {
                 .updatedAt(NOW);
     }
 
-    @Test
-    void build_shouldRejectNullUpdatedAt() {
-        assertThrows(NullPointerException.class, () -> valid().updatedAt(null).build());
-    }
-
-    @Test
-    void build_shouldRejectMaxBelowMinDuration() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> valid().fishingMinDurationMs(10L).fishingMaxDurationMs(9L).build());
-    }
-
     @ParameterizedTest(name = "{0}")
-    @MethodSource("negativeMinutes")
-    void build_shouldRejectNegativeMinutes(String name, UnaryOperator<AppSettings.Builder> change) {
-        assertThrows(IllegalArgumentException.class, () -> change.apply(valid()).build());
+    @MethodSource("invalidSettings")
+    void build_shouldReject_whenSettingIsInvalid(String name, Class<? extends Exception> expected, Executable build) {
+        assertThrows(expected, build);
     }
 
-    static Stream<Arguments> negativeMinutes() {
+    static Stream<Arguments> invalidSettings() {
         return Stream.of(
                 negative("recentlyLeftGameMinutes", b -> b.recentlyLeftGameMinutes(-1)),
                 negative("fishingStartCooldownMinutes", b -> b.fishingStartCooldownMinutes(-1)),
                 negative("privateStoreStartCooldownMinutes", b -> b.privateStoreStartCooldownMinutes(-1)),
                 negative("returnThresholdMinutes", b -> b.returnThresholdMinutes(-1)),
-                negative("restartWindowMinutes", b -> b.restartWindowMinutes(-1)));
+                negative("restartWindowMinutes", b -> b.restartWindowMinutes(-1)),
+                invalid(
+                        "null updatedAt",
+                        NullPointerException.class,
+                        () -> valid().updatedAt(null).build()),
+                invalid(
+                        "max duration below min",
+                        IllegalArgumentException.class,
+                        () -> valid().fishingMinDurationMs(10L)
+                                .fishingMaxDurationMs(9L)
+                                .build()),
+                invalid(
+                        "session type without an activity",
+                        NullPointerException.class,
+                        () -> new AppSessionTypeSettings(null, true)));
     }
 
     private static Arguments negative(String name, UnaryOperator<AppSettings.Builder> change) {
-        return Arguments.of(name, change);
+        return invalid(
+                "negative " + name,
+                IllegalArgumentException.class,
+                () -> change.apply(valid()).build());
+    }
+
+    private static Arguments invalid(String name, Class<? extends Exception> expected, Executable build) {
+        return Arguments.of(name, expected, build);
     }
 
     @Test
@@ -86,30 +96,6 @@ class AppSettingsTest {
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> actual.getSessionTypes().add(new AppSessionTypeSettings(ActivityType.PRIVATE_STORE, true)));
-    }
-
-    @Test
-    void appSessionTypeSettings_shouldRejectNullActivity() {
-        assertThrows(NullPointerException.class, () -> new AppSessionTypeSettings(null, true));
-    }
-
-    @Test
-    void toBuilder_shouldRoundtripAllFields() {
-        AppSettings original = valid().build();
-
-        assertEquals(original, original.toBuilder().build());
-        assertNotEquals(
-                original, original.toBuilder().fishingStartCooldownMinutes(16).build());
-        assertNotEquals(
-                original,
-                original.toBuilder().privateStoreStartCooldownMinutes(6).build());
-        assertNotEquals(
-                original, original.toBuilder().revive(new ReviveSettings(false)).build());
-        assertNotEquals(
-                original,
-                original.toBuilder()
-                        .chat(new ChatSettings(true, Arrays.asList("CLAN"), Arrays.asList("WHISPER")))
-                        .build());
     }
 
     @Test
@@ -213,6 +199,47 @@ class AppSettingsTest {
 
         assertTrue(json.contains("\"activity\":\"OFFLINE_FISHING\""));
         assertEquals(original, actual);
+        assertEquals(original, original.toBuilder().build());
+        assertEquals("appsettings", actual.getEntityName());
+        assertEquals(1_760_000_000_000L, actual.getTimestampEpochMs());
+
+        AppSettings settings = actual.getPayload().toBuilder().build();
+        assertEquals(valid().build(), settings);
+        assertEquals(
+                Arrays.asList(
+                        new AppSessionTypeSettings(ActivityType.OFFLINE_FISHING, true),
+                        new AppSessionTypeSettings(ActivityType.OFFLINE_PRIVATE_STORE, false)),
+                settings.getSessionTypes());
+        assertEquals(
+                ActivityType.OFFLINE_FISHING, settings.getSessionTypes().get(0).getActivity());
+        assertTrue(settings.getSessionTypes().get(0).isEnabled());
+        assertFalse(settings.getSessionTypes().get(1).isEnabled());
+        assertTrue(settings.getChat().isEnabled());
+        assertEquals(Arrays.asList("CLAN", "PARTY"), settings.getChat().getOnlineSendChannels());
+        assertEquals(Arrays.asList("WHISPER"), settings.getChat().getOfflineSendChannels());
+        assertEquals(2, settings.getRecentlyLeftGameMinutes());
+        assertEquals(15, settings.getFishingStartCooldownMinutes());
+        assertEquals(5, settings.getPrivateStoreStartCooldownMinutes());
+        assertEquals(30, settings.getReturnThresholdMinutes());
+        assertEquals(10, settings.getRestartWindowMinutes());
+        assertEquals(600_000L, settings.getFishingMinDurationMs());
+        assertEquals(7_200_000L, settings.getFishingMaxDurationMs());
+        assertEquals(new ReviveSettings(true), settings.getRevive());
+        assertEquals(
+                new ChatSettings(true, Arrays.asList("CLAN", "PARTY"), Arrays.asList("WHISPER")), settings.getChat());
+        assertEquals(NOW, settings.getUpdatedAt());
+        assertNotEquals(
+                settings, settings.toBuilder().fishingStartCooldownMinutes(16).build());
+        assertNotEquals(
+                settings,
+                settings.toBuilder().privateStoreStartCooldownMinutes(6).build());
+        assertNotEquals(
+                settings, settings.toBuilder().revive(new ReviveSettings(false)).build());
+        assertNotEquals(
+                settings,
+                settings.toBuilder()
+                        .chat(new ChatSettings(true, Arrays.asList("CLAN"), Arrays.asList("WHISPER")))
+                        .build());
     }
 
     @Test
@@ -228,12 +255,5 @@ class AppSettingsTest {
     void settingsSyncEvent_shouldRejectNullEntityNameAndPayload() {
         assertThrows(NullPointerException.class, () -> new SettingsSyncEvent<String>(null, "p", 1L));
         assertThrows(NullPointerException.class, () -> new SettingsSyncEvent<String>("e", null, 1L));
-    }
-
-    @Test
-    void settingsSyncEvent_shouldRoundtripThroughBuilder() {
-        SettingsSyncEvent<String> original = new SettingsSyncEvent<String>("e", "p", 1L);
-
-        assertEquals(original, original.toBuilder().build());
     }
 }

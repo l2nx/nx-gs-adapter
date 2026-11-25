@@ -1,10 +1,10 @@
 package app.l2nx.gs.adapter.api.kafka.sync.db.character;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class CharacterLockDbDtoTest {
@@ -18,6 +18,7 @@ class CharacterLockDbDtoTest {
 
         assertEquals(WellKnownCharacterLockTypes.IP, lock.getLockType());
         assertEquals("127.0.0.1", lock.getLockValue());
+        assertEquals(lock, lock.toBuilder().build());
     }
 
     @Test
@@ -37,22 +38,9 @@ class CharacterLockDbDtoTest {
     }
 
     @Test
-    void equals_shouldDistinguishOnFields() {
-        CharacterLockDbDto a = new CharacterLockDbDto(WellKnownCharacterLockTypes.IP, "127.0.0.1");
-        CharacterLockDbDto b = new CharacterLockDbDto(WellKnownCharacterLockTypes.IP, "127.0.0.1");
-        CharacterLockDbDto c = new CharacterLockDbDto(WellKnownCharacterLockTypes.IP, "10.0.0.1");
-        CharacterLockDbDto d = new CharacterLockDbDto(WellKnownCharacterLockTypes.HWID, "127.0.0.1");
-
-        assertEquals(a, b);
-        assertEquals(a.hashCode(), b.hashCode());
-        assertNotEquals(a, c);
-        assertNotEquals(a, d);
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        CharacterLockDbDto original = new CharacterLockDbDto(WellKnownCharacterLockTypes.ITEM, "deadbeef");
-
-        assertEquals(original, original.toBuilder().build());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(CharacterLockDbDto.class)
+                .withNonnullFields("lockType")
+                .verify();
     }
 }

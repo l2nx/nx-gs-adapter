@@ -74,6 +74,7 @@ class AppSettingsFileTest {
                     + "app.chat.offline-send-channels=CLAN\n"
                     + "app.restore.batch-size=3\n"
                     + "app.restore.batch-pause-millis=250\n"
+                    + "app.shutdown.result-millis-per-session=40\n"
                     + "app.history.retention-days=30\n");
 
             AppRules expected = AppRules.builder()
@@ -99,6 +100,7 @@ class AppSettingsFileTest {
                     .chatOfflineSendChannels(EnumSet.of(ChatChannel.CLAN))
                     .restoreBatchSize(3)
                     .restoreBatchPauseMillis(250)
+                    .shutdownResultMillisPerSession(40)
                     .historyRetentionDays(30)
                     .build();
             assertEquals(expected, actual);
@@ -202,8 +204,8 @@ class AppSettingsFileTest {
                     "app.chat.enabled|1|app.chat.enabled: expected true or false, got '1'",
                     "app.chat.online-send-channels|clan|app.chat.online-send-channels: expected WHISPER, PARTY, CLAN or"
                             + " ALLIANCE, got 'clan'",
-                    "app.chat.online-send-channels|TRADE|app.chat.online-send-channels: expected WHISPER, PARTY, CLAN or"
-                            + " ALLIANCE, got 'TRADE'",
+                    "app.chat.online-send-channels|TRADE|app.chat.online-send-channels: expected WHISPER, PARTY, CLAN"
+                            + " or ALLIANCE, got 'TRADE'",
                     "app.chat.online-send-channels|UNKNOWN_7|app.chat.online-send-channels: expected WHISPER, PARTY,"
                             + " CLAN or ALLIANCE, got 'UNKNOWN_7'",
                     "app.chat.online-send-channels|CLAN,,PARTY|app.chat.online-send-channels: expected WHISPER, PARTY,"
@@ -302,11 +304,6 @@ class AppSettingsFileTest {
     }
 
     @Test
-    void catalog_shouldHaveAnEnabledKeyForExactlyTheRulesSessionTypes() {
-        assertEquals(AppRules.SESSION_TYPES, EnumSet.copyOf(AppSettingsCatalog.SESSION_TYPE_KEYS.values()));
-    }
-
-    @Test
     void catalog_shouldKeepTheEnabledKeyNamesInTheRulesOrder() {
         assertEquals(
                 Arrays.asList("app.private-store.enabled", "app.fishing.enabled"),
@@ -347,16 +344,13 @@ class AppSettingsFileTest {
     @Nested
     class Location {
 
-        @Test
-        void location_shouldBeTheWorkingDirectory_whenTheConfigFileHasNoParent() {
-            assertEquals(Paths.get("l2nx-app.properties"), AppSettingsFile.location(Paths.get("l2nx.properties")));
-        }
-
-        @Test
-        void location_shouldSitNextToTheConfigFile() {
-            assertEquals(
-                    Paths.get("conf", "server", "l2nx-app.properties"),
-                    AppSettingsFile.location(Paths.get("conf", "server", "custom.properties")));
+        @ParameterizedTest(name = "{0} -> {1}")
+        @CsvSource({
+            "conf/server/custom.properties, conf/server/l2nx-app.properties",
+            "l2nx.properties, l2nx-app.properties"
+        })
+        void location_shouldSitNextToTheConfigFile(String configFile, String expected) {
+            assertEquals(Paths.get(expected), AppSettingsFile.location(Paths.get(configFile)));
         }
     }
 

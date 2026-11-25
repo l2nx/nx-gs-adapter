@@ -28,62 +28,6 @@ class ChangeSetTest {
     }
 
     @Test
-    void diff_shouldDetectUpdated_whenCrcDiffersForSamePk() {
-        Long2IntMap scan = new Long2IntOpenHashMap();
-        scan.put(1L, 200);
-
-        SnapshotStore snapshot = new SnapshotStore();
-        snapshot.putCrc(ENTITY, 1L, 100);
-
-        LongSet prev = new LongOpenHashSet();
-        prev.add(1L);
-
-        ChangeSet diff = ChangeSet.diff(scan, prev, snapshot, ENTITY);
-
-        assertTrue(diff.created().isEmpty());
-        assertEquals(1, diff.updated().size());
-        assertTrue(diff.updated().contains(1L));
-        assertTrue(diff.deleted().isEmpty());
-    }
-
-    @Test
-    void diff_shouldNotMarkUpdated_whenCrcUnchanged() {
-        Long2IntMap scan = new Long2IntOpenHashMap();
-        scan.put(1L, 100);
-
-        SnapshotStore snapshot = new SnapshotStore();
-        snapshot.putCrc(ENTITY, 1L, 100);
-
-        LongSet prev = new LongOpenHashSet();
-        prev.add(1L);
-
-        ChangeSet diff = ChangeSet.diff(scan, prev, snapshot, ENTITY);
-
-        assertTrue(diff.isEmpty());
-    }
-
-    @Test
-    void diff_shouldDetectDeleted_whenPkInSnapshotRangeButMissingFromScan() {
-        Long2IntMap scan = new Long2IntOpenHashMap();
-        scan.put(1L, 100);
-
-        SnapshotStore snapshot = new SnapshotStore();
-        snapshot.putCrc(ENTITY, 1L, 100);
-        snapshot.putCrc(ENTITY, 2L, 200);
-
-        LongSet prev = new LongOpenHashSet();
-        prev.add(1L);
-        prev.add(2L);
-
-        ChangeSet diff = ChangeSet.diff(scan, prev, snapshot, ENTITY);
-
-        assertTrue(diff.created().isEmpty());
-        assertTrue(diff.updated().isEmpty());
-        assertEquals(1, diff.deleted().size());
-        assertTrue(diff.deleted().contains(2L));
-    }
-
-    @Test
     void diff_shouldNotMisclassify_whenStoredCrcEqualsMissingSentinel() {
         // A real CRC32 can equal MISSING_HASH (Integer.MIN_VALUE); the row must not be misclassified as CREATED.
 

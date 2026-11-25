@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class ConnectResponseTest {
 
     @Test
-    void syncTopics_shouldDefaultToNull_whenBuilderOmitsIt() {
+    void topics_shouldDefaultToNull_whenBuilderOmitsThem() {
         ConnectResponse response = ConnectResponse.builder()
                 .tenantId(UUID.randomUUID())
                 .tenantSlug("acme")
@@ -21,14 +21,7 @@ class ConnectResponseTest {
 
         assertNull(response.getSyncTopics());
         assertNull(response.getHeartbeatTopic());
-    }
-
-    @Test
-    void heartbeatTopic_shouldRoundtrip() {
-        ConnectResponse response =
-                ConnectResponse.builder().heartbeatTopic("acme.gs.heartbeat").build();
-
-        assertEquals("acme.gs.heartbeat", response.getHeartbeatTopic());
+        assertNull(response.getMessagingTopics());
     }
 
     @Test
@@ -61,38 +54,41 @@ class ConnectResponseTest {
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
+    void toBuilder_shouldRoundtripEveryField() {
+        UUID tenantId = UUID.randomUUID();
+        UUID serverId = UUID.randomUUID();
+        KafkaCredentials kafka =
+                KafkaCredentials.builder().bootstrap("localhost:9092").build();
+        SyncTopics syncTopics = SyncTopics.builder()
+                .db(Collections.singletonMap("clan", "acme.gs.sync.db.clan"))
+                .build();
+        MessagingTopics messagingTopics = MessagingTopics.builder()
+                .events(Collections.singletonMap("premiumpurchase", "acme.gs.events.premiumpurchase"))
+                .build();
         ConnectResponse original = ConnectResponse.builder()
-                .tenantId(UUID.randomUUID())
+                .tenantId(tenantId)
                 .tenantSlug("acme")
-                .serverId(UUID.randomUUID())
+                .serverId(serverId)
                 .serverSlug("primary")
                 .serverName("Acme")
-                .kafka(KafkaCredentials.builder().bootstrap("localhost:9092").build())
+                .kafka(kafka)
                 .heartbeatTopic("acme.gs.heartbeat")
-                .syncTopics(SyncTopics.builder()
-                        .db(Collections.singletonMap("clan", "acme.gs.sync.db.clan"))
-                        .build())
-                .messagingTopics(MessagingTopics.builder()
-                        .events(Collections.singletonMap("premiumpurchase", "acme.gs.events.premiumpurchase"))
-                        .build())
+                .syncTopics(syncTopics)
+                .messagingTopics(messagingTopics)
                 .build();
 
-        assertEquals(original, original.toBuilder().build());
-    }
+        ConnectResponse actual = original.toBuilder().build();
 
-    @Test
-    void messagingTopics_shouldDefaultToNull_whenBuilderOmitsIt() {
-        ConnectResponse response = ConnectResponse.builder()
-                .tenantId(UUID.randomUUID())
-                .tenantSlug("acme")
-                .serverId(UUID.randomUUID())
-                .serverSlug("primary")
-                .serverName("Acme")
-                .kafka(KafkaCredentials.builder().bootstrap("localhost:9092").build())
-                .build();
-
-        assertNull(response.getMessagingTopics());
+        assertEquals(original, actual);
+        assertEquals(tenantId, actual.getTenantId());
+        assertEquals("acme", actual.getTenantSlug());
+        assertEquals(serverId, actual.getServerId());
+        assertEquals("primary", actual.getServerSlug());
+        assertEquals("Acme", actual.getServerName());
+        assertEquals(kafka, actual.getKafka());
+        assertEquals("acme.gs.heartbeat", actual.getHeartbeatTopic());
+        assertEquals(syncTopics, actual.getSyncTopics());
+        assertEquals(messagingTopics, actual.getMessagingTopics());
     }
 
     @Test

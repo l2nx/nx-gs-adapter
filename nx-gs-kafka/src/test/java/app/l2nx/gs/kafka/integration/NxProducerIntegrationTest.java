@@ -8,7 +8,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -16,7 +18,10 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.ProducerInterceptor;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
@@ -77,7 +82,7 @@ class NxProducerIntegrationTest {
     }
 
     @Test
-    void send_shouldNotThrow_whenBrokerUnavailable() {
+    void send_shouldReportErrorToCallback_whenBrokerUnavailable() throws Exception {
         NxKafka kafka = NxKafka.configure()
                 .brokers("localhost:19999")
                 .clientId("test-producer-unavail")
@@ -88,16 +93,33 @@ class NxProducerIntegrationTest {
                 .property("request.timeout.ms", 1000)
                 .property("linger.ms", 0)
                 .build();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
-        assertDoesNotThrow(() -> kafka.send("test.unavail", new TestEvent("p", 1)));
+        assertDoesNotThrow(() -> kafka.send("test.unavail", new TestEvent("p", 1), (metadata, exception) -> {
+            exceptionRef.set(exception);
+            latch.countDown();
+        }));
+
+        assertTrue(latch.await(10, TimeUnit.SECONDS), "Callback was not invoked");
+        assertInstanceOf(TimeoutException.class, exceptionRef.get());
     }
 
     @Test
-    void send_shouldNotThrow_afterShutdown() {
-        NxKafka kafka = buildKafka("test-producer-shut");
+    void send_shouldNotReachProducer_afterShutdown() {
+        SentTopics.TOPICS.clear();
+        NxKafka kafka = NxKafka.configure()
+                .brokers(KAFKA.getBootstrapServers())
+                .clientId("test-producer-shut")
+                .reconnect(false)
+                .property("interceptor.classes", SentTopics.class.getName())
+                .build();
+        kafka.send("test.open", new TestEvent("p", 1));
         kafka.shutdown();
 
         assertDoesNotThrow(() -> kafka.send("test.closed", new TestEvent("p", 1)));
+
+        assertEquals(Collections.singletonList("test.open"), SentTopics.TOPICS);
     }
 
     @Test
@@ -141,6 +163,27 @@ class NxProducerIntegrationTest {
             }
             return records.iterator().next();
         }
+    }
+
+    /** Sees every record handed to the producer, also after the producer is closed. */
+    public static class SentTopics implements ProducerInterceptor<byte[], Object> {
+
+        static final List<String> TOPICS = new CopyOnWriteArrayList<>();
+
+        @Override
+        public ProducerRecord<byte[], Object> onSend(ProducerRecord<byte[], Object> record) {
+            TOPICS.add(record.topic());
+            return record;
+        }
+
+        @Override
+        public void onAcknowledgement(RecordMetadata metadata, Exception exception) {}
+
+        @Override
+        public void close() {}
+
+        @Override
+        public void configure(Map<String, ?> configs) {}
     }
 
     static class TestEvent {

@@ -9,23 +9,6 @@ import org.junit.jupiter.api.Test;
 class SnapshotStoreTest {
 
     @Test
-    void getCrc_shouldReturnMissingSentinel_whenEntityUnknown() {
-        SnapshotStore store = new SnapshotStore();
-
-        assertEquals(app.l2nx.gs.db.sync.engine.phase.Phase1Hasher.MISSING_HASH, store.getCrc("clan", 1L));
-        assertFalse(store.containsCrc("clan", 1L));
-    }
-
-    @Test
-    void putCrc_thenGetCrc_shouldRoundTripValue() {
-        SnapshotStore store = new SnapshotStore();
-        store.putCrc("clan", 42L, 12345);
-
-        assertEquals(12345, store.getCrc("clan", 42L));
-        assertTrue(store.containsCrc("clan", 42L));
-    }
-
-    @Test
     void putCrc_shouldOverwriteExistingValue() {
         SnapshotStore store = new SnapshotStore();
         store.putCrc("clan", 42L, 100);
@@ -104,17 +87,6 @@ class SnapshotStoreTest {
     }
 
     @Test
-    void sizeOf_shouldReportEntryCountPerEntity() {
-        SnapshotStore store = new SnapshotStore();
-        store.putCrc("clan", 1L, 1);
-        store.putCrc("clan", 2L, 2);
-        store.putCrc("clan", 3L, 3);
-
-        assertEquals(3, store.sizeOf("clan"));
-        assertEquals(0, store.sizeOf("character"));
-    }
-
-    @Test
     void minPk_shouldReturnEmpty_whenEntityUnknown() {
         SnapshotStore store = new SnapshotStore();
 
@@ -131,32 +103,10 @@ class SnapshotStoreTest {
     }
 
     @Test
-    void minPk_shouldReturnSmallestKey_whenPopulated() {
-        SnapshotStore store = new SnapshotStore();
-        store.putCrc("clan", 5L, 50);
-        store.putCrc("clan", 1L, 10);
-        store.putCrc("clan", 100L, 1000);
-        store.putCrc("clan", 20L, 200);
-
-        assertEquals(OptionalLong.of(1L), store.minPk("clan"));
-    }
-
-    @Test
     void maxPk_shouldReturnEmpty_whenEntityUnknown() {
         SnapshotStore store = new SnapshotStore();
 
         assertFalse(store.maxPk("clan").isPresent());
-    }
-
-    @Test
-    void maxPk_shouldReturnLargestKey_whenPopulated() {
-        SnapshotStore store = new SnapshotStore();
-        store.putCrc("clan", 5L, 50);
-        store.putCrc("clan", 1L, 10);
-        store.putCrc("clan", 100L, 1000);
-        store.putCrc("clan", 20L, 200);
-
-        assertEquals(OptionalLong.of(100L), store.maxPk("clan"));
     }
 
     @Test

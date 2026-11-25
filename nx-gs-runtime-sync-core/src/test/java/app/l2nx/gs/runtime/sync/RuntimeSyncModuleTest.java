@@ -33,13 +33,8 @@ class RuntimeSyncModuleTest {
     };
 
     @Test
-    void name_shouldBe_runtimeSync() {
-        assertEquals("runtime-sync", new RuntimeSyncModule().name());
-    }
-
-    @Test
     void onConnect_shouldDisable_whenSyncTopicsAbsent() {
-        RuntimeSyncModule module = build(emptyProviders());
+        RuntimeSyncModule module = build(() -> Collections.singletonList(stubProvider()));
 
         module.onConnect(CTX_NO_TOPIC);
 
@@ -48,7 +43,7 @@ class RuntimeSyncModuleTest {
 
     @Test
     void onConnect_shouldDisable_whenRuntimeNamespaceEmpty() {
-        RuntimeSyncModule module = build(emptyProviders());
+        RuntimeSyncModule module = build(() -> Collections.singletonList(stubProvider()));
 
         module.onConnect(ctx(
                 SyncTopics.builder().db(Collections.singletonMap("clan", "x")).build()));
@@ -72,15 +67,6 @@ class RuntimeSyncModuleTest {
         module.onConnect(CTX_WITH_TOPIC);
 
         assertEquals(RuntimeSyncModule.STATE_FAILED, module.stateForTesting());
-    }
-
-    @Test
-    void onConnect_shouldActivate_whenSingleProviderResolves() {
-        RuntimeSyncModule module = build(() -> Collections.singletonList(stubProvider()));
-
-        module.onConnect(CTX_WITH_TOPIC);
-
-        assertEquals(RuntimeSyncModule.STATE_ACTIVE, module.stateForTesting());
     }
 
     @Test
@@ -223,6 +209,7 @@ class RuntimeSyncModuleTest {
 
         ModuleStatus status = module.currentStatus();
 
+        assertEquals("runtime-sync", module.name());
         assertEquals("runtime-sync", status.getName());
         assertEquals("INIT", status.getState());
     }

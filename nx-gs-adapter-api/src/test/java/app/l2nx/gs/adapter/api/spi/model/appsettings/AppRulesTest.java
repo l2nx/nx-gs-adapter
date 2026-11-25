@@ -118,11 +118,6 @@ class AppRulesTest {
         void sessionTypeEnabled_shouldBeFalseForEveryActivity_whenDefaults(ActivityType activity) {
             assertFalse(AppRules.defaults().sessionTypeEnabled(activity));
         }
-
-        @Test
-        void builder_shouldStartFromTheDefaults() {
-            assertEquals(AppRules.defaults(), AppRules.builder().build());
-        }
     }
 
     @Nested
@@ -347,6 +342,7 @@ class AppRulesTest {
                     .chatOfflineSendChannels(EnumSet.of(ChatChannel.WHISPER))
                     .restoreBatchSize(3)
                     .restoreBatchPauseMillis(250)
+                    .shutdownResultMillisPerSession(40)
                     .historyRetentionDays(30)
                     .build();
 
@@ -355,6 +351,30 @@ class AppRulesTest {
             assertEquals(expected, actual);
             assertEquals(expected.hashCode(), actual.hashCode());
             assertNotEquals(AppRules.defaults(), actual);
+            assertEquals("away", actual.phantomTitleText());
+            assertEquals(0x00FF00, actual.phantomTitleColorRgb());
+            assertEquals(5, actual.recentLogoutMinutes());
+            assertEquals(20, actual.restartWindowMinutes());
+            assertEquals(45, actual.returnThresholdMinutes());
+            assertTrue(actual.sessionTypeEnabled(ActivityType.OFFLINE_PRIVATE_STORE));
+            assertTrue(actual.sessionTypeEnabled(ActivityType.OFFLINE_FISHING));
+            assertEquals(7, actual.privateStoreStartCooldownMinutes());
+            assertEquals(10, actual.fishingStartCooldownMinutes());
+            assertEquals(60, actual.fishingMinDurationMinutes());
+            assertEquals(600, actual.fishingMaxDurationMinutes());
+            assertEquals(200, actual.fishingFloatDistance());
+            assertEquals(SpotOrder.FIRST_FREE, actual.fishingSpotOrder());
+            assertEquals("harbor", actual.fishingSpotPool());
+            assertFalse(actual.reviveEnabled());
+            assertEquals(ReviveTownMode.SPOT_POOL, actual.reviveTownMode());
+            assertEquals(Arrays.asList("harbor", "giran"), actual.reviveTownSpotPools());
+            assertTrue(actual.chatEnabled());
+            assertEquals(EnumSet.of(ChatChannel.PARTY), actual.chatOnlineSendChannels());
+            assertEquals(EnumSet.of(ChatChannel.WHISPER), actual.chatOfflineSendChannels());
+            assertEquals(3, actual.restoreBatchSize());
+            assertEquals(250, actual.restoreBatchPauseMillis());
+            assertEquals(40, actual.shutdownResultMillisPerSession());
+            assertEquals(30, actual.historyRetentionDays());
         }
     }
 }

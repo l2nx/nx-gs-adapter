@@ -13,34 +13,14 @@ import org.junit.jupiter.api.Test;
 class HeartbeatEventTest {
 
     @Test
-    void toBuilder_shouldRoundtripAllFields() {
-        ModuleStatus dbSync = ModuleStatus.builder()
-                .name("db-sync")
+    void builder_shouldMapEachFieldToConstructorPosition() {
+        ModuleStatus a = ModuleStatus.builder()
+                .name("a")
                 .state("ACTIVE")
                 .stats(ModuleStatus.Stats.builder()
                         .pool(new PoolStats(1, 3, 4, null))
                         .build())
                 .build();
-
-        HeartbeatEvent original = HeartbeatEvent.builder()
-                .tenantId("11111111-1111-1111-1111-111111111111")
-                .tenantSlug("acme")
-                .serverId("00000000-0000-0000-0000-000000000001")
-                .serverSlug("primary")
-                .serverName("Acme Primary")
-                .adapterVersion("1.2.3")
-                .uptime(Duration.ofMillis(42))
-                .enabledModules(Collections.singletonList(dbSync))
-                .build();
-
-        HeartbeatEvent copy = original.toBuilder().build();
-
-        assertEquals(original, copy);
-    }
-
-    @Test
-    void builder_shouldMapEachFieldToConstructorPosition() {
-        ModuleStatus a = ModuleStatus.builder().name("a").state("ACTIVE").build();
         ModuleStatus b = ModuleStatus.builder().name("b").state("DEGRADED").build();
 
         HeartbeatEvent event = HeartbeatEvent.builder()
@@ -62,6 +42,7 @@ class HeartbeatEventTest {
         assertEquals("0.1.0", event.getAdapterVersion());
         assertEquals(Duration.ofSeconds(123), event.getUptime());
         assertEquals(Arrays.asList(a, b), event.getEnabledModules());
+        assertEquals(event, event.toBuilder().build());
     }
 
     @Test
@@ -80,19 +61,7 @@ class HeartbeatEventTest {
     }
 
     @Test
-    void enabledModules_shouldBeUnmodifiable() {
-        ModuleStatus a = ModuleStatus.builder().name("a").state("ACTIVE").build();
-        HeartbeatEvent event = HeartbeatEvent.builder()
-                .enabledModules(Collections.singletonList(a))
-                .build();
-
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> event.getEnabledModules().add(a));
-    }
-
-    @Test
-    void enabledModules_shouldDefensivelyCopy_whenSourceMutates() {
+    void enabledModules_shouldBeAnUnmodifiableCopy() {
         ModuleStatus a = ModuleStatus.builder().name("a").state("ACTIVE").build();
         ModuleStatus b = ModuleStatus.builder().name("b").state("ACTIVE").build();
         java.util.ArrayList<ModuleStatus> source = new java.util.ArrayList<ModuleStatus>();
@@ -104,5 +73,6 @@ class HeartbeatEventTest {
         List<ModuleStatus> seen = event.getEnabledModules();
         assertEquals(1, seen.size());
         assertTrue(seen.contains(a));
+        assertThrows(UnsupportedOperationException.class, () -> seen.add(a));
     }
 }

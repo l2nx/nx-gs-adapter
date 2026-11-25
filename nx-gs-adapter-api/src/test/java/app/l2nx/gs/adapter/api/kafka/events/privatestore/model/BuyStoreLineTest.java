@@ -6,6 +6,7 @@ import app.l2nx.gs.adapter.api.domain.Attribute;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class BuyStoreLineTest {
@@ -29,17 +30,7 @@ class BuyStoreLineTest {
     }
 
     @Test
-    void getAttributes_shouldBeUnmodifiable() {
-        BuyStoreLine actual = valid().attributes(Collections.singletonMap(Attribute.FIRE, 300))
-                .build();
-
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> actual.getAttributes().put(Attribute.WATER, 150));
-    }
-
-    @Test
-    void constructor_shouldDefensivelyCopyAttributes() {
+    void constructor_shouldDefensivelyCopyAndFreezeAttributes() {
         Map<Attribute, Integer> source = new HashMap<Attribute, Integer>();
         source.put(Attribute.FIRE, 300);
         BuyStoreLine actual = valid().attributes(source).build();
@@ -47,6 +38,9 @@ class BuyStoreLineTest {
         source.put(Attribute.WATER, 150);
 
         assertEquals(Collections.singletonMap(Attribute.FIRE, 300), actual.getAttributes());
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> actual.getAttributes().put(Attribute.WATER, 150));
     }
 
     @Test
@@ -60,15 +54,16 @@ class BuyStoreLineTest {
         assertEquals(original, copy);
         assertEquals(original.hashCode(), copy.hashCode());
         assertNotSame(original, copy);
+        assertEquals(6364L, copy.getItemTemplateId());
+        assertEquals(Integer.valueOf(16), copy.getEnchantLevel());
+        assertEquals(Collections.singletonMap(Attribute.HOLY, 150), copy.getAttributes());
+        assertEquals(2L, copy.getCount());
+        assertEquals(1000L, copy.getUnitPrice());
+        assertEquals(57L, copy.getCurrencyItemTemplateId());
     }
 
     @Test
-    void equals_shouldDistinguishAttributes() {
-        BuyStoreLine a = valid().attributes(Collections.singletonMap(Attribute.FIRE, 300))
-                .build();
-        BuyStoreLine b = valid().attributes(Collections.singletonMap(Attribute.WATER, 300))
-                .build();
-
-        assertNotEquals(a, b);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(BuyStoreLine.class).verify();
     }
 }

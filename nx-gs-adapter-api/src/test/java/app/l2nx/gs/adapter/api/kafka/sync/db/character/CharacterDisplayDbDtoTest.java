@@ -1,11 +1,11 @@
 package app.l2nx.gs.adapter.api.kafka.sync.db.character;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import app.l2nx.gs.adapter.api.domain.character.CharacterRace;
 import app.l2nx.gs.adapter.api.domain.character.CharacterSex;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class CharacterDisplayDbDtoTest {
@@ -29,6 +29,7 @@ class CharacterDisplayDbDtoTest {
         assertEquals(Integer.valueOf(3), display.getHairColor());
         assertEquals(Integer.valueOf(0xFFFF00), display.getNameColor());
         assertEquals(Integer.valueOf(0x00FFFF), display.getTitleColor());
+        assertEquals(display, display.toBuilder().build());
     }
 
     @Test
@@ -45,11 +46,18 @@ class CharacterDisplayDbDtoTest {
     }
 
     @Test
-    void equals_shouldDistinguishOnFields() {
-        CharacterDisplayDbDto a = CharacterDisplayDbDto.builder().face(1).nameColor(0xFF0000).build();
+    void toBuilder_shouldRoundtrip_whenPartlyPopulated() {
+        CharacterDisplayDbDto original =
+                CharacterDisplayDbDto.builder().face(1).nameColor(0xFF0000).build();
 
-        assertEquals(a, a.toBuilder().build());
-        assertEquals(a.hashCode(), a.toBuilder().build().hashCode());
-        assertNotEquals(a, a.toBuilder().nameColor(0x0000FF).build());
+        CharacterDisplayDbDto copy = original.toBuilder().build();
+
+        assertEquals(original, copy);
+        assertEquals(original.hashCode(), copy.hashCode());
+    }
+
+    @Test
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(CharacterDisplayDbDto.class).verify();
     }
 }

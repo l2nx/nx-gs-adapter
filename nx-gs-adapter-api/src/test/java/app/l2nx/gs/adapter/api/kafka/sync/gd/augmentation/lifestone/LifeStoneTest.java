@@ -18,9 +18,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class LifeStoneTest {
@@ -39,7 +42,7 @@ class LifeStoneTest {
                 .itemTemplateId(8762)
                 .grade(LifeStoneGrade.TOP)
                 .gradeRaw("3")
-                .level(76)
+                .level(70)
                 .minCharacterLevel(76)
                 .augmentationTargetGroupIds(Arrays.asList(1, 2))
                 .outcomes(Arrays.asList(outcome(1, 1, 16001, 40.0), outcome(1, 2, 16500, 0.25)))
@@ -55,6 +58,15 @@ class LifeStoneTest {
 
     private static ObjectMapper mapper() {
         return new ObjectMapper().registerModule(new ParameterNamesModule());
+    }
+
+    static Stream<Arguments> invalidStones() {
+        return Stream.of(
+                Arguments.of("slot sum above 100", stone(outcome(1, 2, 10, 50.0), outcome(1, 2, 11, 50.1))),
+                Arguments.of("outcome of a group not applicable", stone(outcome(2, 1, 10, 5.0))),
+                Arguments.of("repeated outcome", stone(outcome(1, 1, 10, 5.0), outcome(1, 1, 10, 5.0))),
+                Arguments.of("grade without gradeRaw", stone().grade(LifeStoneGrade.TOP)),
+                Arguments.of("repeated group", stone().augmentationTargetGroupIds(Arrays.asList(1, 1))));
     }
 
     @Nested
@@ -74,15 +86,6 @@ class LifeStoneTest {
             assertEquals(2, outcome.get("slot").getAsInt());
             assertEquals(16500, outcome.get("itemOptionId").getAsInt());
             assertEquals(0.25, outcome.get("chancePercent").getAsDouble());
-        }
-
-        @Test
-        void readValue_shouldRoundTripEveryField() throws IOException {
-            LifeStone expected = fullyPopulated();
-
-            LifeStone actual = mapper().readValue(mapper().writeValueAsString(expected), LifeStone.class);
-
-            assertEquals(expected, actual);
         }
 
         @Test
@@ -129,26 +132,10 @@ class LifeStoneTest {
                     stone(outcome(1, 1, 10, 70.0), outcome(1, 2, 10, 70.0)).build());
         }
 
-        @Test
-        void build_shouldRejectSlotSum_whenAbove100() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> stone(outcome(1, 2, 10, 50.0), outcome(1, 2, 11, 50.1))
-                            .build());
-        }
-
-        @Test
-        void build_shouldRejectOutcome_whenGroupNotApplicable() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> stone(outcome(2, 1, 10, 5.0)).build());
-        }
-
-        @Test
-        void build_shouldRejectRepeatedOutcome() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> stone(outcome(1, 1, 10, 5.0), outcome(1, 1, 10, 5.0)).build());
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.sync.gd.augmentation.lifestone.LifeStoneTest#invalidStones")
+        void build_shouldReject_whenStoneInvalid(String reason, LifeStone.Builder builder) {
+            assertThrows(IllegalArgumentException.class, builder::build);
         }
 
         @Test
@@ -175,29 +162,6 @@ class LifeStoneTest {
         }
 
         @Test
-        void build_shouldRejectGrade_whenGradeRawMissing() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> stone().grade(LifeStoneGrade.TOP).build());
-        }
-
-        @Test
-        void build_shouldAcceptGradeRaw_whenGradeUnknown() {
-            LifeStone actual = stone().gradeRaw("9").build();
-
-            assertNull(actual.getGrade());
-            assertEquals("9", actual.getGradeRaw());
-        }
-
-        @Test
-        void build_shouldRejectRepeatedGroup() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> stone().augmentationTargetGroupIds(Arrays.asList(1, 1))
-                            .build());
-        }
-
-        @Test
         void build_shouldAcceptApplicableGroupWithoutOutcomes() {
             LifeStone actual =
                     stone().augmentationTargetGroupIds(Arrays.asList(1, 2)).build();
@@ -219,12 +183,27 @@ class LifeStoneTest {
     }
 
     @Test
-    void toBuilder_shouldCopyEveryField() {
+    void toBuilderAndJackson_shouldRoundTripEveryField() throws IOException {
         LifeStone expected = fullyPopulated();
 
         LifeStone actual = expected.toBuilder().build();
 
         assertEquals(expected, actual);
         assertEquals(expected.hashCode(), actual.hashCode());
+        assertEquals(8762, actual.getItemTemplateId());
+        assertEquals(LifeStoneGrade.TOP, actual.getGrade());
+        assertEquals("3", actual.getGradeRaw());
+        assertEquals(Integer.valueOf(70), actual.getLevel());
+        assertEquals(Integer.valueOf(76), actual.getMinCharacterLevel());
+        assertEquals(Arrays.asList(1, 2), actual.getAugmentationTargetGroupIds());
+        assertEquals(Arrays.asList(outcome(1, 1, 16001, 40.0), outcome(1, 2, 16500, 0.25)), actual.getOutcomes());
+
+        AugmentationOutcome outcome = actual.getOutcomes().get(1);
+        assertEquals(1, outcome.getAugmentationTargetGroupId());
+        assertEquals(2, outcome.getSlot());
+        assertEquals(16500, outcome.getItemOptionId());
+        assertEquals(0.25, outcome.getChancePercent());
+
+        assertEquals(expected, mapper().readValue(mapper().writeValueAsString(expected), LifeStone.class));
     }
 }

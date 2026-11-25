@@ -9,6 +9,7 @@ import com.google.gson.Gson;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class ItemDbDtoTest {
@@ -40,6 +41,7 @@ class ItemDbDtoTest {
         assertEquals(ItemLocation.EQUIP, item.getLocation());
         assertEquals(attrs, item.getAttributes());
         assertEquals(augmentation, item.getAugmentation());
+        assertEquals(item, item.toBuilder().build());
     }
 
     @Test
@@ -54,20 +56,6 @@ class ItemDbDtoTest {
         assertNull(item.getLocation());
         assertNull(item.getAttributes());
         assertNull(item.getAugmentation());
-    }
-
-    @Test
-    void ownerId_shouldBeNullable_forSentinelZeroSourceValue() {
-        ItemDbDto item = ItemDbDto.builder().id(1L).ownerId(null).build();
-
-        assertNull(item.getOwnerId());
-    }
-
-    @Test
-    void attributes_shouldBeNull_whenTenantDoesNotSyncThem() {
-        ItemDbDto item = ItemDbDto.builder().id(1L).build();
-
-        assertNull(item.getAttributes());
     }
 
     @Test
@@ -103,43 +91,7 @@ class ItemDbDtoTest {
     }
 
     @Test
-    void builder_andConstructor_shouldProduceEqualObjects_whenAllOptionalNull() {
-        ItemDbDto fromBuilder = ItemDbDto.builder().id(1L).build();
-        ItemDbDto fromCtor = new ItemDbDto(1L, null, null, null, null, null, null, null);
-
-        assertEquals(fromCtor, fromBuilder);
-        assertEquals(fromCtor.hashCode(), fromBuilder.hashCode());
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        Map<Attribute, Integer> attrs = Collections.singletonMap(Attribute.HOLY, 120);
-        ItemAugmentation augmentation =
-                ItemAugmentation.builder().option1Id(1000).option2Id(2000).build();
-        ItemDbDto original = new ItemDbDto(1L, 7L, 2L, 5L, 10, ItemLocation.INVENTORY, attrs, augmentation);
-
-        assertEquals(original, original.toBuilder().build());
-    }
-
-    @Test
-    void augmentation_shouldBeNull_whenTenantDoesNotSyncIt() {
-        ItemDbDto item = ItemDbDto.builder().id(1L).build();
-
-        assertNull(item.getAugmentation());
-    }
-
-    @Test
-    void equals_shouldDiffer_whenAugmentationDiffers() {
-        ItemDbDto withAugmentation = ItemDbDto.builder()
-                .id(1L)
-                .augmentation(ItemAugmentation.builder()
-                        .option1Id(1000)
-                        .option2Id(2000)
-                        .build())
-                .build();
-        ItemDbDto withoutAugmentation = ItemDbDto.builder().id(1L).build();
-
-        assertNotEquals(withAugmentation, withoutAugmentation);
-        assertNotEquals(withAugmentation.hashCode(), withoutAugmentation.hashCode());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(ItemDbDto.class).verify();
     }
 }

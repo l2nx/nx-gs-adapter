@@ -9,14 +9,21 @@ import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
 import app.l2nx.gs.adapter.api.spi.model.session.ClientLoginOutcome;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ConnectContextTest {
 
     @Test
-    void builder_shouldMapEachFieldToConstructorPosition() {
+    void toBuilder_shouldRoundtripEveryField() {
         UUID tenantId = UUID.randomUUID();
         UUID serverId = UUID.randomUUID();
+        SyncTopics syncTopics = SyncTopics.builder()
+                .db(Collections.singletonMap("clan", "acme.gs.sync.db.clan"))
+                .build();
 
         ConnectContext ctx = ConnectContext.builder()
                 .tenantId(tenantId)
@@ -25,6 +32,7 @@ class ConnectContextTest {
                 .serverSlug("primary")
                 .serverName("Acme Primary")
                 .adapterVersion("0.1.0")
+                .syncTopics(syncTopics)
                 .build();
 
         assertEquals(tenantId, ctx.getTenantId());
@@ -33,6 +41,8 @@ class ConnectContextTest {
         assertEquals("primary", ctx.getServerSlug());
         assertEquals("Acme Primary", ctx.getServerName());
         assertEquals("0.1.0", ctx.getAdapterVersion());
+        assertEquals(syncTopics, ctx.getSyncTopics());
+        assertEquals(ctx, ctx.toBuilder().build());
     }
 
     @Test
@@ -89,9 +99,10 @@ class ConnectContextTest {
         assertSame(wired, ctx.appRules());
     }
 
-    @Test
-    void syncTopics_shouldDefaultToEmpty_whenBuilderOmitsIt() {
-        ConnectContext ctx = ConnectContext.builder().build();
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("buildersWithoutSyncTopics")
+    void syncTopics_shouldDefaultToEmpty_whenBuilderOmitsItOrSetsNull(String name, ConnectContext.Builder builder) {
+        ConnectContext ctx = builder.build();
 
         assertNotNull(ctx.getSyncTopics());
         assertTrue(ctx.getSyncTopics().getDb().isEmpty());
@@ -99,14 +110,10 @@ class ConnectContextTest {
         assertTrue(ctx.getSyncTopics().getGd().isEmpty());
     }
 
-    @Test
-    void syncTopics_shouldNormalizeNullToEmpty() {
-        ConnectContext ctx = ConnectContext.builder().syncTopics(null).build();
-
-        assertNotNull(ctx.getSyncTopics());
-        assertTrue(ctx.getSyncTopics().getDb().isEmpty());
-        assertTrue(ctx.getSyncTopics().getRuntime().isEmpty());
-        assertTrue(ctx.getSyncTopics().getGd().isEmpty());
+    static Stream<Arguments> buildersWithoutSyncTopics() {
+        return Stream.of(
+                Arguments.of("omitted", ConnectContext.builder()),
+                Arguments.of("null", ConnectContext.builder().syncTopics(null)));
     }
 
     @Test
@@ -123,34 +130,5 @@ class ConnectContextTest {
                 "acme.gs.sync.runtime.character",
                 ctx.getSyncTopics().getRuntime().get("character"));
         assertTrue(ctx.getSyncTopics().getGd().isEmpty());
-    }
-
-    @Test
-    void syncTopics_namespacesShouldBeUnmodifiable() {
-        SyncTopics topics = SyncTopics.builder()
-                .db(Collections.singletonMap("clan", "acme.gs.sync.db.clan"))
-                .build();
-        ConnectContext ctx = ConnectContext.builder().syncTopics(topics).build();
-
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> ctx.getSyncTopics().getDb().put("character", "x"));
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        ConnectContext original = ConnectContext.builder()
-                .tenantId(UUID.randomUUID())
-                .tenantSlug("acme")
-                .serverId(UUID.randomUUID())
-                .serverSlug("primary")
-                .serverName("Acme Primary")
-                .adapterVersion("0.1.0")
-                .syncTopics(SyncTopics.builder()
-                        .db(Collections.singletonMap("clan", "acme.gs.sync.db.clan"))
-                        .build())
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
     }
 }

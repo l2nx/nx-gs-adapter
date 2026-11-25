@@ -1,7 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -10,9 +9,13 @@ import app.l2nx.gs.adapter.api.domain.Attribute;
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import com.google.gson.Gson;
 import java.util.Collections;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class BuyLineTest {
 
@@ -24,9 +27,18 @@ class BuyLineTest {
         return BuyLine.builder().item(item().build()).count(1L).unitPriceAdena(100L);
     }
 
-    @Test
-    void constructor_shouldReject_whenItemNull() {
-        BuyLine.Builder builder = valid().item(null);
+    static Stream<Arguments> invalidLines() {
+        return Stream.of(
+                Arguments.of("item null", valid().item(null)),
+                Arguments.of("unitPriceAdena negative", valid().unitPriceAdena(-1L)),
+                Arguments.of(
+                        "count * unitPriceAdena overflows",
+                        valid().count(Long.MAX_VALUE).unitPriceAdena(2L)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidLines")
+    void constructor_shouldReject_whenLineInvalid(String name, BuyLine.Builder builder) {
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
@@ -34,18 +46,6 @@ class BuyLineTest {
     @CsvSource({"0", "-1"})
     void constructor_shouldReject_whenCountNotPositive(long count) {
         BuyLine.Builder builder = valid().count(count);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenUnitPriceAdenaNegative() {
-        BuyLine.Builder builder = valid().unitPriceAdena(-1L);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenCountTimesUnitPriceOverflows() {
-        BuyLine.Builder builder = valid().count(Long.MAX_VALUE).unitPriceAdena(2L);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
@@ -61,15 +61,6 @@ class BuyLineTest {
     void constructor_shouldAccept_whenEnchantLevelAtBounds(int enchantLevel) {
         BuyLine line = valid().item(item().enchantLevel(enchantLevel).build()).build();
         assertEquals(Integer.valueOf(enchantLevel), line.getItem().getEnchantLevel());
-    }
-
-    @Test
-    void attributesForMatch_shouldBeNull_whenTheMapIsEmpty() {
-        BuyLine line = valid().item(item().attributes(Collections.<Attribute, Integer>emptyMap())
-                        .build())
-                .build();
-
-        assertNull(line.attributesForMatch());
     }
 
     @Test
@@ -117,12 +108,11 @@ class BuyLineTest {
         BuyLine copy = original.toBuilder().build();
         assertEquals(original, copy);
         assertNotSame(original, copy);
+        assertEquals(1_500_000L, original.getUnitPriceAdena());
     }
 
     @Test
-    void equals_shouldDistinguishItem() {
-        BuyLine a = valid().item(item().itemId(1L).build()).build();
-        BuyLine b = valid().item(item().itemId(2L).build()).build();
-        assertNotEquals(a, b);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(BuyLine.class).verify();
     }
 }

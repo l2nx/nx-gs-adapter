@@ -40,16 +40,6 @@ class AugmentationTargetGroupTest {
             assertEquals(3, actual.getAsJsonArray("itemTemplateIds").size());
             assertEquals(200, actual.getAsJsonArray("itemTemplateIds").get(1).getAsInt());
         }
-
-        @Test
-        void readValue_shouldRoundTripEveryField() throws IOException {
-            AugmentationTargetGroup expected = fullyPopulated();
-
-            AugmentationTargetGroup actual =
-                    mapper().readValue(mapper().writeValueAsString(expected), AugmentationTargetGroup.class);
-
-            assertEquals(expected, actual);
-        }
     }
 
     @Nested
@@ -69,32 +59,31 @@ class AugmentationTargetGroupTest {
         }
 
         @Test
-        void getItemTemplateIds_shouldBeUnmodifiable() {
-            AugmentationTargetGroup actual = fullyPopulated();
-
-            assertThrows(
-                    UnsupportedOperationException.class,
-                    () -> actual.getItemTemplateIds().add(1));
-        }
-
-        @Test
-        void constructor_shouldCopyMembers_soLaterSourceChangesDoNotLeak() {
+        void constructor_shouldCopyAndFreezeMembers() {
             List<Integer> source = new ArrayList<Integer>(Arrays.asList(1, 2));
             AugmentationTargetGroup actual = new AugmentationTargetGroup(1, source);
 
             source.add(3);
 
             assertEquals(Arrays.asList(1, 2), actual.getItemTemplateIds());
+            assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> actual.getItemTemplateIds().add(1));
         }
     }
 
     @Test
-    void toBuilder_shouldCopyEveryField() {
+    void toBuilderAndJackson_shouldRoundTripEveryField() throws IOException {
         AugmentationTargetGroup expected = fullyPopulated();
 
         AugmentationTargetGroup actual = expected.toBuilder().build();
 
         assertEquals(expected, actual);
         assertEquals(expected.hashCode(), actual.hashCode());
+        assertEquals(7, actual.getId());
+        assertEquals(Arrays.asList(100, 200, 300), actual.getItemTemplateIds());
+
+        assertEquals(
+                expected, mapper().readValue(mapper().writeValueAsString(expected), AugmentationTargetGroup.class));
     }
 }

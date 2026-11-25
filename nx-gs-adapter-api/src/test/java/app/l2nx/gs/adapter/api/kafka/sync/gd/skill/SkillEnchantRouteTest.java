@@ -3,30 +3,33 @@ package app.l2nx.gs.adapter.api.kafka.sync.gd.skill;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class SkillEnchantRouteTest {
 
-    @Test
-    void build_shouldRejectMissingNode() {
-        assertThrows(
-                NullPointerException.class,
-                () -> SkillEnchantRoute.builder()
-                        .baseLevel(37)
-                        .route(1)
-                        .enchantLevel(1)
-                        .build());
+    private static Stream<Arguments> invalidNodes() {
+        return Stream.of(
+                Arguments.of("missing", NullPointerException.class, null),
+                Arguments.of(
+                        "level mismatch",
+                        IllegalArgumentException.class,
+                        SkillLevel.builder().level(36).build()));
     }
 
-    @Test
-    void build_shouldRejectNodeLevelMismatch() {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidNodes")
+    void build_shouldReject_whenNodeInvalid(String reason, Class<? extends Exception> expected, SkillLevel node) {
         assertThrows(
-                IllegalArgumentException.class,
+                expected,
                 () -> SkillEnchantRoute.builder()
                         .baseLevel(37)
                         .route(1)
                         .enchantLevel(1)
-                        .node(SkillLevel.builder().level(36).build())
+                        .node(node)
                         .build());
     }
 

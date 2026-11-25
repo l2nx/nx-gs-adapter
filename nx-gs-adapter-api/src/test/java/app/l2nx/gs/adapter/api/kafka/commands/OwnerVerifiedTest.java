@@ -6,10 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
+import app.l2nx.gs.adapter.api.kafka.commands.character.revive.ReviveCharacterCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.character.revive.model.RestartPoint;
 import app.l2nx.gs.adapter.api.kafka.commands.chat.SendChatMessageCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.chat.model.ChatAudience;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.AcceptMailCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.SendPlayerMailCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.offline.fishing.CheckOfflineFishingCommand;
+import app.l2nx.gs.adapter.api.kafka.commands.offline.fishing.StartOfflineFishingCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.BuyFromPrivateStoreCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.SellToPrivateStoreCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.privatestore.StartPrivateStoreBuyCommand;
@@ -29,7 +33,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -126,7 +129,7 @@ class OwnerVerifiedTest {
                         null,
                         null,
                         true,
-                        java.util.UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001"),
+                        UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001"),
                         Instant.parse("2026-08-11T12:00:00Z"),
                         TestInitiators.USER)),
                 Arguments.of(new AcceptMailCommand(
@@ -136,15 +139,39 @@ class OwnerVerifiedTest {
                         0L,
                         null,
                         true,
-                        java.util.UUID.fromString("5b1f3c2e-0000-4000-8000-000000000002"),
+                        UUID.fromString("5b1f3c2e-0000-4000-8000-000000000002"),
                         Instant.parse("2026-08-11T12:00:00Z"),
-                        TestInitiators.USER)));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("verifiedCommands")
-    void command_shouldImplementOwnerVerified(OwnerVerified command) {
-        assertTrue(command.isOwnerVerified());
+                        TestInitiators.USER)),
+                Arguments.of(ReviveCharacterCommand.builder()
+                        .characterId(5)
+                        .restartPoint(RestartPoint.TOWN)
+                        .disconnectClient(true)
+                        .ownerVerified(true)
+                        .deadline(Instant.parse("2026-10-25T12:00:00Z"))
+                        .idempotencyKey(UUID.fromString("5b1f3c2e-0000-4000-8000-000000000011"))
+                        .initiator(TestInitiators.USER)
+                        .build()),
+                Arguments.of(StartOfflineFishingCommand.builder()
+                        .characterId(5)
+                        .durationMs(3_600_000L)
+                        .rodItemId(100)
+                        .baitItemId(200)
+                        .fishingShotItemId(300)
+                        .ownerVerified(true)
+                        .deadline(Instant.parse("2026-10-15T12:00:00Z"))
+                        .idempotencyKey(UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001"))
+                        .initiator(TestInitiators.USER)
+                        .build()),
+                Arguments.of(CheckOfflineFishingCommand.builder()
+                        .characterId(5)
+                        .durationMs(3_600_000L)
+                        .rodItemId(100)
+                        .baitItemId(200)
+                        .fishingShotItemId(300)
+                        .ownerVerified(true)
+                        .deadline(Instant.parse("2026-10-15T12:00:00Z"))
+                        .initiator(TestInitiators.USER)
+                        .build()));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -167,12 +194,25 @@ class OwnerVerifiedTest {
         assertFalse(assertInstanceOf(OwnerVerified.class, copy).isOwnerVerified());
     }
 
-    @Test
-    void builder_shouldDefaultToNotVerified() {
-        assertFalse(StopPrivateStoreCommand.builder()
-                .characterId(1)
-                .initiator(TestInitiators.USER)
-                .build()
-                .isOwnerVerified());
+    private static Stream<Arguments> commandsBuiltWithoutOwnerVerified() {
+        return Stream.of(
+                Arguments.of(StopPrivateStoreCommand.builder()
+                        .characterId(1)
+                        .initiator(TestInitiators.USER)
+                        .build()),
+                Arguments.of(SendPlayerMailCommand.builder()
+                        .senderCharacterId(1L)
+                        .recipientCharacterId(2L)
+                        .title("Hello")
+                        .idempotencyKey(UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001"))
+                        .deadline(Instant.parse("2026-08-11T12:00:00Z"))
+                        .initiator(TestInitiators.USER)
+                        .build()));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("commandsBuiltWithoutOwnerVerified")
+    void builder_shouldDefaultToNotVerified(OwnerVerified command) {
+        assertFalse(command.isOwnerVerified());
     }
 }

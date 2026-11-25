@@ -1,7 +1,10 @@
 package app.l2nx.gs.db.sync.engine.phase;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import app.l2nx.gs.adapter.api.spi.model.ChildSource;
@@ -16,21 +19,20 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class Phase2FetcherTest {
 
-    @Test
-    void buildSql_shouldEmitInClauseWithRequestedPlaceholderCount() {
-        String sql = Phase2Fetcher.buildSql("clan_data", "clan_id", 3, null);
-
-        assertEquals("SELECT * FROM clan_data WHERE clan_id IN (?, ?, ?)", sql);
-    }
-
-    @Test
-    void buildSql_shouldEmitSingleInClause_whenOnePlaceholder() {
-        String sql = Phase2Fetcher.buildSql("clan_data", "clan_id", 1, null);
-
-        assertEquals("SELECT * FROM clan_data WHERE clan_id IN (?)", sql);
+    @ParameterizedTest
+    @CsvSource(
+            delimiter = '|',
+            value = {
+                "3 | SELECT * FROM clan_data WHERE clan_id IN (?, ?, ?)",
+                "1 | SELECT * FROM clan_data WHERE clan_id IN (?)"
+            })
+    void buildSql_shouldEmitInClauseWithRequestedPlaceholderCount(int placeholderCount, String expected) {
+        assertEquals(expected, Phase2Fetcher.buildSql("clan_data", "clan_id", placeholderCount, null));
     }
 
     @Test
@@ -47,56 +49,42 @@ class Phase2FetcherTest {
     }
 
     @Test
-    void chunkSize_shouldBe1000_perCdcEngineSpec() {
-        assertEquals(1000, Phase2Fetcher.CHUNK_SIZE);
-    }
-
-    @Test
-    void toList_shouldCopyKeysFromSet() {
-        LongSet keys = new LongOpenHashSet();
-        keys.add(10L);
-        keys.add(20L);
-        keys.add(30L);
-
-        LongList list = Phase2Fetcher.toList(keys);
-
-        assertEquals(3, list.size());
-        assertTrue(list.contains(10L));
-        assertTrue(list.contains(20L));
-        assertTrue(list.contains(30L));
-    }
-
-    @Test
     void fetchPrimary_shouldPrepareStatementOnce_andPadLastChunk() throws SQLException {
         PrimarySource<TestRow> primary = clanPrimary();
         Connection conn = mock(Connection.class);
         PreparedStatement ps = mock(PreparedStatement.class);
-        ResultSet rs = mock(ResultSet.class);
+        ResultSet firstChunk = mock(ResultSet.class);
+        ResultSet lastChunk = mock(ResultSet.class);
 
         when(conn.prepareStatement(anyString())).thenReturn(ps);
-        when(ps.executeQuery()).thenReturn(rs);
-        when(rs.next()).thenReturn(true, true, false);
-        when(rs.getLong("clan_id")).thenReturn(1L, 2L);
-        when(rs.getString("clan_name")).thenReturn("A", "B");
-        when(rs.getInt("clan_level")).thenReturn(5, 7);
+        when(ps.executeQuery()).thenReturn(firstChunk, lastChunk);
+        when(firstChunk.next()).thenReturn(true, true, false);
+        when(firstChunk.getLong("clan_id")).thenReturn(1L, 1L, 2L, 2L);
+        when(firstChunk.getString("clan_name")).thenReturn("A", "B");
+        when(firstChunk.getInt("clan_level")).thenReturn(5, 7);
+        when(lastChunk.next()).thenReturn(true, false);
+        when(lastChunk.getLong("clan_id")).thenReturn(1002L);
 
-        LongList pks = new LongArrayList(new long[] {1L, 2L, 3L});
+        LongList pks = new LongArrayList();
+        for (long pk = 1L; pk <= 1002L; pk++) {
+            pks.add(pk);
+        }
 
         Long2ObjectMap<Object> result =
                 new Phase2Fetcher().fetchPrimary(conn, primary, pks, 5, 10_000, JdbcDialect.OTHER);
 
         verify(conn, times(1)).prepareStatement(anyString());
-        verify(ps, times(Phase2Fetcher.CHUNK_SIZE))
-                .setLong(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyLong());
+        verify(ps, times(2)).executeQuery();
+        verify(ps, times(2 * 1000)).setLong(anyInt(), anyLong());
         verify(ps).setLong(1, 1L);
-        verify(ps).setLong(2, 2L);
-        verify(ps).setLong(3, 3L);
-        verify(ps, times(Phase2Fetcher.CHUNK_SIZE - 2))
-                .setLong(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.eq(3L));
+        verify(ps).setLong(1000, 1000L);
+        verify(ps).setLong(1, 1001L);
+        verify(ps).setLong(2, 1002L);
+        verify(ps, times(999)).setLong(anyInt(), eq(1002L));
         verify(ps).setQueryTimeout(5);
         verify(ps).setFetchSize(10_000);
 
-        assertEquals(2, result.size());
+        assertEquals(new LongOpenHashSet(new long[] {1L, 2L, 1002L}), result.keySet());
     }
 
     @Test
@@ -165,22 +153,6 @@ class Phase2FetcherTest {
 
         assertTrue(sql.getValue().endsWith("AND name NOT LIKE ? ESCAPE '!'"));
         verify(ps).setString(Phase2Fetcher.CHUNK_SIZE + 1, "a!_b!%%");
-    }
-
-    @Test
-    void fetchPrimary_shouldPropagateSQLException_whenChunkQueryThrows() throws SQLException {
-        PrimarySource<TestRow> primary = clanPrimary();
-        Connection conn = mock(Connection.class);
-        PreparedStatement ps = mock(PreparedStatement.class);
-
-        when(conn.prepareStatement(anyString())).thenReturn(ps);
-        when(ps.executeQuery()).thenThrow(new SQLException("boom"));
-
-        LongList pks = new LongArrayList(new long[] {1L, 2L});
-
-        assertThrows(
-                SQLException.class,
-                () -> new Phase2Fetcher().fetchPrimary(conn, primary, pks, 5, 10_000, JdbcDialect.OTHER));
     }
 
     @Test

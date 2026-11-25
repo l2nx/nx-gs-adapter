@@ -22,21 +22,15 @@ class EscalationTrackerTest {
         }
 
         @Test
-        void observe_shouldReturnRepeat_whenInsideGraceWindow() {
-            tracker.observe();
-            now.set(GRACE_MS - 1L);
-
-            assertEquals(EscalationTracker.Stage.REPEAT, tracker.observe());
-        }
-
-        @Test
-        void observe_shouldKeepReturningRepeat_forMultipleObservationsInsideGraceWindow() {
+        void observe_shouldReturnRepeat_whileInsideGraceWindow() {
             tracker.observe();
             now.set(1L);
-
             assertEquals(EscalationTracker.Stage.REPEAT, tracker.observe());
 
             now.set(2L);
+            assertEquals(EscalationTracker.Stage.REPEAT, tracker.observe());
+
+            now.set(GRACE_MS - 1L);
             assertEquals(EscalationTracker.Stage.REPEAT, tracker.observe());
         }
 
@@ -67,15 +61,6 @@ class EscalationTrackerTest {
         void reset_shouldMakeNextObservationFirst_afterEscalation() {
             tracker.observe();
             now.set(GRACE_MS);
-            tracker.observe();
-
-            tracker.reset();
-
-            assertEquals(EscalationTracker.Stage.FIRST, tracker.observe());
-        }
-
-        @Test
-        void reset_shouldMakeNextObservationFirst_beforeEscalation() {
             tracker.observe();
 
             tracker.reset();

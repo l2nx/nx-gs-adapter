@@ -6,11 +6,16 @@ import app.l2nx.gs.adapter.api.kafka.commands.captcha.model.CaptchaRoundResult;
 import app.l2nx.gs.adapter.api.kafka.commands.captcha.model.WellKnownCaptchaOutcomes;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class SendCaptchaResultTest {
 
@@ -26,17 +31,24 @@ class SendCaptchaResultTest {
                 .durationMs(150_000L);
     }
 
-    @Test
-    void constructor_shouldRejectMissingOutcome() {
-        assertThrows(IllegalArgumentException.class, () -> valid().outcome(null).build());
+    static Stream<Arguments> missingRequired() {
+        return Stream.of(
+                missing("outcome", () -> valid().outcome(null).build()),
+                missing("startedAt", () -> valid().startedAt(null).build()),
+                missing("finishedAt", () -> valid().finishedAt(null).build()),
+                missing(
+                        "round questionType",
+                        () -> CaptchaRoundResult.builder().index(1).build()));
     }
 
-    @Test
-    void constructor_shouldRejectMissingTimestamps() {
-        assertThrows(
-                IllegalArgumentException.class, () -> valid().startedAt(null).build());
-        assertThrows(
-                IllegalArgumentException.class, () -> valid().finishedAt(null).build());
+    private static Arguments missing(String field, Executable build) {
+        return Arguments.of(field, build);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("missingRequired")
+    void constructor_shouldReject_whenRequiredFieldIsMissing(String field, Executable build) {
+        assertThrows(IllegalArgumentException.class, build);
     }
 
     @Test
@@ -73,21 +85,9 @@ class SendCaptchaResultTest {
     }
 
     @Test
-    void equals_shouldDistinguishOnRounds() {
-        SendCaptchaResult a = valid().build();
-        SendCaptchaResult b = valid().rounds(Collections.singletonList(CaptchaRoundResult.builder()
-                        .index(1)
-                        .questionType("SHAPE_COUNT")
-                        .build()))
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void roundResult_shouldRejectMissingQuestionType() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> CaptchaRoundResult.builder().index(1).build());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(SendCaptchaResult.class)
+                .withNonnullFields("characterId", "outcome", "startedAt", "finishedAt", "rounds", "metadata")
+                .verify();
     }
 }

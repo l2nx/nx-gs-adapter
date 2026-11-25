@@ -2,8 +2,13 @@ package app.l2nx.gs.adapter.api.kafka.events.raid.respawn;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.kafka.events.schedule.RecurringSchedule;
+import app.l2nx.gs.adapter.api.kafka.events.schedule.RecurringSlot;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.OffsetTime;
 import java.util.*;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class BossRespawnSnapshotEventTest {
@@ -38,18 +43,7 @@ class BossRespawnSnapshotEventTest {
     }
 
     @Test
-    void getBosses_shouldBeUnmodifiable() {
-        BossRespawnSnapshotEvent event = BossRespawnSnapshotEvent.builder()
-                .eventId(id())
-                .bosses(new ArrayList<>(Collections.singletonList(deadBoss())))
-                .build();
-
-        assertThrows(
-                UnsupportedOperationException.class, () -> event.getBosses().add(deadBoss()));
-    }
-
-    @Test
-    void constructor_shouldDefensivelyCopyBossesList() {
+    void constructor_shouldDefensivelyCopyAndFreezeBossesList() {
         List<BossRespawnEntry> source = new ArrayList<>();
         source.add(deadBoss());
 
@@ -59,6 +53,8 @@ class BossRespawnSnapshotEventTest {
         source.add(deadBoss());
 
         assertEquals(1, event.getBosses().size());
+        assertThrows(
+                UnsupportedOperationException.class, () -> event.getBosses().add(deadBoss()));
     }
 
     @Test
@@ -83,18 +79,14 @@ class BossRespawnSnapshotEventTest {
         BossRespawnSnapshotEvent copy = original.toBuilder().build();
         assertEquals(original, copy);
         assertNotSame(original, copy);
+        assertEquals(id(), copy.getEventId());
+        assertEquals(Collections.singletonList(deadBoss()), copy.getBosses());
+        assertEquals(Collections.singletonMap("source", "raidbossmanager"), copy.getMetadata());
     }
 
     @Test
-    void equals_shouldDistinguishBosses() {
-        BossRespawnSnapshotEvent empty =
-                BossRespawnSnapshotEvent.builder().eventId(id()).build();
-        BossRespawnSnapshotEvent withBoss = BossRespawnSnapshotEvent.builder()
-                .eventId(id())
-                .bosses(Collections.singletonList(deadBoss()))
-                .build();
-
-        assertNotEquals(empty, withBoss);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(BossRespawnSnapshotEvent.class).verify();
     }
 
     @Test
@@ -130,12 +122,23 @@ class BossRespawnSnapshotEventTest {
     }
 
     @Test
-    void entry_toBuilder_shouldRoundtrip() {
-        BossRespawnEntry original = deadBoss();
+    void entry_toBuilder_shouldRoundtripAllFields() {
+        RecurringSchedule schedule = new RecurringSchedule(Collections.singletonList(
+                new RecurringSlot(EnumSet.of(DayOfWeek.TUESDAY), OffsetTime.parse("19:00:00+03:00"), 30)));
+        BossRespawnEntry original = deadBoss().toBuilder()
+                .metadata(Collections.singletonMap("zone", "antharas-lair"))
+                .schedule(schedule)
+                .build();
         BossRespawnEntry copy = original.toBuilder().build();
 
         assertEquals(original, copy);
         assertEquals(original.hashCode(), copy.hashCode());
         assertNotSame(original, copy);
+        assertEquals(29020, copy.getNpcId());
+        assertEquals(Integer.valueOf(75), copy.getLevel());
+        assertEquals(WellKnownBossStatuses.DEAD, copy.getStatus());
+        assertEquals(Instant.parse("2026-06-01T12:00:00Z"), copy.getNextRespawnAt());
+        assertEquals(Collections.singletonMap("zone", "antharas-lair"), copy.getMetadata());
+        assertEquals(schedule, copy.getSchedule());
     }
 }

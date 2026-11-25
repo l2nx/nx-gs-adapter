@@ -13,7 +13,7 @@ import java.io.IOException;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class FishingShotTest {
 
@@ -53,46 +53,34 @@ class FishingShotTest {
 
             assertEquals(expected, actual);
         }
-
-        @Test
-        void readValue_shouldRoundTripEveryField() throws IOException {
-            FishingShot expected = fullyPopulated();
-
-            FishingShot actual = mapper().readValue(mapper().writeValueAsString(expected), FishingShot.class);
-
-            assertEquals(expected, actual);
-        }
     }
 
     @Nested
     class Validate {
 
-        @ParameterizedTest(name = "itemTemplateId {0}")
-        @ValueSource(ints = {0, -1})
-        void build_shouldRejectItemTemplateId_whenNotPositive(int itemTemplateId) {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> FishingShot.builder().itemTemplateId(itemTemplateId).build());
-        }
-
-        @Test
-        void build_shouldRejectGrade_whenEvent() {
+        @ParameterizedTest(name = "itemTemplateId {0}, grade {1}")
+        @CsvSource({"0,", "-1,", "6540,EVENT"})
+        void build_shouldReject_whenItemTemplateIdNotPositiveOrGradeEvent(int itemTemplateId, ItemGrade grade) {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> FishingShot.builder()
-                            .itemTemplateId(6540)
-                            .grade(ItemGrade.EVENT)
+                            .itemTemplateId(itemTemplateId)
+                            .grade(grade)
                             .build());
         }
     }
 
     @Test
-    void toBuilder_shouldCopyEveryField() {
+    void toBuilderAndJackson_shouldRoundTripEveryField() throws IOException {
         FishingShot expected = fullyPopulated();
 
         FishingShot actual = expected.toBuilder().build();
 
         assertEquals(expected, actual);
         assertEquals(expected.hashCode(), actual.hashCode());
+        assertEquals(6540, actual.getItemTemplateId());
+        assertEquals(ItemGrade.S, actual.getGrade());
+
+        assertEquals(expected, mapper().readValue(mapper().writeValueAsString(expected), FishingShot.class));
     }
 }

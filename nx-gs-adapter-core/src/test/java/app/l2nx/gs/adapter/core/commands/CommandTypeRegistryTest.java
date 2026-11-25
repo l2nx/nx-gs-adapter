@@ -32,22 +32,15 @@ class CommandTypeRegistryTest {
     private static final CommandHandler<FakeCommandB, Void> NOOP_HANDLER_B = (cmd, ctx) -> CommandResult.<Void>ok();
 
     @Test
-    void register_firstCall_shouldReturnFalse() {
+    void register_shouldReplaceTheHandlerAndReportIt_whenTheSameClassRegistersAgain() {
         CommandTypeRegistry registry = new CommandTypeRegistry();
+        CommandHandler<FakeCommandA, Void> next = (cmd, ctx) -> CommandResult.<Void>ok();
 
-        boolean overwrote = registry.register(FakeCommandA.class, NOOP_HANDLER_A);
+        assertFalse(registry.register(FakeCommandA.class, NOOP_HANDLER_A));
+        assertTrue(registry.register(FakeCommandA.class, NOOP_HANDLER_A));
+        assertTrue(registry.register(FakeCommandA.class, next));
 
-        assertFalse(overwrote);
-    }
-
-    @Test
-    void register_secondCallSameClass_shouldReturnTrue() {
-        CommandTypeRegistry registry = new CommandTypeRegistry();
-        registry.register(FakeCommandA.class, NOOP_HANDLER_A);
-
-        boolean overwrote = registry.register(FakeCommandA.class, NOOP_HANDLER_A);
-
-        assertTrue(overwrote);
+        assertSame(next, registry.lookup("FakeCommandA").handler());
     }
 
     static final class Other {
@@ -65,35 +58,13 @@ class CommandTypeRegistryTest {
         registry.register(FakeCommandA.class, NOOP_HANDLER_A);
         CommandHandler<Other.FakeCommandA, Void> clashing = (cmd, ctx) -> CommandResult.<Void>ok();
 
-        IllegalStateException thrown = assertThrows(
-                IllegalStateException.class, () -> registry.register(Other.FakeCommandA.class, clashing));
+        IllegalStateException thrown =
+                assertThrows(IllegalStateException.class, () -> registry.register(Other.FakeCommandA.class, clashing));
 
         assertTrue(thrown.getMessage().contains("'FakeCommandA'"), thrown.getMessage());
         assertTrue(thrown.getMessage().contains(FakeCommandA.class.getName()), thrown.getMessage());
         assertTrue(thrown.getMessage().contains(Other.FakeCommandA.class.getName()), thrown.getMessage());
         assertEquals(FakeCommandA.class, registry.lookup("FakeCommandA").commandClass());
-    }
-
-    @Test
-    void register_shouldReplaceTheHandler_whenTheSameClassRegistersAgain() {
-        CommandTypeRegistry registry = new CommandTypeRegistry();
-        registry.register(FakeCommandA.class, NOOP_HANDLER_A);
-        CommandHandler<FakeCommandA, Void> next = (cmd, ctx) -> CommandResult.<Void>ok();
-
-        registry.register(FakeCommandA.class, next);
-
-        assertSame(next, registry.lookup("FakeCommandA").handler());
-    }
-
-    @Test
-    void lookup_byMessageType_shouldReturnBoundClass() {
-        CommandTypeRegistry registry = new CommandTypeRegistry();
-        registry.register(FakeCommandA.class, NOOP_HANDLER_A);
-
-        CommandTypeBinding binding = registry.lookup("FakeCommandA");
-
-        assertNotNull(binding);
-        assertEquals(FakeCommandA.class, binding.commandClass());
     }
 
     @Test

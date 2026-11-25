@@ -2,11 +2,11 @@ package app.l2nx.gs.adapter.api.kafka.commands.sync;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class ResyncEntitiesCommandTest {
@@ -14,7 +14,7 @@ class ResyncEntitiesCommandTest {
     private static final UUID RESYNC_ID = UUID.fromString("018f0000-0000-7000-8000-000000000001");
 
     @Test
-    void builder_shouldRoundtripFields() {
+    void toBuilder_shouldRoundtripAllFields() {
         ResyncEntitiesCommand cmd = ResyncEntitiesCommand.builder()
                 .resyncId(RESYNC_ID)
                 .entities(Arrays.asList("character", "item"))
@@ -23,6 +23,8 @@ class ResyncEntitiesCommandTest {
 
         assertEquals(RESYNC_ID, cmd.getResyncId());
         assertEquals(Arrays.asList("character", "item"), cmd.getEntities());
+        assertEquals(cmd, cmd.toBuilder().build());
+        assertEquals(TestInitiators.USER, cmd.getInitiator());
     }
 
     @Test
@@ -53,34 +55,9 @@ class ResyncEntitiesCommandTest {
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
-        ResyncEntitiesCommand original = ResyncEntitiesCommand.builder()
-                .resyncId(RESYNC_ID)
-                .entities(Arrays.asList("clan"))
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
-    }
-
-    @Test
-    void equals_shouldDistinguishOnEntities() {
-        ResyncEntitiesCommand a = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("clan"), TestInitiators.USER);
-        ResyncEntitiesCommand b = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("item"), TestInitiators.USER);
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void hashCode_shouldMatchEquals() {
-        ResyncEntitiesCommand a = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("clan"), TestInitiators.USER);
-        ResyncEntitiesCommand b = new ResyncEntitiesCommand(RESYNC_ID, Arrays.asList("clan"), TestInitiators.USER);
-
-        assertEquals(a.hashCode(), b.hashCode());
-    }
-
-    @Test
-    void implementsNxCommandMarker() {
-        assertInstanceOf(NxCommand.class, new ResyncEntitiesCommand(RESYNC_ID, null, TestInitiators.USER));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(ResyncEntitiesCommand.class)
+                .withNonnullFields("resyncId", "entities")
+                .verify();
     }
 }

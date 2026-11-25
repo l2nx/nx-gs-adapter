@@ -3,8 +3,14 @@ package app.l2nx.gs.adapter.api.kafka.events.account;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.UUID;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class AccountAuthAttemptEventTest {
 
@@ -13,7 +19,7 @@ class AccountAuthAttemptEventTest {
     private static final Instant SAMPLE_AT = Instant.parse("2026-06-01T12:00:00Z");
 
     @Test
-    void builder_shouldPopulateAllFields() {
+    void toBuilder_shouldRoundtripAllFields() {
         AccountAuthAttemptEvent event = AccountAuthAttemptEvent.builder()
                 .eventId(SAMPLE_EVENT_ID)
                 .serverId(SAMPLE_SERVER_ID)
@@ -23,6 +29,7 @@ class AccountAuthAttemptEventTest {
                 .outcome(AuthOutcomes.WRONG_PASSWORD)
                 .attemptedAt(SAMPLE_AT)
                 .failureDetail("third try")
+                .metadata(Collections.singletonMap("k", "v"))
                 .build();
 
         assertEquals(SAMPLE_EVENT_ID, event.getEventId());
@@ -33,137 +40,38 @@ class AccountAuthAttemptEventTest {
         assertEquals("WRONG_PASSWORD", event.getOutcome());
         assertEquals(SAMPLE_AT, event.getAttemptedAt());
         assertEquals("third try", event.getFailureDetail());
+        assertEquals(Collections.singletonMap("k", "v"), event.getMetadata());
+        assertEquals(event, event.toBuilder().build());
+        assertEquals(minimal().build(), minimal().build().toBuilder().build());
     }
 
     @Test
-    void getHwid_shouldBeNullable_forProtocolWithoutHwid() {
-        AccountAuthAttemptEvent event = minimal().build();
-
-        assertNull(event.getHwid());
-    }
-
-    @Test
-    void getFailureDetail_shouldBeNullable_forSuccessfulLogin() {
+    void getters_shouldReturnNull_whenOptionalFieldsOmitted() {
         AccountAuthAttemptEvent event = minimal().outcome(AuthOutcomes.SUCCESS).build();
 
+        assertNull(event.getHwid());
         assertNull(event.getFailureDetail());
     }
 
-    @Test
-    void constructor_shouldRejectNullEventId() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new AccountAuthAttemptEvent(
-                        null, SAMPLE_SERVER_ID, "a", "1.1.1.1", null, AuthOutcomes.SUCCESS, SAMPLE_AT, null, null));
+    static Stream<Arguments> missingRequiredFields() {
+        return Stream.of(
+                Arguments.of("eventId", minimal().eventId(null)),
+                Arguments.of("serverId", minimal().serverId(null)),
+                Arguments.of("accountName", minimal().accountName(null)),
+                Arguments.of("clientIp", minimal().clientIp(null)),
+                Arguments.of("outcome", minimal().outcome(null)),
+                Arguments.of("attemptedAt", minimal().attemptedAt(null)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("missingRequiredFields")
+    void constructor_shouldReject_whenRequiredFieldNull(String name, AccountAuthAttemptEvent.Builder builder) {
+        assertThrows(NullPointerException.class, builder::build);
     }
 
     @Test
-    void constructor_shouldRejectNullServerId() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new AccountAuthAttemptEvent(
-                        SAMPLE_EVENT_ID, null, "a", "1.1.1.1", null, AuthOutcomes.SUCCESS, SAMPLE_AT, null, null));
-    }
-
-    @Test
-    void constructor_shouldRejectNullAccountName() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new AccountAuthAttemptEvent(
-                        SAMPLE_EVENT_ID,
-                        SAMPLE_SERVER_ID,
-                        null,
-                        "1.1.1.1",
-                        null,
-                        AuthOutcomes.SUCCESS,
-                        SAMPLE_AT,
-                        null,
-                        null));
-    }
-
-    @Test
-    void constructor_shouldRejectNullClientIp() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new AccountAuthAttemptEvent(
-                        SAMPLE_EVENT_ID,
-                        SAMPLE_SERVER_ID,
-                        "a",
-                        null,
-                        null,
-                        AuthOutcomes.SUCCESS,
-                        SAMPLE_AT,
-                        null,
-                        null));
-    }
-
-    @Test
-    void constructor_shouldRejectNullOutcome() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new AccountAuthAttemptEvent(
-                        SAMPLE_EVENT_ID, SAMPLE_SERVER_ID, "a", "1.1.1.1", null, null, SAMPLE_AT, null, null));
-    }
-
-    @Test
-    void constructor_shouldRejectNullAttemptedAt() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new AccountAuthAttemptEvent(
-                        SAMPLE_EVENT_ID,
-                        SAMPLE_SERVER_ID,
-                        "a",
-                        "1.1.1.1",
-                        null,
-                        AuthOutcomes.SUCCESS,
-                        null,
-                        null,
-                        null));
-    }
-
-    @Test
-    void toBuilder_shouldRoundtripAllFields() {
-        AccountAuthAttemptEvent original = AccountAuthAttemptEvent.builder()
-                .eventId(SAMPLE_EVENT_ID)
-                .serverId(SAMPLE_SERVER_ID)
-                .accountName("olya")
-                .clientIp("10.0.0.1")
-                .hwid("hw-abc")
-                .outcome(AuthOutcomes.BANNED)
-                .attemptedAt(SAMPLE_AT)
-                .failureDetail("banned until 2026-12")
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
-    }
-
-    @Test
-    void equals_shouldDistinguishOutcome() {
-        AccountAuthAttemptEvent a = minimal().outcome(AuthOutcomes.SUCCESS).build();
-        AccountAuthAttemptEvent b =
-                minimal().outcome(AuthOutcomes.WRONG_PASSWORD).build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishHwid() {
-        AccountAuthAttemptEvent a = minimal().hwid("x").build();
-        AccountAuthAttemptEvent b = minimal().hwid("y").build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void toString_shouldRenderAccountAndOutcome() {
-        AccountAuthAttemptEvent event = minimal()
-                .accountName("alice")
-                .outcome(AuthOutcomes.WRONG_PASSWORD)
-                .build();
-
-        String s = event.toString();
-        assertTrue(s.contains("accountName=alice"));
-        assertTrue(s.contains("outcome=WRONG_PASSWORD"));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(AccountAuthAttemptEvent.class).verify();
     }
 
     @Test

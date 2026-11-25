@@ -2,13 +2,14 @@ package app.l2nx.gs.adapter.api.kafka.events.privatestore.model;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class PrivateStoreFeeTest {
 
-    @Test
-    void of_shouldRejectNegativeAdenaAndNegativePercent() {
-        assertThrows(IllegalArgumentException.class, () -> PrivateStoreFee.of(-1L, 5));
-        assertThrows(IllegalArgumentException.class, () -> PrivateStoreFee.of(1L, -1));
+    @ParameterizedTest(name = "adena={0} percent={1}")
+    @CsvSource({"-1, 5", "1, -1"})
+    void of_shouldRejectNegativeAdenaAndNegativePercent(long adena, int percent) {
+        assertThrows(IllegalArgumentException.class, () -> PrivateStoreFee.of(adena, percent));
     }
 }

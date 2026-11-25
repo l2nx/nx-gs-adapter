@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.character;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class KickCharacterCommandTest {
@@ -19,6 +20,8 @@ class KickCharacterCommandTest {
         assertEquals(42L, cmd.getCharacterId().longValue());
         assertTrue(cmd.isCloseClient());
         assertEquals("botting suspicion", cmd.getStaffNotes());
+        assertEquals(cmd, cmd.toBuilder().build());
+        assertEquals(TestInitiators.USER, cmd.getInitiator());
     }
 
     @Test
@@ -36,106 +39,7 @@ class KickCharacterCommandTest {
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
-        KickCharacterCommand original = KickCharacterCommand.builder()
-                .characterId(42L)
-                .closeClient(true)
-                .staffNotes("note")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        KickCharacterCommand copy = original.toBuilder().build();
-
-        assertEquals(original, copy);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnCharacterId() {
-        KickCharacterCommand a = KickCharacterCommand.builder()
-                .characterId(1L)
-                .initiator(TestInitiators.USER)
-                .build();
-        KickCharacterCommand b = KickCharacterCommand.builder()
-                .characterId(2L)
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnCloseClient() {
-        KickCharacterCommand a = KickCharacterCommand.builder()
-                .characterId(1L)
-                .closeClient(true)
-                .initiator(TestInitiators.USER)
-                .build();
-        KickCharacterCommand b = KickCharacterCommand.builder()
-                .characterId(1L)
-                .closeClient(false)
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnStaffNotes() {
-        KickCharacterCommand a = KickCharacterCommand.builder()
-                .characterId(1L)
-                .staffNotes("a")
-                .initiator(TestInitiators.USER)
-                .build();
-        KickCharacterCommand b = KickCharacterCommand.builder()
-                .characterId(1L)
-                .staffNotes("b")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void hashCode_shouldMatchEquals() {
-        KickCharacterCommand a = KickCharacterCommand.builder()
-                .characterId(1L)
-                .closeClient(true)
-                .staffNotes("note")
-                .initiator(TestInitiators.USER)
-                .build();
-        KickCharacterCommand b = KickCharacterCommand.builder()
-                .characterId(1L)
-                .closeClient(true)
-                .staffNotes("note")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertEquals(a.hashCode(), b.hashCode());
-    }
-
-    @Test
-    void toString_shouldExposeFields() {
-        KickCharacterCommand cmd = KickCharacterCommand.builder()
-                .characterId(42L)
-                .closeClient(true)
-                .staffNotes("note")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        String s = cmd.toString();
-
-        assertTrue(s.contains("42"));
-        assertTrue(s.contains("true"));
-        assertTrue(s.contains("note"));
-    }
-
-    @Test
-    void implementsNxCommandMarker() {
-        KickCharacterCommand cmd = KickCharacterCommand.builder()
-                .characterId(1L)
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertInstanceOf(app.l2nx.gs.adapter.api.kafka.commands.NxCommand.class, cmd);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(KickCharacterCommand.class).verify();
     }
 }

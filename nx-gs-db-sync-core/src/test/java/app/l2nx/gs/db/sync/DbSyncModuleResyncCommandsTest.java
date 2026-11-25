@@ -40,6 +40,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class DbSyncModuleResyncCommandsTest {
@@ -290,25 +291,12 @@ class DbSyncModuleResyncCommandsTest {
                 result.getPayload().getInvalidatedByEntity().keySet());
     }
 
-    @Test
-    void start_shouldFail_whenParentRefReferencesUnknownEntity() {
+    @ParameterizedTest
+    @CsvSource({"ghost, owner_id", "character, owner_id; DROP TABLE x"})
+    void start_shouldFail_whenParentRefInvalid(String parentEntityName, String fkColumn) {
         DbSchemaProvider provider = provider(
                 stub("character"),
-                withParentRefs(stub("item"), Collections.singletonList(ParentRef.of("ghost", "owner_id"))));
-        module = build(failingJdbc(), provider);
-        module.onConnect(ctx());
-
-        module.start();
-
-        assertEquals("FAILED", module.currentStatus().getState());
-    }
-
-    @Test
-    void start_shouldFail_whenParentRefFkColumnInvalid() {
-        DbSchemaProvider provider = provider(
-                stub("character"),
-                withParentRefs(
-                        stub("item"), Collections.singletonList(ParentRef.of("character", "owner_id; DROP TABLE x"))));
+                withParentRefs(stub("item"), Collections.singletonList(ParentRef.of(parentEntityName, fkColumn))));
         module = build(failingJdbc(), provider);
         module.onConnect(ctx());
 

@@ -7,23 +7,18 @@ import app.l2nx.gs.adapter.api.kafka.events.olympiad.model.OlympiadGameType;
 import app.l2nx.gs.adapter.api.kafka.events.olympiad.model.OlympiadMatchReason;
 import app.l2nx.gs.adapter.api.kafka.events.olympiad.model.OlympiadMatchResult;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.UUID;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class OlympiadMatchResultEventTest {
 
     @Test
-    void getClanId_shouldBeNullable() {
-        OlympiadMatchResultEvent event =
-                newBuilder().clanId(null).opponentClanId(null).build();
-
-        assertNull(event.getClanId());
-        assertNull(event.getOpponentClanId());
-    }
-
-    @Test
-    void getFightStartedAt_shouldBeNullable_signalingNoFightOccurred() {
+    void build_shouldLeaveOptionalFieldsNull_whenAbsent() {
         OlympiadMatchResultEvent event = newBuilder()
+                .clanId(null)
+                .opponentClanId(null)
                 .reason(OlympiadMatchReason.BOTH_DEFAULTED)
                 .result(OlympiadMatchResult.DRAW)
                 .fightStartedAt(null)
@@ -32,15 +27,21 @@ class OlympiadMatchResultEventTest {
                 .opponentDamageDealt(0)
                 .build();
 
+        assertNull(event.getClanId());
+        assertNull(event.getOpponentClanId());
+        assertNull(event.getClazz());
+        assertNull(event.getOpponentClazz());
         assertNull(event.getFightStartedAt());
         assertEquals(0L, event.getFightDurationSec());
     }
 
     @Test
     void toBuilder_shouldRoundtripAllFields() {
+        UUID eventId = UUID.randomUUID();
+        UUID matchId = UUID.randomUUID();
         OlympiadMatchResultEvent original = OlympiadMatchResultEvent.builder()
-                .eventId(UUID.randomUUID())
-                .matchId(UUID.randomUUID())
+                .eventId(eventId)
+                .matchId(matchId)
                 .olympiadCycle(7)
                 .gameType(OlympiadGameType.CLASSED)
                 .characterId(268437521L)
@@ -59,90 +60,38 @@ class OlympiadMatchResultEventTest {
                 .opponentDamageDealt(9_400)
                 .fightStartedAt(Instant.parse("2026-06-01T12:00:00Z"))
                 .fightDurationSec(178L)
+                .metadata(Collections.singletonMap("k", "v"))
                 .build();
 
         OlympiadMatchResultEvent copy = original.toBuilder().build();
         assertEquals(original, copy);
-        assertEquals(CharacterClass.DUELIST, copy.getClazz());
-        assertEquals(CharacterClass.SAGITTARIUS, copy.getOpponentClazz());
         assertNotSame(original, copy);
+        assertEquals(eventId, copy.getEventId());
+        assertEquals(matchId, copy.getMatchId());
+        assertEquals(7, copy.getOlympiadCycle());
+        assertEquals(OlympiadGameType.CLASSED, copy.getGameType());
+        assertEquals(268437521L, copy.getCharacterId());
+        assertEquals(88, copy.getClassId());
+        assertEquals(CharacterClass.DUELIST, copy.getClazz());
+        assertEquals(Long.valueOf(101L), copy.getClanId());
+        assertEquals(268437522L, copy.getOpponentCharacterId());
+        assertEquals(92, copy.getOpponentClassId());
+        assertEquals(CharacterClass.SAGITTARIUS, copy.getOpponentClazz());
+        assertEquals(Long.valueOf(102L), copy.getOpponentClanId());
+        assertEquals(OlympiadMatchResult.WIN, copy.getResult());
+        assertEquals(OlympiadMatchReason.NORMAL, copy.getReason());
+        assertEquals(40, copy.getPointsBefore());
+        assertEquals(43, copy.getPointsAfter());
+        assertEquals(12_500, copy.getDamageDealt());
+        assertEquals(9_400, copy.getOpponentDamageDealt());
+        assertEquals(Instant.parse("2026-06-01T12:00:00Z"), copy.getFightStartedAt());
+        assertEquals(178L, copy.getFightDurationSec());
+        assertEquals(Collections.singletonMap("k", "v"), copy.getMetadata());
     }
 
     @Test
-    void equals_shouldDistinguishClazz() {
-        assertNotEquals(
-                newBuilder().clazz(CharacterClass.DUELIST).build(),
-                newBuilder().clazz(CharacterClass.ADVENTURER).build());
-    }
-
-    @Test
-    void getClazz_shouldBeNull_whenLegacyNumericOnly() {
-        OlympiadMatchResultEvent event = newBuilder().build();
-        assertNull(event.getClazz());
-        assertNull(event.getOpponentClazz());
-    }
-
-    @Test
-    void equals_shouldDistinguishResult() {
-        OlympiadMatchResultEvent.Builder base = newBuilder();
-        OlympiadMatchResultEvent win = base.result(OlympiadMatchResult.WIN).build();
-        OlympiadMatchResultEvent loss = base.result(OlympiadMatchResult.LOSS).build();
-
-        assertNotEquals(win, loss);
-    }
-
-    @Test
-    void equals_shouldDistinguishReason() {
-        OlympiadMatchResultEvent.Builder base = newBuilder();
-        OlympiadMatchResultEvent normal =
-                base.reason(OlympiadMatchReason.NORMAL).build();
-        OlympiadMatchResultEvent dc =
-                base.reason(OlympiadMatchReason.OPPONENT_DISCONNECTED).build();
-
-        assertNotEquals(normal, dc);
-    }
-
-    @Test
-    void equals_shouldDistinguishCycle() {
-        OlympiadMatchResultEvent a = newBuilder().olympiadCycle(7).build();
-        OlympiadMatchResultEvent b = newBuilder().olympiadCycle(8).build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishPointsAfter() {
-        OlympiadMatchResultEvent a =
-                newBuilder().pointsBefore(40).pointsAfter(43).build();
-        OlympiadMatchResultEvent b =
-                newBuilder().pointsBefore(40).pointsAfter(44).build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishMatchId() {
-        UUID eventId = UUID.randomUUID();
-        OlympiadMatchResultEvent a =
-                newBuilder().eventId(eventId).matchId(UUID.randomUUID()).build();
-        OlympiadMatchResultEvent b =
-                newBuilder().eventId(eventId).matchId(UUID.randomUUID()).build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void toString_shouldRenderCharacterIdAndOutcome() {
-        OlympiadMatchResultEvent event = newBuilder()
-                .characterId(268437521L)
-                .result(OlympiadMatchResult.WIN)
-                .reason(OlympiadMatchReason.OPPONENT_DEFAULTED)
-                .build();
-
-        String s = event.toString();
-        assertTrue(s.contains("characterId=268437521"));
-        assertTrue(s.contains("result=WIN"));
-        assertTrue(s.contains("reason=OPPONENT_DEFAULTED"));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(OlympiadMatchResultEvent.class).verify();
     }
 
     private static OlympiadMatchResultEvent.Builder newBuilder() {

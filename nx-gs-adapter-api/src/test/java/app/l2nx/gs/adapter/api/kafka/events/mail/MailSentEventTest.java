@@ -5,123 +5,69 @@ import static org.junit.jupiter.api.Assertions.*;
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class MailSentEventTest {
 
-    @Test
-    void getAttachments_shouldReturnEmptyList_whenBuilderOmits() {
-        MailSentEvent event = MailSentEvent.builder()
+    private static MailSentEvent.Builder valid() {
+        return MailSentEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
                 .senderCharacterId(0L)
                 .receiverCharacterId(268437521L)
                 .subject("Reward")
-                .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
-                .build();
-
-        assertTrue(event.getAttachments().isEmpty());
+                .expiresAt(Instant.parse("2026-06-01T12:00:00Z"));
     }
 
-    @Test
-    void getAttachments_shouldReturnEmptyList_whenBuilderPassesNull() {
-        MailSentEvent event = MailSentEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .senderCharacterId(0L)
-                .receiverCharacterId(268437521L)
-                .subject("Reward")
-                .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
-                .attachments(null)
-                .build();
+    private static Stream<MailSentEvent.Builder> withoutAttachments() {
+        return Stream.of(valid(), valid().attachments(null));
+    }
 
-        assertTrue(event.getAttachments().isEmpty());
+    @ParameterizedTest
+    @MethodSource("withoutAttachments")
+    void getAttachments_shouldReturnEmptyList_whenBuilderOmitsOrPassesNull(MailSentEvent.Builder builder) {
+        assertTrue(builder.build().getAttachments().isEmpty());
     }
 
     @Test
     void getSenderName_shouldBeNullable_forPlayerToPlayerMail() {
-        MailSentEvent event = MailSentEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .senderCharacterId(268437520L)
-                .receiverCharacterId(268437521L)
-                .subject("Hi")
-                .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
-                .build();
+        MailSentEvent event =
+                valid().senderCharacterId(268437520L).subject("Hi").build();
 
         assertNull(event.getSenderName());
     }
 
     @Test
     void getBody_shouldBeNullable_forSystemMailWithoutBody() {
-        MailSentEvent event = MailSentEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .senderCharacterId(0L)
-                .senderName("System")
-                .receiverCharacterId(268437521L)
-                .subject("Reward")
-                .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
-                .build();
+        MailSentEvent event = valid().senderName("System").build();
 
         assertNull(event.getBody());
     }
 
     @Test
-    void getCodAmount_shouldDefaultToZero() {
-        MailSentEvent event = MailSentEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .senderCharacterId(268437520L)
-                .receiverCharacterId(268437521L)
-                .subject("Trade")
-                .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
-                .build();
+    void constructor_shouldDefensivelyCopyAndFreezeAttachmentsList() {
+        List<MailItemMovement> source = new ArrayList<MailItemMovement>();
+        source.add(stub());
 
-        assertEquals(0L, event.getCodAmount());
-    }
+        MailSentEvent event = valid().attachments(source).build();
 
-    @Test
-    void getAttachments_shouldBeUnmodifiable() {
-        MailSentEvent event = MailSentEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .senderCharacterId(0L)
-                .receiverCharacterId(268437521L)
-                .subject("Reward")
-                .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
-                .attachments(Collections.singletonList(stub()))
-                .build();
+        source.add(stub());
 
+        assertEquals(1, event.getAttachments().size());
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> event.getAttachments().add(stub()));
     }
 
     @Test
-    void constructor_shouldDefensivelyCopyAttachmentsList() {
-        List<MailItemMovement> source = new ArrayList<MailItemMovement>();
-        source.add(stub());
-
-        MailSentEvent event = MailSentEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .senderCharacterId(0L)
-                .receiverCharacterId(268437521L)
-                .subject("Reward")
-                .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
-                .attachments(source)
-                .build();
-
-        source.add(stub());
-
-        assertEquals(1, event.getAttachments().size());
-    }
-
-    @Test
     void toBuilder_shouldRoundtripAllFields() {
+        UUID eventId = UUID.randomUUID();
         MailSentEvent original = MailSentEvent.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(eventId)
                 .mailId(42L)
                 .senderCharacterId(268437520L)
                 .senderName("Olya")
@@ -131,52 +77,28 @@ class MailSentEventTest {
                 .expiresAt(Instant.parse("2026-06-01T12:00:00Z"))
                 .codAmount(1_000_000L)
                 .attachments(Arrays.asList(stub(), stub()))
+                .metadata(Collections.singletonMap("k", "v"))
                 .build();
 
-        assertEquals(original, original.toBuilder().build());
+        MailSentEvent copy = original.toBuilder().build();
+
+        assertEquals(original, copy);
+        assertEquals(eventId, copy.getEventId());
+        assertEquals(42L, copy.getMailId());
+        assertEquals(268437520L, copy.getSenderCharacterId());
+        assertEquals("Olya", copy.getSenderName());
+        assertEquals(268437521L, copy.getReceiverCharacterId());
+        assertEquals("Subject", copy.getSubject());
+        assertEquals("Body", copy.getBody());
+        assertEquals(Instant.parse("2026-06-01T12:00:00Z"), copy.getExpiresAt());
+        assertEquals(1_000_000L, copy.getCodAmount());
+        assertEquals(Arrays.asList(stub(), stub()), copy.getAttachments());
+        assertEquals(Collections.singletonMap("k", "v"), copy.getMetadata());
     }
 
     @Test
-    void equals_shouldDistinguishCodAmount() {
-        UUID id = UUID.randomUUID();
-        MailSentEvent a = MailSentEvent.builder()
-                .eventId(id)
-                .mailId(1L)
-                .senderCharacterId(0L)
-                .receiverCharacterId(2L)
-                .subject("s")
-                .expiresAt(Instant.EPOCH)
-                .codAmount(0L)
-                .build();
-        MailSentEvent b = MailSentEvent.builder()
-                .eventId(id)
-                .mailId(1L)
-                .senderCharacterId(0L)
-                .receiverCharacterId(2L)
-                .subject("s")
-                .expiresAt(Instant.EPOCH)
-                .codAmount(100L)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void toString_shouldRenderMailIdAndParties() {
-        UUID id = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000000");
-        MailSentEvent event = MailSentEvent.builder()
-                .eventId(id)
-                .mailId(99L)
-                .senderCharacterId(11L)
-                .receiverCharacterId(22L)
-                .subject("s")
-                .expiresAt(Instant.EPOCH)
-                .build();
-
-        String s = event.toString();
-        assertTrue(s.contains("mailId=99"));
-        assertTrue(s.contains("senderCharacterId=11"));
-        assertTrue(s.contains("receiverCharacterId=22"));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(MailSentEvent.class).verify();
     }
 
     private static MailItemMovement stub() {

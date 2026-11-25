@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.sync.db.character;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.Instant;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class CharacterInstanceCooldownDbDtoTest {
@@ -10,20 +11,8 @@ class CharacterInstanceCooldownDbDtoTest {
     private static final Instant REENTRY = Instant.parse("2026-07-02T00:00:00Z");
 
     @Test
-    void builder_shouldMatchConstructor() {
-        CharacterInstanceCooldownDbDto fromBuilder = CharacterInstanceCooldownDbDto.builder()
-                .instanceId(112)
-                .reentryAt(REENTRY)
-                .build();
-        CharacterInstanceCooldownDbDto fromCtor = new CharacterInstanceCooldownDbDto(112, REENTRY);
-
-        assertEquals(fromCtor, fromBuilder);
-        assertEquals(fromCtor.hashCode(), fromBuilder.hashCode());
-    }
-
-    @Test
-    void equals_shouldDistinguishInstanceId() {
-        assertNotEquals(new CharacterInstanceCooldownDbDto(1, REENTRY), new CharacterInstanceCooldownDbDto(2, REENTRY));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(CharacterInstanceCooldownDbDto.class).verify();
     }
 
     @Test
@@ -33,8 +22,14 @@ class CharacterInstanceCooldownDbDtoTest {
 
     @Test
     void toBuilder_shouldRoundtrip() {
-        CharacterInstanceCooldownDbDto original = new CharacterInstanceCooldownDbDto(42, REENTRY);
+        CharacterInstanceCooldownDbDto original = CharacterInstanceCooldownDbDto.builder()
+                .instanceId(42)
+                .reentryAt(REENTRY)
+                .build();
 
+        assertEquals(42, original.getInstanceId());
+        assertEquals(REENTRY, original.getReentryAt());
+        assertEquals(new CharacterInstanceCooldownDbDto(42, REENTRY), original);
         assertEquals(original, original.toBuilder().build());
     }
 }

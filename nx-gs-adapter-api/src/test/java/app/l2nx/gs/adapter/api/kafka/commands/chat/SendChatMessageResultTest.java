@@ -2,10 +2,10 @@ package app.l2nx.gs.adapter.api.kafka.commands.chat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.gson.Gson;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -43,11 +43,14 @@ class SendChatMessageResultTest {
     }
 
     @Test
-    void equals_shouldTellTargetInGameApart() {
+    void toBuilder_shouldRoundtripAllFields() {
         SendChatMessageResult original = new SendChatMessageResult(1, 1, true);
 
         assertEquals(original, original.toBuilder().build());
-        assertNotEquals(original, original.toBuilder().targetInGame(false).build());
-        assertNotEquals(original, original.toBuilder().targetInGame(null).build());
+    }
+
+    @Test
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(SendChatMessageResult.class).verify();
     }
 }

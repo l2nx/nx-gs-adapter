@@ -28,20 +28,12 @@ class PrivateStoreOfferHasherTest {
         OfferRow a = row(1L, 0, null, 1L, 100L, 57L);
         OfferRow b = row(2L, 0, null, 1L, 200L, 57L);
 
+        long h0 = PrivateStoreOfferHasher.hash(Collections.emptyList());
         long h1 = PrivateStoreOfferHasher.hash(Collections.singletonList(a));
         long h2 = PrivateStoreOfferHasher.hash(Arrays.asList(a, b));
 
-        assertNotEquals(h1, h2);
-    }
-
-    @Test
-    void hash_shouldChange_whenRemovingOffer() {
-        OfferRow a = row(1L, 0, null, 1L, 100L, 57L);
-        OfferRow b = row(2L, 0, null, 1L, 200L, 57L);
-
-        long h2 = PrivateStoreOfferHasher.hash(Arrays.asList(a, b));
-        long h1 = PrivateStoreOfferHasher.hash(Collections.singletonList(a));
-
+        assertEquals(h0, PrivateStoreOfferHasher.hash(new ArrayList<OfferRow>()));
+        assertNotEquals(h0, h1);
         assertNotEquals(h1, h2);
     }
 
@@ -76,14 +68,6 @@ class PrivateStoreOfferHasherTest {
         long hashZero = PrivateStoreOfferHasher.hash(Collections.singletonList(row(1L, 0, null, 1L, 100L, 57L)));
 
         assertNotEquals(hashNull, hashZero);
-    }
-
-    @Test
-    void hash_shouldBeStable_acrossNullEnchantInputs() {
-        long h1 = PrivateStoreOfferHasher.hash(Collections.singletonList(row(1L, null, null, 1L, 100L, 57L)));
-        long h2 = PrivateStoreOfferHasher.hash(Collections.singletonList(row(1L, null, null, 1L, 100L, 57L)));
-
-        assertEquals(h1, h2);
     }
 
     @Test
@@ -167,16 +151,6 @@ class PrivateStoreOfferHasherTest {
         long h2 = PrivateStoreOfferHasher.hash(Collections.singletonList(b));
 
         assertNotEquals(h1, h2);
-    }
-
-    @Test
-    void hash_shouldYieldSentinel_forEmptyOfferList() {
-        long h = PrivateStoreOfferHasher.hash(Collections.emptyList());
-
-        assertEquals(h, PrivateStoreOfferHasher.hash(Collections.emptyList()));
-
-        long oneOffer = PrivateStoreOfferHasher.hash(Collections.singletonList(row(1L, 0, null, 1L, 100L, 57L)));
-        assertNotEquals(h, oneOffer);
     }
 
     @Test

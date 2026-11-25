@@ -55,21 +55,13 @@ class NxRuntimeSyncImplTest {
         }
 
         @Test
-        void onHostStarted_shouldRunAtOnce_whenTheStartWasDeclared() {
-            gate.hostStarted();
-
-            gate.onHostStarted(fired::incrementAndGet);
-
-            assertEquals(1, fired.get());
-        }
-
-        @Test
         void onHostStarted_shouldRunEveryLaterRegistration_soAReconnectTicksAtOnce() {
             gate.hostStarted();
 
             gate.onHostStarted(fired::incrementAndGet);
-            gate.onHostStarted(fired::incrementAndGet);
+            assertEquals(1, fired.get());
 
+            gate.onHostStarted(fired::incrementAndGet);
             assertEquals(2, fired.get());
         }
 

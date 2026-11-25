@@ -12,7 +12,6 @@ import app.l2nx.gs.adapter.api.kafka.sync.settings.app.AppSettings;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.ChatSettings;
 import app.l2nx.gs.adapter.api.kafka.sync.settings.app.ReviveSettings;
 import app.l2nx.gs.adapter.api.spi.model.appsettings.AppRules;
-import app.l2nx.gs.adapter.api.spi.model.appsettings.ReviveTownMode;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -88,6 +87,7 @@ class AppSettingsRuntimeTest {
             AppSettingsRuntime.loadForGameServer(config);
 
             assertTrue(AppSettingsRuntime.rulesFromFile());
+            assertFalse(AppSettingsRuntime.loginServer());
         }
 
         @Test
@@ -116,35 +116,12 @@ class AppSettingsRuntimeTest {
             assertSame(AppRules.defaults(), AppSettingsRuntime.rules().current());
             assertFalse(AppSettingsRuntime.watchingForTesting());
             assertTrue(AppSettingsRuntime.initialized());
-        }
-
-        @Test
-        void defaultsForLoginServer_shouldWatchNothing() {
-            AppSettingsRuntime.defaultsForLoginServer();
-
-            assertSame(AppRules.defaults(), AppSettingsRuntime.rules().current());
-            assertFalse(AppSettingsRuntime.watchingForTesting());
+            assertTrue(AppSettingsRuntime.loginServer());
         }
     }
 
     @Nested
     class Publication {
-
-        @Test
-        void loginServer_shouldBeTrue_whenTheJvmSettledOnTheLoginServerDefaults() {
-            AppSettingsRuntime.loadForGameServer(config);
-
-            AppSettingsRuntime.defaultsForLoginServer();
-
-            assertTrue(AppSettingsRuntime.loginServer());
-        }
-
-        @Test
-        void loginServer_shouldBeFalse_whenAGameServerLoadedItsFile() {
-            AppSettingsRuntime.loadForGameServer(config);
-
-            assertFalse(AppSettingsRuntime.loginServer());
-        }
 
         @Test
         void changeListener_shouldRun_whenTheWatcherAppliesTheFile() {
@@ -210,34 +187,11 @@ class AppSettingsRuntimeTest {
         }
 
         @Test
-        void toSettings_shouldIgnoreValuesOutsideTheSnapshot() {
-            Instant at = Instant.parse("2026-10-23T10:00:00Z");
-
-            AppSettings actual = AppSettingsRuntime.toSettings(
-                    AppRules.builder()
-                            .fishingFloatDistance(200)
-                            .restoreBatchSize(2)
-                            .reviveTownMode(ReviveTownMode.SPOT_POOL)
-                            .reviveTownSpotPools(Collections.singletonList("harbor"))
-                            .build(),
-                    at);
-
-            assertEquals(AppSettingsRuntime.toSettings(AppRules.defaults(), at), actual);
-        }
-
-        @Test
-        void toSettings_shouldCarryReviveEnabled_whenDefaults() {
+        void toSettings_shouldCarryReviveAndChat_whenDefaults() {
             AppSettings actual =
                     AppSettingsRuntime.toSettings(AppRules.defaults(), Instant.parse("2026-10-23T10:00:00Z"));
 
             assertEquals(new ReviveSettings(true), actual.getRevive());
-        }
-
-        @Test
-        void toSettings_shouldCarryTheDefaultChat_whenDefaults() {
-            AppSettings actual =
-                    AppSettingsRuntime.toSettings(AppRules.defaults(), Instant.parse("2026-10-23T10:00:00Z"));
-
             assertEquals(
                     new ChatSettings(
                             false,

@@ -15,10 +15,13 @@ import java.sql.*;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.mockito.ArgumentCaptor;
 
 class Phase1HasherTest {
@@ -36,23 +39,10 @@ class Phase1HasherTest {
                 sql);
     }
 
-    @Test
-    void buildPrimarySql_shouldHandleSingleHashedColumn() {
-        PrimarySource<?> primary = stubPrimary("foo_t", "id", Collections.singletonList("name"));
-
-        assertTrue(Phase1Hasher.buildPrimarySql(primary).contains("CRC32(CONCAT_WS(',', name))"));
-    }
-
-    @Test
-    void buildPrimarySql_shouldThrow_whenHashedColumnsEmpty() {
-        PrimarySource<?> primary = stubPrimary("foo_t", "id", Collections.emptyList());
-
-        assertThrows(IllegalArgumentException.class, () -> Phase1Hasher.buildPrimarySql(primary));
-    }
-
-    @Test
-    void buildPrimarySql_shouldThrow_whenHashedColumnsNull() {
-        PrimarySource<?> primary = stubPrimary("foo_t", "id", null);
+    @ParameterizedTest
+    @NullAndEmptySource
+    void buildPrimarySql_shouldThrow_whenHashedColumnsNullOrEmpty(List<String> hashedColumns) {
+        PrimarySource<?> primary = stubPrimary("foo_t", "id", hashedColumns);
 
         assertThrows(IllegalArgumentException.class, () -> Phase1Hasher.buildPrimarySql(primary));
     }
@@ -177,35 +167,25 @@ class Phase1HasherTest {
         verify(ps).setString(3, "tmp!_%");
     }
 
-    @Test
-    void hashPrimary_shouldPropagateSQLException_whenQueryThrows() throws SQLException {
+    @ParameterizedTest
+    @MethodSource("queryFailures")
+    void hashPrimary_shouldPropagateFailureUnwrapped_whenQueryThrows(SQLException failure) throws SQLException {
         PrimarySource<?> primary = stubPrimary("clan_data", "clan_id", Arrays.asList("clan_name", "clan_level"));
         Connection conn = mock(Connection.class);
         PreparedStatement ps = mock(PreparedStatement.class);
 
         when(conn.prepareStatement(anyString())).thenReturn(ps);
-        when(ps.executeQuery()).thenThrow(new SQLException("query failed"));
+        when(ps.executeQuery()).thenThrow(failure);
 
         SQLException thrown = assertThrows(
                 SQLException.class,
                 () -> new Phase1Hasher()
                         .hashPrimary(conn, new Window(0L, 100L), primary, 5, 10_000, JdbcDialect.OTHER));
-        assertEquals("query failed", thrown.getMessage());
+        assertSame(failure, thrown);
     }
 
-    @Test
-    void hashPrimary_shouldPropagateSQLTimeoutException_distinctFromGenericSQLException() throws SQLException {
-        PrimarySource<?> primary = stubPrimary("clan_data", "clan_id", Arrays.asList("clan_name", "clan_level"));
-        Connection conn = mock(Connection.class);
-        PreparedStatement ps = mock(PreparedStatement.class);
-
-        when(conn.prepareStatement(anyString())).thenReturn(ps);
-        when(ps.executeQuery()).thenThrow(new SQLTimeoutException("timeout"));
-
-        assertThrows(
-                SQLTimeoutException.class,
-                () -> new Phase1Hasher()
-                        .hashPrimary(conn, new Window(0L, 100L), primary, 5, 10_000, JdbcDialect.OTHER));
+    private static Stream<SQLException> queryFailures() {
+        return Stream.of(new SQLException("query failed"), new SQLTimeoutException("timeout"));
     }
 
     @Test

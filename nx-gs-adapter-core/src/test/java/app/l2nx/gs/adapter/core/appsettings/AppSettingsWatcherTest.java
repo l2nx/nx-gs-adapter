@@ -25,6 +25,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class AppSettingsWatcherTest {
 
@@ -96,9 +98,14 @@ class AppSettingsWatcherTest {
             assertTrue(holder.fromFile());
         }
 
-        @Test
-        void loadAtStart_shouldKeepTheDefaults_whenTheFileIsInvalid() throws IOException {
-            save("app.session.return-threshold-minutes=45\napp.fishing.enabled=true\n");
+        @ParameterizedTest(name = "[{index}] {0}")
+        @ValueSource(
+                strings = {
+                    "app.session.return-threshold-minutes=45\napp.fishing.enabled=true\n",
+                    "app.phantom.title.text=" + BACKSLASH + "u12\n"
+                })
+        void loadAtStart_shouldKeepTheDefaults_whenTheFileIsInvalid(String content) throws IOException {
+            save(content);
 
             watcher().loadAtStart();
 
@@ -128,17 +135,6 @@ class AppSettingsWatcherTest {
 
             assertSame(AppRules.defaults(), holder.current());
             assertFalse(holder.fromFile());
-        }
-
-        @Test
-        void loadAtStart_shouldPublishTheDefaults_whenAnEscapeIsMalformed() throws IOException {
-            save("app.phantom.title.text=" + BACKSLASH + "u12\n");
-
-            watcher().loadAtStart();
-
-            assertSame(AppRules.defaults(), holder.current());
-            assertFalse(holder.fromFile());
-            assertEquals(Collections.singletonList(AppRules.defaults()), published);
         }
 
         @Test
@@ -241,38 +237,32 @@ class AppSettingsWatcherTest {
         @Test
         void poll_shouldNeitherReplaceNorPublish_whenOnlyTheStampMoved() throws IOException {
             save("app.session.return-threshold-minutes=45\n");
-            AppSettingsWatcher watcher = watcher();
+            int[] reads = {0};
+            AppSettingsWatcher watcher = countingWatcher(reads);
             watcher.loadAtStart();
             AppRules loaded = holder.current();
+            int afterTheLoad = reads[0];
             Files.setLastModifiedTime(file, FileTime.fromMillis(modified.addAndGet(1_000L)));
 
             watcher.poll();
 
             assertSame(loaded, holder.current());
             assertEquals(1, published.size());
+            assertEquals(afterTheLoad + 1, reads[0]);
         }
 
-        @Test
-        void poll_shouldKeepThePreviousValues_whenTheNewFileIsInvalid() throws IOException {
-            save("app.session.return-threshold-minutes=45\n");
-            AppSettingsWatcher watcher = watcher();
-            watcher.loadAtStart();
-            save("app.session.return-threshold-minutes=50\napp.fishing.spot-order=random\n");
-
-            watcher.poll();
-
-            assertEquals(threshold(45), holder.current());
-            assertEquals(1, published.size());
-            assertTrue(holder.fromFile());
-        }
-
-        @Test
-        void poll_shouldKeepThePreviousValuesAndParseOnce_whenAnEscapeIsMalformed() throws IOException {
+        @ParameterizedTest(name = "[{index}] {0}")
+        @ValueSource(
+                strings = {
+                    "app.session.return-threshold-minutes=50\napp.fishing.spot-order=random\n",
+                    "app.session.return-threshold-minutes=50\napp.phantom.title.text=" + BACKSLASH + "u12\n"
+                })
+        void poll_shouldKeepThePreviousValuesAndParseOnce_whenTheNewFileIsInvalid(String content) throws IOException {
             save("app.session.return-threshold-minutes=45\n");
             int[] reads = {0};
             AppSettingsWatcher watcher = countingWatcher(reads);
             watcher.loadAtStart();
-            save("app.session.return-threshold-minutes=50\napp.phantom.title.text=" + BACKSLASH + "u12\n");
+            save(content);
 
             watcher.poll();
             int afterTheRejectingPoll = reads[0];
@@ -280,6 +270,7 @@ class AppSettingsWatcherTest {
 
             assertEquals(threshold(45), holder.current());
             assertEquals(1, published.size());
+            assertTrue(holder.fromFile());
             assertEquals(afterTheRejectingPoll + 1, reads[0]);
         }
 

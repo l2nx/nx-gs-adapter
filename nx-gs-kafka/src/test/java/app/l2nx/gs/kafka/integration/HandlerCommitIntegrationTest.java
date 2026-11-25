@@ -1,10 +1,12 @@
 package app.l2nx.gs.kafka.integration;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.l2nx.gs.kafka.KafkaException;
 import app.l2nx.gs.kafka.NxKafka;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,31 +80,38 @@ class HandlerCommitIntegrationTest {
 
         NxKafka first = buildKafka("first-mb");
         List<Integer> firstSeen = new CopyOnWriteArrayList<Integer>();
+        CountDownLatch threeRetried = new CountDownLatch(2);
         first.subscribe(topic, groupId, TestEvent.class, event -> {
             firstSeen.add(event.score);
             if (event.score == 3) {
+                threeRetried.countDown();
                 throw new RuntimeException("boom on 3");
             }
         });
 
-        Thread.sleep(5000);
+        assertTrue(
+                threeRetried.await(15, TimeUnit.SECONDS),
+                "First instance must rewind to the failed record (score=3); saw " + firstSeen);
         first.shutdown();
+        assertFalse(
+                firstSeen.contains(4) || firstSeen.contains(5),
+                "First instance must not advance past the failed record; saw " + firstSeen);
 
         // Redelivery of already-acked records is allowed by at-least-once; losing score=3 is not.
         NxKafka second = buildKafka("second-mb");
         List<Integer> secondSeen = new CopyOnWriteArrayList<Integer>();
-        CountDownLatch sawThree = new CountDownLatch(1);
+        CountDownLatch sawLast = new CountDownLatch(1);
         second.subscribe(topic, groupId, TestEvent.class, event -> {
             secondSeen.add(event.score);
-            if (event.score == 3) {
-                sawThree.countDown();
+            if (event.score == 5) {
+                sawLast.countDown();
             }
         });
 
         assertTrue(
-                sawThree.await(15, TimeUnit.SECONDS),
-                "Second instance must redeliver the failed record (score=3); first saw " + firstSeen + ", second saw "
-                        + secondSeen);
+                sawLast.await(15, TimeUnit.SECONDS) && secondSeen.containsAll(Arrays.asList(3, 4, 5)),
+                "Second instance must redeliver the failed record (score=3) and the ones after it; first saw "
+                        + firstSeen + ", second saw " + secondSeen);
     }
 
     private NxKafka buildKafka(String clientId) {

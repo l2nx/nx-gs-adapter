@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class SkillConditionNodeTest {
@@ -33,47 +34,40 @@ class SkillConditionNodeTest {
                 b -> b.paramsRaw(Collections.singletonMap("level", "40")));
     }
 
+    static Stream<Arguments> invalidContainers() {
+        return Stream.of(
+                Arguments.of("children missing", SkillConditionNode.builder().logic(SkillConditionLogic.AND)),
+                Arguments.of(
+                        "children empty",
+                        SkillConditionNode.builder()
+                                .logic(SkillConditionLogic.AND)
+                                .children(new ArrayList<SkillConditionNode>())),
+                Arguments.of(
+                        "logic missing", SkillConditionNode.builder().children(Collections.singletonList(leaf()))));
+    }
+
+    static Stream<Arguments> invalidLeaves() {
+        return Stream.of(
+                Arguments.of("typeRaw missing", SkillConditionNode.builder().type(SkillConditionType.CASTER_LEVEL)),
+                Arguments.of(
+                        "params without type",
+                        SkillConditionNode.builder()
+                                .typeRaw("CustomGate")
+                                .params(Collections.singletonMap("min", "40"))),
+                Arguments.of(
+                        "children set",
+                        SkillConditionNode.builder()
+                                .typeRaw("PlayerLevel")
+                                .children(Collections.singletonList(leaf()))));
+    }
+
     @Nested
     class Container {
 
-        @Test
-        void build_shouldAcceptChildren_whenLogicSet() {
-            SkillConditionNode actual = SkillConditionNode.builder()
-                    .logic(SkillConditionLogic.OR)
-                    .negated(true)
-                    .children(Collections.singletonList(leaf()))
-                    .build();
-
-            assertEquals(1, actual.getChildren().size());
-            assertTrue(actual.isNegated());
-        }
-
-        @Test
-        void build_shouldReject_whenChildrenMissing() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> SkillConditionNode.builder()
-                            .logic(SkillConditionLogic.AND)
-                            .build());
-        }
-
-        @Test
-        void build_shouldReject_whenChildrenEmpty() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> SkillConditionNode.builder()
-                            .logic(SkillConditionLogic.AND)
-                            .children(new ArrayList<SkillConditionNode>())
-                            .build());
-        }
-
-        @Test
-        void build_shouldReject_whenLogicMissing() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> SkillConditionNode.builder()
-                            .children(Collections.singletonList(leaf()))
-                            .build());
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.sync.gd.skill.condition.SkillConditionNodeTest#invalidContainers")
+        void build_shouldReject_whenContainerIncomplete(String reason, SkillConditionNode.Builder builder) {
+            assertThrows(IllegalArgumentException.class, builder::build);
         }
 
         @ParameterizedTest
@@ -93,14 +87,6 @@ class SkillConditionNodeTest {
     class Leaf {
 
         @Test
-        void build_shouldAcceptPredicate_whenTypeRawSet() {
-            SkillConditionNode actual = leaf();
-
-            assertEquals("PlayerLevel", actual.getTypeRaw());
-            assertEquals("40", actual.getParams().get("min"));
-        }
-
-        @Test
         void build_shouldAcceptUnmappedPredicate_whenTypeNull() {
             SkillConditionNode actual =
                     SkillConditionNode.builder().typeRaw("CustomGate").build();
@@ -108,33 +94,10 @@ class SkillConditionNodeTest {
             assertEquals("CustomGate", actual.getTypeRaw());
         }
 
-        @Test
-        void build_shouldReject_whenTypeRawMissing() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> SkillConditionNode.builder()
-                            .type(SkillConditionType.CASTER_LEVEL)
-                            .build());
-        }
-
-        @Test
-        void build_shouldReject_whenParamsSetWithoutType() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> SkillConditionNode.builder()
-                            .typeRaw("CustomGate")
-                            .params(Collections.singletonMap("min", "40"))
-                            .build());
-        }
-
-        @Test
-        void build_shouldReject_whenChildrenSet() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> SkillConditionNode.builder()
-                            .typeRaw("PlayerLevel")
-                            .children(Collections.singletonList(leaf()))
-                            .build());
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.sync.gd.skill.condition.SkillConditionNodeTest#invalidLeaves")
+        void build_shouldReject_whenLeafInvalid(String reason, SkillConditionNode.Builder builder) {
+            assertThrows(IllegalArgumentException.class, builder::build);
         }
     }
 
@@ -151,6 +114,10 @@ class SkillConditionNodeTest {
 
         assertEquals(expected, actual);
         assertEquals(expected.hashCode(), actual.hashCode());
+        assertEquals(SkillConditionLogic.AND, actual.getLogic());
+        assertTrue(actual.isNegated());
+        assertEquals(Integer.valueOf(113), actual.getSystemMessageId());
+        assertEquals(Collections.singletonList(leaf()), actual.getChildren());
     }
 
     @Test
@@ -165,5 +132,11 @@ class SkillConditionNodeTest {
 
         assertEquals(expected, actual);
         assertEquals(expected.hashCode(), actual.hashCode());
+        assertEquals(SkillConditionType.CASTER_LEVEL, actual.getType());
+        assertEquals("PlayerLevel", actual.getTypeRaw());
+        assertEquals(Collections.singletonMap("min", "40"), actual.getParams());
+        assertEquals(Collections.singletonMap("level", "40"), actual.getParamsRaw());
+        assertEquals(Integer.valueOf(113), actual.getSystemMessageId());
+        assertTrue(actual.isNegated());
     }
 }

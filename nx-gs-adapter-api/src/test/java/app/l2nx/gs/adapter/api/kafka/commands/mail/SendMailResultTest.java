@@ -3,104 +3,64 @@ package app.l2nx.gs.adapter.api.kafka.commands.mail;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.commands.mail.model.ItemDeliveryError;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class SendMailResultTest {
 
     @Test
-    void builder_shouldRoundtripFields() {
+    void toBuilder_shouldRoundtripAllFields() {
         ItemDeliveryError err = ItemDeliveryError.builder()
                 .itemTemplateId(57L)
                 .count(1L)
                 .reason("x")
                 .build();
 
-        SendMailResult result = SendMailResult.builder()
+        SendMailResult original = SendMailResult.builder()
                 .createdMailIds(Arrays.asList(101L, 102L))
                 .itemErrors(Collections.singletonList(err))
                 .build();
 
-        assertEquals(Arrays.asList(101L, 102L), result.getCreatedMailIds());
-        assertEquals(Collections.singletonList(err), result.getItemErrors());
+        assertEquals(Arrays.asList(101L, 102L), original.getCreatedMailIds());
+        assertEquals(Collections.singletonList(err), original.getItemErrors());
+        assertEquals(original, original.toBuilder().build());
     }
 
     @Test
-    void getCreatedMailIds_shouldReturnEmpty_whenNull() {
+    void constructor_shouldDefaultListsToEmpty_whenNull() {
         SendMailResult result = new SendMailResult(null, null);
 
         assertTrue(result.getCreatedMailIds().isEmpty());
-    }
-
-    @Test
-    void getItemErrors_shouldReturnEmpty_whenNull() {
-        SendMailResult result = new SendMailResult(null, null);
-
         assertTrue(result.getItemErrors().isEmpty());
     }
 
     @Test
-    void getCreatedMailIds_shouldBeUnmodifiable() {
-        SendMailResult result =
-                SendMailResult.builder().createdMailIds(Arrays.asList(1L, 2L)).build();
+    void constructor_shouldDefensivelyCopyAndFreezeLists() {
+        ItemDeliveryError err =
+                ItemDeliveryError.builder().itemTemplateId(57L).count(1L).build();
+        List<Long> mailIds = new ArrayList<>(Arrays.asList(1L, 2L));
+        List<ItemDeliveryError> itemErrors = new ArrayList<>(Collections.singletonList(err));
+        SendMailResult result = new SendMailResult(mailIds, itemErrors);
 
+        mailIds.add(3L);
+        itemErrors.add(err);
+
+        assertEquals(2, result.getCreatedMailIds().size());
+        assertEquals(1, result.getItemErrors().size());
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> result.getCreatedMailIds().add(3L));
-    }
-
-    @Test
-    void getItemErrors_shouldBeUnmodifiable() {
-        ItemDeliveryError err =
-                ItemDeliveryError.builder().itemTemplateId(57L).count(1L).build();
-        SendMailResult result = SendMailResult.builder()
-                .itemErrors(Collections.singletonList(err))
-                .build();
-
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> result.getItemErrors().add(err));
     }
 
     @Test
-    void constructor_shouldDefensivelyCopyMailIds() {
-        java.util.List<Long> mutable = new java.util.ArrayList<Long>(Arrays.asList(1L, 2L));
-        SendMailResult result = new SendMailResult(mutable, null);
-
-        mutable.add(3L);
-
-        assertEquals(2, result.getCreatedMailIds().size());
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        SendMailResult original =
-                SendMailResult.builder().createdMailIds(Arrays.asList(1L, 2L)).build();
-        SendMailResult copy = original.toBuilder().build();
-
-        assertEquals(original, copy);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnCreatedMailIds() {
-        SendMailResult a = SendMailResult.builder()
-                .createdMailIds(Collections.singletonList(1L))
-                .build();
-        SendMailResult b = SendMailResult.builder()
-                .createdMailIds(Collections.singletonList(2L))
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void hashCode_shouldMatchEquals() {
-        SendMailResult a =
-                SendMailResult.builder().createdMailIds(Arrays.asList(1L, 2L)).build();
-        SendMailResult b =
-                SendMailResult.builder().createdMailIds(Arrays.asList(1L, 2L)).build();
-
-        assertEquals(a.hashCode(), b.hashCode());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(SendMailResult.class).verify();
     }
 }

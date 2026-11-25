@@ -16,6 +16,8 @@ class EngineConfigTest {
         assertEquals(500_000, cfg.rowsPerWindow());
         assertEquals(10, cfg.queryTimeoutSeconds());
         assertEquals(5, cfg.publishFlushSeconds());
+        assertEquals("nx-cdc-snapshot", cfg.persistDir());
+        assertEquals(300, cfg.persistCheckpointMinIntervalSeconds());
     }
 
     @Test
@@ -32,6 +34,8 @@ class EngineConfigTest {
         source.put(EngineConfig.KEY_ROWS_PER_WINDOW, "1000000");
         source.put(EngineConfig.KEY_QUERY_TIMEOUT_SECONDS, "20");
         source.put(EngineConfig.KEY_PUBLISH_FLUSH_SECONDS, "15");
+        source.put(EngineConfig.KEY_PERSIST_DIR, "/var/lib/nx/cdc");
+        source.put(EngineConfig.KEY_PERSIST_CHECKPOINT_MIN_INTERVAL_SECONDS, "60");
 
         EngineConfig cfg = EngineConfig.from(source::get);
 
@@ -39,6 +43,8 @@ class EngineConfigTest {
         assertEquals(1_000_000, cfg.rowsPerWindow());
         assertEquals(20, cfg.queryTimeoutSeconds());
         assertEquals(15, cfg.publishFlushSeconds());
+        assertEquals("/var/lib/nx/cdc", cfg.persistDir());
+        assertEquals(60, cfg.persistCheckpointMinIntervalSeconds());
     }
 
     @Test
@@ -69,26 +75,6 @@ class EngineConfigTest {
 
         source.put(EngineConfig.KEY_ROWS_PER_WINDOW, "-5");
         assertThrows(IllegalStateException.class, () -> EngineConfig.from(source::get));
-    }
-
-    @Test
-    void persist_shouldDefaultToStandardDirAndInterval() {
-        EngineConfig cfg = EngineConfig.defaults();
-
-        assertEquals("nx-cdc-snapshot", cfg.persistDir());
-        assertEquals(300, cfg.persistCheckpointMinIntervalSeconds());
-    }
-
-    @Test
-    void persist_shouldRespectOverrides() {
-        Map<String, String> source = new HashMap<String, String>();
-        source.put(EngineConfig.KEY_PERSIST_DIR, "/var/lib/nx/cdc");
-        source.put(EngineConfig.KEY_PERSIST_CHECKPOINT_MIN_INTERVAL_SECONDS, "60");
-
-        EngineConfig cfg = EngineConfig.from(source::get);
-
-        assertEquals("/var/lib/nx/cdc", cfg.persistDir());
-        assertEquals(60, cfg.persistCheckpointMinIntervalSeconds());
     }
 
     @Test

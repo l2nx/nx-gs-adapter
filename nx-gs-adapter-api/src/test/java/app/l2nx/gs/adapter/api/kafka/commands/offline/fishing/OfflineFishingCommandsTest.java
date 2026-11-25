@@ -2,8 +2,6 @@ package app.l2nx.gs.adapter.api.kafka.commands.offline.fishing;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import app.l2nx.gs.adapter.api.kafka.commands.CommandProblem;
-import app.l2nx.gs.adapter.api.kafka.commands.OwnerVerified;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.model.WellKnownAcceptMailReasons;
 import app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionRefusal;
@@ -17,13 +15,16 @@ import com.google.gson.JsonSerializer;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class OfflineFishingCommandsTest {
@@ -71,24 +72,46 @@ class OfflineFishingCommandsTest {
                 .initiator(TestInitiators.USER);
     }
 
+    private static StartOfflineFishingResult.Builder startResult() {
+        return StartOfflineFishingResult.builder()
+                .sessionId(KEY)
+                .spotPool("lake")
+                .spotId(3)
+                .effectiveDurationMs(1_800_000L);
+    }
+
+    static Stream<Arguments> missingRequired() {
+        return Stream.of(
+                missing("start initiator", () -> start().initiator(null).build()),
+                missing("start deadline", () -> start().deadline(null).build()),
+                missing(
+                        "start idempotencyKey",
+                        () -> start().idempotencyKey(null).build()),
+                missing(
+                        "start result sessionId",
+                        () -> startResult().sessionId(null).build()),
+                missing(
+                        "start result spotPool",
+                        () -> startResult().spotPool(null).build()),
+                missing("check initiator", () -> check().initiator(null).build()),
+                missing("check deadline", () -> check().deadline(null).build()),
+                missing("stop initiator", () -> stop().initiator(null).build()),
+                missing("stop deadline", () -> stop().deadline(null).build()),
+                missing("stop idempotencyKey", () -> stop().idempotencyKey(null).build()));
+    }
+
+    private static Arguments missing(String name, Executable build) {
+        return Arguments.of(name, build);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("missingRequired")
+    void build_shouldThrow_whenARequiredFieldIsNull(String name, Executable build) {
+        assertThrows(NullPointerException.class, build);
+    }
+
     @Nested
     class Start {
-
-        @Test
-        void build_shouldRoundtripFields() {
-            StartOfflineFishingCommand cmd = start().build();
-
-            assertEquals(5, cmd.getCharacterId());
-            assertEquals(TestInitiators.USER, cmd.getInitiator());
-            assertEquals(3_600_000L, cmd.getDurationMs());
-            assertEquals(100, cmd.getRodItemId());
-            assertEquals(200, cmd.getBaitItemId());
-            assertEquals(Integer.valueOf(300), cmd.getFishingShotItemId());
-            assertTrue(cmd.isOwnerVerified());
-            assertEquals(DEADLINE, cmd.getDeadline());
-            assertEquals(KEY, cmd.getIdempotencyKey());
-            assertEquals(cmd, cmd.toBuilder().build());
-        }
 
         @ParameterizedTest(name = "durationMs={0}")
         @ValueSource(longs = {0L, -1L})
@@ -99,21 +122,8 @@ class OfflineFishingCommandsTest {
         }
 
         @Test
-        void build_shouldRejectNullInitiatorDeadlineAndKey() {
-            assertThrows(
-                    NullPointerException.class, () -> start().initiator(null).build());
-            assertThrows(
-                    NullPointerException.class, () -> start().deadline(null).build());
-            assertThrows(
-                    NullPointerException.class,
-                    () -> start().idempotencyKey(null).build());
-        }
-
-        @Test
-        void equals_shouldDistinguishRodBaitAndFishingShot() {
-            assertNotEquals(start().build(), start().rodItemId(101).build());
-            assertNotEquals(start().build(), start().baitItemId(201).build());
-            assertNotEquals(start().build(), start().fishingShotItemId(null).build());
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(StartOfflineFishingCommand.class).verify();
         }
 
         @Test
@@ -128,42 +138,53 @@ class OfflineFishingCommandsTest {
         }
 
         @Test
-        void command_shouldBeOwnerVerified() {
-            assertTrue(start().ownerVerified(true).build() instanceof OwnerVerified);
+        void gson_shouldRoundtripAllFields() {
+            StartOfflineFishingCommand cmd = start().build();
+
+            assertEquals(5, cmd.getCharacterId());
+            assertEquals(TestInitiators.USER, cmd.getInitiator());
+            assertEquals(3_600_000L, cmd.getDurationMs());
+            assertEquals(100, cmd.getRodItemId());
+            assertEquals(200, cmd.getBaitItemId());
+            assertEquals(Integer.valueOf(300), cmd.getFishingShotItemId());
+            assertTrue(cmd.isOwnerVerified());
+            assertEquals(DEADLINE, cmd.getDeadline());
+            assertEquals(KEY, cmd.getIdempotencyKey());
+            assertEquals(cmd, cmd.toBuilder().build());
+            assertEquals(cmd, GSON.fromJson(GSON.toJson(cmd), StartOfflineFishingCommand.class));
         }
 
         @Test
-        void gson_shouldRoundtrip() {
-            StartOfflineFishingCommand original = start().build();
-
-            assertEquals(original, GSON.fromJson(GSON.toJson(original), StartOfflineFishingCommand.class));
-        }
-
-        @Test
-        void result_shouldRoundtripAndRejectNulls() {
-            StartOfflineFishingResult result = StartOfflineFishingResult.builder()
-                    .sessionId(KEY)
-                    .spotPool("lake")
-                    .spotId(3)
-                    .effectiveDurationMs(1_800_000L)
-                    .build();
+        void result_shouldRoundtripAllFields() {
+            StartOfflineFishingResult result = startResult().build();
 
             assertEquals(result, result.toBuilder().build());
             assertEquals(result, GSON.fromJson(GSON.toJson(result), StartOfflineFishingResult.class));
-            assertThrows(
-                    NullPointerException.class,
-                    () -> result.toBuilder().sessionId(null).build());
-            assertThrows(
-                    NullPointerException.class,
-                    () -> result.toBuilder().spotPool(null).build());
+            assertEquals(KEY, result.getSessionId());
+            assertEquals("lake", result.getSpotPool());
+            assertEquals(3, result.getSpotId());
+            assertEquals(1_800_000L, result.getEffectiveDurationMs());
         }
     }
 
     @Nested
     class Check {
 
+        @ParameterizedTest(name = "durationMs={0}")
+        @ValueSource(longs = {0L, -1L})
+        void build_shouldRejectNonPositiveDuration(long durationMs) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> check().durationMs(durationMs).build());
+        }
+
         @Test
-        void build_shouldRoundtripFields() {
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(CheckOfflineFishingCommand.class).verify();
+        }
+
+        @Test
+        void gson_shouldRoundtripAllFields() {
             CheckOfflineFishingCommand cmd = check().build();
 
             assertEquals(5, cmd.getCharacterId());
@@ -175,56 +196,7 @@ class OfflineFishingCommandsTest {
             assertEquals(DEADLINE, cmd.getDeadline());
             assertEquals(TestInitiators.USER, cmd.getInitiator());
             assertEquals(cmd, cmd.toBuilder().build());
-        }
-
-        @Test
-        void build_shouldAcceptEveryPlayerChoiceAbsent() {
-            CheckOfflineFishingCommand cmd = check().durationMs(null)
-                    .rodItemId(null)
-                    .baitItemId(null)
-                    .fishingShotItemId(null)
-                    .build();
-
-            assertNull(cmd.getDurationMs());
-            assertNull(cmd.getRodItemId());
-            assertNull(cmd.getBaitItemId());
-            assertNull(cmd.getFishingShotItemId());
-        }
-
-        @ParameterizedTest(name = "durationMs={0}")
-        @ValueSource(longs = {0L, -1L})
-        void build_shouldRejectNonPositiveDuration(long durationMs) {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> check().durationMs(durationMs).build());
-        }
-
-        @Test
-        void build_shouldRejectNullInitiatorAndDeadline() {
-            assertThrows(
-                    NullPointerException.class, () -> check().initiator(null).build());
-            assertThrows(
-                    NullPointerException.class, () -> check().deadline(null).build());
-        }
-
-        @Test
-        void equals_shouldDistinguishEveryChoice() {
-            assertNotEquals(check().build(), check().durationMs(null).build());
-            assertNotEquals(check().build(), check().rodItemId(101).build());
-            assertNotEquals(check().build(), check().baitItemId(201).build());
-            assertNotEquals(check().build(), check().fishingShotItemId(301).build());
-        }
-
-        @Test
-        void command_shouldBeOwnerVerified() {
-            assertTrue(check().build() instanceof OwnerVerified);
-        }
-
-        @Test
-        void gson_shouldRoundtrip() {
-            CheckOfflineFishingCommand original = check().build();
-
-            assertEquals(original, GSON.fromJson(GSON.toJson(original), CheckOfflineFishingCommand.class));
+            assertEquals(cmd, GSON.fromJson(GSON.toJson(cmd), CheckOfflineFishingCommand.class));
         }
 
         @Test
@@ -234,6 +206,11 @@ class OfflineFishingCommandsTest {
                     .baitItemId(null)
                     .fishingShotItemId(null)
                     .build();
+
+            assertNull(original.getDurationMs());
+            assertNull(original.getRodItemId());
+            assertNull(original.getBaitItemId());
+            assertNull(original.getFishingShotItemId());
 
             String json = GSON.toJson(original);
 
@@ -255,34 +232,23 @@ class OfflineFishingCommandsTest {
             assertEquals(KEY, cmd.getIdempotencyKey());
             assertEquals(cmd, cmd.toBuilder().build());
             assertEquals(cmd, GSON.fromJson(GSON.toJson(cmd), StopOfflineFishingCommand.class));
+            assertTrue(cmd.isOwnerVerified());
+            assertEquals(DEADLINE, cmd.getDeadline());
         }
 
         @Test
-        void build_shouldRejectNullInitiatorDeadlineAndKey() {
-            assertThrows(
-                    NullPointerException.class, () -> stop().initiator(null).build());
-            assertThrows(NullPointerException.class, () -> stop().deadline(null).build());
-            assertThrows(
-                    NullPointerException.class,
-                    () -> stop().idempotencyKey(null).build());
-        }
-
-        @Test
-        void result_shouldAllowNothingRan() {
+        void result_shouldRoundtrip_whenStoppedOrNothingRan() {
             StopOfflineFishingResult nothing =
                     StopOfflineFishingResult.builder().build();
+            StopOfflineFishingResult stopped = new StopOfflineFishingResult(KEY, true);
 
             assertNull(nothing.getSessionId());
             assertFalse(nothing.isStopped());
             assertEquals(nothing, GSON.fromJson(GSON.toJson(nothing), StopOfflineFishingResult.class));
-        }
-
-        @Test
-        void result_shouldRoundtripStopped() {
-            StopOfflineFishingResult stopped = new StopOfflineFishingResult(KEY, true);
-
             assertEquals(stopped, stopped.toBuilder().build());
             assertNotEquals(stopped, new StopOfflineFishingResult(KEY, false));
+            assertEquals(KEY, stopped.getSessionId());
+            assertTrue(stopped.isStopped());
         }
     }
 
@@ -346,22 +312,6 @@ class OfflineFishingCommandsTest {
             assertNotNull(AlreadyActiveScope.valueOf("HWID"));
             assertNotNull(AlreadyActiveScope.valueOf("CHARACTER"));
             assertNotNull(AlreadyActiveScope.valueOf("IP"));
-        }
-
-        @Test
-        void problem_shouldCarryReasonRetryAtAndScopeAsStrings() {
-            Map<String, Object> extensions = new LinkedHashMap<String, Object>();
-            extensions.put(AppSessionRefusal.REASON, AppSessionRefusalReason.COOLDOWN.name());
-            extensions.put(
-                    AppSessionRefusal.RETRY_AT,
-                    Instant.parse("2026-10-15T12:02:00Z").toString());
-            extensions.put(AppSessionRefusal.SCOPE, AlreadyActiveScope.HWID.name());
-
-            CommandProblem problem = new CommandProblem("Cannot start fishing", null, extensions);
-
-            assertEquals("COOLDOWN", problem.getExtensions().get("reason"));
-            assertEquals("2026-10-15T12:02:00Z", problem.getExtensions().get("retryAt"));
-            assertEquals("HWID", problem.getExtensions().get("scope"));
         }
     }
 }

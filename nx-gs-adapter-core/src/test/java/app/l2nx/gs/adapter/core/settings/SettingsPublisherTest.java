@@ -102,6 +102,11 @@ class SettingsPublisherTest {
             ProducerRecord<byte[], Object> record = sent.get(0);
             assertEquals(TOPIC, record.topic());
             assertArrayEquals(NxHeaders.encodeUuid(SERVER_ID), record.key());
+            List<String> headers = new ArrayList<String>();
+            for (Header header : record.headers()) {
+                headers.add(header.key());
+            }
+            assertEquals(Collections.singletonList(NxHeaders.MESSAGE_TYPE), headers);
             assertEquals(
                     "SettingsSyncEvent",
                     new String(
@@ -110,19 +115,6 @@ class SettingsPublisherTest {
             assertEquals(GameSettings.ENTITY_NAME, event.getEntityName());
             assertSame(snapshot, event.getPayload());
             assertEquals(T0.toEpochMilli(), event.getTimestampEpochMs());
-        }
-
-        @Test
-        void resend_shouldCarryNoPrefixedHeader() {
-            connect(publisher, TOPICS);
-            SettingsPublisher.Build build = publisher.startBuild();
-
-            publisher.resend(build, settings(100L, build.builtAt));
-
-            assertEquals(1, sent.size());
-            for (Header header : sent.get(0).headers()) {
-                assertFalse(header.key().startsWith("Nx-"), "settings record carries prefixed header " + header.key());
-            }
         }
 
         @Test

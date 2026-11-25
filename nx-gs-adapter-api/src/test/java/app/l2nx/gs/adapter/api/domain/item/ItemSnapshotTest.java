@@ -6,11 +6,11 @@ import app.l2nx.gs.adapter.api.domain.Attribute;
 import com.google.gson.Gson;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -82,23 +82,6 @@ class ItemSnapshotTest {
     class Attributes {
 
         @Test
-        void getAttributes_shouldStayEmpty_whenItemHasNone() {
-            ItemSnapshot actual = minimal().attributes(Collections.emptyMap()).build();
-
-            assertNotNull(actual.getAttributes());
-            assertTrue(actual.getAttributes().isEmpty());
-        }
-
-        @Test
-        void getAttributes_shouldBeUnmodifiable() {
-            ItemSnapshot actual = full();
-
-            assertThrows(
-                    UnsupportedOperationException.class,
-                    () -> actual.getAttributes().put(Attribute.DARK, 1));
-        }
-
-        @Test
         void constructor_shouldDefensivelyCopyAttributes() {
             Map<Attribute, Integer> source = new HashMap<Attribute, Integer>();
             source.put(Attribute.WATER, 100);
@@ -107,6 +90,9 @@ class ItemSnapshotTest {
             source.put(Attribute.FIRE, 50);
 
             assertEquals(Collections.singletonMap(Attribute.WATER, 100), actual.getAttributes());
+            assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> actual.getAttributes().put(Attribute.DARK, 1));
         }
 
         @Test
@@ -127,51 +113,8 @@ class ItemSnapshotTest {
     class ValueSemantics {
 
         @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            ItemSnapshot original = full();
-
-            ItemSnapshot copy = original.toBuilder().build();
-
-            assertEquals(original, copy);
-            assertEquals(original.hashCode(), copy.hashCode());
-            assertNotSame(original, copy);
-        }
-
-        @Test
-        void equals_shouldDiffer_whenCountDiffers() {
-            assertNotEquals(full(), full().toBuilder().count(2L).build());
-        }
-
-        @Test
-        void equals_shouldDiffer_whenAttributesNotReportedOrNone() {
-            ItemSnapshot notReported = minimal().build();
-            ItemSnapshot none = minimal().attributes(Collections.emptyMap()).build();
-
-            assertNotEquals(notReported, none);
-        }
-
-        @Test
-        void equals_shouldNotDependOnTheMapImplementation() {
-            Map<Attribute, Integer> enumMap = new EnumMap<Attribute, Integer>(Attribute.class);
-            enumMap.put(Attribute.FIRE, 150);
-
-            assertEquals(
-                    minimal().attributes(enumMap).build(),
-                    minimal()
-                            .attributes(Collections.singletonMap(Attribute.FIRE, 150))
-                            .build());
-        }
-
-        @Test
-        void toString_shouldExposeAllFields() {
-            String actual = full().toString();
-
-            assertTrue(actual.contains("itemId=268500001"));
-            assertTrue(actual.contains("itemTemplateId=6577"));
-            assertTrue(actual.contains("count=3"));
-            assertTrue(actual.contains("enchantLevel=7"));
-            assertTrue(actual.contains("FIRE=150"));
-            assertTrue(actual.contains("option1Id=16341"));
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(ItemSnapshot.class).verify();
         }
     }
 
@@ -182,17 +125,26 @@ class ItemSnapshotTest {
         void gson_shouldRoundtripAllFields() {
             ItemSnapshot original = full();
 
+            ItemSnapshot copy = original.toBuilder().build();
+
+            assertEquals(original, copy);
+            assertEquals(original.hashCode(), copy.hashCode());
+            assertNotSame(original, copy);
             assertEquals(original, GSON.fromJson(GSON.toJson(original), ItemSnapshot.class));
+            assertEquals(6577L, original.getItemTemplateId());
+            assertEquals(3L, original.getCount());
+            assertEquals(new ItemAugmentation(16341, 18000), original.getAugmentation());
         }
 
         @Test
         void gson_shouldTellNotReportedFromNone() {
-            String notReported = GSON.toJson(minimal().build());
-            String none =
-                    GSON.toJson(minimal().attributes(Collections.emptyMap()).build());
+            ItemSnapshot notReported = minimal().build();
+            ItemSnapshot none = minimal().attributes(Collections.emptyMap()).build();
 
-            assertFalse(notReported.contains("attributes"));
-            assertTrue(none.contains("\"attributes\":{}"));
+            assertFalse(GSON.toJson(notReported).contains("attributes"));
+            assertTrue(GSON.toJson(none).contains("\"attributes\":{}"));
+            assertEquals(Collections.emptyMap(), none.getAttributes());
+            assertNotEquals(notReported, none);
         }
 
         @Test

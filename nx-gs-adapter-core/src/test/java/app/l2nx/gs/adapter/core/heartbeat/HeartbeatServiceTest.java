@@ -10,6 +10,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -154,38 +158,42 @@ class HeartbeatServiceTest {
     }
 
     @Test
-    void startAndStop_shouldBeMutuallyExclusive_underConcurrentCallers() throws Exception {
+    void start_shouldLeaveNoLiveSchedule_whenAnotherStartOverlaps() throws Exception {
+        OverlappingScheduler overlapping = new OverlappingScheduler();
         HeartbeatService service =
-                new HeartbeatService(publisher, scheduler, "1.2.3", () -> moduleStatuses.get(), clock());
+                new HeartbeatService(publisher, overlapping, "1.2.3", () -> moduleStatuses.get(), clock());
+        overlapping.overlap = () -> service.start("t", "ts", "s", "ss", "sn", "topic");
 
-        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(8);
         try {
-            java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(1);
-            java.util.List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
-            for (int i = 0; i < 32; i++) {
-                final boolean doStart = (i % 2 == 0);
-                futures.add(pool.submit(() -> {
-                    try {
-                        gate.await();
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
-                    if (doStart) {
-                        service.start("t", "ts", "s", "ss", "sn", "topic");
-                    } else {
-                        service.stop();
-                    }
-                }));
-            }
-            gate.countDown();
-            for (java.util.concurrent.Future<?> f : futures) {
-                f.get(5, TimeUnit.SECONDS);
-            }
+            service.start("t", "ts", "s", "ss", "sn", "topic");
+            overlapping.awaitOverlap();
+            service.stop();
         } finally {
-            pool.shutdownNow();
+            overlapping.shutdownNow();
         }
-        service.stop();
+
+        assertEquals(2, overlapping.scheduled.size());
+        for (CapturingScheduler.CancellableFuture future : overlapping.scheduled) {
+            assertTrue(future.cancelled);
+        }
+    }
+
+    @Test
+    void stop_shouldCancelTheSchedule_whenItOverlapsStart() throws Exception {
+        OverlappingScheduler overlapping = new OverlappingScheduler();
+        HeartbeatService service =
+                new HeartbeatService(publisher, overlapping, "1.2.3", () -> moduleStatuses.get(), clock());
+        overlapping.overlap = service::stop;
+
+        try {
+            service.start("t", "ts", "s", "ss", "sn", "topic");
+            overlapping.awaitOverlap();
+        } finally {
+            overlapping.shutdownNow();
+        }
+
+        assertEquals(1, overlapping.scheduled.size());
+        assertTrue(overlapping.scheduled.peek().cancelled);
     }
 
     @Test
@@ -230,6 +238,45 @@ class HeartbeatServiceTest {
                 this.key = key;
                 this.payload = payload;
             }
+        }
+    }
+
+    /**
+     * Runs {@link #overlap} on another thread while the first start() is inside its schedule call, and holds that call
+     * until the other thread either blocks on the service's lock or got through without one.
+     */
+    private static final class OverlappingScheduler extends ScheduledThreadPoolExecutor {
+        final Queue<CapturingScheduler.CancellableFuture> scheduled =
+                new ConcurrentLinkedQueue<CapturingScheduler.CancellableFuture>();
+        Runnable overlap;
+        private volatile Thread other;
+
+        OverlappingScheduler() {
+            super(1);
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleWithFixedDelay(
+                Runnable command, long initialDelay, long delay, TimeUnit unit) {
+            CapturingScheduler.CancellableFuture future = new CapturingScheduler.CancellableFuture();
+            scheduled.add(future);
+            if (other == null) {
+                Thread thread = new Thread(overlap);
+                thread.setDaemon(true);
+                other = thread;
+                thread.start();
+                while (scheduled.size() < 2
+                        && thread.getState() != Thread.State.BLOCKED
+                        && thread.getState() != Thread.State.WAITING
+                        && thread.isAlive()) {
+                    Thread.yield();
+                }
+            }
+            return future;
+        }
+
+        void awaitOverlap() throws InterruptedException {
+            other.join();
         }
     }
 

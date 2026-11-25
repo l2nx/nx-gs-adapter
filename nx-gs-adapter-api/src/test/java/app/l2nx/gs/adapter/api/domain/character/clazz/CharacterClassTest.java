@@ -1,22 +1,126 @@
 package app.l2nx.gs.adapter.api.domain.character.clazz;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CharacterClassTest {
 
     @Test
-    void canonicalSet_shouldHave103Entries() {
-        assertEquals(103, CharacterClass.values().length);
-    }
+    void name_shouldKeepEveryShippedClassName() {
+        List<String> actual = new ArrayList<String>();
+        for (CharacterClass characterClass : CharacterClass.values()) {
+            actual.add(characterClass.name());
+        }
 
-    @Test
-    void canonicalSamples_shouldBePresent() {
-        assertNotNull(CharacterClass.valueOf("HUMAN_FIGHTER"));
-        assertNotNull(CharacterClass.valueOf("DUELIST"));
-        assertNotNull(CharacterClass.valueOf("KAMAEL_MALE_SOLDIER"));
-        assertNotNull(CharacterClass.valueOf("JUDICATOR"));
+        assertEquals(
+                Arrays.asList(
+                        "HUMAN_FIGHTER",
+                        "HUMAN_MAGE",
+                        "ELVEN_FIGHTER",
+                        "ELVEN_MAGE",
+                        "DARK_FIGHTER",
+                        "DARK_MAGE",
+                        "ORC_FIGHTER",
+                        "ORC_MAGE",
+                        "DWARVEN_FIGHTER",
+                        "KAMAEL_MALE_SOLDIER",
+                        "KAMAEL_FEMALE_SOLDIER",
+                        "WARRIOR",
+                        "KNIGHT",
+                        "ROGUE",
+                        "WIZARD",
+                        "CLERIC",
+                        "ELVEN_KNIGHT",
+                        "ELVEN_SCOUT",
+                        "ELVEN_WIZARD",
+                        "ORACLE",
+                        "PALUS_KNIGHT",
+                        "ASSASSIN",
+                        "DARK_WIZARD",
+                        "SHILLIEN_ORACLE",
+                        "ORC_RAIDER",
+                        "ORC_MONK",
+                        "ORC_SHAMAN",
+                        "SCAVENGER",
+                        "ARTISAN",
+                        "TROOPER",
+                        "WARDER",
+                        "GLADIATOR",
+                        "WARLORD",
+                        "PALADIN",
+                        "DARK_AVENGER",
+                        "TREASURE_HUNTER",
+                        "HAWKEYE",
+                        "SORCERER",
+                        "NECROMANCER",
+                        "WARLOCK",
+                        "BISHOP",
+                        "PROPHET",
+                        "TEMPLE_KNIGHT",
+                        "SWORDSINGER",
+                        "PLAINS_WALKER",
+                        "SILVER_RANGER",
+                        "SPELLSINGER",
+                        "ELEMENTAL_SUMMONER",
+                        "ELDER",
+                        "SHILLIEN_KNIGHT",
+                        "BLADEDANCER",
+                        "ABYSS_WALKER",
+                        "PHANTOM_RANGER",
+                        "SPELLHOWLER",
+                        "PHANTOM_SUMMONER",
+                        "SHILLIEN_ELDER",
+                        "DESTROYER",
+                        "TYRANT",
+                        "OVERLORD",
+                        "WARCRYER",
+                        "BOUNTY_HUNTER",
+                        "WARSMITH",
+                        "BERSERKER",
+                        "MALE_SOULBREAKER",
+                        "FEMALE_SOULBREAKER",
+                        "ARBALESTER",
+                        "INSPECTOR",
+                        "DUELIST",
+                        "DREADNOUGHT",
+                        "PHOENIX_KNIGHT",
+                        "HELL_KNIGHT",
+                        "SAGITTARIUS",
+                        "ADVENTURER",
+                        "ARCHMAGE",
+                        "SOULTAKER",
+                        "ARCANA_LORD",
+                        "CARDINAL",
+                        "HIEROPHANT",
+                        "EVA_TEMPLAR",
+                        "SWORD_MUSE",
+                        "WIND_RIDER",
+                        "MOONLIGHT_SENTINEL",
+                        "MYSTIC_MUSE",
+                        "ELEMENTAL_MASTER",
+                        "EVA_SAINT",
+                        "SHILLIEN_TEMPLAR",
+                        "SPECTRAL_DANCER",
+                        "GHOST_HUNTER",
+                        "GHOST_SENTINEL",
+                        "STORM_SCREAMER",
+                        "SPECTRAL_MASTER",
+                        "SHILLIEN_SAINT",
+                        "TITAN",
+                        "GRAND_KHAVATARI",
+                        "DOMINATOR",
+                        "DOOMCRYER",
+                        "FORTUNE_SEEKER",
+                        "MAESTRO",
+                        "DOOMBRINGER",
+                        "MALE_SOULHOUND",
+                        "FEMALE_SOULHOUND",
+                        "TRICKSTER",
+                        "JUDICATOR"),
+                actual);
     }
 }

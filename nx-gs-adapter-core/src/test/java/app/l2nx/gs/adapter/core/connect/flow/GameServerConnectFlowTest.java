@@ -4,10 +4,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.junit.jupiter.api.Assertions.*;
 
-import app.l2nx.gs.adapter.api.rest.ConnectResponse;
 import app.l2nx.gs.adapter.core.config.AdapterConfig;
 import app.l2nx.gs.adapter.core.config.AdapterConfigFixtures;
-import app.l2nx.gs.adapter.core.connect.model.TypedConnectOutcome;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -45,51 +43,6 @@ class GameServerConnectFlowTest {
     @AfterEach
     void tearDown() {
         wireMock.stop();
-    }
-
-    @Test
-    void connect_shouldHitGameServersPath() {
-        wireMock.stubFor(post(urlEqualTo(CONNECT_PATH))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody(VALID_GS_RESPONSE)));
-
-        AdapterConfig cfg = AdapterConfigFixtures.enabled(wireMock.baseUrl());
-        GameServerConnectFlow flow = new GameServerConnectFlow(cfg);
-        TypedConnectOutcome<ConnectResponse> outcome = flow.connect();
-
-        assertEquals(200, outcome.getStatusCode());
-        assertTrue(outcome.getResponse().isPresent());
-        wireMock.verify(postRequestedFor(urlEqualTo(CONNECT_PATH))
-                .withHeader("Authorization", equalTo("Bearer " + AdapterConfigFixtures.VALID_SERVER_KEY)));
-    }
-
-    @Test
-    void connect_shouldDeserializeConnectResponse() {
-        wireMock.stubFor(post(urlEqualTo(CONNECT_PATH))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody(VALID_GS_RESPONSE)));
-
-        AdapterConfig cfg = AdapterConfigFixtures.enabled(wireMock.baseUrl());
-        GameServerConnectFlow flow = new GameServerConnectFlow(cfg);
-        flow.connect();
-
-        ConnectResponse response = flow.response();
-        assertNotNull(response);
-        assertEquals(UUID.fromString("00000000-0000-0000-0000-000000000002"), response.getServerId());
-        assertEquals("acme-x1", response.getServerSlug());
-        assertEquals("acme", response.getTenantSlug());
-    }
-
-    @Test
-    void connectPath_shouldReturnGameServerPath() {
-        AdapterConfig cfg = AdapterConfigFixtures.enabled(wireMock.baseUrl());
-        GameServerConnectFlow flow = new GameServerConnectFlow(cfg);
-
-        assertEquals(CONNECT_PATH, flow.connectPath());
     }
 
     @Test

@@ -9,11 +9,13 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
 import java.time.Instant;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.NullSource;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class BanRecordTest {
 
@@ -38,14 +40,21 @@ class BanRecordTest {
                 .build();
     }
 
+    static Stream<Arguments> invalidArguments() {
+        return Stream.of(
+                Arguments.of(null, row()),
+                Arguments.of("", row()),
+                Arguments.of(" ", row()),
+                Arguments.of("SHADOW", null));
+    }
+
     @Nested
     class Constructor {
 
-        @ParameterizedTest(name = "[{0}]")
-        @NullSource
-        @ValueSource(strings = {"", " "})
-        void constructor_shouldReject_whenSourceMissingOrBlank(String source) {
-            BanRecord.Builder builder = BanRecord.builder().source(source).row(row());
+        @ParameterizedTest(name = "source=[{0}], row={1}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.ban.model.BanRecordTest#invalidArguments")
+        void constructor_shouldReject_whenSourceMissingOrBlankOrRowNull(String source, BanDbDto row) {
+            BanRecord.Builder builder = BanRecord.builder().source(source).row(row);
 
             assertThrows(IllegalArgumentException.class, builder::build);
         }
@@ -56,13 +65,6 @@ class BanRecordTest {
 
             assertEquals("SOMETHING_NEW", actual.getSource());
             assertNull(BanSource.fromToken(actual.getSource()));
-        }
-
-        @Test
-        void constructor_shouldReject_whenRowNull() {
-            BanRecord.Builder builder = BanRecord.builder().source(BanSource.SHADOW);
-
-            assertThrows(IllegalArgumentException.class, builder::build);
         }
     }
 
@@ -83,20 +85,8 @@ class BanRecordTest {
     class ValueSemantics {
 
         @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            BanRecord original =
-                    BanRecord.builder().source(BanSource.STANDARD).row(row()).build();
-
-            BanRecord copy = original.toBuilder().build();
-
-            assertEquals(original, copy);
-            assertEquals(original.hashCode(), copy.hashCode());
-            assertNotSame(original, copy);
-        }
-
-        @Test
-        void equals_shouldDistinguishSource() {
-            assertNotEquals(new BanRecord("STANDARD", row()), new BanRecord("SHADOW", row()));
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(BanRecord.class).verify();
         }
     }
 
@@ -105,12 +95,18 @@ class BanRecordTest {
 
         @Test
         void gson_shouldRoundtripAllFields() {
-            BanRecord original = new BanRecord("STANDARD", row());
+            BanRecord original =
+                    BanRecord.builder().source(BanSource.STANDARD).row(row()).build();
 
             BanRecord actual = GSON.fromJson(GSON.toJson(original), BanRecord.class);
 
             assertEquals(original, actual);
             assertEquals(EXPIRES_AT, actual.getRow().getExpiresAt());
+
+            BanRecord copy = original.toBuilder().build();
+            assertEquals(original, copy);
+            assertEquals(original.hashCode(), copy.hashCode());
+            assertNotSame(original, copy);
         }
 
         @Test

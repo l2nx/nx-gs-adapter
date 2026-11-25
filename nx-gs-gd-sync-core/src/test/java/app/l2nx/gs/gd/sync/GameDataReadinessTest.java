@@ -111,16 +111,6 @@ class GameDataReadinessTest {
                     recorded.isEmpty(),
                     "no burst at all while unready — specifically no itemtemplate SNAPSHOT_COMPLETE count=0, "
                             + "the data-loss case this feature exists to stop");
-        }
-
-        @Test
-        void start_shouldNotConsultTier2Provider_whileHostUnready() {
-            TestGameDataReadinessProvider.ready = false;
-            TestItemTemplateProvider.snapshot = Collections.singletonList(itemTemplate(1));
-
-            module.onConnect(ctx);
-            module.start();
-
             assertEquals(0, TestItemTemplateProvider.callCount.get());
         }
 

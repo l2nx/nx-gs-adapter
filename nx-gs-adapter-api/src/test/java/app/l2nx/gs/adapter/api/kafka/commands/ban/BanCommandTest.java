@@ -59,23 +59,16 @@ class BanCommandTest {
         }
 
         @Test
-        void constructor_shouldBeTheOnlyOne() {
-            assertEquals(1, BanCommand.class.getDeclaredConstructors().length);
-        }
-    }
+        void constructor_shouldAcceptPermanentBan_whenNoExpiry() {
+            BanCommand actual = valid().expiresAt(null).permanent(true).build();
 
-    @Nested
-    class Builder {
+            assertTrue(actual.isPermanent());
+            assertNull(actual.getExpiresAt());
+        }
 
         @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            BanCommand original = valid().build();
-
-            BanCommand copy = original.toBuilder().build();
-
-            assertEquals(original, copy);
-            assertEquals(original.hashCode(), copy.hashCode());
-            assertNotSame(original, copy);
+        void constructor_shouldBeTheOnlyOne() {
+            assertEquals(1, BanCommand.class.getDeclaredConstructors().length);
         }
     }
 
@@ -110,10 +103,18 @@ class BanCommandTest {
             BanCommand expected = valid().build();
             assertEquals("HWID", actual.getSubjectType());
             assertEquals("a1b2c3", actual.getSubjectValue());
+            assertEquals("GAME_LOGIN", actual.getBanType());
+            assertEquals(EXPIRES_AT, actual.getExpiresAt());
+            assertEquals("bot", actual.getPublicReason());
+            assertEquals("gm", actual.getIssuedBy());
+            assertEquals(TestInitiators.USER, actual.getInitiator());
             assertEquals(expected, actual);
             assertEquals(expected.hashCode(), actual.hashCode());
             assertEquals(expected.toString(), actual.toString());
-            assertEquals(expected, actual.toBuilder().build());
+            BanCommand copy = actual.toBuilder().build();
+            assertEquals(expected, copy);
+            assertEquals(expected.hashCode(), copy.hashCode());
+            assertNotSame(actual, copy);
         }
     }
 }

@@ -222,6 +222,38 @@ class AppSessionCheckResultTest {
         }
 
         @Test
+        void build_shouldPlaceEveryRefusalValueOnItsField() {
+            AppSessionCheckResult cooldown = AppSessionCheckResult.builder()
+                    .reason(AppSessionRefusalReason.COOLDOWN)
+                    .retryAt(RETRY_AT)
+                    .build();
+            AppSessionCheckResult blocked =
+                    blocked(AlreadyActiveScope.HWID, 268_500_001).build();
+            AppSessionCheckResult inventoryFull = AppSessionCheckResult.builder()
+                    .reason(AppSessionRefusalReason.INVENTORY_FULL)
+                    .requiredSlots(2)
+                    .freeSlots(1)
+                    .usage(usage())
+                    .build();
+            AppSessionCheckResult overweight = AppSessionCheckResult.builder()
+                    .reason(AppSessionRefusalReason.OVERWEIGHT)
+                    .requiredWeight(120L)
+                    .freeWeight(80L)
+                    .build();
+
+            assertFalse(cooldown.isAllowed());
+            assertEquals(AppSessionRefusalReason.COOLDOWN, cooldown.getReason());
+            assertEquals(RETRY_AT, cooldown.getRetryAt());
+            assertEquals(AlreadyActiveScope.HWID, blocked.getScope());
+            assertEquals(268_500_001, blocked.getBlockedByCharacterId());
+            assertEquals(2, inventoryFull.getRequiredSlots());
+            assertEquals(1, inventoryFull.getFreeSlots());
+            assertEquals(usage(), inventoryFull.getUsage());
+            assertEquals(120L, overweight.getRequiredWeight());
+            assertEquals(80L, overweight.getFreeWeight());
+        }
+
+        @Test
         void refused_shouldCarryOnlyTheReason() {
             AppSessionCheckResult actual = AppSessionCheckResult.refused(AppSessionRefusalReason.NO_ROD);
 
@@ -241,12 +273,6 @@ class AppSessionCheckResultTest {
                 "app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionCheckResultTest#invalidBlockingCharacters")
         void build_shouldDropTheBlockingCharacter_whenItIsInvalid(String name, AppSessionCheckResult.Builder builder) {
             assertNull(builder.build().getBlockedByCharacterId());
-        }
-
-        @ParameterizedTest(name = "{0}")
-        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionCheckResultTest#validResults")
-        void toBuilder_shouldRoundtrip(String name, AppSessionCheckResult expected) {
-            assertEquals(expected, expected.toBuilder().build());
         }
     }
 
@@ -268,7 +294,8 @@ class AppSessionCheckResultTest {
 
         @ParameterizedTest(name = "{0}")
         @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionCheckResultTest#validResults")
-        void gson_shouldRoundtrip(String name, AppSessionCheckResult expected) {
+        void roundtrip_shouldKeepTheResult(String name, AppSessionCheckResult expected) {
+            assertEquals(expected, expected.toBuilder().build());
             assertEquals(expected, GSON.fromJson(GSON.toJson(expected), AppSessionCheckResult.class));
         }
 

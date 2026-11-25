@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.kafka.KafkaException;
 import app.l2nx.gs.kafka.NxKafka;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -80,25 +82,32 @@ class ReplyIntegrationTest {
     }
 
     @Test
-    void reply_shouldBeNoOp_whenNoReplyHeaders() throws Exception {
+    void reply_shouldWarnAndDoNothing_whenNoReplyHeaders() throws Exception {
         String requestTopic = "test.request.noop";
-        String replyTopic = "test.replies.noop";
 
         NxKafka kafka = buildKafka("test-reply-noop");
 
         CountDownLatch latch = new CountDownLatch(1);
-        kafka.subscribe(requestTopic, "g-reply-noop", BalanceRequest.class, (request, replyTo) -> {
-            assertFalse(replyTo.hasReplyTopic());
-            replyTo.reply(new BalanceResponse(request.playerId, 0)); // should be no-op
-            latch.countDown();
-        });
+        ByteArrayOutputStream log = new ByteArrayOutputStream();
+        PrintStream originalErr = System.err;
+        System.setErr(new PrintStream(log, true, "UTF-8"));
+        try {
+            kafka.subscribe(requestTopic, "g-reply-noop", BalanceRequest.class, (request, replyTo) -> {
+                assertFalse(replyTo.hasReplyTopic());
+                replyTo.reply(new BalanceResponse(request.playerId, 0)); // should be no-op
+                latch.countDown();
+            });
 
-        sendPlainMessage(requestTopic, "{\"playerId\":\"player1\"}");
+            sendPlainMessage(requestTopic, "{\"playerId\":\"player1\"}");
 
-        assertTrue(latch.await(10, TimeUnit.SECONDS), "Handler was not called");
+            assertTrue(latch.await(10, TimeUnit.SECONDS), "Handler was not called");
+        } finally {
+            System.setErr(originalErr);
+        }
 
-        ConsumerRecord<String, byte[]> reply = consumeOne(replyTopic, "test-noop-consumer");
-        assertNull(reply, "Reply should not have been sent");
+        String logged = log.toString("UTF-8");
+        assertTrue(logged.contains("Cannot reply: incoming message has no kafka_replyTopic header"), logged);
+        assertFalse(logged.contains("Failed to send reply"), logged);
     }
 
     private NxKafka buildKafka(String clientId) {

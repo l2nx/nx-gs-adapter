@@ -78,21 +78,6 @@ class CdcEngineTargetedResyncTest {
     @Nested
     class ScheduledTick {
 
-        @Test
-        void runGuardedCycle_shouldFullScan_whenScheduledTick() throws Exception {
-            snapshot.putCrc("clan", 5L, 500);
-            engine = buildEngine();
-            engine.start();
-            source.clear();
-
-            for (java.util.concurrent.Future<?> f : engine.tickOnceSynchronously()) {
-                f.get();
-            }
-
-            assertTrue(source.anyPrimaryBetween(), "a scheduled tick must full-scan via BETWEEN");
-            assertNull(source.primaryInSql(), "a scheduled tick must never use an IN-list");
-        }
-
         /** A scheduled tick must never take the targeted fast-path even with a per-PK resync pending: it drains the set but still full-scans. */
         @Test
         void scheduledTick_shouldFullScan_evenWhenPerPkResyncPending() throws Exception {

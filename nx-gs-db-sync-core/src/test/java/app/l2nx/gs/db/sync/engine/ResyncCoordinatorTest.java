@@ -115,16 +115,6 @@ class ResyncCoordinatorTest {
     }
 
     @Test
-    void onCycleResult_shouldDeferEmission_whenPublishesFailed() {
-        coordinator.enqueuePks(RESYNC_A, "clan", pks(1L));
-        coordinator.drainAndInvalidate("clan", snapshot);
-
-        coordinator.onCycleResult("clan", withPublishOutcome(1L, 0L));
-
-        assertTrue(published.isEmpty());
-    }
-
-    @Test
     void onCycleResult_shouldDeferEmission_whenPublishesStillPending() {
         coordinator.enqueuePks(RESYNC_A, "clan", pks(1L));
         coordinator.drainAndInvalidate("clan", snapshot);

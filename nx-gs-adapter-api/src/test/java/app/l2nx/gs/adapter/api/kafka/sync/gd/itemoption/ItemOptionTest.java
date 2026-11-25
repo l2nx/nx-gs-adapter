@@ -24,16 +24,20 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class ItemOptionTest {
 
+    private static StatModifier statModifier() {
+        return StatModifier.builder()
+                .stat(Stat.MAX_HP)
+                .statRaw("engineStat")
+                .operation(StatOperation.ADD)
+                .operationRaw("engineOperation")
+                .value(120.0)
+                .build();
+    }
+
     private static ItemOption fullyPopulated() {
         return ItemOption.builder()
                 .id(16001)
-                .statModifiers(Collections.singletonList(StatModifier.builder()
-                        .stat(Stat.MAX_HP)
-                        .statRaw("engineStat")
-                        .operation(StatOperation.ADD)
-                        .operationRaw("engineOperation")
-                        .value(120.0)
-                        .build()))
+                .statModifiers(Collections.singletonList(statModifier()))
                 .skills(Arrays.asList(
                         ItemOptionSkill.builder().skillId(3240).skillLevel(10).build(),
                         ItemOptionSkill.builder()
@@ -72,15 +76,6 @@ class ItemOptionTest {
         }
 
         @Test
-        void readValue_shouldRoundTripEveryField() throws IOException {
-            ItemOption expected = fullyPopulated();
-
-            ItemOption actual = mapper().readValue(mapper().writeValueAsString(expected), ItemOption.class);
-
-            assertEquals(expected, actual);
-        }
-
-        @Test
         void readValue_shouldKeepSkill_whenTriggerUnknownToConsumer() throws IOException {
             String json = "{\"id\":1,\"statModifiers\":[],"
                     + "\"skills\":[{\"skillId\":7,\"skillLevel\":1,\"trigger\":\"ON_FUTURE\",\"chancePercent\":5.0}]}";
@@ -107,8 +102,8 @@ class ItemOptionTest {
         }
 
         @ParameterizedTest(name = "{0} with chance {1}")
-        @CsvSource({", 10.0", "ATTACK,", "MAGIC,", "CRITICAL,"})
-        void build_shouldRejectChance_whenNotPairedWithTrigger(ItemOptionTrigger trigger, Double chancePercent) {
+        @CsvSource({", 10.0", "ATTACK,", "MAGIC,", "CRITICAL,", "MAGIC, 0.0"})
+        void build_shouldRejectChance_whenNotPairedWithTriggerOrZero(ItemOptionTrigger trigger, Double chancePercent) {
             ItemOptionSkill.Builder builder = ItemOptionSkill.builder()
                     .skillId(1)
                     .skillLevel(1)
@@ -124,17 +119,6 @@ class ItemOptionTest {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> new ItemOptionSkill(1, 1, ItemOptionTrigger.ATTACK, chancePercent));
-        }
-
-        @Test
-        void build_shouldRejectZeroChance_withTrigger() {
-            ItemOptionSkill.Builder builder = ItemOptionSkill.builder()
-                    .skillId(1)
-                    .skillLevel(1)
-                    .trigger(ItemOptionTrigger.MAGIC)
-                    .chancePercent(0.0);
-
-            assertThrows(IllegalArgumentException.class, builder::build);
         }
 
         @ParameterizedTest(name = "chance {0}")
@@ -154,12 +138,31 @@ class ItemOptionTest {
     }
 
     @Test
-    void toBuilder_shouldCopyEveryField() {
+    void toBuilderAndJackson_shouldRoundTripEveryField() throws IOException {
         ItemOption expected = fullyPopulated();
 
         ItemOption actual = expected.toBuilder().build();
 
         assertEquals(expected, actual);
         assertEquals(expected.hashCode(), actual.hashCode());
+        assertEquals(16001, actual.getId());
+        assertEquals(Collections.singletonList(statModifier()), actual.getStatModifiers());
+        StatModifier modifier = actual.getStatModifiers().get(0);
+        assertEquals(Stat.MAX_HP, modifier.getStat());
+        assertEquals("engineStat", modifier.getStatRaw());
+        assertEquals(StatOperation.ADD, modifier.getOperation());
+        assertEquals("engineOperation", modifier.getOperationRaw());
+        assertEquals(120.0, modifier.getValue());
+        assertEquals(2, actual.getSkills().size());
+        assertEquals(
+                new ItemOptionSkill(3240, 10, null, null), actual.getSkills().get(0));
+
+        ItemOptionSkill triggered = actual.getSkills().get(1);
+        assertEquals(3241, triggered.getSkillId());
+        assertEquals(10, triggered.getSkillLevel());
+        assertEquals(ItemOptionTrigger.CRITICAL, triggered.getTrigger());
+        assertEquals(Double.valueOf(2.5), triggered.getChancePercent());
+
+        assertEquals(expected, mapper().readValue(mapper().writeValueAsString(expected), ItemOption.class));
     }
 }

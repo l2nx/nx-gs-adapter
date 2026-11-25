@@ -3,9 +3,13 @@ package app.l2nx.gs.adapter.api.kafka;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class NxHeadersTest {
 
@@ -16,58 +20,57 @@ class NxHeadersTest {
         assertEquals("Correlation-Id", NxHeaders.CORRELATION_ID);
     }
 
-    @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "00000000-0000-0000-0000-000000000000",
-                "ffffffff-ffff-ffff-ffff-ffffffffffff",
-                "01234567-89ab-cdef-fedc-ba9876543210",
-                "550e8400-e29b-41d4-a716-446655440000"
-            })
-    void encodeUuid_shouldRoundtripThroughDecodeUuid(String literal) {
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({
+        "00000000-0000-0000-0000-000000000000, 00000000000000000000000000000000",
+        "ffffffff-ffff-ffff-ffff-ffffffffffff, ffffffffffffffffffffffffffffffff",
+        "01234567-89ab-cdef-fedc-ba9876543210, 0123456789abcdeffedcba9876543210",
+        "550e8400-e29b-41d4-a716-446655440000, 550e8400e29b41d4a716446655440000"
+    })
+    void encodeUuid_shouldProduceMostSigThenLeastSigBigEndian_andDecodeBack(String literal, String expectedHex) {
         UUID uuid = UUID.fromString(literal);
 
         byte[] encoded = NxHeaders.encodeUuid(uuid);
 
-        assertEquals(16, encoded.length);
+        assertArrayEquals(bytes(expectedHex), encoded);
         assertEquals(uuid, NxHeaders.decodeUuid(encoded));
     }
 
-    @Test
-    void encodeUuid_shouldProduceMostSigThenLeastSigBigEndian() {
-        // UUID 01234567-89ab-cdef-fedc-ba9876543210
-        // mostSig  = 0x0123456789abcdefL
-        // leastSig = 0xfedcba9876543210L
-        UUID uuid = UUID.fromString("01234567-89ab-cdef-fedc-ba9876543210");
-
-        byte[] encoded = NxHeaders.encodeUuid(uuid);
-
-        byte[] expected = new byte[] {
-            (byte) 0x01, (byte) 0x23, (byte) 0x45, (byte) 0x67,
-            (byte) 0x89, (byte) 0xab, (byte) 0xcd, (byte) 0xef,
-            (byte) 0xfe, (byte) 0xdc, (byte) 0xba, (byte) 0x98,
-            (byte) 0x76, (byte) 0x54, (byte) 0x32, (byte) 0x10
-        };
-        assertArrayEquals(expected, encoded);
+    private static byte[] bytes(String hex) {
+        byte[] bytes = new byte[hex.length() / 2];
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) Integer.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+        }
+        return bytes;
     }
 
-    @Test
-    void encodeUuid_shouldThrowNPE_whenUuidIsNull() {
-        assertThrows(NullPointerException.class, () -> NxHeaders.encodeUuid(null));
+    static Stream<Arguments> invalidInputs() {
+        Stream<Arguments> nulls = Stream.of(
+                Arguments.of(
+                        "encode null",
+                        (Executable) () -> NxHeaders.encodeUuid(null),
+                        NullPointerException.class,
+                        "uuid"),
+                Arguments.of(
+                        "decode null",
+                        (Executable) () -> NxHeaders.decodeUuid(null),
+                        IllegalArgumentException.class,
+                        "UUID header value must not be null"));
+        Stream<Arguments> lengths = Stream.of(0, 1, 8, 15, 17, 32)
+                .map(len -> Arguments.of(
+                        "decode " + len + " bytes",
+                        (Executable) () -> NxHeaders.decodeUuid(new byte[len]),
+                        IllegalArgumentException.class,
+                        "UUID header value must be 16 bytes, got " + len));
+        return Stream.concat(nulls, lengths);
     }
 
-    @Test
-    void decodeUuid_shouldThrowIAE_whenValueIsNull() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> NxHeaders.decodeUuid(null));
-        assertEquals("UUID header value must not be null", ex.getMessage());
-    }
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidInputs")
+    void codec_shouldThrow_whenInputIsInvalid(
+            String input, Executable call, Class<? extends Throwable> expected, String message) {
+        Throwable ex = assertThrows(expected, call);
 
-    @ParameterizedTest
-    @ValueSource(ints = {0, 1, 8, 15, 17, 32})
-    void decodeUuid_shouldThrowIAE_whenLengthIsNot16(int len) {
-        byte[] bad = new byte[len];
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> NxHeaders.decodeUuid(bad));
-        assertEquals("UUID header value must be 16 bytes, got " + len, ex.getMessage());
+        assertEquals(message, ex.getMessage());
     }
 }

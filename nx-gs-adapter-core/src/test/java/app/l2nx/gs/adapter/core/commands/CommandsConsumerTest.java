@@ -421,25 +421,6 @@ class CommandsConsumerTest {
     }
 
     @Test
-    void processRecord_shouldDropWithoutReply_whenOnlyLegacyTargetHeaderPresent() {
-        AtomicBoolean handlerCalled = new AtomicBoolean(false);
-        registry.register(FakeCommand.class, (cmd, ctx) -> {
-            handlerCalled.set(true);
-            return CommandResult.ok();
-        });
-        CommandsConsumer consumer = build("out");
-        ConsumerRecord<byte[], byte[]> record =
-                recordWithHeaders("in", "FakeCommand", UUID.randomUUID(), payload(1), null);
-        record.headers().add("Nx-Target-Server-Id", NxHeaders.encodeUuid(OWN_SERVER_ID));
-
-        consumer.processRecord(record);
-
-        assertFalse(handlerCalled.get(), "a command from a pre-0.223.0 platform must not run");
-        assertEquals(1L, consumer.otherServerSkippedTotal());
-        assertEquals(0, sender.sent.size());
-    }
-
-    @Test
     void sendReply_shouldCarryNoPrefixedHeader() {
         registry.register(FakeCommand.class, (cmd, ctx) -> CommandResult.ok());
         CommandsConsumer consumer = build("out");

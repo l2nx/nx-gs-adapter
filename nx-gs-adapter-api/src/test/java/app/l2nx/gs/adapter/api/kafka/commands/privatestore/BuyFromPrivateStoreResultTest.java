@@ -97,12 +97,15 @@ class BuyFromPrivateStoreResultTest {
 
     @Test
     void toBuilder_shouldRoundtripAllFields() {
-        BuyFromPrivateStoreResult original = valid().build();
+        BuyFromPrivateStoreResult original = valid().storeClosed(true).build();
 
         BuyFromPrivateStoreResult copy = original.toBuilder().build();
 
         assertEquals(original, copy);
         assertNotSame(original, copy);
+        assertEquals(100L, original.getItemsTotalAdena());
+        assertEquals(5L, original.getBuyerFeeAdena());
+        assertEquals(42L, original.getMailId());
     }
 
     @Test

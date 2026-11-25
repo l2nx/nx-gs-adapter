@@ -30,15 +30,10 @@ class WantedLineTest {
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @Test
-    void constructor_shouldReject_whenPriceAdenaNegative() {
-        WantedLine.Builder builder = valid().priceAdena(-1L);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenCountTimesPriceOverflows() {
-        WantedLine.Builder builder = valid().count(Long.MAX_VALUE).priceAdena(2L);
+    @ParameterizedTest(name = "count={0}, priceAdena={1}")
+    @CsvSource({"1, -1", "9223372036854775807, 2"})
+    void constructor_shouldReject_whenPriceNegativeOrTotalOverflows(long count, long priceAdena) {
+        WantedLine.Builder builder = valid().count(count).priceAdena(priceAdena);
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
@@ -55,6 +50,7 @@ class WantedLineTest {
 
         assertEquals(original, original.toBuilder().build());
         assertEquals(original.hashCode(), original.toBuilder().build().hashCode());
+        assertEquals(3L, original.getCount());
     }
 
     @Test

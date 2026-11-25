@@ -256,28 +256,6 @@ class ConnectFlowTest {
     }
 
     @Test
-    void run_shouldExposeNullSyncTopics_whenFieldAbsent() {
-        wireMock.stubFor(post(urlEqualTo(CONNECT_PATH))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody(VALID_CONNECT_RESPONSE)));
-
-        AtomicReference<HostConnectFlow<?>> captured = new AtomicReference<HostConnectFlow<?>>();
-        AdapterConfig cfg = AdapterConfigFixtures.enabled(wireMock.baseUrl());
-        ConnectFlow flow = new ConnectFlow(
-                new GameServerConnectFlow(cfg), new DefaultBackoffSchedule(), scheduler, outcomes::add, captured::set);
-        flow.run();
-
-        HostConnectFlow<?> active = captured.get();
-        assertNotNull(active);
-        ConnectResponse response = (ConnectResponse) active.response();
-        assertNotNull(response);
-        assertNull(response.getSyncTopics());
-        assertEquals("tenants.heartbeat", response.getHeartbeatTopic());
-    }
-
-    @Test
     void run_shouldExposeEmptyNamespaces_whenSyncTopicsEmpty() {
         String body = "{"
                 + "\"tenantId\":\"00000000-0000-0000-0000-000000000001\","

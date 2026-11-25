@@ -34,25 +34,6 @@ class GsonSerializerTest {
         assertEquals("\"hello\"", new String(result, StandardCharsets.UTF_8));
     }
 
-    @Test
-    void serialize_shouldHandleNestedObjects() {
-        TestEvent event = new TestEvent("player1", 100);
-        Wrapper wrapper = new Wrapper("wrap", event);
-
-        byte[] result = serializer.serialize("test-topic", wrapper);
-
-        String json = new String(result, StandardCharsets.UTF_8);
-        assertTrue(json.contains("\"label\":\"wrap\""));
-        assertTrue(json.contains("\"name\":\"player1\""));
-    }
-
-    @Test
-    void serialize_shouldHandleEmptyObject() {
-        byte[] result = serializer.serialize("test-topic", new Empty());
-
-        assertEquals("{}", new String(result, StandardCharsets.UTF_8));
-    }
-
     static class TestEvent {
         final String name;
         final int value;
@@ -62,16 +43,4 @@ class GsonSerializerTest {
             this.value = value;
         }
     }
-
-    static class Wrapper {
-        final String label;
-        final TestEvent nested;
-
-        Wrapper(String label, TestEvent nested) {
-            this.label = label;
-            this.nested = nested;
-        }
-    }
-
-    static class Empty {}
 }

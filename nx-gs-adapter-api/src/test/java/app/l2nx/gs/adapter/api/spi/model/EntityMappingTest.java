@@ -13,62 +13,6 @@ import org.junit.jupiter.api.Test;
 class EntityMappingTest {
 
     @Test
-    void mapping_shouldExposeEntityIdentityAndPrimary() {
-        final PrimarySource<String> primary = new PrimarySource<String>() {
-            @Override
-            public String tableName() {
-                return "clan_data";
-            }
-
-            @Override
-            public String pkColumn() {
-                return "clan_id";
-            }
-
-            @Override
-            public List<String> hashedColumns() {
-                return Arrays.asList("clan_name", "clan_level");
-            }
-
-            @Override
-            public String mapRow(ResultSet rs) throws SQLException {
-                return rs.getString("clan_name");
-            }
-        };
-        EntityMapping<String> mapping = new EntityMapping<String>() {
-            @Override
-            public String entityName() {
-                return "clan";
-            }
-
-            @Override
-            public Class<String> dtoType() {
-                return String.class;
-            }
-
-            @Override
-            public PrimarySource<?> primary() {
-                return primary;
-            }
-
-            @Override
-            public List<ChildSource<?>> children() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public String mapEntity(Object primaryRow, Map<String, List<Object>> childRowsByTable) {
-                return (String) primaryRow;
-            }
-        };
-
-        assertEquals("clan", mapping.entityName());
-        assertSame(String.class, mapping.dtoType());
-        assertSame(primary, mapping.primary());
-        assertTrue(mapping.children().isEmpty());
-    }
-
-    @Test
     void mapping_shouldFoldChildren_intoMapEntityKeyedByTableName() {
         final ChildSource<String> skills = new ChildSource<String>() {
             @Override

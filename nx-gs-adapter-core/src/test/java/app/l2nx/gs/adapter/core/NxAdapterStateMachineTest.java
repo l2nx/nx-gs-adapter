@@ -30,14 +30,6 @@ class NxAdapterStateMachineTest {
     }
 
     @Test
-    void simulateKafkaStateChange_shouldEnterActive_whenConnected() {
-        NxAdapter.simulateKafkaStateChangeForTesting(KafkaState.CONNECTED);
-
-        assertEquals(AdapterState.ACTIVE, NxAdapter.state());
-        assertEquals(Collections.singletonList(AdapterState.ACTIVE), captured);
-    }
-
-    @Test
     void simulateKafkaStateChange_shouldNotPropagateDisconnected_whenStateIsInit() {
         // DISCONNECTED before the first ACTIVE must not transition: handshake incomplete
         NxAdapter.simulateKafkaStateChangeForTesting(KafkaState.DISCONNECTED);

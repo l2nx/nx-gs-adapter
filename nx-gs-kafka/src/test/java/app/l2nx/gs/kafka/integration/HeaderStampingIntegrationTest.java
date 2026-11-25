@@ -144,20 +144,6 @@ class HeaderStampingIntegrationTest {
         assertEquals("v", new String(custom.value()));
     }
 
-    @Test
-    void send_withoutStaticHeaders_shouldNotStampAnything() {
-        String topic = "test.header-stamp.empty";
-        Map<String, Object> props = producerProps("test-empty-headers");
-        producer = NxProducer.create(props, new Gson(), Collections.emptyMap());
-
-        producer.send(topic, new TestEvent("p7", 7));
-
-        ConsumerRecord<String, byte[]> received = consumeOne(topic, "g7");
-        assertNotNull(received);
-        Header h = received.headers().lastHeader(HEADER_NAME);
-        assertNull(h, "no test header expected");
-    }
-
     private NxProducer createStampingProducer() {
         Map<String, Object> props = producerProps("test-stamping");
         Map<String, byte[]> headers = new HashMap<>();

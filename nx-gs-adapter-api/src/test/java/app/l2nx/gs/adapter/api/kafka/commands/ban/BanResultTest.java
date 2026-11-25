@@ -16,8 +16,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class BanResultTest {
 
@@ -57,33 +63,25 @@ class BanResultTest {
         return BanResult.builder().bans(Arrays.asList(standard(), shadow())).observedAt(OBSERVED_AT);
     }
 
+    static Stream<Arguments> invalidArguments() {
+        return Stream.of(
+                invalid("bans empty", b -> b.bans(Collections.<BanRecord>emptyList())),
+                invalid("bans null", b -> b.bans(null)),
+                invalid("bans hold null", b -> b.bans(Arrays.asList(standard(), null))),
+                invalid("observedAt null", b -> b.observedAt(null)));
+    }
+
+    private static Arguments invalid(String name, UnaryOperator<BanResult.Builder> change) {
+        return Arguments.of(name, change);
+    }
+
     @Nested
     class Constructor {
 
-        @Test
-        void constructor_shouldReject_whenBansEmpty() {
-            BanResult.Builder builder = valid().bans(Collections.<BanRecord>emptyList());
-
-            assertThrows(IllegalArgumentException.class, builder::build);
-        }
-
-        @Test
-        void constructor_shouldReject_whenBansNull() {
-            BanResult.Builder builder = valid().bans(null);
-
-            assertThrows(IllegalArgumentException.class, builder::build);
-        }
-
-        @Test
-        void constructor_shouldReject_whenBansHoldNull() {
-            BanResult.Builder builder = valid().bans(Arrays.asList(standard(), null));
-
-            assertThrows(IllegalArgumentException.class, builder::build);
-        }
-
-        @Test
-        void constructor_shouldReject_whenObservedAtNull() {
-            BanResult.Builder builder = valid().observedAt(null);
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.ban.BanResultTest#invalidArguments")
+        void constructor_shouldReject_whenArgumentIsInvalid(String name, UnaryOperator<BanResult.Builder> change) {
+            BanResult.Builder builder = change.apply(valid());
 
             assertThrows(IllegalArgumentException.class, builder::build);
         }
@@ -109,19 +107,8 @@ class BanResultTest {
     class ValueSemantics {
 
         @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            BanResult original = valid().build();
-
-            BanResult copy = original.toBuilder().build();
-
-            assertEquals(original, copy);
-            assertEquals(original.hashCode(), copy.hashCode());
-            assertNotSame(original, copy);
-        }
-
-        @Test
-        void equals_shouldDistinguishObservedAt() {
-            assertNotEquals(valid().build(), valid().observedAt(EXPIRES_AT).build());
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(BanResult.class).verify();
         }
     }
 
@@ -138,6 +125,11 @@ class BanResultTest {
             assertEquals(OBSERVED_AT, actual.getObservedAt());
             assertEquals(EXPIRES_AT, actual.getBans().get(0).getRow().getExpiresAt());
             assertNull(actual.getBans().get(1).getRow().getExpiresAt());
+
+            BanResult copy = original.toBuilder().build();
+            assertEquals(original, copy);
+            assertEquals(original.hashCode(), copy.hashCode());
+            assertNotSame(original, copy);
         }
 
         @Test

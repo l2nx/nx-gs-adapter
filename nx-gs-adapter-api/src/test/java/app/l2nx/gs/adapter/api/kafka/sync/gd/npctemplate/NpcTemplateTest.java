@@ -1,7 +1,6 @@
 package app.l2nx.gs.adapter.api.kafka.sync.gd.npctemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import app.l2nx.gs.adapter.api.domain.npc.NpcRace;
@@ -9,6 +8,7 @@ import app.l2nx.gs.adapter.api.localization.LocalizedText;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -16,15 +16,6 @@ import org.junit.jupiter.api.Test;
  * parameters a silent swap compiles fine — a full round-trip catches it.
  */
 class NpcTemplateTest {
-
-    @Test
-    void toBuilder_shouldRoundTripEveryField() {
-        NpcTemplate original = fullyPopulated();
-        NpcTemplate copy = original.toBuilder().build();
-
-        assertEquals(original, copy);
-        assertEquals(original.hashCode(), copy.hashCode());
-    }
 
     @Test
     void builder_shouldPlaceEveryValueOnItsField() {
@@ -68,14 +59,29 @@ class NpcTemplateTest {
         assertEquals(1, t.getMinions().size());
         assertEquals(1, t.getAbsorbs().size());
         assertEquals(1, t.getSpawns().size());
+
+        assertEquals(4045, t.getSkills().get(0).getId());
+        assertEquals(1, t.getSkills().get(0).getLevel());
+        assertEquals(9, t.getDrops().get(0).getGroupIndex());
+        assertEquals(57, t.getDrops().get(0).getItems().get(0).getItemTemplateId());
+        assertEquals(25502, t.getMinions().get(0).getMinionNpcTemplateId());
+        assertEquals(2, t.getMinions().get(0).getCount());
+        assertEquals(13, t.getAbsorbs().get(0).getMinLevel());
+        assertEquals(14, t.getAbsorbs().get(0).getMaxLevel());
+        assertEquals(Boolean.TRUE, t.getAbsorbs().get(0).getSkill());
+        assertEquals(1, t.getSpawns().get(0).getX());
+        assertEquals(2, t.getSpawns().get(0).getY());
+        assertEquals(3, t.getSpawns().get(0).getZ());
+        assertEquals(4, t.getSpawns().get(0).getHeading());
+
+        NpcTemplate copy = t.toBuilder().build();
+        assertEquals(t, copy);
+        assertEquals(t.hashCode(), copy.hashCode());
     }
 
     @Test
-    void equals_shouldDetectSingleFieldDifference() {
-        NpcTemplate a = fullyPopulated();
-        NpcTemplate b = a.toBuilder().atkType("POLE").build();
-
-        assertNotEquals(a, b);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(NpcTemplate.class).verify();
     }
 
     @Test
@@ -134,7 +140,7 @@ class NpcTemplateTest {
                 .skills(Collections.singletonList(
                         NpcSkillRef.builder().id(4045).level(1).build()))
                 .drops(Collections.singletonList(NpcDropGroup.builder()
-                        .groupIndex(0)
+                        .groupIndex(9)
                         .items(Collections.singletonList(
                                 NpcDropItem.builder().itemTemplateId(57).build()))
                         .build()))
@@ -144,11 +150,11 @@ class NpcTemplateTest {
                         .build()))
                 .absorbs(Collections.singletonList(NpcAbsorb.builder()
                         .minLevel(13)
-                        .maxLevel(13)
+                        .maxLevel(14)
                         .skill(Boolean.TRUE)
                         .build()))
                 .spawns(Collections.singletonList(
-                        NpcSpawn.builder().x(1).y(2).z(3).heading(0).build()))
+                        NpcSpawn.builder().x(1).y(2).z(3).heading(4).build()))
                 .build();
     }
 }

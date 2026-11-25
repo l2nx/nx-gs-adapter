@@ -1,10 +1,16 @@
 package app.l2nx.gs.adapter.api.spi.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
+import nl.jqno.equalsverifier.Warning;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class RowFilterTest {
 
@@ -19,23 +25,27 @@ class RowFilterTest {
         assertEquals(RowFilter.Operator.NOT_EQ, RowFilter.notEq("kind", "x").getOperator());
     }
 
-    @Test
-    void notStartsWith_shouldRejectEmptyPrefix() {
-        assertThrows(IllegalArgumentException.class, () -> RowFilter.notStartsWith("name", ""));
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidFilters")
+    void factories_shouldReject_whenArgumentIsNullOrEmptyPrefix(
+            String name, Class<? extends Exception> expected, Executable factory) {
+        assertThrows(expected, factory);
+    }
+
+    static Stream<Arguments> invalidFilters() {
+        return Stream.of(
+                invalid("empty prefix", IllegalArgumentException.class, () -> RowFilter.notStartsWith("name", "")),
+                invalid("null column", NullPointerException.class, () -> RowFilter.eq(null, 1)),
+                invalid("null value", NullPointerException.class, () -> RowFilter.eq("c", (String) null)),
+                invalid("null prefix", NullPointerException.class, () -> RowFilter.notStartsWith("c", null)));
+    }
+
+    private static Arguments invalid(String name, Class<? extends Exception> expected, Executable factory) {
+        return Arguments.of(name, expected, factory);
     }
 
     @Test
-    void factories_shouldRejectNulls() {
-        assertThrows(NullPointerException.class, () -> RowFilter.eq(null, 1));
-        assertThrows(NullPointerException.class, () -> RowFilter.eq("c", (String) null));
-        assertThrows(NullPointerException.class, () -> RowFilter.notStartsWith("c", null));
-    }
-
-    @Test
-    void equals_shouldCompareColumnOperatorAndValue() {
-        assertEquals(RowFilter.eq("kind", 1), RowFilter.eq("kind", 1));
-        assertEquals(RowFilter.eq("kind", 1).hashCode(), RowFilter.eq("kind", 1).hashCode());
-        assertNotEquals(RowFilter.eq("kind", 1), RowFilter.notEq("kind", 1));
-        assertNotEquals(RowFilter.eq("kind", 1), RowFilter.eq("kind", 2));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(RowFilter.class).suppress(Warning.NULL_FIELDS).verify();
     }
 }

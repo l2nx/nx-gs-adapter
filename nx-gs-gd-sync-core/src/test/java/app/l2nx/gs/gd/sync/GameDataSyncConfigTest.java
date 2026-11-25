@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class GameDataSyncConfigTest {
 
@@ -31,26 +33,15 @@ class GameDataSyncConfigTest {
         assertFalse(config.scheduledResyncEnabled());
     }
 
-    @Test
-    void from_shouldClampUpToMinimum_whenPositiveBelowMin() {
+    @ParameterizedTest
+    @ValueSource(ints = {GameDataSyncConfig.MIN_RESYNC_INTERVAL_HOURS, 6})
+    void from_shouldKeepValue_whenAtOrAboveMinimum(int hours) {
         Map<String, String> values = new HashMap<String, String>();
-        // no sub-1 positive int exists; guards the clamp branch against a future MIN bump
-        values.put(GameDataSyncConfig.KEY_RESYNC_INTERVAL_HOURS, "1");
+        values.put(GameDataSyncConfig.KEY_RESYNC_INTERVAL_HOURS, String.valueOf(hours));
 
         GameDataSyncConfig config = GameDataSyncConfig.from(source(values));
 
-        assertEquals(GameDataSyncConfig.MIN_RESYNC_INTERVAL_HOURS, config.resyncIntervalHours());
-        assertTrue(config.scheduledResyncEnabled());
-    }
-
-    @Test
-    void from_shouldKeepValue_whenAboveMinimum() {
-        Map<String, String> values = new HashMap<String, String>();
-        values.put(GameDataSyncConfig.KEY_RESYNC_INTERVAL_HOURS, "6");
-
-        GameDataSyncConfig config = GameDataSyncConfig.from(source(values));
-
-        assertEquals(6, config.resyncIntervalHours());
+        assertEquals(hours, config.resyncIntervalHours());
         assertTrue(config.scheduledResyncEnabled());
     }
 

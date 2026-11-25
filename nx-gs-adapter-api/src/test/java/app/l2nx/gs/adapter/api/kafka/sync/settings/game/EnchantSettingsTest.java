@@ -36,4 +36,17 @@ class EnchantSettingsTest {
         assertNull(actual.getMaxArmor());
         assertNull(actual.getMaxJewelry());
     }
+
+    @Test
+    void build_shouldPlaceEveryCapOnItsField() {
+        EnchantSettings actual = EnchantSettings.builder()
+                .maxWeapon(16)
+                .maxArmor(14)
+                .maxJewelry(12)
+                .build();
+
+        assertEquals(16, actual.getMaxWeapon());
+        assertEquals(14, actual.getMaxArmor());
+        assertEquals(12, actual.getMaxJewelry());
+    }
 }

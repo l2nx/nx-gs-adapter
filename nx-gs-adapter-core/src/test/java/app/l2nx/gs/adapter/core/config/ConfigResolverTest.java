@@ -10,9 +10,14 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ConfigResolverTest {
@@ -66,11 +71,14 @@ class ConfigResolverTest {
         assertEquals(Optional.of("https://acme.api.l2nx.app"), resolver.resolveString("l2nx.platform-url"));
     }
 
-    @Test
-    void resolveServerKey_shouldFailListingBothSources_whenMissing() {
-        ConfigResolver resolver = new ConfigResolver(empty(), new Properties());
+    @ParameterizedTest(name = "l2nx.gs-key=\"{0}\"")
+    @NullSource
+    @ValueSource(strings = "   ")
+    void resolveServerKey_shouldFailListingBothSources_whenMissingOrBlank(String value) {
+        ConfigResolver resolver = withFileValue("l2nx.gs-key", value);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, resolver::resolveServerKey);
+        assertTrue(ex.getMessage().contains("Missing"));
         assertTrue(ex.getMessage().contains("-Dl2nx.gs-key"));
         assertTrue(ex.getMessage().contains("-Dl2nx.config-file"));
         assertTrue(ex.getMessage().contains("l2nx.properties"));
@@ -92,37 +100,15 @@ class ConfigResolverTest {
         assertTrue(ex.getMessage().contains("38"));
     }
 
-    @Test
-    void resolveServerKey_shouldFailMissing_whenValueIsBlank() {
-        Properties file = props("l2nx.gs-key", "   ");
-        ConfigResolver resolver = new ConfigResolver(empty(), file);
-
-        IllegalStateException ex = assertThrows(IllegalStateException.class, resolver::resolveServerKey);
-        assertTrue(ex.getMessage().contains("Missing"));
-    }
-
-    @Test
-    void resolveServerKey_shouldReturnValue_whenFormatValid() {
-        ConfigResolver resolver = withSysprop("l2nx.gs-key", VALID_KEY);
-
-        assertEquals(VALID_KEY, resolver.resolveServerKey());
-    }
-
-    @Test
-    void resolvePlatformUrl_shouldFailWhenMissing() {
-        ConfigResolver resolver = new ConfigResolver(empty(), new Properties());
+    @ParameterizedTest(name = "l2nx.platform-url=\"{0}\"")
+    @NullSource
+    @ValueSource(strings = "    ")
+    void resolvePlatformUrl_shouldFail_whenMissingOrBlank(String value) {
+        ConfigResolver resolver = withFileValue("l2nx.platform-url", value);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, resolver::resolvePlatformUrl);
         assertTrue(ex.getMessage().contains("l2nx.platform-url"));
         assertTrue(ex.getMessage().contains("l2nx.config-file"));
-    }
-
-    @Test
-    void resolvePlatformUrl_shouldFailWhenBlank() {
-        Properties file = props("l2nx.platform-url", "    ");
-        ConfigResolver resolver = new ConfigResolver(empty(), file);
-
-        assertThrows(IllegalStateException.class, resolver::resolvePlatformUrl);
     }
 
     @Test
@@ -165,29 +151,11 @@ class ConfigResolverTest {
         assertFalse(resolver.resolveEnabled());
     }
 
-    @Test
-    void resolveEnabled_shouldParseTrue_whenSyspropProvidesLowerCase() {
-        ConfigResolver resolver = withSysprop("l2nx.enabled", "true");
-
-        assertTrue(resolver.resolveEnabled());
-    }
-
-    @Test
-    void resolveEnabled_shouldParseTrue_whenFileProvidesUpperCase() {
-        Properties file = props("l2nx.enabled", "TRUE");
-
-        ConfigResolver resolver = new ConfigResolver(empty(), file);
-
-        assertTrue(resolver.resolveEnabled());
-    }
-
-    @Test
-    void resolveEnabled_shouldParseTrue_whenFileProvidesMixedCase() {
-        Properties file = props("l2nx.enabled", "True");
-
-        ConfigResolver resolver = new ConfigResolver(empty(), file);
-
-        assertTrue(resolver.resolveEnabled());
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"true", "TRUE", "True"})
+    void resolveEnabled_shouldParseTrue_inAnyCase(String value) {
+        assertTrue(withSysprop("l2nx.enabled", value).resolveEnabled());
+        assertTrue(withFileValue("l2nx.enabled", value).resolveEnabled());
     }
 
     @Test
@@ -216,26 +184,12 @@ class ConfigResolverTest {
         ConfigResolver resolver = new ConfigResolver(sys::get, new Properties());
         AdapterConfig config = resolver.resolve();
 
+        assertEquals("gs", config.getHostType());
         assertEquals(VALID_KEY, config.getServerKey());
         assertEquals(VALID_PLATFORM_URL, config.getPlatformUrl());
         assertTrue(config.isEnabled());
         assertNotNull(config.getAdapterVersion());
         assertFalse(config.getAdapterVersion().isEmpty());
-    }
-
-    @Test
-    void loadFileProperties_shouldUseExplicitPath_whenConfigFileSyspropSet(@TempDir Path tempDir) throws IOException {
-        Path configFile = tempDir.resolve("adapter.properties");
-        Files.write(
-                configFile, ("l2nx.gs-key=" + VALID_KEY + "\nl2nx.enabled=true\n").getBytes(StandardCharsets.UTF_8));
-
-        Map<String, String> sys =
-                singletonMap("l2nx.config-file", configFile.toAbsolutePath().toString());
-
-        Properties loaded = ConfigResolver.loadFileProperties(sys::get);
-
-        assertEquals(VALID_KEY, loaded.getProperty("l2nx.gs-key"));
-        assertEquals("true", loaded.getProperty("l2nx.enabled"));
     }
 
     @Test
@@ -385,16 +339,10 @@ class ConfigResolverTest {
         assertEquals("gs", resolver.resolveHostType());
     }
 
-    @Test
-    void resolveHostType_shouldAcceptLs() {
-        ConfigResolver resolver = withSysprop("l2nx.host-type", "ls");
-
-        assertEquals("ls", resolver.resolveHostType());
-    }
-
-    @Test
-    void resolveHostType_shouldBeCaseInsensitive() {
-        ConfigResolver resolver = withSysprop("l2nx.host-type", "LS");
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"ls", "LS"})
+    void resolveHostType_shouldAcceptLs_inAnyCase(String value) {
+        ConfigResolver resolver = withSysprop("l2nx.host-type", value);
 
         assertEquals("ls", resolver.resolveHostType());
     }
@@ -408,42 +356,36 @@ class ConfigResolverTest {
         assertTrue(ex.getMessage().contains("dp"));
     }
 
-    @Test
-    void resolveServerKey_shouldReturnGsKey_whenHostTypeGs() {
-        ConfigResolver resolver = withSysprop("l2nx.gs-key", VALID_KEY);
-
-        assertEquals(VALID_KEY, resolver.resolveServerKey("gs"));
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("hostTypeKeys")
+    void resolveServerKey_shouldReturnTheKeyOfTheHostType(
+            String hostType, String property, String key, Function<ConfigResolver, String> resolve) {
+        assertEquals(key, resolve.apply(withSysprop(property, key)));
     }
 
-    @Test
-    void resolveServerKey_shouldReturnLsKey_whenHostTypeLs() {
-        ConfigResolver resolver = withSysprop("l2nx.ls-key", VALID_LS_KEY);
-
-        assertEquals(VALID_LS_KEY, resolver.resolveServerKey("ls"));
+    private static Stream<Arguments> hostTypeKeys() {
+        return Stream.of(
+                hostTypeKey("default", "l2nx.gs-key", VALID_KEY, resolver -> resolver.resolveServerKey()),
+                hostTypeKey("gs", "l2nx.gs-key", VALID_KEY, resolver -> resolver.resolveServerKey("gs")),
+                hostTypeKey("ls", "l2nx.ls-key", VALID_LS_KEY, resolver -> resolver.resolveServerKey("ls")));
     }
 
-    @Test
-    void resolveServerKey_shouldRejectMismatch_whenGsKeyPresentButHostTypeLs() {
+    private static Arguments hostTypeKey(
+            String hostType, String property, String key, Function<ConfigResolver, String> resolve) {
+        return Arguments.of(hostType, property, key, resolve);
+    }
+
+    @ParameterizedTest(name = "host-type={0}")
+    @CsvSource({"ls, l2nx.gs-key", "gs, l2nx.ls-key"})
+    void resolveServerKey_shouldRejectMismatch_whenTheOtherKeyIsPresent(String hostType, String otherKey) {
         Map<String, String> sys = new HashMap<>();
         sys.put("l2nx.gs-key", VALID_KEY);
         sys.put("l2nx.ls-key", VALID_LS_KEY);
         ConfigResolver resolver = new ConfigResolver(sys::get, new Properties());
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> resolver.resolveServerKey("ls"));
-        assertTrue(ex.getMessage().contains("l2nx.gs-key"));
-        assertTrue(ex.getMessage().contains("ls"));
-    }
-
-    @Test
-    void resolveServerKey_shouldRejectMismatch_whenLsKeyPresentButHostTypeGs() {
-        Map<String, String> sys = new HashMap<>();
-        sys.put("l2nx.gs-key", VALID_KEY);
-        sys.put("l2nx.ls-key", VALID_LS_KEY);
-        ConfigResolver resolver = new ConfigResolver(sys::get, new Properties());
-
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> resolver.resolveServerKey("gs"));
-        assertTrue(ex.getMessage().contains("l2nx.ls-key"));
-        assertTrue(ex.getMessage().contains("gs"));
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> resolver.resolveServerKey(hostType));
+        assertTrue(ex.getMessage().contains(otherKey));
+        assertTrue(ex.getMessage().contains(hostType));
     }
 
     @Test
@@ -453,20 +395,6 @@ class ConfigResolverTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> resolver.resolveServerKey("ls"));
         assertTrue(ex.getMessage().contains("l2nx.ls-key"));
         assertTrue(ex.getMessage().contains("Missing"));
-    }
-
-    @Test
-    void resolve_shouldPickGsKey_whenHostTypeDefault() {
-        Map<String, String> sys = new HashMap<>();
-        sys.put("l2nx.gs-key", VALID_KEY);
-        sys.put("l2nx.platform-url", VALID_PLATFORM_URL);
-        sys.put("l2nx.enabled", "true");
-        ConfigResolver resolver = new ConfigResolver(sys::get, new Properties());
-
-        AdapterConfig config = resolver.resolve();
-
-        assertEquals("gs", config.getHostType());
-        assertEquals(VALID_KEY, config.getServerKey());
     }
 
     @Test
@@ -499,6 +427,10 @@ class ConfigResolverTest {
 
     private static ConfigResolver withSysprop(String key, String value) {
         return new ConfigResolver(singletonMap(key, value)::get, new Properties());
+    }
+
+    private static ConfigResolver withFileValue(String key, String value) {
+        return new ConfigResolver(empty(), value == null ? new Properties() : props(key, value));
     }
 
     private static Function<String, String> empty() {

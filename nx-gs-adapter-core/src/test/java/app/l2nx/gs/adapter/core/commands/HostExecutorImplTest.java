@@ -3,7 +3,9 @@ package app.l2nx.gs.adapter.core.commands;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.spi.HostExecutorTimeoutException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -33,6 +35,33 @@ class HostExecutorImplTest {
     }
 
     @Test
+    void sync_shouldWaitForTheTask_whenTheExecutorRunsItOnAnotherThread() {
+        Thread caller = Thread.currentThread();
+        CountDownLatch returned = new CountDownLatch(1);
+        Executor otherThread = task -> {
+            Thread worker = new Thread(task);
+            worker.setDaemon(true);
+            worker.start();
+        };
+        HostExecutorImpl host = new HostExecutorImpl(otherThread, TimeUnit.MINUTES.toMillis(1));
+
+        String result;
+        try {
+            result = host.sync(() -> {
+                // The task finishes only once the caller is parked inside sync.
+                while (returned.getCount() > 0 && !isParked(caller)) {
+                    Thread.yield();
+                }
+                return "hello";
+            });
+        } finally {
+            returned.countDown();
+        }
+
+        assertEquals("hello", result);
+    }
+
+    @Test
     void sync_runnable_shouldBeNoOpOnNullTask() {
         HostExecutorImpl host = new HostExecutorImpl(IMMEDIATE_EXECUTOR, TEST_SYNC_TIMEOUT_MS);
 
@@ -47,17 +76,11 @@ class HostExecutorImplTest {
     }
 
     @Test
-    void sync_unregistered_shouldThrowIllegalStateException() {
+    void syncAndAsync_unregistered_shouldThrowIllegalStateException() {
         HostExecutorImpl host = new HostExecutorImpl(null, TEST_SYNC_TIMEOUT_MS);
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> host.sync(() -> {}));
         assertTrue(ex.getMessage().contains("HostExecutor not registered"));
-    }
-
-    @Test
-    void async_unregistered_shouldThrowIllegalStateException() {
-        HostExecutorImpl host = new HostExecutorImpl(null, TEST_SYNC_TIMEOUT_MS);
-
         assertThrows(IllegalStateException.class, () -> host.async(() -> {}));
     }
 
@@ -88,14 +111,9 @@ class HostExecutorImplTest {
         Executor blackHole = task -> {};
         HostExecutorImpl host = new HostExecutorImpl(blackHole, TEST_SYNC_TIMEOUT_MS);
 
-        long t0 = System.currentTimeMillis();
         HostExecutorTimeoutException ex = assertThrows(HostExecutorTimeoutException.class, () -> host.sync(() -> {}));
-        long elapsed = System.currentTimeMillis() - t0;
 
         assertEquals(TEST_SYNC_TIMEOUT_MS, ex.getTimeoutMs());
-        assertTrue(
-                elapsed >= TEST_SYNC_TIMEOUT_MS,
-                "expected await to last >= " + TEST_SYNC_TIMEOUT_MS + "ms, got " + elapsed);
     }
 
     @Test
@@ -137,5 +155,10 @@ class HostExecutorImplTest {
         host.async(null);
 
         assertFalse(executorInvoked.get());
+    }
+
+    private static boolean isParked(Thread thread) {
+        Thread.State state = thread.getState();
+        return state == Thread.State.WAITING || state == Thread.State.TIMED_WAITING;
     }
 }

@@ -7,8 +7,11 @@ import app.l2nx.gs.adapter.api.spi.model.RuntimeRow;
 import app.l2nx.gs.runtime.sync.engine.publish.KafkaSender;
 import app.l2nx.gs.runtime.sync.engine.publish.SyncEventPublisher;
 import app.l2nx.gs.runtime.sync.engine.publish.TopicResolver;
+import java.time.Clock;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -91,7 +94,6 @@ class RuntimeSyncEngineTest {
 
     @Test
     void tickGuard_shouldSkip_whenPreviousTickStillRunning() throws Exception {
-        // the second scheduled tick must skip: the snapshot counter does not increment
         CountDownLatch holdInside = new CountDownLatch(1);
         CountDownLatch entered = new CountDownLatch(1);
         AtomicInteger snapshotCalls = new AtomicInteger(0);
@@ -106,21 +108,29 @@ class RuntimeSyncEngineTest {
             }
         };
 
-        EntityStatsTracker tracker = new EntityStatsTracker();
-        RuntimeSyncEngine engine = new RuntimeSyncEngine(
-                Collections.<RuntimeEntityMapping<?>>singletonList(blocking),
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        EntityTickLoop loop = new EntityTickLoop(
+                blocking,
                 e -> "t.character",
                 new SyncEventPublisher(silentSender()),
-                tracker,
-                new EngineConfig(1, 1));
+                new EntityStatsTracker(),
+                new EngineConfig(3600, 1),
+                scheduler,
+                Clock.systemUTC());
+        Thread previous = new Thread(loop::guardedTick);
         try {
-            engine.start();
+            loop.start();
+            previous.start();
             assertTrue(entered.await(5L, TimeUnit.SECONDS), "first tick must have entered snapshot()");
-            Thread.sleep(1500L);
-            assertEquals(1, snapshotCalls.get(), "overlapping scheduled tick must be skipped by the tick guard");
+
+            loop.guardedTick();
+
+            assertEquals(1, snapshotCalls.get(), "overlapping tick must be skipped by the tick guard");
         } finally {
             holdInside.countDown();
-            engine.stop();
+            previous.join(5_000L);
+            loop.stop();
+            scheduler.shutdownNow();
         }
     }
 

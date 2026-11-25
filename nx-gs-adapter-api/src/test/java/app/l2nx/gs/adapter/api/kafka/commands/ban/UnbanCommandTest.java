@@ -56,21 +56,6 @@ class UnbanCommandTest {
     }
 
     @Nested
-    class Builder {
-
-        @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            UnbanCommand original = valid().build();
-
-            UnbanCommand copy = original.toBuilder().build();
-
-            assertEquals(original, copy);
-            assertEquals(original.hashCode(), copy.hashCode());
-            assertNotSame(original, copy);
-        }
-    }
-
-    @Nested
     class Json {
 
         @Test
@@ -99,10 +84,15 @@ class UnbanCommandTest {
             UnbanCommand expected = valid().build();
             assertEquals("ACCOUNT", actual.getSubjectType());
             assertEquals("login1", actual.getSubjectValue());
+            assertEquals("CHAT", actual.getBanType());
+            assertEquals(TestInitiators.USER, actual.getInitiator());
             assertEquals(expected, actual);
             assertEquals(expected.hashCode(), actual.hashCode());
             assertEquals(expected.toString(), actual.toString());
-            assertEquals(expected, actual.toBuilder().build());
+            UnbanCommand copy = actual.toBuilder().build();
+            assertEquals(expected, copy);
+            assertEquals(expected.hashCode(), copy.hashCode());
+            assertNotSame(actual, copy);
         }
     }
 }

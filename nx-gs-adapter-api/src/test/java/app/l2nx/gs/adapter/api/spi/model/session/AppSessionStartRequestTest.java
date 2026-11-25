@@ -7,10 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import app.l2nx.gs.adapter.api.domain.character.ActivityType;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class AppSessionStartRequestTest {
@@ -24,6 +28,32 @@ class AppSessionStartRequestTest {
                 .spotPool("harbor")
                 .spotId(3)
                 .plannedMs(60_000L);
+    }
+
+    static Stream<Arguments> invalidSessions() {
+        OfflineSession.Builder open = OfflineSession.builder()
+                .id(UUID.randomUUID())
+                .idempotencyKey(UUID.randomUUID())
+                .activity(ActivityType.OFFLINE_FISHING)
+                .accountName("acc")
+                .spotPool("harbor")
+                .startedAt(Instant.EPOCH);
+        return Stream.of(
+                invalid("blank account name", () -> valid().accountName(" ").build()),
+                invalid(
+                        "spot pool longer than the column",
+                        () -> valid().spotPool(repeat('p', 33)).build()),
+                invalid("plannedMs 0", () -> valid().plannedMs(0L).build()),
+                invalid(
+                        "heading outside the circle",
+                        () -> valid().originHeading(65536).build()),
+                invalid(
+                        "offline session with endedAt and no endReason",
+                        () -> open.endedAt(Instant.EPOCH).build()));
+    }
+
+    private static Arguments invalid(String name, Executable build) {
+        return Arguments.of(name, build);
     }
 
     @Nested
@@ -64,47 +94,11 @@ class AppSessionStartRequestTest {
                     () -> valid().activity(activity).build());
         }
 
-        @Test
-        void build_shouldRejectABlankAccountName() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> valid().accountName(" ").build());
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.spi.model.session.AppSessionStartRequestTest#invalidSessions")
+        void build_shouldReject_whenValueIsInvalid(String name, Executable build) {
+            assertThrows(IllegalArgumentException.class, build);
         }
-
-        @Test
-        void build_shouldRejectASpotPoolLongerThanTheColumn() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> valid().spotPool(repeat('p', 33)).build());
-        }
-
-        @Test
-        void build_shouldRejectANonPositivePlannedMs() {
-            assertThrows(
-                    IllegalArgumentException.class, () -> valid().plannedMs(0L).build());
-        }
-
-        @Test
-        void build_shouldRejectAHeadingOutsideTheCircle() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> valid().originHeading(65536).build());
-        }
-    }
-
-    @Test
-    void offlineSession_shouldRequireEndedAtAndEndReasonTogether() {
-        OfflineSession.Builder open = OfflineSession.builder()
-                .id(UUID.randomUUID())
-                .idempotencyKey(UUID.randomUUID())
-                .activity(ActivityType.OFFLINE_FISHING)
-                .accountName("acc")
-                .spotPool("harbor")
-                .startedAt(Instant.EPOCH);
-
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> open.endedAt(Instant.EPOCH).build());
     }
 
     private static String repeat(char c, int n) {

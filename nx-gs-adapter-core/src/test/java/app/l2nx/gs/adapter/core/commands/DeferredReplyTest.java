@@ -143,7 +143,9 @@ class DeferredReplyTest {
             taken.get().complete(CommandResult.<Void>ok());
 
             assertFalse(taken.get().complete(CommandResult.<Void>ok()));
-            awaitSent(2);
+
+            awaitSent(1);
+            deferredReplies.shutdown();
             assertEquals(1, sender.sent.size());
         }
 

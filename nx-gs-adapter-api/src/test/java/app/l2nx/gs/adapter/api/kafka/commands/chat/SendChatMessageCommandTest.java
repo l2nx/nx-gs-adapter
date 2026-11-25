@@ -7,18 +7,25 @@ import app.l2nx.gs.adapter.api.kafka.commands.chat.model.ChatAudience;
 import app.l2nx.gs.adapter.api.kafka.events.chat.model.ChatChannel;
 import com.google.gson.Gson;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class SendChatMessageCommandTest {
 
     private static final Gson GSON = new Gson();
 
+    private static final UUID MESSAGE_ID = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000000");
+
     private static SendChatMessageCommand.Builder base() {
         return SendChatMessageCommand.builder()
-                .messageId(UUID.randomUUID())
+                .messageId(MESSAGE_ID)
                 .channel("CLAN")
                 .audience(ChatAudience.CLAN)
                 .audienceId(7L)
@@ -26,6 +33,49 @@ class SendChatMessageCommandTest {
                 .source("APP")
                 .text("hello")
                 .initiator(TestInitiators.USER);
+    }
+
+    private static Stream<Arguments> invalidSenderOrAudience() {
+        return Stream.of(
+                Arguments.of("no character and no display name", NullPointerException.class, (Consumer<
+                                SendChatMessageCommand.Builder>)
+                        b -> b.audience(ChatAudience.ALL_ONLINE)
+                                .audienceId(null)
+                                .senderCharacterId(null)),
+                Arguments.of("ALLIANCE without audienceId", IllegalArgumentException.class, (Consumer<
+                                SendChatMessageCommand.Builder>)
+                        b -> b.audience(ChatAudience.ALLIANCE).audienceId(null)),
+                Arguments.of("PARTY with audienceId", IllegalArgumentException.class, (Consumer<
+                                SendChatMessageCommand.Builder>)
+                        b -> b.audience(ChatAudience.PARTY)),
+                Arguments.of("PARTY without sender", IllegalArgumentException.class, (Consumer<
+                                SendChatMessageCommand.Builder>)
+                        b -> b.audience(ChatAudience.PARTY)
+                                .audienceId(null)
+                                .senderCharacterId(null)
+                                .senderDisplayName("")),
+                Arguments.of("CHARACTER with both audienceId and name", IllegalArgumentException.class, (Consumer<
+                                SendChatMessageCommand.Builder>)
+                        b -> b.audience(ChatAudience.CHARACTER).audienceId(55L).targetCharacterName("Vasya")),
+                Arguments.of("CHARACTER with neither audienceId nor name", IllegalArgumentException.class, (Consumer<
+                                SendChatMessageCommand.Builder>)
+                        b -> b.audience(ChatAudience.CHARACTER).audienceId(null)),
+                Arguments.of("target name outside CHARACTER", IllegalArgumentException.class, (Consumer<
+                                SendChatMessageCommand.Builder>)
+                        b -> b.targetCharacterName("Vasya")),
+                Arguments.of("ALL_ONLINE with audienceId", IllegalArgumentException.class, (Consumer<
+                                SendChatMessageCommand.Builder>)
+                        b -> b.audience(ChatAudience.ALL_ONLINE)));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidSenderOrAudience")
+    void build_shouldReject_whenSenderOrAudienceInvalid(
+            String reason, Class<? extends Throwable> expected, Consumer<SendChatMessageCommand.Builder> change) {
+        SendChatMessageCommand.Builder builder = base();
+        change.accept(builder);
+
+        assertThrows(expected, builder::build);
     }
 
     @Nested
@@ -67,28 +117,13 @@ class SendChatMessageCommandTest {
 
             assertNull(command.getSenderDisplayName());
         }
-
-        @Test
-        void build_shouldReject_whenNoCharacterAndDisplayNameNull() {
-            assertThrows(
-                    NullPointerException.class,
-                    () -> base().audience(ChatAudience.ALL_ONLINE)
-                            .audienceId(null)
-                            .senderCharacterId(null)
-                            .build());
-        }
     }
 
     @Nested
     class Audience {
 
         @Test
-        void build_shouldRequireAudienceId_whenAlliance() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> base().audience(ChatAudience.ALLIANCE)
-                            .audienceId(null)
-                            .build());
+        void build_shouldAcceptAlliance_whenAudienceIdSet() {
             assertEquals(
                     "ALLIANCE", base().audience(ChatAudience.ALLIANCE).build().getAudience());
         }
@@ -99,24 +134,6 @@ class SendChatMessageCommandTest {
                     base().audience(ChatAudience.PARTY).audienceId(null).build();
 
             assertNull(command.getAudienceId());
-        }
-
-        @Test
-        void build_shouldRejectParty_whenAudienceIdPresent() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> base().audience(ChatAudience.PARTY).build());
-        }
-
-        @Test
-        void build_shouldRejectParty_whenNoSender() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> base().audience(ChatAudience.PARTY)
-                            .audienceId(null)
-                            .senderCharacterId(null)
-                            .senderDisplayName("")
-                            .build());
         }
 
         @Test
@@ -140,25 +157,6 @@ class SendChatMessageCommandTest {
             assertNull(command.getAudienceId());
         }
 
-        @Test
-        void build_shouldRejectCharacter_whenBothAudienceIdAndName() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> base().audience(ChatAudience.CHARACTER)
-                            .audienceId(55L)
-                            .targetCharacterName("Vasya")
-                            .build());
-        }
-
-        @Test
-        void build_shouldRejectCharacter_whenNeither() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> base().audience(ChatAudience.CHARACTER)
-                            .audienceId(null)
-                            .build());
-        }
-
         @ParameterizedTest
         @ValueSource(strings = {"", "  "})
         void build_shouldRejectCharacter_whenNameBlank(String name) {
@@ -169,20 +167,6 @@ class SendChatMessageCommandTest {
                             .targetCharacterName(name)
                             .build());
         }
-
-        @Test
-        void build_shouldRejectTargetName_whenAudienceIsNotCharacter() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> base().targetCharacterName("Vasya").build());
-        }
-
-        @Test
-        void build_shouldRejectAudienceId_whenAllOnline() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> base().audience(ChatAudience.ALL_ONLINE).build());
-        }
     }
 
     @Nested
@@ -190,13 +174,28 @@ class SendChatMessageCommandTest {
 
         @Test
         void toBuilder_shouldRoundtripAllFields() {
-            SendChatMessageCommand original = base().audience(ChatAudience.CHARACTER)
-                    .audienceId(null)
-                    .targetCharacterName("Vasya*")
-                    .offlineDelivery(false)
-                    .build();
+            SendChatMessageCommand toName = new SendChatMessageCommand(
+                    UUID.randomUUID(),
+                    "WHISPER",
+                    "CHARACTER",
+                    null,
+                    100L,
+                    "Vasya",
+                    "APP",
+                    "hello",
+                    "Vasya*",
+                    true,
+                    TestInitiators.USER,
+                    false);
+            SendChatMessageCommand toId = base().ownerVerified(true).build();
 
-            assertEquals(original, original.toBuilder().build());
+            assertEquals(toName, toName.toBuilder().build());
+            assertEquals(toId, toId.toBuilder().build());
+            assertEquals("APP", toId.getSource());
+            assertEquals("hello", toId.getText());
+            assertEquals(TestInitiators.USER, toId.getInitiator());
+            assertEquals(MESSAGE_ID, toId.getMessageId());
+            assertTrue(toId.isOwnerVerified());
         }
 
         @Test
@@ -221,12 +220,8 @@ class SendChatMessageCommandTest {
         }
 
         @Test
-        void equals_shouldTellOfflineDeliveryApart() {
-            SendChatMessageCommand original = whisper().offlineDelivery(true).build();
-
-            assertNotEquals(
-                    original, original.toBuilder().offlineDelivery(false).build());
-            assertNotEquals(original, original.toBuilder().offlineDelivery(null).build());
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(SendChatMessageCommand.class).verify();
         }
 
         @Test

@@ -19,7 +19,7 @@ class RecurringScheduleTest {
     }
 
     @Test
-    void builder_shouldBuildEqualToConstructor() {
+    void builder_shouldBuildEqualToConstructorAndRoundtrip() {
         RecurringSchedule built = RecurringSchedule.builder()
                 .slots(Collections.singletonList(slot()))
                 .build();
@@ -28,6 +28,9 @@ class RecurringScheduleTest {
 
         assertEquals(ctor, built);
         assertEquals(ctor.hashCode(), built.hashCode());
+
+        RecurringSchedule twoSlots = new RecurringSchedule(Arrays.asList(slot(), slot()));
+        assertEquals(twoSlots, twoSlots.toBuilder().build());
     }
 
     @Test
@@ -44,12 +47,5 @@ class RecurringScheduleTest {
 
         assertThrows(
                 UnsupportedOperationException.class, () -> schedule.getSlots().add(slot()));
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        RecurringSchedule original = new RecurringSchedule(Arrays.asList(slot(), slot()));
-
-        assertEquals(original, original.toBuilder().build());
     }
 }

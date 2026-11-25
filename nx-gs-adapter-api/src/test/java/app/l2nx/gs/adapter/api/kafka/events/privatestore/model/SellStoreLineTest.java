@@ -3,6 +3,7 @@ package app.l2nx.gs.adapter.api.kafka.events.privatestore.model;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class SellStoreLineTest {
@@ -43,10 +44,15 @@ class SellStoreLineTest {
         assertEquals(original, copy);
         assertEquals(original.hashCode(), copy.hashCode());
         assertNotSame(original, copy);
+        assertEquals(original.getItem(), copy.getItem());
+        assertEquals(555L, copy.getItem().getItemId());
+        assertEquals(2L, copy.getCount());
+        assertEquals(1000L, copy.getUnitPrice());
+        assertEquals(57L, copy.getCurrencyItemTemplateId());
     }
 
     @Test
-    void equals_shouldDistinguishUnitPrice() {
-        assertNotEquals(valid().build(), valid().unitPrice(1001L).build());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(SellStoreLine.class).verify();
     }
 }

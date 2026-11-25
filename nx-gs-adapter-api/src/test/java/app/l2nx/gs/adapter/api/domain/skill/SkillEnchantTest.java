@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.domain.skill;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -23,10 +24,7 @@ class SkillEnchantTest {
     }
 
     @Test
-    void equals_shouldCompareByRouteAndLevel() {
-        assertEquals(new SkillEnchant(1, 2), new SkillEnchant(1, 2));
-        assertEquals(new SkillEnchant(1, 2).hashCode(), new SkillEnchant(1, 2).hashCode());
-        assertNotEquals(new SkillEnchant(1, 2), new SkillEnchant(2, 1));
-        assertNotEquals(new SkillEnchant(1, 2), new SkillEnchant(1, 3));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(SkillEnchant.class).verify();
     }
 }

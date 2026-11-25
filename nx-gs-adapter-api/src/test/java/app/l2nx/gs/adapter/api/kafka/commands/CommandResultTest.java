@@ -2,7 +2,12 @@ package app.l2nx.gs.adapter.api.kafka.commands;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class CommandResultTest {
 
@@ -18,15 +23,6 @@ class CommandResultTest {
     }
 
     @Test
-    void ok_withPayload_shouldCarryPayload() {
-        CommandResult<String> r = CommandResult.ok("hello");
-
-        assertTrue(r.isOk());
-        assertEquals("hello", r.getPayload());
-        assertNull(r.getProblem());
-    }
-
-    @Test
     void error_shouldFlipOkAndCarryStatusAndProblemTitle() {
         CommandResult<Void> r = CommandResult.error(CommandStatus.NOT_FOUND, "Character not found");
 
@@ -35,14 +31,6 @@ class CommandResultTest {
         assertEquals(CommandStatus.Tier.CLIENT_ERROR, r.getTier());
         assertEquals("Character not found", r.getProblem().getTitle());
         assertNull(r.getPayload());
-    }
-
-    @Test
-    void error_withSingleExtension_shouldExposeIt() {
-        CommandResult<Void> r = CommandResult.error(CommandStatus.NOT_FOUND, "not found", "characterId", 12345L);
-
-        assertEquals(CommandStatus.NOT_FOUND, r.getStatus());
-        assertEquals(12345L, r.getProblem().getExtensions().get("characterId"));
     }
 
     @Test
@@ -59,82 +47,116 @@ class CommandResultTest {
         assertSame(problem, r.getProblem());
     }
 
-    @Test
-    void notFound_factory_shouldShortcutToNotFoundStatus() {
-        CommandResult<Void> r = CommandResult.notFound("Character not found", "characterId", 12345L);
+    static Stream<Arguments> factories() {
+        CommandProblem plain = CommandProblem.of("title");
+        CommandProblem extended = CommandProblem.of("title", "key", 5L);
+        return Stream.of(
+                Arguments.of("ok()", CommandResult.ok(), CommandStatus.OK, null, null),
+                Arguments.of("ok(payload)", CommandResult.ok("hello"), CommandStatus.OK, "hello", null),
+                Arguments.of(
+                        "error(status, problem)",
+                        CommandResult.error(CommandStatus.FORBIDDEN, extended),
+                        CommandStatus.FORBIDDEN,
+                        null,
+                        extended),
+                Arguments.of(
+                        "error(status, title)",
+                        CommandResult.error(CommandStatus.UNAVAILABLE, "title"),
+                        CommandStatus.UNAVAILABLE,
+                        null,
+                        plain),
+                Arguments.of(
+                        "error(status, title, extension)",
+                        CommandResult.error(CommandStatus.RATE_LIMITED, "title", "key", 5L),
+                        CommandStatus.RATE_LIMITED,
+                        null,
+                        extended),
+                Arguments.of("notFound(title)", CommandResult.notFound("title"), CommandStatus.NOT_FOUND, null, plain),
+                Arguments.of(
+                        "notFound(title, extension)",
+                        CommandResult.notFound("title", "key", 5L),
+                        CommandStatus.NOT_FOUND,
+                        null,
+                        extended),
+                Arguments.of(
+                        "invalidState(title)",
+                        CommandResult.invalidState("title"),
+                        CommandStatus.INVALID_STATE,
+                        null,
+                        plain),
+                Arguments.of(
+                        "invalidState(title, extension)",
+                        CommandResult.invalidState("title", "key", 5L),
+                        CommandStatus.INVALID_STATE,
+                        null,
+                        extended),
+                Arguments.of(
+                        "forbidden(title)", CommandResult.forbidden("title"), CommandStatus.FORBIDDEN, null, plain),
+                Arguments.of(
+                        "validationFailed(title)",
+                        CommandResult.validationFailed("title"),
+                        CommandStatus.VALIDATION_FAILED,
+                        null,
+                        plain),
+                Arguments.of(
+                        "validationFailed(title, field)",
+                        CommandResult.validationFailed("title", "count"),
+                        CommandStatus.VALIDATION_FAILED,
+                        null,
+                        CommandProblem.of("title", "field", "count")),
+                Arguments.of(
+                        "rateLimited(title)",
+                        CommandResult.rateLimited("title"),
+                        CommandStatus.RATE_LIMITED,
+                        null,
+                        plain),
+                Arguments.of(
+                        "commandExpired(title)",
+                        CommandResult.commandExpired("title"),
+                        CommandStatus.COMMAND_EXPIRED,
+                        null,
+                        plain),
+                Arguments.of(
+                        "unavailable(title)",
+                        CommandResult.unavailable("title"),
+                        CommandStatus.UNAVAILABLE,
+                        null,
+                        plain),
+                Arguments.of(
+                        "internalError(title)",
+                        CommandResult.internalError("title"),
+                        CommandStatus.INTERNAL_ERROR,
+                        null,
+                        plain));
+    }
 
-        assertEquals(CommandStatus.NOT_FOUND, r.getStatus());
-        assertEquals("Character not found", r.getProblem().getTitle());
-        assertEquals(12345L, r.getProblem().getExtensions().get("characterId"));
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("factories")
+    void factory_shouldSetStatusPayloadAndProblem(
+            String name, CommandResult<?> result, CommandStatus status, String payload, CommandProblem problem) {
+        assertEquals(status, result.getStatus());
+        assertEquals(status == CommandStatus.OK, result.isOk());
+        assertEquals(payload, result.getPayload());
+        assertEquals(problem, result.getProblem());
+    }
+
+    static Stream<Arguments> invalidArguments() {
+        return Stream.of(
+                Arguments.of("OK with problem", CommandStatus.OK, null, CommandProblem.of("oops")),
+                Arguments.of("non-OK without problem", CommandStatus.NOT_FOUND, null, null),
+                Arguments.of("non-OK with payload", CommandStatus.NOT_FOUND, "payload", CommandProblem.of("nope")),
+                Arguments.of("null status", null, null, null));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidArguments")
+    void constructor_shouldRejectInvalidArguments(
+            String name, CommandStatus status, String payload, CommandProblem problem) {
+        assertThrows(IllegalArgumentException.class, () -> new CommandResult<String>(status, payload, problem));
     }
 
     @Test
-    void invalidState_factory_shouldShortcutToInvalidStateStatus() {
-        CommandResult<Void> r = CommandResult.invalidState("Capacity exceeded");
-
-        assertEquals(CommandStatus.INVALID_STATE, r.getStatus());
-        assertEquals("Capacity exceeded", r.getProblem().getTitle());
-    }
-
-    @Test
-    void validationFailed_withField_shouldEmitFieldExtension() {
-        CommandResult<Void> r = CommandResult.validationFailed("count must be positive", "count");
-
-        assertEquals(CommandStatus.VALIDATION_FAILED, r.getStatus());
-        assertEquals("count", r.getProblem().getExtensions().get("field"));
-    }
-
-    @Test
-    void constructor_shouldRejectOkWithProblem() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new CommandResult<Void>(CommandStatus.OK, null, CommandProblem.of("oops")));
-    }
-
-    @Test
-    void constructor_shouldRejectNonOkWithoutProblem() {
-        assertThrows(
-                IllegalArgumentException.class, () -> new CommandResult<Void>(CommandStatus.NOT_FOUND, null, null));
-    }
-
-    @Test
-    void constructor_shouldRejectNonOkWithPayload() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new CommandResult<String>(CommandStatus.NOT_FOUND, "payload", CommandProblem.of("nope")));
-    }
-
-    @Test
-    void constructor_shouldRejectNullStatus() {
-        assertThrows(IllegalArgumentException.class, () -> new CommandResult<Void>(null, null, null));
-    }
-
-    @Test
-    void equals_shouldDistinguishOnStatus() {
-        CommandResult<Void> a = CommandResult.notFound("not found");
-        CommandResult<Void> b = CommandResult.forbidden("not found");
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnPayload() {
-        CommandResult<String> a = CommandResult.ok("x");
-        CommandResult<String> b = CommandResult.ok("y");
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldMatchSameOkAndPayload() {
-        assertEquals(CommandResult.ok("x"), CommandResult.ok("x"));
-    }
-
-    @Test
-    void hashCode_shouldMatchEquals() {
-        CommandResult<String> a = CommandResult.ok("x");
-        CommandResult<String> b = CommandResult.ok("x");
-
-        assertEquals(a.hashCode(), b.hashCode());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(CommandResult.class).verify();
     }
 }

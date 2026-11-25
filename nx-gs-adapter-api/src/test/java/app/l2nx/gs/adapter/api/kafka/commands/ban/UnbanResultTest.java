@@ -13,8 +13,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class UnbanResultTest {
 
@@ -29,6 +34,17 @@ class UnbanResultTest {
         return UnbanResult.builder()
                 .unbannedBans(Arrays.asList(STANDARD, SHADOW))
                 .observedAt(OBSERVED_AT);
+    }
+
+    static Stream<Arguments> invalidArguments() {
+        return Stream.of(
+                invalid("unbannedBans null", b -> b.unbannedBans(null)),
+                invalid("unbannedBans hold null", b -> b.unbannedBans(Arrays.asList(STANDARD, null))),
+                invalid("observedAt null", b -> b.observedAt(null)));
+    }
+
+    private static Arguments invalid(String name, UnaryOperator<UnbanResult.Builder> change) {
+        return Arguments.of(name, change);
     }
 
     @Nested
@@ -47,23 +63,10 @@ class UnbanResultTest {
             assertEquals(1, UnbanResult.class.getDeclaredConstructors().length);
         }
 
-        @Test
-        void constructor_shouldReject_whenUnbannedBansNull() {
-            UnbanResult.Builder builder = valid().unbannedBans(null);
-
-            assertThrows(IllegalArgumentException.class, builder::build);
-        }
-
-        @Test
-        void constructor_shouldReject_whenUnbannedBansHoldNull() {
-            UnbanResult.Builder builder = valid().unbannedBans(Arrays.asList(STANDARD, null));
-
-            assertThrows(IllegalArgumentException.class, builder::build);
-        }
-
-        @Test
-        void constructor_shouldReject_whenObservedAtNull() {
-            UnbanResult.Builder builder = valid().observedAt(null);
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.ban.UnbanResultTest#invalidArguments")
+        void constructor_shouldReject_whenArgumentIsInvalid(String name, UnaryOperator<UnbanResult.Builder> change) {
+            UnbanResult.Builder builder = change.apply(valid());
 
             assertThrows(IllegalArgumentException.class, builder::build);
         }
@@ -83,21 +86,6 @@ class UnbanResultTest {
             assertThrows(
                     UnsupportedOperationException.class,
                     () -> actual.getUnbannedBans().add(SHADOW));
-        }
-    }
-
-    @Nested
-    class Builder {
-
-        @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            UnbanResult original = valid().build();
-
-            UnbanResult copy = original.toBuilder().build();
-
-            assertEquals(original, copy);
-            assertEquals(original.hashCode(), copy.hashCode());
-            assertNotSame(original, copy);
         }
     }
 
@@ -125,7 +113,10 @@ class UnbanResultTest {
             assertEquals(OBSERVED_AT, actual.getObservedAt());
             assertEquals(expected, actual);
             assertEquals(expected.hashCode(), actual.hashCode());
-            assertEquals(expected, actual.toBuilder().build());
+            UnbanResult copy = actual.toBuilder().build();
+            assertEquals(expected, copy);
+            assertEquals(expected.hashCode(), copy.hashCode());
+            assertNotSame(actual, copy);
         }
 
         @Test

@@ -58,6 +58,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class SkillTest {
 
@@ -221,6 +223,43 @@ class SkillTest {
                 .build();
     }
 
+    private static SkillFlags flags() {
+        return SkillFlags.builder()
+                .debuff(true)
+                .offensive(true)
+                .staticReuse(true)
+                .blockedInOlympiad(true)
+                .overHit(true)
+                .ignoreShield(true)
+                .nextActionAttack(true)
+                .dispellable(true)
+                .reflectable(true)
+                .stayAfterDeath(true)
+                .triggered(true)
+                .build();
+    }
+
+    private static SkillEnchantRoute enchantRoute() {
+        return SkillEnchantRoute.builder()
+                .baseLevel(3)
+                .route(2)
+                .enchantLevel(5)
+                .enchantAdena(100L)
+                .enchantExp(200L)
+                .enchantSp(300L)
+                .enchantChanceByCharLevelPercent(Collections.singletonMap(76, 82))
+                .node(level(3))
+                .build();
+    }
+
+    private static GearScoreContribution gearScoreContribution() {
+        return GearScoreContribution.builder()
+                .kind("engineKind")
+                .value(8)
+                .classIds(Collections.singletonList(12))
+                .build();
+    }
+
     private static Skill fullyPopulated() {
         return Skill.builder()
                 .id(100)
@@ -247,37 +286,30 @@ class SkillTest {
                 .sharedReuseGroup(9)
                 .icon("icon.skill")
                 .maxLevel(3)
-                .flags(SkillFlags.builder()
-                        .debuff(true)
-                        .offensive(true)
-                        .staticReuse(true)
-                        .blockedInOlympiad(true)
-                        .overHit(true)
-                        .ignoreShield(true)
-                        .nextActionAttack(true)
-                        .dispellable(true)
-                        .reflectable(true)
-                        .stayAfterDeath(true)
-                        .triggered(true)
-                        .build())
+                .flags(flags())
                 .levels(Collections.singletonList(level(2)))
-                .enchantRoutes(Collections.singletonList(SkillEnchantRoute.builder()
-                        .baseLevel(3)
-                        .route(2)
-                        .enchantLevel(5)
-                        .enchantAdena(100L)
-                        .enchantExp(200L)
-                        .enchantSp(300L)
-                        .enchantChanceByCharLevelPercent(Collections.singletonMap(76, 82))
-                        .node(level(3))
-                        .build()))
+                .enchantRoutes(Collections.singletonList(enchantRoute()))
                 .learns(Collections.singletonList(learn()))
-                .gearScoreContributions(Collections.singletonList(GearScoreContribution.builder()
-                        .kind("engineKind")
-                        .value(8)
-                        .classIds(Collections.singletonList(12))
-                        .build()))
+                .gearScoreContributions(Collections.singletonList(gearScoreContribution()))
                 .build();
+    }
+
+    private static ObjectMapper mapper() {
+        SimpleModule localizedText = new SimpleModule();
+        localizedText.addSerializer(LocalizedText.class, new JsonSerializer<LocalizedText>() {
+            @Override
+            public void serialize(LocalizedText value, JsonGenerator gen, SerializerProvider serializers)
+                    throws IOException {
+                gen.writeObject(value.values());
+            }
+        });
+        localizedText.addDeserializer(LocalizedText.class, new JsonDeserializer<LocalizedText>() {
+            @Override
+            public LocalizedText deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+                return new LocalizedText(parser.readValueAs(new TypeReference<Map<String, String>>() {}));
+            }
+        });
+        return new ObjectMapper().registerModule(new ParameterNamesModule()).registerModule(localizedText);
     }
 
     @Nested
@@ -331,48 +363,10 @@ class SkillTest {
     @Nested
     class JacksonBinding {
 
-        private ObjectMapper mapper() {
-            SimpleModule localizedText = new SimpleModule();
-            localizedText.addSerializer(LocalizedText.class, new JsonSerializer<LocalizedText>() {
-                @Override
-                public void serialize(LocalizedText value, JsonGenerator gen, SerializerProvider serializers)
-                        throws IOException {
-                    gen.writeObject(value.values());
-                }
-            });
-            localizedText.addDeserializer(LocalizedText.class, new JsonDeserializer<LocalizedText>() {
-                @Override
-                public LocalizedText deserialize(JsonParser parser, DeserializationContext context) throws IOException {
-                    return new LocalizedText(parser.readValueAs(new TypeReference<Map<String, String>>() {}));
-                }
-            });
-            return new ObjectMapper().registerModule(new ParameterNamesModule()).registerModule(localizedText);
-        }
-
-        @Test
-        void readValue_shouldRoundTripEveryField() throws IOException {
-            ObjectMapper mapper = mapper();
-            Skill expected = fullyPopulated();
-
-            Skill actual = mapper.readValue(mapper.writeValueAsString(expected), Skill.class);
-
-            assertEquals(expected, actual);
-        }
-
-        @Test
-        void readValue_shouldRejectContainerWithoutChildren() {
-            String json = "{\"logic\":\"AND\",\"negated\":false}";
-
-            JsonMappingException actual =
-                    assertThrows(JsonMappingException.class, () -> mapper().readValue(json, SkillConditionNode.class));
-
-            assertInstanceOf(IllegalArgumentException.class, actual.getCause());
-        }
-
-        @Test
-        void readValue_shouldRejectLeafWithoutTypeRaw() {
-            String json = "{\"type\":\"CASTER_LEVEL\",\"negated\":false}";
-
+        @ParameterizedTest
+        @ValueSource(
+                strings = {"{\"logic\":\"AND\",\"negated\":false}", "{\"type\":\"CASTER_LEVEL\",\"negated\":false}"})
+        void readValue_shouldReject_whenContainerHasNoChildrenOrLeafNoTypeRaw(String json) {
             JsonMappingException actual =
                     assertThrows(JsonMappingException.class, () -> mapper().readValue(json, SkillConditionNode.class));
 
@@ -405,12 +399,261 @@ class SkillTest {
     }
 
     @Test
-    void toBuilder_shouldCopyEveryField() {
+    void toBuilderAndJackson_shouldRoundTripEveryField() throws IOException {
         Skill expected = fullyPopulated();
 
         Skill actual = expected.toBuilder().build();
 
         assertEquals(expected, actual);
         assertEquals(expected.hashCode(), actual.hashCode());
+        assertEquals(100, actual.getId());
+        assertEquals(SkillOperateType.A3, actual.getOperateType());
+        assertEquals("engineOperate", actual.getOperateTypeRaw());
+        assertEquals("engineSkillType", actual.getSkillTypeRaw());
+        assertEquals(SkillTargetType.SELF, actual.getTargetType());
+        assertEquals("engineTarget", actual.getTargetTypeRaw());
+        assertEquals(SkillAffectScope.RANGE, actual.getAffectScope());
+        assertEquals("engineAffectScope", actual.getAffectScopeRaw());
+        assertEquals(SkillAffectObject.FRIEND, actual.getAffectObject());
+        assertEquals("engineAffectObject", actual.getAffectObjectRaw());
+        assertEquals(SkillTrait.BLEED, actual.getTrait());
+        assertEquals("engineTrait", actual.getTraitRaw());
+        assertEquals(SkillMagicType.MAGIC, actual.getMagicType());
+        assertEquals("engineMagic", actual.getMagicTypeRaw());
+        assertEquals(SkillBasicProperty.PHYSICAL, actual.getBasicProperty());
+        assertEquals("engineProperty", actual.getBasicPropertyRaw());
+        assertEquals("ENGINE_ABNORMAL", actual.getAbnormalTypeRaw());
+        assertEquals(Collections.singletonList("ENGINE_VISUAL"), actual.getAbnormalVisualEffectsRaw());
+        assertEquals(Stat.MAX_HP, actual.getSaveVs());
+        assertEquals("engineSave", actual.getSaveVsRaw());
+        assertEquals(SkillEffectCategory.DEBUFF, actual.getEffectCategory());
+        assertEquals(Integer.valueOf(9), actual.getSharedReuseGroup());
+        assertEquals("icon.skill", actual.getIcon());
+        assertEquals(Integer.valueOf(3), actual.getMaxLevel());
+        assertEquals(flags(), actual.getFlags());
+        assertEquals(Collections.singletonList(level(2)), actual.getLevels());
+        assertEquals(Collections.singletonList(enchantRoute()), actual.getEnchantRoutes());
+        assertEquals(Collections.singletonList(learn()), actual.getLearns());
+        assertEquals(Collections.singletonList(gearScoreContribution()), actual.getGearScoreContributions());
+
+        ObjectMapper mapper = mapper();
+        assertEquals(expected, mapper.readValue(mapper.writeValueAsString(expected), Skill.class));
+    }
+
+    @Nested
+    class NestedTypes {
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forStatModifier() {
+            StatModifier actual = statModifier().toBuilder().build();
+
+            assertEquals(statModifier(), actual);
+            assertEquals(Stat.MAX_HP, actual.getStat());
+            assertEquals("engineStat", actual.getStatRaw());
+            assertEquals(StatOperation.SUBTRACT, actual.getOperation());
+            assertEquals("engineOperation", actual.getOperationRaw());
+            assertEquals(100.5, actual.getValue());
+            assertEquals("100.5", actual.getValueRaw());
+            assertEquals(7, actual.getOrder());
+            assertEquals(leafCondition("engineStatGate"), actual.getConditionTree());
+        }
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forSkillEffect() {
+            SkillEffect actual = effect().toBuilder().build();
+
+            assertEquals(effect(), actual);
+            assertEquals(SkillEffectType.STUN, actual.getType());
+            assertEquals("engineEffectToken", actual.getTypeRaw());
+            assertEquals(SkillEffectScope.SELF, actual.getScope());
+            assertEquals("engineScope", actual.getScopeRaw());
+            assertEquals(map("durationSec", "9"), actual.getParams());
+            assertEquals(map("time", "9"), actual.getParamsRaw());
+            assertEquals(3.5, actual.getValue());
+            assertEquals("3.5", actual.getValueRaw());
+            assertEquals(60, actual.getActivateRatePercent());
+            assertEquals("ENGINE_ABNORMAL", actual.getAbnormalTypeRaw());
+            assertEquals(2, actual.getAbnormalLevel());
+            assertEquals(15, actual.getAbnormalTimeSec());
+            assertEquals(2500, actual.getTickIntervalMs());
+            assertEquals(leafCondition("engineEffectGate"), actual.getConditionTree());
+            assertTrue(actual.getDerived());
+            assertEquals(Collections.singletonList(statModifier()), actual.getStatModifiers());
+        }
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forSkillLevel() {
+            SkillLevel actual = level(2).toBuilder().build();
+
+            assertEquals(level(2), actual);
+            assertEquals(2, actual.getLevel());
+            assertEquals("icon.level", actual.getIcon());
+            assertEquals(11, actual.getMpConsume());
+            assertEquals(12, actual.getMpInitialConsume());
+            assertEquals(13, actual.getHpConsume());
+            assertEquals(14, actual.getItemTemplateId());
+            assertEquals(15, actual.getItemTemplateCount());
+            assertEquals(16, actual.getSoulMaxConsume());
+            assertEquals(17, actual.getEnergyConsume());
+            assertEquals(18, actual.getChargeConsume());
+            assertEquals(19, actual.getCastRange());
+            assertEquals(20, actual.getEffectRange());
+            assertEquals(21, actual.getAffectRange());
+            assertEquals(22, actual.getAffectLimit());
+            assertEquals(23, actual.getFanStartAngle());
+            assertEquals(24, actual.getFanRadius());
+            assertEquals(25, actual.getFanAngle());
+            assertEquals(26, actual.getMagicLevel());
+            assertEquals(27, actual.getAbnormalLevel());
+            assertEquals(28, actual.getAbnormalTimeSec());
+            assertEquals(29, actual.getHitTimeMs());
+            assertEquals(30, actual.getCoolTimeMs());
+            assertEquals(31, actual.getReuseDelayMs());
+            assertEquals(32, actual.getChannelingMpConsume());
+            assertEquals(33, actual.getChannelingSkillId());
+            assertEquals(34, actual.getChannelingTickIntervalMs());
+            assertEquals(35, actual.getChannelingStartDelayMs());
+            assertEquals(36, actual.getBaseCritRate());
+            assertEquals(37.5, actual.getPower());
+            assertEquals(38.5, actual.getPvpPower());
+            assertEquals(39.5, actual.getPvePower());
+            assertEquals(40, actual.getMinChancePercent());
+            assertEquals(41, actual.getMaxChancePercent());
+            assertEquals(42, actual.getActivateRatePercent());
+            assertEquals(43, actual.getLevelModifier());
+            assertEquals(44, actual.getLethalStrikeRatePercent());
+            assertEquals(45, actual.getHalfKillRatePercent());
+            assertEquals(46, actual.getBlowChancePercent());
+            assertEquals(47, actual.getNegateRatePercent());
+            assertEquals(Collections.singletonMap("ENGINE_ABNORMAL", 4), actual.getNegateAbnormalTypesRaw());
+            assertEquals(48, actual.getAggroPoints());
+            assertEquals(Attribute.WATER, actual.getAttribute());
+            assertEquals("engineAttribute", actual.getAttributeRaw());
+            assertEquals(49, actual.getAttributePower());
+            assertEquals(LocalizedText.of(map("en", "Skill name")), actual.getName());
+            assertEquals(LocalizedText.of(map("en", "Skill description")), actual.getDescription());
+            assertEquals(conditionTree(), actual.getConditionTree());
+            assertEquals(Collections.singletonList(effect()), actual.getEffects());
+            assertEquals(Collections.singletonList(statModifier()), actual.getStatModifiers());
+        }
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forSkillLearn() {
+            SkillLearn actual = learn().toBuilder().build();
+
+            assertEquals(learn(), actual);
+            assertEquals(SkillTreeKind.TRANSFER, actual.getTreeKind());
+            assertEquals("engineTree", actual.getTreeKindRaw());
+            assertEquals("engineTreeName", actual.getTreeName());
+            assertEquals(CharacterClass.ELVEN_MAGE, actual.getClazz());
+            assertEquals(2, actual.getSkillLevel());
+            assertEquals(20, actual.getRequiredLevel());
+            assertEquals(5, actual.getRequiredClanLevel());
+            assertEquals(1_000_000L, actual.getLearnSp());
+            assertEquals(2_000L, actual.getLearnClanReputation());
+            assertTrue(actual.getAutoLearn());
+            assertTrue(actual.getLearnedByNpc());
+            assertTrue(actual.getLearnedByForgottenScroll());
+            assertEquals(Collections.singletonList(CharacterRace.ELF), actual.getRaces());
+            assertEquals(Collections.singletonList(61), actual.getResidenceIds());
+            assertEquals(SocialClass.VASSAL, actual.getSocialClass());
+            assertEquals(Collections.singletonList(88), actual.getRemovedSkillIds());
+            assertEquals(85, actual.getRequiredDualClassLevel());
+            assertEquals(1, actual.getAbilityTreeId());
+            assertEquals(2, actual.getAbilityRow());
+            assertEquals(3, actual.getAbilityColumn());
+            assertEquals(4, actual.getAbilityPointsRequired());
+        }
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forSkillFlags() {
+            SkillFlags actual = flags().toBuilder().build();
+
+            assertEquals(flags(), actual);
+            assertTrue(actual.getDebuff());
+            assertTrue(actual.getOffensive());
+            assertTrue(actual.getStaticReuse());
+            assertTrue(actual.getBlockedInOlympiad());
+            assertTrue(actual.getOverHit());
+            assertTrue(actual.getIgnoreShield());
+            assertTrue(actual.getNextActionAttack());
+            assertTrue(actual.getDispellable());
+            assertTrue(actual.getReflectable());
+            assertTrue(actual.getStayAfterDeath());
+            assertTrue(actual.getTriggered());
+        }
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forSkillEnchantRoute() {
+            SkillEnchantRoute actual = enchantRoute().toBuilder().build();
+
+            assertEquals(enchantRoute(), actual);
+            assertEquals(3, actual.getBaseLevel());
+            assertEquals(2, actual.getRoute());
+            assertEquals(5, actual.getEnchantLevel());
+            assertEquals(100L, actual.getEnchantAdena());
+            assertEquals(200L, actual.getEnchantExp());
+            assertEquals(300L, actual.getEnchantSp());
+            assertEquals(Collections.singletonMap(76, 82), actual.getEnchantChanceByCharLevelPercent());
+            assertEquals(level(3), actual.getNode());
+        }
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forGearScoreContribution() {
+            GearScoreContribution actual = gearScoreContribution().toBuilder().build();
+
+            assertEquals(gearScoreContribution(), actual);
+            assertEquals("engineKind", actual.getKind());
+            assertEquals(8, actual.getValue());
+            assertEquals(Collections.singletonList(12), actual.getClassIds());
+        }
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forSkillConditionNode() {
+            SkillConditionNode actual =
+                    leafCondition("engineLevelToken").toBuilder().build();
+
+            assertEquals(leafCondition("engineLevelToken"), actual);
+            assertEquals(SkillConditionType.CASTER_LEVEL, actual.getType());
+            assertEquals("engineLevelToken", actual.getTypeRaw());
+            assertTrue(actual.isNegated());
+            assertEquals(map("min", "40"), actual.getParams());
+            assertEquals(map("level", "40"), actual.getParamsRaw());
+        }
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forProducedItems() {
+            SkillProducedItemGroup group = level(2).getProducedItems().get(0);
+            SkillProducedItem item = group.getItems().get(0);
+
+            assertEquals(12.5, group.getChancePercent());
+            assertEquals(3, group.getEnchantLevel());
+            assertEquals(1, group.getItems().size());
+            assertEquals(5001, item.getItemTemplateId());
+            assertEquals(SkillRewardKind.PC_CAFE_POINTS, item.getRewardKind());
+            assertEquals(2L, item.getMinCount());
+            assertEquals(5L, item.getMaxCount());
+            assertEquals(group, group.toBuilder().build());
+            assertEquals(item, item.toBuilder().build());
+        }
+
+        @Test
+        void toBuilder_shouldRoundtripEveryField_forLearnRequirements() {
+            SkillLearnItemSet itemSet = learn().getRequiredItemSets().get(0);
+            SkillLearnItem item = itemSet.getItems().get(0);
+            SkillLevelRef prerequisite = learn().getPrerequisites().get(0);
+            SkillLearnSubClass subClass = learn().getSubClassRequirements().get(0);
+
+            assertEquals(1512, item.getItemTemplateId());
+            assertEquals(3L, item.getItemTemplateCount());
+            assertEquals(77, prerequisite.getSkillId());
+            assertEquals(4, prerequisite.getSkillLevel());
+            assertEquals(2, subClass.getSlot());
+            assertEquals(75, subClass.getLevel());
+            assertEquals(itemSet, itemSet.toBuilder().build());
+            assertEquals(item, item.toBuilder().build());
+            assertEquals(prerequisite, prerequisite.toBuilder().build());
+            assertEquals(subClass, subClass.toBuilder().build());
+        }
     }
 }

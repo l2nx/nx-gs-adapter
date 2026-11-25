@@ -4,7 +4,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ResyncCompletedEventTest {
 
@@ -14,8 +20,8 @@ class ResyncCompletedEventTest {
     private static final Instant COMPLETED = Instant.parse("2026-06-12T10:05:00Z");
 
     @Test
-    void builder_shouldRoundtripFields() {
-        ResyncCompletedEvent event = ResyncCompletedEvent.builder()
+    void toBuilder_shouldRoundtripAllFields() {
+        ResyncCompletedEvent original = ResyncCompletedEvent.builder()
                 .eventId(EVENT_ID)
                 .resyncId(RESYNC_ID)
                 .entityName("item")
@@ -23,80 +29,38 @@ class ResyncCompletedEventTest {
                 .completedAt(COMPLETED)
                 .build();
 
-        assertEquals(EVENT_ID, event.getEventId());
-        assertEquals(RESYNC_ID, event.getResyncId());
-        assertEquals("item", event.getEntityName());
-        assertEquals(STARTED, event.getCycleStartedAt());
-        assertEquals(COMPLETED, event.getCompletedAt());
-    }
-
-    @Test
-    void constructor_shouldRejectNullEventId() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new ResyncCompletedEvent(null, RESYNC_ID, "item", STARTED, COMPLETED));
-    }
-
-    @Test
-    void constructor_shouldRejectNullResyncId() {
-        assertThrows(
-                NullPointerException.class, () -> new ResyncCompletedEvent(EVENT_ID, null, "item", STARTED, COMPLETED));
-    }
-
-    @Test
-    void constructor_shouldRejectNullEntityName() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, null, STARTED, COMPLETED));
-    }
-
-    @Test
-    void constructor_shouldRejectNullCycleStartedAt() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, "item", null, COMPLETED));
-    }
-
-    @Test
-    void constructor_shouldRejectNullCompletedAt() {
-        assertThrows(
-                NullPointerException.class, () -> new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, "item", STARTED, null));
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        ResyncCompletedEvent original = ResyncCompletedEvent.builder()
-                .eventId(EVENT_ID)
-                .resyncId(RESYNC_ID)
-                .entityName("clan")
-                .cycleStartedAt(STARTED)
-                .completedAt(COMPLETED)
-                .build();
-
+        assertEquals(EVENT_ID, original.getEventId());
+        assertEquals(RESYNC_ID, original.getResyncId());
+        assertEquals("item", original.getEntityName());
+        assertEquals(STARTED, original.getCycleStartedAt());
+        assertEquals(COMPLETED, original.getCompletedAt());
         assertEquals(original, original.toBuilder().build());
     }
 
-    @Test
-    void equals_shouldDistinguishOnEntityName() {
-        ResyncCompletedEvent a = new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, "clan", STARTED, COMPLETED);
-        ResyncCompletedEvent b = new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, "item", STARTED, COMPLETED);
+    private static Stream<Arguments> constructorsWithNull() {
+        return Stream.of(
+                Arguments.of("eventId", (Executable)
+                        () -> new ResyncCompletedEvent(null, RESYNC_ID, "item", STARTED, COMPLETED)),
+                Arguments.of("resyncId", (Executable)
+                        () -> new ResyncCompletedEvent(EVENT_ID, null, "item", STARTED, COMPLETED)),
+                Arguments.of("entityName", (Executable)
+                        () -> new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, null, STARTED, COMPLETED)),
+                Arguments.of("cycleStartedAt", (Executable)
+                        () -> new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, "item", null, COMPLETED)),
+                Arguments.of("completedAt", (Executable)
+                        () -> new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, "item", STARTED, null)));
+    }
 
-        assertNotEquals(a, b);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("constructorsWithNull")
+    void constructor_shouldRejectNull(String field, Executable constructor) {
+        assertThrows(NullPointerException.class, constructor);
     }
 
     @Test
-    void hashCode_shouldMatchEquals() {
-        ResyncCompletedEvent a = new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, "clan", STARTED, COMPLETED);
-        ResyncCompletedEvent b = new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, "clan", STARTED, COMPLETED);
-
-        assertEquals(a.hashCode(), b.hashCode());
-    }
-
-    @Test
-    void toString_shouldExposeIdentityFields() {
-        String s = new ResyncCompletedEvent(EVENT_ID, RESYNC_ID, "clan", STARTED, COMPLETED).toString();
-
-        assertTrue(s.contains(RESYNC_ID.toString()));
-        assertTrue(s.contains("clan"));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(ResyncCompletedEvent.class)
+                .withNonnullFields("eventId", "resyncId", "entityName", "cycleStartedAt", "completedAt")
+                .verify();
     }
 }

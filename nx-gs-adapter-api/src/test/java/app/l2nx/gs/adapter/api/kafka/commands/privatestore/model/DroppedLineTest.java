@@ -1,21 +1,17 @@
 package app.l2nx.gs.adapter.api.kafka.commands.privatestore.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.gson.Gson;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class DroppedLineTest {
-
-    @Test
-    void constructor_shouldAcceptBuyLine_whenItemIdNull() {
-        DroppedLine actual = new DroppedLine(2, null, DroppedLineReason.BAD_COUNT.name());
-
-        assertEquals(2, actual.getLineIndex());
-        assertNull(actual.getItemId());
-    }
 
     @Test
     void constructor_shouldAcceptSellLine_whenItemIdPresent() {
@@ -25,27 +21,20 @@ class DroppedLineTest {
         assertEquals(Integer.valueOf(100), actual.getItemId());
     }
 
-    @Test
-    void constructor_shouldReject_whenLineIndexNegative() {
-        assertThrows(
-                IllegalArgumentException.class, () -> new DroppedLine(-1, null, DroppedLineReason.NOT_FOUND.name()));
+    static Stream<Arguments> invalidLines() {
+        String reason = DroppedLineReason.NOT_FOUND.name();
+        return Stream.of(
+                Arguments.of("lineIndex negative", (Executable) () -> new DroppedLine(-1, null, reason)),
+                Arguments.of("lineIndex unset", (Executable)
+                        () -> DroppedLine.builder().itemId(1).reason(reason).build()),
+                Arguments.of("reason null", (Executable) () -> new DroppedLine(0, 100, null)),
+                Arguments.of("reason blank", (Executable) () -> new DroppedLine(0, 100, " ")));
     }
 
-    @Test
-    void constructor_shouldReject_whenReasonNull() {
-        assertThrows(IllegalArgumentException.class, () -> new DroppedLine(0, 100, null));
-    }
-
-    @Test
-    void constructor_shouldReject_whenReasonBlank() {
-        assertThrows(IllegalArgumentException.class, () -> new DroppedLine(0, 100, " "));
-    }
-
-    @Test
-    void build_shouldReject_whenLineIndexUnset() {
-        DroppedLine.Builder builder = DroppedLine.builder().itemId(1).reason(DroppedLineReason.NOT_FOUND.name());
-
-        assertThrows(IllegalArgumentException.class, builder::build);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidLines")
+    void constructor_shouldReject_whenLineInvalid(String name, Executable build) {
+        assertThrows(IllegalArgumentException.class, build);
     }
 
     @Test
@@ -58,6 +47,7 @@ class DroppedLineTest {
 
         assertEquals(original, original.toBuilder().build());
         assertEquals(original.hashCode(), original.toBuilder().build().hashCode());
+        assertEquals(DroppedLineReason.NOT_AVAILABLE.name(), original.getReason());
     }
 
     @Test

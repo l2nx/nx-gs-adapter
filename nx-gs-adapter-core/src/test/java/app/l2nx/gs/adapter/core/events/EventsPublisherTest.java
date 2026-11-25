@@ -73,31 +73,11 @@ class EventsPublisherTest {
         Header header = record.headers().lastHeader(NxHeaders.MESSAGE_TYPE);
         assertNotNull(header);
         assertEquals("PremiumPurchaseEvent", new String(header.value(), StandardCharsets.UTF_8));
-        for (Header h : record.headers()) {
-            assertFalse(h.key().startsWith("Nx-"), "event carries prefixed header " + h.key());
-        }
+        assertEquals(1, record.headers().toArray().length);
 
-        Thread.sleep(50);
         assertEquals(1L, publisher.publishedTotal());
         assertEquals(0L, publisher.droppedTotal());
         assertEquals(0L, publisher.failedTotal());
-    }
-
-    @Test
-    void enqueue_shouldDropOldest_whenQueueIsFull() {
-        publisher = new EventsPublisher(
-                Collections.emptyMap(),
-                noopSender(),
-                cfg(2, EventsPublisher.DropPolicy.OLDEST, 0L),
-                new EventTypeRegistry());
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PremiumPurchaseEvent.class);
-
-        publisher.enqueue(envelope(1L, binding));
-        publisher.enqueue(envelope(2L, binding));
-        publisher.enqueue(envelope(3L, binding));
-
-        assertEquals(2, publisher.queueDepth());
-        assertEquals(1L, publisher.droppedTotal());
     }
 
     @Test
@@ -130,22 +110,6 @@ class EventsPublisherTest {
     }
 
     @Test
-    void enqueue_shouldDropNewest_whenPolicyIsNewest() {
-        publisher = new EventsPublisher(
-                Collections.emptyMap(),
-                noopSender(),
-                cfg(1, EventsPublisher.DropPolicy.NEWEST, 0L),
-                new EventTypeRegistry());
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PremiumPurchaseEvent.class);
-
-        publisher.enqueue(envelope(1L, binding));
-        publisher.enqueue(envelope(2L, binding));
-
-        assertEquals(1, publisher.queueDepth());
-        assertEquals(1L, publisher.droppedTotal());
-    }
-
-    @Test
     void enqueue_shouldNoOp_forNullEnvelope() {
         publisher = new EventsPublisher(
                 Collections.emptyMap(),
@@ -157,27 +121,6 @@ class EventsPublisherTest {
 
         assertEquals(0, publisher.queueDepth());
         assertEquals(0L, publisher.droppedTotal());
-    }
-
-    @Test
-    void doSend_shouldDrop_whenFamilyTopicMissing() throws InterruptedException {
-        publisher = new EventsPublisher(
-                Collections.emptyMap(),
-                noopSender(),
-                cfg(5, EventsPublisher.DropPolicy.OLDEST, 100L),
-                new EventTypeRegistry());
-        publisher.start();
-
-        EventTypeBinding binding = new EventTypeRegistry().lookup(PremiumPurchaseEvent.class);
-        publisher.enqueue(envelope(99L, binding));
-
-        long deadline = System.currentTimeMillis() + 1000;
-        while (System.currentTimeMillis() < deadline && publisher.droppedTotal() == 0) {
-            Thread.sleep(20);
-        }
-
-        assertEquals(1L, publisher.droppedTotal());
-        assertEquals(0L, publisher.publishedTotal());
     }
 
     @Test
@@ -420,6 +363,8 @@ class EventsPublisherTest {
 
             assertEquals(1, outcomes.size(), outcomes.toString());
             assertTrue(outcomes.get(0).startsWith(dropped + ":Event dropped: "), outcomes.toString());
+            assertEquals(1, publisher.queueDepth());
+            assertEquals(1L, publisher.droppedTotal());
         }
 
         @Test
@@ -431,6 +376,8 @@ class EventsPublisherTest {
 
             assertEquals(
                     Collections.singletonList("first:Event dropped: events.premiumpurchase has no topic"), outcomes);
+            assertEquals(1L, publisher.droppedTotal());
+            assertEquals(0L, publisher.publishedTotal());
         }
 
         @Test

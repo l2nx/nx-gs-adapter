@@ -72,15 +72,6 @@ class FishingBaitTest {
         }
 
         @Test
-        void readValue_shouldRoundTripEveryField() throws IOException {
-            FishingBait expected = fullyPopulated();
-
-            FishingBait actual = mapper().readValue(mapper().writeValueAsString(expected), FishingBait.class);
-
-            assertEquals(expected, actual);
-        }
-
-        @Test
         void readValue_shouldReadAbsentNullableFieldsAsNull() throws IOException {
             FishingBait actual =
                     mapper().readValue("{\"itemTemplateId\":7807,\"chancePercent\":40}", FishingBait.class);
@@ -170,12 +161,20 @@ class FishingBaitTest {
     }
 
     @Test
-    void toBuilder_shouldCopyEveryField() {
+    void toBuilderAndJackson_shouldRoundTripEveryField() throws IOException {
         FishingBait expected = fullyPopulated();
 
         FishingBait actual = expected.toBuilder().build();
 
         assertEquals(expected, actual);
         assertEquals(expected.hashCode(), actual.hashCode());
+        assertEquals(7807, actual.getItemTemplateId());
+        assertEquals(40.0, actual.getChancePercent());
+        assertEquals(Integer.valueOf(20), actual.getMinCharacterLevel());
+        assertEquals(Integer.valueOf(85), actual.getMaxCharacterLevel());
+        assertEquals(Long.valueOf(20_000L), actual.getFishingTimeMinMs());
+        assertEquals(Long.valueOf(30_000L), actual.getFishingTimeMaxMs());
+
+        assertEquals(expected, mapper().readValue(mapper().writeValueAsString(expected), FishingBait.class));
     }
 }

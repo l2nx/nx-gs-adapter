@@ -17,6 +17,9 @@ class GdResyncCommandTest {
         assertEquals(
                 new GdResyncCommand(TestInitiators.USER).hashCode(),
                 new GdResyncCommand(TestInitiators.USER).hashCode());
+        assertEquals(
+                TestInitiators.USER,
+                GdResyncCommand.builder().initiator(TestInitiators.USER).build().getInitiator());
     }
 
     @Test

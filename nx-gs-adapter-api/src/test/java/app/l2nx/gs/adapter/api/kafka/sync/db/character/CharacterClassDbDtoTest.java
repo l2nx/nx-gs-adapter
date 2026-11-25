@@ -1,13 +1,17 @@
 package app.l2nx.gs.adapter.api.kafka.sync.db.character;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import app.l2nx.gs.adapter.api.domain.character.clazz.CharacterClass;
 import app.l2nx.gs.adapter.api.domain.character.clazz.CharacterClassKind;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class CharacterClassDbDtoTest {
 
@@ -26,6 +30,7 @@ class CharacterClassDbDtoTest {
         assertEquals(Integer.valueOf(82), entry.getLevel());
         assertEquals(Long.valueOf(123_456L), entry.getExp());
         assertEquals(Long.valueOf(789L), entry.getSp());
+        assertEquals(entry, entry.toBuilder().build());
     }
 
     @Test
@@ -40,52 +45,20 @@ class CharacterClassDbDtoTest {
         assertNull(entry.getSp());
     }
 
-    @Test
-    void build_shouldThrowNpe_whenClassIdIsNull() {
-        CharacterClassDbDto.Builder b = CharacterClassDbDto.builder().kind(CharacterClassKind.MAIN);
+    private static Stream<Arguments> withoutRequiredField() {
+        return Stream.of(
+                Arguments.of("classId", CharacterClassDbDto.builder().kind(CharacterClassKind.MAIN)),
+                Arguments.of("kind", CharacterClassDbDto.builder().classId(CharacterClass.CARDINAL)));
+    }
 
-        assertThrows(NullPointerException.class, b::build);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("withoutRequiredField")
+    void build_shouldThrowNpe_whenRequiredFieldIsNull(String missing, CharacterClassDbDto.Builder builder) {
+        assertThrows(NullPointerException.class, builder::build);
     }
 
     @Test
-    void build_shouldThrowNpe_whenKindIsNull() {
-        CharacterClassDbDto.Builder b = CharacterClassDbDto.builder().classId(CharacterClass.CARDINAL);
-
-        assertThrows(NullPointerException.class, b::build);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnFields() {
-        CharacterClassDbDto a = CharacterClassDbDto.builder()
-                .classId(CharacterClass.CARDINAL)
-                .kind(CharacterClassKind.SUB)
-                .level(82)
-                .exp(100L)
-                .sp(10L)
-                .build();
-        CharacterClassDbDto same = a.toBuilder().build();
-        CharacterClassDbDto otherKind =
-                a.toBuilder().kind(CharacterClassKind.MAIN).build();
-        CharacterClassDbDto otherLevel = a.toBuilder().level(83).build();
-        CharacterClassDbDto otherExp = a.toBuilder().exp(101L).build();
-        CharacterClassDbDto otherSp = a.toBuilder().sp(11L).build();
-        CharacterClassDbDto otherClass =
-                a.toBuilder().classId(CharacterClass.HIEROPHANT).build();
-
-        assertEquals(a, same);
-        assertEquals(a.hashCode(), same.hashCode());
-        assertNotEquals(a, otherKind);
-        assertNotEquals(a, otherLevel);
-        assertNotEquals(a, otherExp);
-        assertNotEquals(a, otherSp);
-        assertNotEquals(a, otherClass);
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        CharacterClassDbDto original =
-                new CharacterClassDbDto(CharacterClass.SOULTAKER, CharacterClassKind.SUB, 76, 5L, 6L);
-
-        assertEquals(original, original.toBuilder().build());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(CharacterClassDbDto.class).verify();
     }
 }

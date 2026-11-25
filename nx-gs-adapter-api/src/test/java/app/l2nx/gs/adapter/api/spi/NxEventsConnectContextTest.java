@@ -7,6 +7,7 @@ import app.l2nx.gs.adapter.api.rest.SyncTopics;
 import app.l2nx.gs.adapter.api.spi.capability.NxEvents;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class NxEventsConnectContextTest {
@@ -59,32 +60,11 @@ class NxEventsConnectContextTest {
     }
 
     @Test
-    void equals_shouldIgnoreEventsCapability() {
-        UUID tenant = UUID.randomUUID();
-        UUID server = UUID.randomUUID();
-
-        ConnectContext withNoOp = ConnectContext.builder()
-                .tenantId(tenant)
-                .tenantSlug("acme")
-                .serverId(server)
-                .serverSlug("primary")
-                .serverName("Acme")
-                .adapterVersion("0.13.0")
-                .build();
-        ConnectContext withCustom = withNoOp.toBuilder()
-                .events(new NxEvents() {
-                    @Override
-                    public void publish(Object event) {}
-
-                    @Override
-                    public boolean flush(long timeoutMs) {
-                        return true;
-                    }
-                })
-                .build();
-
-        assertEquals(withNoOp, withCustom);
-        assertEquals(withNoOp.hashCode(), withCustom.hashCode());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(ConnectContext.class)
+                .withIgnoredFields(
+                        "events", "commands", "io", "sync", "gameData", "appSessions", "appRules", "runtimeSync")
+                .verify();
     }
 
     private static PremiumPurchaseEvent stubPurchase() {

@@ -3,7 +3,13 @@ package app.l2nx.gs.adapter.api.kafka.commands.character;
 import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class SetCharacterAccessLevelCommandTest {
 
@@ -19,6 +25,8 @@ class SetCharacterAccessLevelCommandTest {
         assertEquals(42L, cmd.getCharacterId().longValue());
         assertEquals("7", cmd.getAccessLevel());
         assertEquals("promoted for event duty", cmd.getStaffNotes());
+        assertEquals(cmd, cmd.toBuilder().build());
+        assertEquals(TestInitiators.USER, cmd.getInitiator());
     }
 
     @Test
@@ -28,128 +36,25 @@ class SetCharacterAccessLevelCommandTest {
         assertNull(cmd.getStaffNotes());
     }
 
-    @Test
-    void constructor_shouldRejectNullCharacterId() {
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> new SetCharacterAccessLevelCommand(null, "7", null, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("characterId"));
+    static Stream<Arguments> missingRequired() {
+        return Stream.of(
+                missing("characterId", () -> new SetCharacterAccessLevelCommand(null, "7", null, TestInitiators.USER)),
+                missing("accessLevel", () -> new SetCharacterAccessLevelCommand(1L, null, null, TestInitiators.USER)));
+    }
+
+    private static Arguments missing(String field, Executable construct) {
+        return Arguments.of(field, construct);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("missingRequired")
+    void constructor_shouldReject_whenRequiredFieldIsNull(String field, Executable construct) {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, construct);
+        assertTrue(ex.getMessage().contains(field));
     }
 
     @Test
-    void constructor_shouldRejectNullAccessLevel() {
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> new SetCharacterAccessLevelCommand(1L, null, null, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("accessLevel"));
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        SetCharacterAccessLevelCommand original = SetCharacterAccessLevelCommand.builder()
-                .characterId(42L)
-                .accessLevel("7")
-                .staffNotes("note")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        SetCharacterAccessLevelCommand copy = original.toBuilder().build();
-
-        assertEquals(original, copy);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnCharacterId() {
-        SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
-                .characterId(1L)
-                .accessLevel("7")
-                .initiator(TestInitiators.USER)
-                .build();
-        SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
-                .characterId(2L)
-                .accessLevel("7")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnAccessLevel() {
-        SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
-                .characterId(1L)
-                .accessLevel("7")
-                .initiator(TestInitiators.USER)
-                .build();
-        SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
-                .characterId(1L)
-                .accessLevel("0")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnStaffNotes() {
-        SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
-                .characterId(1L)
-                .accessLevel("7")
-                .staffNotes("a")
-                .initiator(TestInitiators.USER)
-                .build();
-        SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
-                .characterId(1L)
-                .accessLevel("7")
-                .staffNotes("b")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void hashCode_shouldMatchEquals() {
-        SetCharacterAccessLevelCommand a = SetCharacterAccessLevelCommand.builder()
-                .characterId(1L)
-                .accessLevel("7")
-                .staffNotes("note")
-                .initiator(TestInitiators.USER)
-                .build();
-        SetCharacterAccessLevelCommand b = SetCharacterAccessLevelCommand.builder()
-                .characterId(1L)
-                .accessLevel("7")
-                .staffNotes("note")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertEquals(a.hashCode(), b.hashCode());
-    }
-
-    @Test
-    void toString_shouldExposeFields() {
-        SetCharacterAccessLevelCommand cmd = SetCharacterAccessLevelCommand.builder()
-                .characterId(42L)
-                .accessLevel("7")
-                .staffNotes("note")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        String s = cmd.toString();
-
-        assertTrue(s.contains("42"));
-        assertTrue(s.contains("7"));
-        assertTrue(s.contains("note"));
-    }
-
-    @Test
-    void implementsNxCommandMarker() {
-        SetCharacterAccessLevelCommand cmd = SetCharacterAccessLevelCommand.builder()
-                .characterId(1L)
-                .accessLevel("7")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertInstanceOf(app.l2nx.gs.adapter.api.kafka.commands.NxCommand.class, cmd);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(SetCharacterAccessLevelCommand.class).verify();
     }
 }

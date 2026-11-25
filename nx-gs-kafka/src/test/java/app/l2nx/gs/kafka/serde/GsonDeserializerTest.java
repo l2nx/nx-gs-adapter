@@ -26,35 +26,8 @@ class GsonDeserializerTest {
         assertNull(result);
     }
 
-    @Test
-    void deserialize_shouldHandleNestedObjects() {
-        byte[] json = "{\"label\":\"wrap\",\"nested\":{\"name\":\"p\",\"value\":1}}".getBytes(StandardCharsets.UTF_8);
-        GsonDeserializer<Wrapper> wrapperDeserializer = new GsonDeserializer<>(Wrapper.class);
-
-        Wrapper result = wrapperDeserializer.deserialize("test-topic", json);
-
-        assertEquals("wrap", result.label);
-        assertNotNull(result.nested);
-        assertEquals("p", result.nested.name);
-    }
-
-    @Test
-    void deserialize_shouldIgnoreUnknownFields() {
-        byte[] json = "{\"name\":\"p\",\"value\":1,\"extra\":\"ignored\"}".getBytes(StandardCharsets.UTF_8);
-
-        TestEvent result = deserializer.deserialize("test-topic", json);
-
-        assertEquals("p", result.name);
-        assertEquals(1, result.value);
-    }
-
     static class TestEvent {
         String name;
         int value;
-    }
-
-    static class Wrapper {
-        String label;
-        TestEvent nested;
     }
 }

@@ -2,6 +2,7 @@ package app.l2nx.gs.db.sync.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import app.l2nx.gs.adapter.api.kafka.ops.model.PoolStats;
 import app.l2nx.gs.adapter.api.kafka.sync.db.clan.ClanDbDto;
@@ -22,6 +23,8 @@ import org.junit.jupiter.api.Test;
 
 class CdcEnginePoolTest {
 
+    private static final int HALF_THE_CORES = Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+
     private CdcEngine engine;
 
     @AfterEach
@@ -40,8 +43,16 @@ class CdcEnginePoolTest {
 
     @Test
     void resolvePoolSize_shouldComputeDefault_whenWorkersZero() {
-        int sized = CdcEngine.resolvePoolSize(0, 8);
-        assertTrue(sized >= 2, "default pool size must be at least 2");
+        assertEquals(2, CdcEngine.resolvePoolSize(0, 0));
+        assertEquals(2, CdcEngine.resolvePoolSize(0, 1));
+        assertEquals(HALF_THE_CORES, CdcEngine.resolvePoolSize(0, 10_000));
+    }
+
+    @Test
+    void resolvePoolSize_shouldCapTheDefaultAtTheEntityCount() {
+        assumeTrue(HALF_THE_CORES > 2, "the default is the floor of 2 whatever the entity count on fewer than 6 cores");
+
+        assertEquals(HALF_THE_CORES - 1, CdcEngine.resolvePoolSize(0, HALF_THE_CORES - 1));
     }
 
     @Test

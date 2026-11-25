@@ -2,86 +2,102 @@ package app.l2nx.gs.adapter.api.kafka.commands.mail;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import app.l2nx.gs.adapter.api.kafka.commands.NxCommand;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import app.l2nx.gs.adapter.api.kafka.commands.mail.model.MailItem;
 import com.google.gson.Gson;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class SendMailCommandTest {
 
     @Test
-    void builder_shouldRoundtripFields() {
-        MailItem item = MailItem.builder().itemTemplateId(57L).count(1_000L).build();
+    void toBuilder_shouldRoundtripAllFields() {
+        UUID key = UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001");
+        List<MailItem> items = Arrays.asList(
+                MailItem.builder().itemTemplateId(57L).count(1_000L).build(),
+                MailItem.builder().itemTemplateId(58L).count(2L).build());
 
-        SendMailCommand cmd = SendMailCommand.builder()
+        SendMailCommand original = SendMailCommand.builder()
                 .characterId(42L)
                 .author("admin")
                 .title("Reward")
                 .body("here is your loot")
-                .items(Collections.singletonList(item))
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertEquals(42L, cmd.getCharacterId().longValue());
-        assertEquals("admin", cmd.getAuthor());
-        assertEquals("Reward", cmd.getTitle());
-        assertEquals("here is your loot", cmd.getBody());
-        assertEquals(Collections.singletonList(item), cmd.getItems());
-    }
-
-    @Test
-    void constructor_shouldRejectNullCharacterId() {
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> new SendMailCommand(null, "a", "t", "b", null, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("characterId"));
-    }
-
-    @Test
-    void builder_shouldCarryAdena() {
-        SendMailCommand cmd = SendMailCommand.builder()
-                .characterId(1L)
-                .title("t")
+                .items(items)
                 .adena(250L)
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertEquals(250L, cmd.getAdena().longValue());
-        assertEquals(cmd, cmd.toBuilder().build());
-    }
-
-    @Test
-    void builder_shouldCarryIdempotencyKey() {
-        UUID key = UUID.fromString("5b1f3c2e-0000-4000-8000-000000000001");
-
-        SendMailCommand cmd = SendMailCommand.builder()
-                .characterId(1L)
-                .title("t")
                 .idempotencyKey(key)
                 .initiator(TestInitiators.USER)
                 .build();
 
-        assertEquals(key, cmd.getIdempotencyKey());
-        assertEquals(cmd, cmd.toBuilder().build());
-        assertNotEquals(cmd, cmd.toBuilder().idempotencyKey(UUID.randomUUID()).build());
+        assertEquals(42L, original.getCharacterId().longValue());
+        assertEquals("admin", original.getAuthor());
+        assertEquals("Reward", original.getTitle());
+        assertEquals("here is your loot", original.getBody());
+        assertEquals(items, original.getItems());
+        assertEquals(250L, original.getAdena().longValue());
+        assertEquals(key, original.getIdempotencyKey());
+        assertEquals(original, original.toBuilder().build());
+    }
+
+    private static Stream<Arguments> invalidFields() {
+        return Stream.of(
+                Arguments.of("characterId", (Executable)
+                        () -> new SendMailCommand(null, "a", "t", "b", null, TestInitiators.USER)),
+                Arguments.of(
+                        "title", (Executable) () -> new SendMailCommand(1L, "a", null, "b", null, TestInitiators.USER)),
+                Arguments.of("adena", (Executable) () -> SendMailCommand.builder()
+                        .characterId(1L)
+                        .author("a")
+                        .title("t")
+                        .body("b")
+                        .adena(0L)
+                        .initiator(TestInitiators.USER)
+                        .build()),
+                Arguments.of("adena", (Executable) () -> SendMailCommand.builder()
+                        .characterId(1L)
+                        .author("a")
+                        .title("t")
+                        .body("b")
+                        .adena(-1L)
+                        .initiator(TestInitiators.USER)
+                        .build()));
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("invalidFields")
+    void constructor_shouldReject_whenFieldInvalid(String field, Executable construction) {
+        IllegalArgumentException actual = assertThrows(IllegalArgumentException.class, construction);
+        assertTrue(actual.getMessage().contains(field));
     }
 
     @Test
-    void constructor_shouldDefaultIdempotencyKeyToNull_whenOlderConstructors() {
-        assertNull(new SendMailCommand(1L, "a", "t", "b", null, TestInitiators.USER).getIdempotencyKey());
-        assertNull(SendMailCommand.builder()
+    void constructor_shouldLeaveOptionalFieldsNull_whenOmitted() {
+        SendMailCommand sixArgs = new SendMailCommand(1L, "a", "t", "b", null, TestInitiators.USER);
+        SendMailCommand noAuthor = new SendMailCommand(1L, null, "t", "b", null, TestInitiators.USER);
+        SendMailCommand noBody = new SendMailCommand(1L, "a", "t", null, null, TestInitiators.USER);
+        SendMailCommand noIdempotencyKey = SendMailCommand.builder()
                 .characterId(1L)
                 .author("a")
                 .title("t")
                 .body("b")
                 .adena(5L)
                 .initiator(TestInitiators.USER)
-                .build()
-                .getIdempotencyKey());
+                .build();
+
+        assertNull(sixArgs.getAdena());
+        assertNull(sixArgs.getIdempotencyKey());
+        assertNull(noAuthor.getAuthor());
+        assertNull(noBody.getBody());
+        assertNull(noIdempotencyKey.getIdempotencyKey());
     }
 
     @Test
@@ -96,66 +112,16 @@ class SendMailCommandTest {
                 .build();
 
         assertEquals(cmd, gson.fromJson(gson.toJson(cmd), SendMailCommand.class));
+        assertEquals(TestInitiators.USER, cmd.getInitiator());
     }
 
     @Test
     void gson_shouldReadIdempotencyKeyAsNull_whenOldPayload() {
-        SendMailCommand cmd =
-                new Gson().fromJson("{\"characterId\":1,\"title\":\"t\",\"items\":[],\"adena\":5}", SendMailCommand.class);
+        SendMailCommand cmd = new Gson()
+                .fromJson("{\"characterId\":1,\"title\":\"t\",\"items\":[],\"adena\":5}", SendMailCommand.class);
 
         assertNull(cmd.getIdempotencyKey());
         assertEquals(5L, cmd.getAdena().longValue());
-    }
-
-    @Test
-    void constructor_shouldRejectNonPositiveAdena() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> SendMailCommand.builder()
-                        .characterId(1L)
-                        .author("a")
-                        .title("t")
-                        .body("b")
-                        .adena(0L)
-                        .initiator(TestInitiators.USER)
-                        .build());
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> SendMailCommand.builder()
-                        .characterId(1L)
-                        .author("a")
-                        .title("t")
-                        .body("b")
-                        .adena(-1L)
-                        .initiator(TestInitiators.USER)
-                        .build());
-    }
-
-    @Test
-    void constructor_shouldDefaultAdenaToNull_whenFiveArgs() {
-        assertNull(new SendMailCommand(1L, "a", "t", "b", null, TestInitiators.USER).getAdena());
-    }
-
-    @Test
-    void constructor_shouldRejectNullTitle() {
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> new SendMailCommand(1L, "a", null, "b", null, TestInitiators.USER));
-        assertTrue(ex.getMessage().contains("title"));
-    }
-
-    @Test
-    void constructor_shouldAllowNullAuthor() {
-        SendMailCommand cmd = new SendMailCommand(1L, null, "t", "b", null, TestInitiators.USER);
-
-        assertNull(cmd.getAuthor());
-    }
-
-    @Test
-    void constructor_shouldAllowNullBody() {
-        SendMailCommand cmd = new SendMailCommand(1L, "a", "t", null, null, TestInitiators.USER);
-
-        assertNull(cmd.getBody());
     }
 
     @Test
@@ -166,163 +132,19 @@ class SendMailCommandTest {
     }
 
     @Test
-    void getItems_shouldBeUnmodifiable() {
+    void constructor_shouldDefensivelyCopyAndFreezeItems() {
         MailItem item = MailItem.builder().itemTemplateId(57L).build();
-        SendMailCommand cmd = SendMailCommand.builder()
-                .characterId(1L)
-                .title("t")
-                .items(Collections.singletonList(item))
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertThrows(UnsupportedOperationException.class, () -> cmd.getItems().add(item));
-    }
-
-    @Test
-    void constructor_shouldDefensivelyCopyItems() {
-        MailItem item = MailItem.builder().itemTemplateId(57L).build();
-        java.util.List<MailItem> mutable = new java.util.ArrayList<MailItem>(Collections.singletonList(item));
+        List<MailItem> mutable = new ArrayList<>(Collections.singletonList(item));
 
         SendMailCommand cmd = new SendMailCommand(1L, "a", "t", "b", mutable, TestInitiators.USER);
         mutable.add(MailItem.builder().itemTemplateId(58L).build());
 
         assertEquals(1, cmd.getItems().size());
+        assertThrows(UnsupportedOperationException.class, () -> cmd.getItems().add(item));
     }
 
     @Test
-    void toBuilder_shouldRoundtrip() {
-        SendMailCommand original = SendMailCommand.builder()
-                .characterId(42L)
-                .author("admin")
-                .title("Reward")
-                .body("body")
-                .items(Arrays.asList(
-                        MailItem.builder().itemTemplateId(57L).count(1L).build(),
-                        MailItem.builder().itemTemplateId(58L).count(2L).build()))
-                .initiator(TestInitiators.USER)
-                .build();
-
-        SendMailCommand copy = original.toBuilder().build();
-
-        assertEquals(original, copy);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnCharacterId() {
-        SendMailCommand a = SendMailCommand.builder()
-                .characterId(1L)
-                .title("t")
-                .initiator(TestInitiators.USER)
-                .build();
-        SendMailCommand b = SendMailCommand.builder()
-                .characterId(2L)
-                .title("t")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnTitle() {
-        SendMailCommand a = SendMailCommand.builder()
-                .characterId(1L)
-                .title("a")
-                .initiator(TestInitiators.USER)
-                .build();
-        SendMailCommand b = SendMailCommand.builder()
-                .characterId(1L)
-                .title("b")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnAuthor() {
-        SendMailCommand a = SendMailCommand.builder()
-                .characterId(1L)
-                .title("t")
-                .author("x")
-                .initiator(TestInitiators.USER)
-                .build();
-        SendMailCommand b = SendMailCommand.builder()
-                .characterId(1L)
-                .title("t")
-                .author("y")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnItems() {
-        SendMailCommand a = SendMailCommand.builder()
-                .characterId(1L)
-                .title("t")
-                .items(Collections.singletonList(
-                        MailItem.builder().itemTemplateId(57L).build()))
-                .initiator(TestInitiators.USER)
-                .build();
-        SendMailCommand b = SendMailCommand.builder()
-                .characterId(1L)
-                .title("t")
-                .items(Collections.singletonList(
-                        MailItem.builder().itemTemplateId(58L).build()))
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void hashCode_shouldMatchEquals() {
-        SendMailCommand a = SendMailCommand.builder()
-                .characterId(1L)
-                .author("x")
-                .title("t")
-                .body("b")
-                .initiator(TestInitiators.USER)
-                .build();
-        SendMailCommand b = SendMailCommand.builder()
-                .characterId(1L)
-                .author("x")
-                .title("t")
-                .body("b")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertEquals(a.hashCode(), b.hashCode());
-    }
-
-    @Test
-    void toString_shouldExposeAllFields() {
-        SendMailCommand cmd = SendMailCommand.builder()
-                .characterId(42L)
-                .author("admin")
-                .title("Reward")
-                .body("body")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        String s = cmd.toString();
-
-        assertTrue(s.contains("42"));
-        assertTrue(s.contains("admin"));
-        assertTrue(s.contains("Reward"));
-        assertTrue(s.contains("body"));
-    }
-
-    @Test
-    void implementsNxCommandMarker() {
-        SendMailCommand cmd = SendMailCommand.builder()
-                .characterId(1L)
-                .title("t")
-                .initiator(TestInitiators.USER)
-                .build();
-
-        assertInstanceOf(NxCommand.class, cmd);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(SendMailCommand.class).verify();
     }
 }

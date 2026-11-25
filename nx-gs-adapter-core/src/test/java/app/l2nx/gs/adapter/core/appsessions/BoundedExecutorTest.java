@@ -34,16 +34,24 @@ class BoundedExecutorTest {
         void execute_shouldNeverRunMoreThanTheLimitAtOnce_whenThePoolHasMoreThreads() throws Exception {
             ExecutorService pool = Executors.newFixedThreadPool(8);
             try {
-                BoundedExecutor bounded = new BoundedExecutor(pool, 2);
+                AtomicInteger handedToThePool = new AtomicInteger();
+                BoundedExecutor bounded = new BoundedExecutor(
+                        task -> {
+                            handedToThePool.incrementAndGet();
+                            pool.execute(task);
+                        },
+                        2);
+                CountDownLatch twoStarted = new CountDownLatch(2);
+                CountDownLatch release = new CountDownLatch(1);
+                CountDownLatch done = new CountDownLatch(10);
                 AtomicInteger running = new AtomicInteger();
                 AtomicInteger peak = new AtomicInteger();
-                CountDownLatch done = new CountDownLatch(10);
                 for (int i = 0; i < 10; i++) {
                     bounded.execute(() -> {
-                        int now = running.incrementAndGet();
-                        peak.accumulateAndGet(now, Math::max);
+                        peak.accumulateAndGet(running.incrementAndGet(), Math::max);
+                        twoStarted.countDown();
                         try {
-                            Thread.sleep(20L);
+                            release.await(10, TimeUnit.SECONDS);
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                         }
@@ -52,6 +60,10 @@ class BoundedExecutorTest {
                     });
                 }
 
+                assertTrue(twoStarted.await(10, TimeUnit.SECONDS));
+                assertEquals(2, handedToThePool.get(), "the third task waits in the queue, not in the pool");
+                assertEquals(2, running.get());
+                release.countDown();
                 assertTrue(done.await(10, TimeUnit.SECONDS));
                 assertEquals(2, peak.get());
             } finally {

@@ -12,10 +12,14 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import com.google.gson.Gson;
 import java.util.*;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class CharacterPresenceEventTest {
 
@@ -49,27 +53,72 @@ class CharacterPresenceEventTest {
                 .activity(ActivityType.OFFLINE_FISHING);
     }
 
+    static Stream<Arguments> invalidEvents() {
+        return Stream.of(
+                Arguments.of("eventId null", clientLogin().eventId(null), NullPointerException.class),
+                Arguments.of("source null", clientLogin().source(null), NullPointerException.class),
+                Arguments.of("app without activity", appStart().activity(null), IllegalArgumentException.class),
+                Arguments.of(
+                        "online with a result",
+                        clientLogin().result(SessionResult.builder().build()),
+                        IllegalArgumentException.class),
+                Arguments.of("client resumed", clientLogin().resumed(true), IllegalArgumentException.class),
+                Arguments.of(
+                        "offline resumed",
+                        appStart()
+                                .online(false)
+                                .logoutReason(LogoutReason.APP_TIME_UP)
+                                .resumed(true),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "offline without logoutReason",
+                        clientLogout().logoutReason(null),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "online with logoutReason",
+                        clientLogin().logoutReason(LogoutReason.LOGOUT),
+                        IllegalArgumentException.class));
+    }
+
+    static Stream<Arguments> fullEvents() {
+        UUID sessionId = UUID.fromString("018f5fa3-1e3d-7000-8000-0000000000aa");
+        return Stream.of(
+                Arguments.of(
+                        "app end with every field",
+                        appStart()
+                                .online(false)
+                                .logoutReason(LogoutReason.APP_DAILY_LIMIT)
+                                .sessionId(sessionId)
+                                .accountName("acc")
+                                .ip("1.2.3.4")
+                                .hwid("HW")
+                                .metadata(Collections.singletonMap("k", "v"))
+                                .result(SessionResult.builder().overflow(1L).build())
+                                .build(),
+                        sessionId,
+                        "acc",
+                        "1.2.3.4",
+                        "HW",
+                        false),
+                Arguments.of(
+                        "client end with a result",
+                        clientLogout().result(SessionResult.builder().build()).build(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        false),
+                Arguments.of("resumed app start", appStart().resumed(true).build(), null, null, null, null, true));
+    }
+
     @Nested
     class Constructor {
 
-        @Test
-        void constructor_shouldRejectNullEventId() {
-            assertThrows(
-                    NullPointerException.class,
-                    () -> clientLogin().eventId(null).build());
-        }
-
-        @Test
-        void constructor_shouldRejectNullSource() {
-            assertThrows(
-                    NullPointerException.class, () -> clientLogin().source(null).build());
-        }
-
-        @Test
-        void constructor_shouldRejectApp_whenActivityMissing() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> appStart().activity(null).build());
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEventTest#invalidEvents")
+        void constructor_shouldReject_whenEventInvalid(
+                String name, CharacterPresenceEvent.Builder builder, Class<? extends RuntimeException> expected) {
+            assertThrows(expected, builder::build);
         }
 
         @Test
@@ -84,14 +133,6 @@ class CharacterPresenceEventTest {
         @EnumSource(value = ActivityType.class, mode = EnumSource.Mode.EXCLUDE, names = "OFFLINE_PRIVATE_STORE")
         void constructor_shouldRejectClient_whenActivityIsNotTheNativeStore(ActivityType activity) {
             CharacterPresenceEvent.Builder builder = clientLogin().activity(activity);
-
-            assertThrows(IllegalArgumentException.class, builder::build);
-        }
-
-        @Test
-        void constructor_shouldRejectResult_whenOnline() {
-            CharacterPresenceEvent.Builder builder =
-                    clientLogin().result(SessionResult.builder().build());
 
             assertThrows(IllegalArgumentException.class, builder::build);
         }
@@ -112,56 +153,11 @@ class CharacterPresenceEventTest {
         }
 
         @Test
-        void toBuilder_shouldKeepTheResult() {
-            CharacterPresenceEvent original =
-                    clientLogout().result(SessionResult.builder().build()).build();
-
-            assertEquals(original, original.toBuilder().build());
-        }
-
-        @Test
         void wire_shouldNameTheCharacterCharacterId() {
             String json = new Gson().toJson(clientLogin().build());
 
             assertTrue(json.contains("\"characterId\":1"), json);
             assertFalse(json.contains("charId"), json);
-        }
-
-        @Test
-        void constructor_shouldRejectResumed_whenClientSource() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> clientLogin().resumed(true).build());
-        }
-
-        @Test
-        void constructor_shouldRejectResumed_whenOffline() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> appStart()
-                            .online(false)
-                            .logoutReason(LogoutReason.APP_TIME_UP)
-                            .resumed(true)
-                            .build());
-        }
-
-        @Test
-        void constructor_shouldAcceptResumed_whenOnlineApp() {
-            assertTrue(appStart().resumed(true).build().isResumed());
-        }
-
-        @Test
-        void constructor_shouldRejectOffline_whenLogoutReasonMissing() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> clientLogout().logoutReason(null).build());
-        }
-
-        @Test
-        void constructor_shouldRejectOnline_whenLogoutReasonPresent() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> clientLogin().logoutReason(LogoutReason.LOGOUT).build());
         }
 
         @ParameterizedTest(name = "{0}")
@@ -170,18 +166,6 @@ class CharacterPresenceEventTest {
             CharacterPresenceEvent event = clientLogout().logoutReason(reason).build();
 
             assertEquals(reason, event.getLogoutReason());
-        }
-
-        @Test
-        void constructor_shouldAcceptAppEnd_withActivityAndReason() {
-            CharacterPresenceEvent event = appStart()
-                    .online(false)
-                    .logoutReason(LogoutReason.APP_OUT_OF_BAIT)
-                    .build();
-
-            assertEquals(SessionSource.APP, event.getSource());
-            assertEquals(ActivityType.OFFLINE_FISHING, event.getActivity());
-            assertEquals(LogoutReason.APP_OUT_OF_BAIT, event.getLogoutReason());
         }
     }
 
@@ -194,19 +178,7 @@ class CharacterPresenceEventTest {
         }
 
         @Test
-        void getMetadata_shouldBeUnmodifiable() {
-            Map<String, String> source = new HashMap<String, String>();
-            source.put("k", "v");
-
-            CharacterPresenceEvent event = clientLogin().metadata(source).build();
-
-            assertThrows(
-                    UnsupportedOperationException.class,
-                    () -> event.getMetadata().put("k2", "v2"));
-        }
-
-        @Test
-        void constructor_shouldDefensivelyCopyMetadataMap() {
+        void constructor_shouldFreezeACopyOfTheMetadataMap() {
             Map<String, String> source = new HashMap<String, String>();
             source.put("k", "v");
 
@@ -214,40 +186,34 @@ class CharacterPresenceEventTest {
             source.put("late", "value");
 
             assertEquals(1, event.getMetadata().size());
+            assertThrows(
+                    UnsupportedOperationException.class,
+                    () -> event.getMetadata().put("k2", "v2"));
         }
     }
 
     @Nested
     class Builder {
 
-        @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            UUID sessionId = UUID.fromString("018f5fa3-1e3d-7000-8000-0000000000aa");
-            CharacterPresenceEvent original = appStart()
-                    .online(false)
-                    .logoutReason(LogoutReason.APP_DAILY_LIMIT)
-                    .sessionId(sessionId)
-                    .accountName("acc")
-                    .ip("1.2.3.4")
-                    .hwid("HW")
-                    .metadata(Collections.singletonMap("k", "v"))
-                    .build();
-
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEventTest#fullEvents")
+        void toBuilder_shouldRoundtripAllFields(
+                String name,
+                CharacterPresenceEvent original,
+                UUID sessionId,
+                String accountName,
+                String ip,
+                String hwid,
+                boolean resumed) {
             CharacterPresenceEvent copy = original.toBuilder().build();
 
             assertEquals(original, copy);
             assertNotSame(original, copy);
             assertEquals(sessionId, copy.getSessionId());
-            assertEquals("acc", copy.getAccountName());
-            assertEquals("1.2.3.4", copy.getIp());
-            assertEquals("HW", copy.getHwid());
-        }
-
-        @Test
-        void toBuilder_shouldRoundtripResumed() {
-            CharacterPresenceEvent original = appStart().resumed(true).build();
-
-            assertTrue(original.toBuilder().build().isResumed());
+            assertEquals(accountName, copy.getAccountName());
+            assertEquals(ip, copy.getIp());
+            assertEquals(hwid, copy.getHwid());
+            assertEquals(resumed, copy.isResumed());
         }
     }
 
@@ -255,45 +221,10 @@ class CharacterPresenceEventTest {
     class Equality {
 
         @Test
-        void equals_shouldDistinguishSessionId() {
-            CharacterPresenceEvent withoutSession = clientLogin().build();
-            CharacterPresenceEvent withSession = clientLogin()
-                    .sessionId(UUID.fromString("018f5fa3-1e3d-7000-8000-0000000000bb"))
-                    .build();
-
-            assertNotEquals(withoutSession, withSession);
-        }
-
-        @Test
-        void equals_shouldDistinguishSourceAndActivity() {
-            assertNotEquals(clientLogin().build(), appStart().build());
-            assertNotEquals(
-                    appStart().build(),
-                    appStart().activity(ActivityType.OFFLINE_PRIVATE_STORE).build());
-        }
-
-        @Test
-        void equals_shouldDistinguishLogoutReason() {
-            assertNotEquals(
-                    clientLogout().build(),
-                    clientLogout().logoutReason(LogoutReason.DISCONNECT).build());
-        }
-
-        @Test
-        void equals_shouldDistinguishResumed() {
-            assertNotEquals(appStart().build(), appStart().resumed(true).build());
-        }
-
-        @Test
-        void toString_shouldRenderSourceAndReason() {
-            String s = clientLogout()
-                    .logoutReason(LogoutReason.SERVER_STOP)
-                    .build()
-                    .toString();
-
-            assertTrue(s.contains("eventId=" + id()));
-            assertTrue(s.contains("source=CLIENT"));
-            assertTrue(s.contains("logoutReason=SERVER_STOP"));
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(CharacterPresenceEvent.class)
+                    .withNonnullFields("eventId")
+                    .verify();
         }
     }
 
@@ -328,6 +259,10 @@ class CharacterPresenceEventTest {
             String json = jackson.writeValueAsString(original);
 
             assertEquals(original, jackson.readValue(json, CharacterPresenceEvent.class));
+            assertEquals(1L, original.getCharacterId());
+            assertTrue(original.isOnline());
+            assertEquals(SessionSource.APP, original.getSource());
+            assertEquals(id(), original.getEventId());
         }
     }
 }

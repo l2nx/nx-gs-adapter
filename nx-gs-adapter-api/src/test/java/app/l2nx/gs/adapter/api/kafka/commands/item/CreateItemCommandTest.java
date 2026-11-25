@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.item;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import app.l2nx.gs.adapter.api.domain.item.ItemLocation;
 import app.l2nx.gs.adapter.api.kafka.commands.TestInitiators;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -23,9 +24,18 @@ class CreateItemCommandTest {
 
     @Test
     void toBuilder_shouldRoundtripAllFields() {
-        CreateItemCommand original = valid().count(5L).enchantLevel(3L).build();
+        CreateItemCommand expected = new CreateItemCommand(42L, 57L, 5L, 3L, ItemLocation.WH, TestInitiators.USER);
+        CreateItemCommand original =
+                valid().count(5L).enchantLevel(3L).location(ItemLocation.WH).build();
 
-        assertEquals(original, original.toBuilder().build());
+        assertEquals(expected, original);
+        assertEquals(expected, original.toBuilder().build());
+        assertEquals(42L, original.getCharacterId());
+        assertEquals(57L, original.getItemTemplateId());
+        assertEquals(TestInitiators.USER, original.getInitiator());
+        assertEquals(5L, original.getCount());
+        assertEquals(3L, original.getEnchantLevel());
+        assertEquals(ItemLocation.WH, original.getLocation());
     }
 
     @Test

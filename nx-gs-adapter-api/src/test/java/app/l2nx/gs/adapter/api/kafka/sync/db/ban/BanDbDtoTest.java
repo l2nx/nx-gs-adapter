@@ -53,17 +53,6 @@ class BanDbDtoTest {
                 assertFalse(wire.has(former), former);
             }
         }
-
-        @Test
-        void toBuilder_shouldRoundtripAllFields() {
-            BanDbDto original = valid().build();
-
-            BanDbDto copy = original.toBuilder().build();
-
-            assertEquals(original, copy);
-            assertEquals(original.hashCode(), copy.hashCode());
-            assertNotSame(original, copy);
-        }
     }
 
     @Nested
@@ -94,13 +83,22 @@ class BanDbDtoTest {
 
         private void assertReadsValid(BanDbDto actual) {
             BanDbDto expected = valid().build();
+            assertEquals(11L, actual.getId());
             assertEquals("CHARACTER", actual.getSubjectType());
             assertEquals("268435457", actual.getSubjectValue());
             assertEquals("Hero", actual.getSubjectName());
+            assertEquals("CHAT", actual.getBanType());
+            assertEquals(Instant.parse("2026-12-01T00:00:00Z"), actual.getExpiresAt());
+            assertEquals("spam", actual.getPublicReason());
+            assertEquals("gm", actual.getIssuedBy());
             assertEquals(expected, actual);
             assertEquals(expected.hashCode(), actual.hashCode());
             assertEquals(expected.toString(), actual.toString());
-            assertEquals(expected, actual.toBuilder().build());
+
+            BanDbDto copy = actual.toBuilder().build();
+            assertEquals(expected, copy);
+            assertEquals(expected.hashCode(), copy.hashCode());
+            assertNotSame(actual, copy);
         }
     }
 }

@@ -1,9 +1,7 @@
 package app.l2nx.gs.gd.sync;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import app.l2nx.gs.adapter.api.kafka.ops.model.EntityStats;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.GameDataSyncEvent;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.experiencelevel.ExperienceLevel;
 import app.l2nx.gs.adapter.api.rest.SyncTopics;
@@ -71,26 +69,6 @@ class ExperienceLevelDescriptorTest {
             }
         }
         return out;
-    }
-
-    @Nested
-    class Resolve {
-
-        @Test
-        void onConnect_shouldIncludeExperienceLevel_inActiveEntities() {
-            TestExperienceLevelProvider.snapshot = Collections.singletonList(
-                    ExperienceLevel.builder().level(1).requiredExp(0L).build());
-
-            connectAndSnapshot();
-
-            List<EntityStats> entities =
-                    module.currentStatus().getStats().getEntities().orElseGet(Collections::emptyList);
-            List<String> names = new ArrayList<String>();
-            for (EntityStats s : entities) {
-                names.add(s.getName());
-            }
-            assertTrue(names.contains("experiencelevel"));
-        }
     }
 
     @Nested

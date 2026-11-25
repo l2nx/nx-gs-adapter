@@ -2,16 +2,24 @@ package app.l2nx.gs.adapter.api.kafka.commands.mail.model;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class MailItemTest {
 
     @Test
-    void builder_shouldRoundtripFields() {
-        MailItem item = MailItem.builder().itemTemplateId(57L).count(1_000_000L).build();
+    void toBuilder_shouldRoundtripAllFields() {
+        MailItem original =
+                MailItem.builder().itemTemplateId(57L).count(1_000_000L).build();
 
-        assertEquals(57L, item.getItemTemplateId().longValue());
-        assertEquals(1_000_000L, item.getCount().longValue());
+        assertEquals(57L, original.getItemTemplateId().longValue());
+        assertEquals(1_000_000L, original.getCount().longValue());
+        assertEquals(original, original.toBuilder().build());
     }
 
     @Test
@@ -21,67 +29,23 @@ class MailItemTest {
         assertEquals(1L, item.getCount().longValue());
     }
 
-    @Test
-    void constructor_shouldRejectNullItemTemplateId() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> new MailItem(null, 1L));
-        assertTrue(ex.getMessage().contains("itemTemplateId"));
+    private static Stream<Arguments> invalidFields() {
+        return Stream.of(
+                Arguments.of("itemTemplateId", (Executable) () -> new MailItem(null, 1L)),
+                Arguments.of("count", (Executable) () -> new MailItem(57L, null)),
+                Arguments.of("count", (Executable) () -> new MailItem(57L, 0L)),
+                Arguments.of("count", (Executable) () -> new MailItem(57L, -1L)));
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("invalidFields")
+    void constructor_shouldReject_whenFieldInvalid(String field, Executable construction) {
+        IllegalArgumentException actual = assertThrows(IllegalArgumentException.class, construction);
+        assertTrue(actual.getMessage().contains(field));
     }
 
     @Test
-    void constructor_shouldRejectNullCount() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> new MailItem(57L, null));
-        assertTrue(ex.getMessage().contains("count"));
-    }
-
-    @Test
-    void constructor_shouldRejectZeroCount() {
-        assertThrows(IllegalArgumentException.class, () -> new MailItem(57L, 0L));
-    }
-
-    @Test
-    void constructor_shouldRejectNegativeCount() {
-        assertThrows(IllegalArgumentException.class, () -> new MailItem(57L, -1L));
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        MailItem original = MailItem.builder().itemTemplateId(57L).count(42L).build();
-        MailItem copy = original.toBuilder().build();
-
-        assertEquals(original, copy);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnTemplateId() {
-        MailItem a = MailItem.builder().itemTemplateId(57L).count(1L).build();
-        MailItem b = MailItem.builder().itemTemplateId(58L).count(1L).build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishOnCount() {
-        MailItem a = MailItem.builder().itemTemplateId(57L).count(1L).build();
-        MailItem b = MailItem.builder().itemTemplateId(57L).count(2L).build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void hashCode_shouldMatchEquals() {
-        MailItem a = MailItem.builder().itemTemplateId(57L).count(42L).build();
-        MailItem b = MailItem.builder().itemTemplateId(57L).count(42L).build();
-
-        assertEquals(a.hashCode(), b.hashCode());
-    }
-
-    @Test
-    void toString_shouldExposeAllFields() {
-        MailItem item = MailItem.builder().itemTemplateId(57L).count(42L).build();
-
-        String s = item.toString();
-
-        assertTrue(s.contains("57"));
-        assertTrue(s.contains("42"));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(MailItem.class).verify();
     }
 }

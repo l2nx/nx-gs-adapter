@@ -55,17 +55,6 @@ class KafkaInitializerTest {
     }
 
     @Test
-    void init_shouldForwardEmptyHeaders_whenServerIdAbsent() {
-        CapturingKafkaFactory factory = new CapturingKafkaFactory();
-        KafkaInitializer init = new KafkaInitializer(factory);
-
-        init.init(kafkaCredentials("u", "p"), "client-id", Collections.emptyMap(), s -> {});
-
-        assertNotNull(factory.capturedStaticHeaders);
-        assertTrue(factory.capturedStaticHeaders.isEmpty());
-    }
-
-    @Test
     void init_shouldReturnPostBuildState_whenFactoryReportsDisconnected() {
         CapturingKafkaFactory factory = new CapturingKafkaFactory();
         factory.postBuildState = KafkaState.DISCONNECTED;
@@ -78,10 +67,10 @@ class KafkaInitializerTest {
     }
 
     @Test
-    void buildJaas_shouldFormatScramLoginModuleString() {
+    void buildJaas_shouldEscapeQuotesAndBackslashes() {
         assertEquals(
                 "org.apache.kafka.common.security.scram.ScramLoginModule required"
-                        + " username=\"user\" password=\"pass\";",
-                KafkaInitializer.buildJaas("user", "pass"));
+                        + " username=\"us\\\"er\" password=\"pa\\\\ss\\\"\";",
+                KafkaInitializer.buildJaas("us\"er", "pa\\ss\""));
     }
 }

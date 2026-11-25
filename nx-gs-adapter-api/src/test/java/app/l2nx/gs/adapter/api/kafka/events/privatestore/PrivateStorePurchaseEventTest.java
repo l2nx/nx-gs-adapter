@@ -6,146 +6,83 @@ import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.PrivateStoreSide;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.TradeLine;
 import java.util.*;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class PrivateStorePurchaseEventTest {
 
-    @Test
-    void getLines_shouldReturnEmptyList_whenBuilderOmits() {
-        PrivateStorePurchaseEvent event = PrivateStorePurchaseEvent.builder()
+    private static PrivateStorePurchaseEvent.Builder valid() {
+        return PrivateStorePurchaseEvent.builder()
                 .eventId(UUID.randomUUID())
                 .storeType(PrivateStoreSide.ASK)
                 .sellerId(1L)
-                .buyerId(2L)
-                .build();
-
-        assertTrue(event.getLines().isEmpty());
+                .buyerId(2L);
     }
 
-    @Test
-    void getLines_shouldReturnEmptyList_whenBuilderPassesNull() {
-        PrivateStorePurchaseEvent event = PrivateStorePurchaseEvent.builder()
-                .eventId(UUID.randomUUID())
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .lines(null)
-                .build();
+    private static Stream<PrivateStorePurchaseEvent.Builder> withoutLines() {
+        return Stream.of(valid(), valid().lines(null));
+    }
 
-        assertTrue(event.getLines().isEmpty());
+    @ParameterizedTest
+    @MethodSource("withoutLines")
+    void getLines_shouldReturnEmptyList_whenBuilderOmitsOrPassesNull(PrivateStorePurchaseEvent.Builder builder) {
+        assertTrue(builder.build().getLines().isEmpty());
     }
 
     @Test
     void getSellerName_shouldBeNullable() {
-        PrivateStorePurchaseEvent event = PrivateStorePurchaseEvent.builder()
-                .eventId(UUID.randomUUID())
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .build();
+        PrivateStorePurchaseEvent event = valid().build();
 
         assertNull(event.getSellerName());
         assertNull(event.getBuyerName());
     }
 
     @Test
-    void getLines_shouldBeUnmodifiable() {
-        PrivateStorePurchaseEvent event = PrivateStorePurchaseEvent.builder()
-                .eventId(UUID.randomUUID())
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .lines(Collections.singletonList(stubLine(1234L, 100L)))
-                .build();
-
-        assertThrows(UnsupportedOperationException.class, () -> event.getLines().add(stubLine(5678L, 200L)));
-    }
-
-    @Test
-    void constructor_shouldDefensivelyCopyLinesList() {
+    void constructor_shouldDefensivelyCopyAndFreezeLinesList() {
         List<TradeLine> source = new ArrayList<TradeLine>();
         source.add(stubLine(1234L, 100L));
 
-        PrivateStorePurchaseEvent event = PrivateStorePurchaseEvent.builder()
-                .eventId(UUID.randomUUID())
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .lines(source)
-                .build();
+        PrivateStorePurchaseEvent event = valid().lines(source).build();
 
         source.add(stubLine(5678L, 200L));
 
         assertEquals(1, event.getLines().size());
+        assertThrows(UnsupportedOperationException.class, () -> event.getLines().add(stubLine(5678L, 200L)));
     }
 
     @Test
     void toBuilder_shouldRoundtripAllFields() {
+        UUID eventId = UUID.randomUUID();
         PrivateStorePurchaseEvent original = PrivateStorePurchaseEvent.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(eventId)
                 .storeType(PrivateStoreSide.BID)
                 .sellerId(268437521L)
                 .sellerName("Hisho")
                 .buyerId(268437522L)
                 .buyerName("Shanon")
                 .lines(Arrays.asList(stubLine(1234L, 100L), stubLine(5678L, 200L)))
+                .metadata(Collections.singletonMap("k", "v"))
                 .build();
 
-        assertEquals(original, original.toBuilder().build());
+        PrivateStorePurchaseEvent copy = original.toBuilder().build();
+
+        assertEquals(original, copy);
+        assertEquals(eventId, copy.getEventId());
+        assertEquals(PrivateStoreSide.BID, copy.getStoreType());
+        assertEquals(268437521L, copy.getSellerId());
+        assertEquals("Hisho", copy.getSellerName());
+        assertEquals(268437522L, copy.getBuyerId());
+        assertEquals("Shanon", copy.getBuyerName());
+        assertEquals(Arrays.asList(stubLine(1234L, 100L), stubLine(5678L, 200L)), copy.getLines());
+        assertEquals(Collections.singletonMap("k", "v"), copy.getMetadata());
     }
 
     @Test
-    void equals_shouldDistinguishEventId() {
-        PrivateStorePurchaseEvent a = PrivateStorePurchaseEvent.builder()
-                .eventId(UUID.randomUUID())
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .build();
-        PrivateStorePurchaseEvent b = PrivateStorePurchaseEvent.builder()
-                .eventId(UUID.randomUUID())
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .build();
-
-        assertNotEquals(a, b);
-    }
-
-    @Test
-    void equals_shouldDistinguishStoreType() {
-        UUID id = UUID.randomUUID();
-        PrivateStorePurchaseEvent ask = PrivateStorePurchaseEvent.builder()
-                .eventId(id)
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .build();
-        PrivateStorePurchaseEvent bid = PrivateStorePurchaseEvent.builder()
-                .eventId(id)
-                .storeType(PrivateStoreSide.BID)
-                .sellerId(1L)
-                .buyerId(2L)
-                .build();
-
-        assertNotEquals(ask, bid);
-    }
-
-    @Test
-    void toString_shouldRenderEventIdAndPartyIds() {
-        UUID id = UUID.fromString("018f5fa3-1e3d-7000-8000-000000000000");
-        PrivateStorePurchaseEvent event = PrivateStorePurchaseEvent.builder()
-                .eventId(id)
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(11L)
-                .buyerId(22L)
-                .build();
-
-        String s = event.toString();
-        assertTrue(s.contains("eventId=" + id));
-        assertTrue(s.contains("sellerId=11"));
-        assertTrue(s.contains("buyerId=22"));
-        assertTrue(s.contains("storeType=ASK"));
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(PrivateStorePurchaseEvent.class).verify();
     }
 
     private static TradeLine stubLine(long itemId, long unitPrice) {

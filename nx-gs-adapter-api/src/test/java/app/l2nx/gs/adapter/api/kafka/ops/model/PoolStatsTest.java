@@ -16,6 +16,7 @@ class PoolStatsTest {
         assertEquals(Integer.valueOf(8), stats.getIdle());
         assertEquals(Integer.valueOf(10), stats.getTotal());
         assertEquals(Integer.valueOf(0), stats.getWaiting());
+        assertEquals(stats, stats.toBuilder().build());
     }
 
     @Test
@@ -26,12 +27,5 @@ class PoolStatsTest {
         assertEquals(Integer.valueOf(0), stats.getIdle());
         assertNull(stats.getTotal());
         assertNull(stats.getWaiting());
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        PoolStats original = new PoolStats(3, 5, 8, 1);
-
-        assertEquals(original, original.toBuilder().build());
     }
 }

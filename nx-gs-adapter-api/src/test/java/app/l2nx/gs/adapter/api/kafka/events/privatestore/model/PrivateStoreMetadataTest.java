@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class PrivateStoreMetadataTest {
 
@@ -24,16 +25,45 @@ class PrivateStoreMetadataTest {
         return map;
     }
 
+    private static Map<String, String> sellerMetadata(String adena, String percent) {
+        return metadata(
+                PrivateStoreMetadataKey.SELLER_FEE_ADENA, adena, PrivateStoreMetadataKey.SELLER_FEE_PERCENT, percent);
+    }
+
+    private static Map<String, String> buyerMetadata(String adena, String percent) {
+        return metadata(
+                PrivateStoreMetadataKey.BUYER_FEE_ADENA, adena, PrivateStoreMetadataKey.BUYER_FEE_PERCENT, percent);
+    }
+
+    @Test
+    void fees_shouldReturnNull_whenMetadataNullOrEmpty() {
+        assertNull(PrivateStoreMetadata.sellerFee(null));
+        assertNull(PrivateStoreMetadata.sellerFee(new HashMap<String, String>()));
+        assertNull(PrivateStoreMetadata.buyerFee(null));
+        assertNull(PrivateStoreMetadata.buyerFee(new HashMap<String, String>()));
+    }
+
+    @ParameterizedTest(name = "adena={0} percent={1}")
+    @CsvSource(
+            nullValues = "null",
+            value = {
+                "null,5",
+                "100,null",
+                "-3,5",
+                "100,-1",
+                "abc,5",
+                "100,x",
+                "1.5,5",
+                "100,5.0",
+                "99999999999999999999,5"
+            })
+    void fees_shouldReturnNull_whenAnyEntryMissingOrInvalid(String adena, String percent) {
+        assertNull(PrivateStoreMetadata.sellerFee(sellerMetadata(adena, percent)));
+        assertNull(PrivateStoreMetadata.buyerFee(buyerMetadata(adena, percent)));
+    }
+
     @Nested
     class SellerFeeAccessor {
-
-        private Map<String, String> sellerMetadata(String adena, String percent) {
-            return metadata(
-                    PrivateStoreMetadataKey.SELLER_FEE_ADENA,
-                    adena,
-                    PrivateStoreMetadataKey.SELLER_FEE_PERCENT,
-                    percent);
-        }
 
         @Test
         void sellerFee_shouldParseBothEntries() {
@@ -44,27 +74,18 @@ class PrivateStoreMetadataTest {
                     0L, PrivateStoreMetadata.sellerFee(sellerMetadata("0", "5")).getAdena());
         }
 
-        @Test
-        void sellerFee_shouldAcceptPercentBounds() {
+        @ParameterizedTest
+        @ValueSource(ints = {0, 75, 100})
+        void sellerFee_shouldAcceptPercentUpToHundred(int percent) {
             assertEquals(
-                    0, PrivateStoreMetadata.sellerFee(sellerMetadata("1", "0")).getPercent());
-            assertEquals(
-                    75,
-                    PrivateStoreMetadata.sellerFee(sellerMetadata("1", "75")).getPercent());
+                    percent,
+                    PrivateStoreMetadata.sellerFee(sellerMetadata("1", String.valueOf(percent)))
+                            .getPercent());
         }
 
         @Test
-        void sellerFee_shouldAcceptHundredAndReturnNullAbove() {
-            assertEquals(
-                    100,
-                    PrivateStoreMetadata.sellerFee(sellerMetadata("1", "100")).getPercent());
+        void sellerFee_shouldReturnNull_whenPercentAboveHundred() {
             assertNull(PrivateStoreMetadata.sellerFee(sellerMetadata("1", "101")));
-        }
-
-        @Test
-        void sellerFee_shouldReturnNull_whenMetadataNullOrEmpty() {
-            assertNull(PrivateStoreMetadata.sellerFee(null));
-            assertNull(PrivateStoreMetadata.sellerFee(new HashMap<String, String>()));
         }
 
         @Test
@@ -74,33 +95,10 @@ class PrivateStoreMetadataTest {
 
             assertNull(PrivateStoreMetadata.sellerFee(buyerOnly));
         }
-
-        @ParameterizedTest(name = "adena={0} percent={1}")
-        @CsvSource(
-                nullValues = "null",
-                value = {
-                    "null,5",
-                    "100,null",
-                    "-3,5",
-                    "100,-1",
-                    "abc,5",
-                    "100,x",
-                    "1.5,5",
-                    "100,5.0",
-                    "99999999999999999999,5"
-                })
-        void sellerFee_shouldReturnNull_whenAnyEntryMissingOrInvalid(String adena, String percent) {
-            assertNull(PrivateStoreMetadata.sellerFee(sellerMetadata(adena, percent)));
-        }
     }
 
     @Nested
     class BuyerFeeAccessor {
-
-        private Map<String, String> buyerMetadata(String adena, String percent) {
-            return metadata(
-                    PrivateStoreMetadataKey.BUYER_FEE_ADENA, adena, PrivateStoreMetadataKey.BUYER_FEE_PERCENT, percent);
-        }
 
         @Test
         void buyerFee_shouldParseBothEntries() {
@@ -111,25 +109,13 @@ class PrivateStoreMetadataTest {
                     0L, PrivateStoreMetadata.buyerFee(buyerMetadata("0", "5")).getAdena());
         }
 
-        @Test
-        void buyerFee_shouldAcceptPercentBounds() {
+        @ParameterizedTest
+        @ValueSource(ints = {0, 75, 150})
+        void buyerFee_shouldAcceptPercentAboveHundred(int percent) {
             assertEquals(
-                    0, PrivateStoreMetadata.buyerFee(buyerMetadata("1", "0")).getPercent());
-            assertEquals(
-                    75, PrivateStoreMetadata.buyerFee(buyerMetadata("1", "75")).getPercent());
-        }
-
-        @Test
-        void buyerFee_shouldAcceptPercentAboveHundred() {
-            assertEquals(
-                    150,
-                    PrivateStoreMetadata.buyerFee(buyerMetadata("1", "150")).getPercent());
-        }
-
-        @Test
-        void buyerFee_shouldReturnNull_whenMetadataNullOrEmpty() {
-            assertNull(PrivateStoreMetadata.buyerFee(null));
-            assertNull(PrivateStoreMetadata.buyerFee(new HashMap<String, String>()));
+                    percent,
+                    PrivateStoreMetadata.buyerFee(buyerMetadata("1", String.valueOf(percent)))
+                            .getPercent());
         }
 
         @Test
@@ -138,24 +124,6 @@ class PrivateStoreMetadataTest {
                     PrivateStoreMetadataKey.SELLER_FEE_ADENA, "100", PrivateStoreMetadataKey.SELLER_FEE_PERCENT, "5");
 
             assertNull(PrivateStoreMetadata.buyerFee(sellerOnly));
-        }
-
-        @ParameterizedTest(name = "adena={0} percent={1}")
-        @CsvSource(
-                nullValues = "null",
-                value = {
-                    "null,5",
-                    "100,null",
-                    "-3,5",
-                    "100,-1",
-                    "abc,5",
-                    "100,x",
-                    "1.5,5",
-                    "100,5.0",
-                    "99999999999999999999,5"
-                })
-        void buyerFee_shouldReturnNull_whenAnyEntryMissingOrInvalid(String adena, String percent) {
-            assertNull(PrivateStoreMetadata.buyerFee(buyerMetadata(adena, percent)));
         }
     }
 }

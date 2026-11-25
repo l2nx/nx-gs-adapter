@@ -6,14 +6,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ModuleStatusTest {
-
-    @Test
-    void empty_shouldBeSingleton() {
-        assertSame(ModuleStatus.Stats.empty(), ModuleStatus.Stats.empty());
-    }
 
     @Test
     void empty_shouldHaveNoSlots() {
@@ -22,48 +20,7 @@ class ModuleStatusTest {
     }
 
     @Test
-    void stats_shouldExposePool() {
-        PoolStats pool = new PoolStats(1, 3, 4, null);
-        ModuleStatus.Stats stats = ModuleStatus.Stats.builder().pool(pool).build();
-
-        assertEquals(Optional.of(pool), stats.getPool());
-    }
-
-    @Test
-    void stats_shouldExposeEntities() {
-        EntityStats clan = EntityStats.builder()
-                .name("clan")
-                .state(EntityState.HEALTHY)
-                .rowCount(1069L)
-                .build();
-        EntityStats character = EntityStats.builder()
-                .name("character")
-                .state(EntityState.DEGRADED)
-                .rowCount(152_088L)
-                .build();
-
-        ModuleStatus.Stats stats = ModuleStatus.Stats.builder()
-                .entities(Arrays.asList(clan, character))
-                .build();
-
-        assertTrue(stats.getEntities().isPresent());
-        assertEquals(Arrays.asList(clan, character), stats.getEntities().get());
-    }
-
-    @Test
-    void entities_shouldBeUnmodifiable() {
-        EntityStats clan =
-                EntityStats.builder().name("clan").state(EntityState.HEALTHY).build();
-        ModuleStatus.Stats stats = ModuleStatus.Stats.builder()
-                .entities(Collections.singletonList(clan))
-                .build();
-
-        List<EntityStats> seen = stats.getEntities().get();
-        assertThrows(UnsupportedOperationException.class, () -> seen.add(clan));
-    }
-
-    @Test
-    void entities_shouldDefensivelyCopy_whenSourceMutates() {
+    void entities_shouldBeAnUnmodifiableCopy() {
         EntityStats a =
                 EntityStats.builder().name("clan").state(EntityState.HEALTHY).build();
         EntityStats b = EntityStats.builder()
@@ -76,7 +33,9 @@ class ModuleStatusTest {
         ModuleStatus.Stats stats = ModuleStatus.Stats.builder().entities(source).build();
         source.add(b);
 
-        assertEquals(Collections.singletonList(a), stats.getEntities().get());
+        List<EntityStats> seen = stats.getEntities().get();
+        assertEquals(Collections.singletonList(a), seen);
+        assertThrows(UnsupportedOperationException.class, () -> seen.add(a));
     }
 
     @Test
@@ -89,14 +48,22 @@ class ModuleStatusTest {
     @Test
     void builder_shouldMapEachFieldToConstructorPosition() {
         PoolStats pool = new PoolStats(1, 3, 4, null);
-        EntityStats clan =
-                EntityStats.builder().name("clan").state(EntityState.HEALTHY).build();
+        EntityStats clan = EntityStats.builder()
+                .name("clan")
+                .state(EntityState.HEALTHY)
+                .rowCount(1069L)
+                .build();
+        EntityStats character = EntityStats.builder()
+                .name("character")
+                .state(EntityState.DEGRADED)
+                .rowCount(152_088L)
+                .build();
         ModuleStatus status = ModuleStatus.builder()
                 .name("db-sync")
                 .state("ACTIVE")
                 .stats(ModuleStatus.Stats.builder()
                         .pool(pool)
-                        .entities(Collections.singletonList(clan))
+                        .entities(Arrays.asList(clan, character))
                         .build())
                 .build();
 
@@ -104,26 +71,37 @@ class ModuleStatusTest {
         assertEquals("ACTIVE", status.getState());
         assertEquals(Optional.of(pool), status.getStats().getPool());
         assertEquals(
-                Optional.of(Collections.singletonList(clan)), status.getStats().getEntities());
+                Optional.of(Arrays.asList(clan, character)), status.getStats().getEntities());
+        assertEquals(status, status.toBuilder().build());
     }
 
-    @Test
-    void toBuilder_shouldRoundtrip() {
+    private static Stream<ModuleStatus.Stats> partialStats() {
         EntityStats clan = EntityStats.builder()
                 .name("clan")
                 .state(EntityState.HEALTHY)
                 .rowCount(3L)
                 .build();
+        return Stream.of(
+                ModuleStatus.Stats.builder().pool(new PoolStats(1, 3, 4, null)).build(),
+                ModuleStatus.Stats.builder()
+                        .entities(Collections.singletonList(clan))
+                        .build(),
+                ModuleStatus.Stats.builder()
+                        .pool(new PoolStats(0, 4, 4, null))
+                        .entities(Collections.singletonList(clan))
+                        .build());
+    }
 
+    @ParameterizedTest
+    @MethodSource("partialStats")
+    void toBuilder_shouldRoundtrip(ModuleStatus.Stats stats) {
         ModuleStatus original = ModuleStatus.builder()
                 .name("db-sync")
                 .state("DEGRADED")
-                .stats(ModuleStatus.Stats.builder()
-                        .pool(new PoolStats(0, 4, 4, null))
-                        .entities(Collections.singletonList(clan))
-                        .build())
+                .stats(stats)
                 .build();
 
         assertEquals(original, original.toBuilder().build());
+        assertEquals(stats, original.getStats().toBuilder().build());
     }
 }

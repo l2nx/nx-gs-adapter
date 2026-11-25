@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.spi.model;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 
 class RuntimeRowTest {
@@ -12,11 +13,7 @@ class RuntimeRowTest {
     }
 
     @Test
-    void equals_shouldDiffer_whenOnlyStateStampDiffers() {
-        RuntimeRow<String> base = new RuntimeRow<String>(1L, "dto", 7L);
-
-        assertNotEquals(base, new RuntimeRow<String>(1L, "dto", 8L));
-        assertEquals(base, new RuntimeRow<String>(1L, "dto", 7L));
-        assertEquals(base.hashCode(), new RuntimeRow<String>(1L, "dto", 7L).hashCode());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(RuntimeRow.class).verify();
     }
 }

@@ -11,9 +11,12 @@ import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import java.io.IOException;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class FishingRodTest {
@@ -34,6 +37,12 @@ class FishingRodTest {
 
     private static ObjectMapper mapper() {
         return new ObjectMapper().registerModule(new ParameterNamesModule());
+    }
+
+    static Stream<Arguments> invalidRods() {
+        return Stream.of(
+                Arguments.of("negative fishingTimeReductionMs", rod().fishingTimeReductionMs(-1L)),
+                Arguments.of("EVENT shotGrade", rod().shotGrade(ItemGrade.EVENT)));
     }
 
     @Nested
@@ -67,15 +76,6 @@ class FishingRodTest {
         }
 
         @Test
-        void readValue_shouldRoundTripEveryField() throws IOException {
-            FishingRod expected = fullyPopulated();
-
-            FishingRod actual = mapper().readValue(mapper().writeValueAsString(expected), FishingRod.class);
-
-            assertEquals(expected, actual);
-        }
-
-        @Test
         void readValue_shouldReadUnknownShotGradeAsNull_whenConsumerIsLenient() throws IOException {
             FishingRod actual = mapper().enable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
                     .readValue("{\"itemTemplateId\":6529,\"shotGrade\":\"FUTURE\"}", FishingRod.class);
@@ -103,11 +103,10 @@ class FishingRodTest {
                     () -> rod().fishingTimeMs(fishingTimeMs).build());
         }
 
-        @Test
-        void build_shouldRejectFishingTimeReduction_whenNegative() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> rod().fishingTimeReductionMs(-1L).build());
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.sync.gd.fishing.FishingRodTest#invalidRods")
+        void build_shouldReject_whenReductionNegativeOrShotGradeEvent(String reason, FishingRod.Builder builder) {
+            assertThrows(IllegalArgumentException.class, builder::build);
         }
 
         @Test
@@ -131,22 +130,22 @@ class FishingRodTest {
                     Double.valueOf(chanceBonusPercent),
                     rod().chanceBonusPercent(chanceBonusPercent).build().getChanceBonusPercent());
         }
-
-        @Test
-        void build_shouldRejectShotGrade_whenEvent() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> rod().shotGrade(ItemGrade.EVENT).build());
-        }
     }
 
     @Test
-    void toBuilder_shouldCopyEveryField() {
+    void toBuilderAndJackson_shouldRoundTripEveryField() throws IOException {
         FishingRod expected = fullyPopulated();
 
         FishingRod actual = expected.toBuilder().build();
 
         assertEquals(expected, actual);
         assertEquals(expected.hashCode(), actual.hashCode());
+        assertEquals(6529, actual.getItemTemplateId());
+        assertEquals(Long.valueOf(120_000L), actual.getFishingTimeMs());
+        assertEquals(Long.valueOf(5_000L), actual.getFishingTimeReductionMs());
+        assertEquals(Double.valueOf(10.0), actual.getChanceBonusPercent());
+        assertEquals(ItemGrade.S, actual.getShotGrade());
+
+        assertEquals(expected, mapper().readValue(mapper().writeValueAsString(expected), FishingRod.class));
     }
 }

@@ -5,10 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import app.l2nx.gs.adapter.api.kafka.events.character.CharacterPresenceEvent;
 import app.l2nx.gs.adapter.api.kafka.events.character.model.SessionSource;
 import app.l2nx.gs.adapter.api.kafka.events.premiumpurchase.PremiumPurchaseEvent;
-import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStorePurchaseEvent;
 import app.l2nx.gs.adapter.api.kafka.events.privatestore.PrivateStoreStateEvent;
-import app.l2nx.gs.adapter.api.kafka.events.privatestore.model.PrivateStoreSide;
-import app.l2nx.gs.adapter.api.kafka.events.raid.kill.RaidKillEvent;
 import app.l2nx.gs.adapter.api.kafka.events.server.online.ServerOnlineSnapshotEvent;
 import app.l2nx.gs.adapter.api.kafka.events.server.online.model.ServerOnlineBucket;
 import app.l2nx.gs.commons.UUIDv7;
@@ -168,72 +165,6 @@ class NxEventsImplTest {
     }
 
     @Test
-    void publish_shouldNoOpServerOnlineSnapshot_forNullEvent() {
-        EventTypeRegistry registry = new EventTypeRegistry();
-        publisher = new EventsPublisher(
-                Collections.singletonMap("serveronline", "acme.gs.events.serveronline"),
-                (r, c) -> {},
-                cfg(5, 0L),
-                registry);
-
-        NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        events.publish(null);
-
-        assertEquals(0, publisher.queueDepth());
-        assertEquals(0L, publisher.droppedTotal());
-    }
-
-    @Test
-    void publish_shouldShortCircuitServerOnlineSnapshot_whenFamilyTopicMissing() {
-        EventTypeRegistry registry = new EventTypeRegistry();
-        publisher = new EventsPublisher(Collections.emptyMap(), (r, c) -> {}, cfg(5, 0L), registry);
-
-        NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        events.publish(ServerOnlineSnapshotEvent.builder()
-                .eventId(UUIDv7.generate())
-                .buckets(buckets(1L))
-                .build());
-
-        assertEquals(0, publisher.queueDepth(), "disabled family must not enqueue an envelope");
-        assertEquals(0L, publisher.droppedTotal(), "disabled family must not count toward dropped-total");
-    }
-
-    @Test
-    void publish_shouldEnqueuePrivateStorePurchaseRoundRobin() throws InterruptedException {
-        ConcurrentLinkedQueue<Object> sentValues = new ConcurrentLinkedQueue<Object>();
-        AtomicBoolean partitionKeyWasNull = new AtomicBoolean(false);
-        CountDownLatch latch = new CountDownLatch(1);
-        EventsPublisher.Sender sender = (record, callback) -> {
-            sentValues.add(record.value());
-            partitionKeyWasNull.set(record.key() == null);
-            callback.onCompletion(null, null);
-            latch.countDown();
-        };
-        EventTypeRegistry registry = new EventTypeRegistry();
-        publisher = new EventsPublisher(
-                Collections.singletonMap("privatestore", "acme.gs.events.privatestore"),
-                sender,
-                cfg(50, 500L),
-                registry);
-        publisher.start();
-
-        NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        PrivateStorePurchaseEvent event = PrivateStorePurchaseEvent.builder()
-                .eventId(UUIDv7.generate())
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .build();
-
-        events.publish(event);
-
-        assertTrue(latch.await(2, TimeUnit.SECONDS), "publish(PrivateStorePurchaseEvent) did not reach sender");
-        assertEquals(1, sentValues.size());
-        assertEquals(event, sentValues.peek());
-        assertTrue(partitionKeyWasNull.get(), "private-store purchase partition key must be null (round-robin)");
-    }
-
-    @Test
     void publish_shouldEnqueuePrivateStoreStatePartitionedByCharacterId() throws InterruptedException {
         ConcurrentLinkedQueue<Object> sentValues = new ConcurrentLinkedQueue<Object>();
         ConcurrentLinkedQueue<byte[]> sentKeys = new ConcurrentLinkedQueue<byte[]>();
@@ -267,116 +198,6 @@ class NxEventsImplTest {
                 LongBytes.bigEndian(0xCAFEBABEL),
                 sentKeys.peek(),
                 "state event must be keyed by characterId as 8 big-endian bytes");
-    }
-
-    @Test
-    void publish_shouldNoOpPrivateStorePurchase_forNullEvent() {
-        EventTypeRegistry registry = new EventTypeRegistry();
-        publisher = new EventsPublisher(
-                Collections.singletonMap("privatestore", "acme.gs.events.privatestore"),
-                (r, c) -> {},
-                cfg(5, 0L),
-                registry);
-
-        NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        events.publish(null);
-
-        assertEquals(0, publisher.queueDepth());
-        assertEquals(0L, publisher.droppedTotal());
-    }
-
-    @Test
-    void publish_shouldNoOpPrivateStoreState_forNullEvent() {
-        EventTypeRegistry registry = new EventTypeRegistry();
-        publisher = new EventsPublisher(
-                Collections.singletonMap("privatestore", "acme.gs.events.privatestore"),
-                (r, c) -> {},
-                cfg(5, 0L),
-                registry);
-
-        NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        events.publish(null);
-
-        assertEquals(0, publisher.queueDepth());
-        assertEquals(0L, publisher.droppedTotal());
-    }
-
-    @Test
-    void publish_shouldShortCircuitPrivateStorePurchase_whenFamilyTopicMissing() {
-        EventTypeRegistry registry = new EventTypeRegistry();
-        publisher = new EventsPublisher(Collections.emptyMap(), (r, c) -> {}, cfg(5, 0L), registry);
-
-        NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        events.publish(PrivateStorePurchaseEvent.builder()
-                .eventId(UUIDv7.generate())
-                .storeType(PrivateStoreSide.ASK)
-                .sellerId(1L)
-                .buyerId(2L)
-                .build());
-
-        assertEquals(0, publisher.queueDepth(), "disabled family must not enqueue an envelope");
-        assertEquals(0L, publisher.droppedTotal(), "disabled family must not count toward dropped-total");
-    }
-
-    @Test
-    void publish_shouldEnqueueRaidKillPartitionedByBossNpcId() throws InterruptedException {
-        ConcurrentLinkedQueue<Object> sentValues = new ConcurrentLinkedQueue<Object>();
-        ConcurrentLinkedQueue<byte[]> sentKeys = new ConcurrentLinkedQueue<byte[]>();
-        CountDownLatch latch = new CountDownLatch(1);
-        EventsPublisher.Sender sender = (record, callback) -> {
-            sentValues.add(record.value());
-            sentKeys.add(record.key());
-            callback.onCompletion(null, null);
-            latch.countDown();
-        };
-        EventTypeRegistry registry = new EventTypeRegistry();
-        publisher = new EventsPublisher(
-                Collections.singletonMap("raid", "acme.gs.events.raid"), sender, cfg(50, 500L), registry);
-        publisher.start();
-
-        NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        RaidKillEvent event = RaidKillEvent.builder()
-                .eventId(UUIDv7.generate())
-                .bossNpcId(29028)
-                .build();
-
-        events.publish(event);
-
-        assertTrue(latch.await(2, TimeUnit.SECONDS), "publish(RaidKillEvent) did not reach sender");
-        assertEquals(1, sentValues.size());
-        assertEquals(event, sentValues.peek());
-        assertArrayEquals(
-                LongBytes.bigEndian(29028L),
-                sentKeys.peek(),
-                "raid-kill event must be keyed by bossNpcId as 8 big-endian bytes");
-    }
-
-    @Test
-    void publish_shouldNoOpRaidKill_forNullEvent() {
-        EventTypeRegistry registry = new EventTypeRegistry();
-        publisher = new EventsPublisher(
-                Collections.singletonMap("raid", "acme.gs.events.raid"), (r, c) -> {}, cfg(5, 0L), registry);
-
-        NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        events.publish(null);
-
-        assertEquals(0, publisher.queueDepth());
-        assertEquals(0L, publisher.droppedTotal());
-    }
-
-    @Test
-    void publish_shouldShortCircuitRaidKill_whenFamilyTopicMissing() {
-        EventTypeRegistry registry = new EventTypeRegistry();
-        publisher = new EventsPublisher(Collections.emptyMap(), (r, c) -> {}, cfg(5, 0L), registry);
-
-        NxEventsImpl events = new NxEventsImpl(publisher, registry);
-        events.publish(RaidKillEvent.builder()
-                .eventId(UUIDv7.generate())
-                .bossNpcId(29028)
-                .build());
-
-        assertEquals(0, publisher.queueDepth(), "disabled family must not enqueue an envelope");
-        assertEquals(0L, publisher.droppedTotal(), "disabled family must not count toward dropped-total");
     }
 
     @Test

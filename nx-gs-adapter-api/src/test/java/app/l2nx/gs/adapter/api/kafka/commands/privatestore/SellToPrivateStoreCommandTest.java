@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -57,31 +58,34 @@ class SellToPrivateStoreCommandTest {
         assertThrows(IllegalArgumentException.class, builder::build);
     }
 
-    @Test
-    void constructor_shouldReject_whenSellerEqualsBuyer() {
-        SellToPrivateStoreCommand.Builder builder = valid().sellerCharacterId(5).buyerCharacterId(5);
-        assertThrows(IllegalArgumentException.class, builder::build);
+    static Stream<Arguments> invalidCommands() {
+        return Stream.of(
+                Arguments.of(
+                        "seller is the buyer",
+                        valid().sellerCharacterId(5).buyerCharacterId(5),
+                        IllegalArgumentException.class),
+                Arguments.of("lines null", valid().lines(null), IllegalArgumentException.class),
+                Arguments.of(
+                        "lines empty",
+                        valid().lines(Collections.<SellLine>emptyList()),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "lines contain null",
+                        valid().lines(Arrays.asList(line(1), null)),
+                        IllegalArgumentException.class),
+                Arguments.of(
+                        "itemId repeats across lines",
+                        valid().lines(Arrays.asList(line(1), line(1))),
+                        IllegalArgumentException.class),
+                Arguments.of("sellerFeePercent null", valid().sellerFeePercent(null), IllegalArgumentException.class),
+                Arguments.of("deadline null", valid().deadline(null), NullPointerException.class));
     }
 
-    @Test
-    void constructor_shouldReject_whenLinesNull() {
-        SellToPrivateStoreCommand.Builder builder = valid().lines(null);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenLinesEmpty() {
-        SellToPrivateStoreCommand.Builder builder = valid().lines(Collections.emptyList());
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenLinesContainNull() {
-        List<SellLine> lines = new ArrayList<>();
-        lines.add(line(1));
-        lines.add(null);
-        SellToPrivateStoreCommand.Builder builder = valid().lines(lines);
-        assertThrows(IllegalArgumentException.class, builder::build);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidCommands")
+    void constructor_shouldReject_whenCommandInvalid(
+            String name, SellToPrivateStoreCommand.Builder builder, Class<? extends RuntimeException> expected) {
+        assertThrows(expected, builder::build);
     }
 
     @Test
@@ -92,13 +96,6 @@ class SellToPrivateStoreCommandTest {
         }
         SellToPrivateStoreCommand command = valid().lines(lines).build();
         assertEquals(100, command.getLines().size());
-    }
-
-    @Test
-    void constructor_shouldReject_whenItemIdDuplicatedAcrossLines() {
-        List<SellLine> lines = Arrays.asList(line(1), line(1));
-        SellToPrivateStoreCommand.Builder builder = valid().lines(lines);
-        assertThrows(IllegalArgumentException.class, builder::build);
     }
 
     @ParameterizedTest(name = "sellerFeePercent={0}")
@@ -114,18 +111,6 @@ class SellToPrivateStoreCommandTest {
         SellToPrivateStoreCommand command =
                 valid().sellerFeePercent(sellerFeePercent).build();
         assertEquals(sellerFeePercent, command.getSellerFeePercent().intValue());
-    }
-
-    @Test
-    void constructor_shouldReject_whenSellerFeePercentNull() {
-        SellToPrivateStoreCommand.Builder builder = valid().sellerFeePercent(null);
-        assertThrows(IllegalArgumentException.class, builder::build);
-    }
-
-    @Test
-    void constructor_shouldReject_whenDeadlineNull() {
-        SellToPrivateStoreCommand.Builder builder = valid().deadline(null);
-        assertThrows(NullPointerException.class, builder::build);
     }
 
     static Stream<Arguments> blankMailText() {
@@ -170,20 +155,14 @@ class SellToPrivateStoreCommandTest {
         assertEquals(MAIL_SENDER, copy.getMailSender());
         assertEquals(MAIL_SUBJECT, copy.getMailSubject());
         assertEquals(MAIL_BODY, copy.getMailBody());
+        assertEquals(1, original.getSellerCharacterId());
+        assertEquals(2, original.getBuyerCharacterId());
+        assertEquals(DEADLINE, original.getDeadline());
+        assertEquals(TestInitiators.USER, original.getInitiator());
     }
 
     @Test
-    void equals_shouldDistinguishDeadline() {
-        SellToPrivateStoreCommand a = valid().deadline(DEADLINE).build();
-        SellToPrivateStoreCommand b = valid().deadline(DEADLINE.plusSeconds(1)).build();
-        assertTrue(!a.equals(b));
-    }
-
-    @Test
-    void equals_shouldDistinguishMailBody() {
-        SellToPrivateStoreCommand a = valid().mailBody(MAIL_BODY).build();
-        SellToPrivateStoreCommand b = valid().mailBody(MAIL_BODY + " ...").build();
-        assertTrue(!a.equals(b));
-        assertTrue(a.hashCode() != b.hashCode());
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(SellToPrivateStoreCommand.class).verify();
     }
 }

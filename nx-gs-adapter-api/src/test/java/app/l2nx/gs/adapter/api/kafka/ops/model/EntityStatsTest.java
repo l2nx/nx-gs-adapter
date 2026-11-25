@@ -29,6 +29,7 @@ class EntityStatsTest {
         assertEquals(Long.valueOf(420L), stats.getLastCycleDurationMs());
         assertEquals(changes, stats.getLastCycleChanges());
         assertEquals(Integer.valueOf(0), stats.getConsecutiveErrors());
+        assertEquals(stats, stats.toBuilder().build());
     }
 
     @Test
@@ -43,20 +44,5 @@ class EntityStatsTest {
         assertNull(stats.getLastSyncEpochMs());
         assertNull(stats.getLastCycleDurationMs());
         assertNull(stats.getLastCycleChanges());
-    }
-
-    @Test
-    void toBuilder_shouldRoundtrip() {
-        EntityStats original = EntityStats.builder()
-                .name("clan")
-                .state(EntityState.HEALTHY)
-                .rowCount(3L)
-                .lastSyncEpochMs(123L)
-                .lastCycleDurationMs(45L)
-                .lastCycleChanges(new ChangesSummary(1L, 1L, 1L))
-                .consecutiveErrors(0)
-                .build();
-
-        assertEquals(original, original.toBuilder().build());
     }
 }

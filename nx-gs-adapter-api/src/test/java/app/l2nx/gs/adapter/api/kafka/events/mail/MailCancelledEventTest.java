@@ -4,91 +4,70 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import app.l2nx.gs.adapter.api.domain.item.ItemSnapshot;
 import java.util.*;
+import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class MailCancelledEventTest {
 
-    @Test
-    void getAttachments_shouldReturnEmptyList_whenBuilderOmits() {
-        MailCancelledEvent event = MailCancelledEvent.builder()
+    private static MailCancelledEvent.Builder valid() {
+        return MailCancelledEvent.builder()
                 .eventId(UUID.randomUUID())
                 .mailId(42L)
-                .cancelledByCharacterId(268437521L)
-                .build();
+                .cancelledByCharacterId(268437521L);
+    }
 
-        assertTrue(event.getAttachments().isEmpty());
+    private static Stream<MailCancelledEvent.Builder> withoutAttachments() {
+        return Stream.of(valid(), valid().attachments(null));
+    }
+
+    @ParameterizedTest
+    @MethodSource("withoutAttachments")
+    void getAttachments_shouldReturnEmptyList_whenBuilderOmitsOrPassesNull(MailCancelledEvent.Builder builder) {
+        assertTrue(builder.build().getAttachments().isEmpty());
     }
 
     @Test
-    void getAttachments_shouldReturnEmptyList_whenBuilderPassesNull() {
-        MailCancelledEvent event = MailCancelledEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .cancelledByCharacterId(268437521L)
-                .attachments(null)
-                .build();
+    void constructor_shouldDefensivelyCopyAndFreezeAttachmentsList() {
+        List<MailItemMovement> source = new ArrayList<MailItemMovement>();
+        source.add(stub(1L, 2L));
 
-        assertTrue(event.getAttachments().isEmpty());
-    }
+        MailCancelledEvent event = valid().attachments(source).build();
 
-    @Test
-    void getAttachments_shouldBeUnmodifiable() {
-        MailCancelledEvent event = MailCancelledEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .cancelledByCharacterId(268437521L)
-                .attachments(Collections.singletonList(stub(1L, 2L)))
-                .build();
+        source.add(stub(3L, 4L));
 
+        assertEquals(1, event.getAttachments().size());
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> event.getAttachments().add(stub(3L, 4L)));
     }
 
     @Test
-    void constructor_shouldDefensivelyCopyAttachmentsList() {
-        List<MailItemMovement> source = new ArrayList<MailItemMovement>();
-        source.add(stub(1L, 2L));
-
-        MailCancelledEvent event = MailCancelledEvent.builder()
-                .eventId(UUID.randomUUID())
-                .mailId(42L)
-                .cancelledByCharacterId(268437521L)
-                .attachments(source)
-                .build();
-
-        source.add(stub(3L, 4L));
-
-        assertEquals(1, event.getAttachments().size());
-    }
-
-    @Test
     void toBuilder_shouldRoundtripAllFields() {
+        UUID eventId = UUID.randomUUID();
         MailCancelledEvent original = MailCancelledEvent.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(eventId)
                 .mailId(42L)
                 .cancelledByCharacterId(268437521L)
                 .attachments(Arrays.asList(stub(1L, 2L), stub(3L, 4L)))
+                .metadata(Collections.singletonMap("k", "v"))
                 .build();
 
-        assertEquals(original, original.toBuilder().build());
+        MailCancelledEvent copy = original.toBuilder().build();
+
+        assertEquals(original, copy);
+        assertEquals(eventId, copy.getEventId());
+        assertEquals(42L, copy.getMailId());
+        assertEquals(268437521L, copy.getCancelledByCharacterId());
+        assertEquals(Arrays.asList(stub(1L, 2L), stub(3L, 4L)), copy.getAttachments());
+        assertEquals(Collections.singletonMap("k", "v"), copy.getMetadata());
     }
 
     @Test
-    void equals_shouldDistinguishCancelledByCharacterId() {
-        UUID id = UUID.randomUUID();
-        MailCancelledEvent a = MailCancelledEvent.builder()
-                .eventId(id)
-                .mailId(1L)
-                .cancelledByCharacterId(10L)
-                .build();
-        MailCancelledEvent b = MailCancelledEvent.builder()
-                .eventId(id)
-                .mailId(1L)
-                .cancelledByCharacterId(11L)
-                .build();
-
-        assertNotEquals(a, b);
+    void equals_shouldFollowTheContract() {
+        EqualsVerifier.forClass(MailCancelledEvent.class).verify();
     }
 
     private static MailItemMovement stub(long itemId, long newItemId) {

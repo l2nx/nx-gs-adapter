@@ -2,7 +2,6 @@ package app.l2nx.gs.adapter.api.kafka.commands;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,6 +10,7 @@ import com.google.gson.Gson;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
+import nl.jqno.equalsverifier.EqualsVerifier;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -97,37 +97,28 @@ class CommandInitiatorTest {
                     () -> service().source(blank).build());
         }
 
-        @Test
-        void build_shouldRejectUserSourceWithoutUserId() {
-            assertThrows(
-                    IllegalArgumentException.class, () -> user().userId(null).build());
-        }
-
-        @Test
-        void build_shouldRejectServiceSourceWithUserId() {
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> service().userId(USER_ID).build());
-        }
-
         @ParameterizedTest(name = "{0}")
-        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.CommandInitiatorTest#overLimit")
-        void build_shouldRejectValueOverItsLimit(String field, UnaryOperator<CommandInitiator.Builder> change) {
+        @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.CommandInitiatorTest#invalidValues")
+        void build_shouldRejectInvalidValue(String name, UnaryOperator<CommandInitiator.Builder> change) {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> change.apply(service()).build());
         }
     }
 
-    static Stream<Arguments> overLimit() {
+    static Stream<Arguments> invalidValues() {
         return Stream.of(
-                Arguments.of("source", (UnaryOperator<CommandInitiator.Builder>)
+                Arguments.of("user source without userId", (UnaryOperator<CommandInitiator.Builder>)
+                        b -> user().userId(null)),
+                Arguments.of(
+                        "service source with userId", (UnaryOperator<CommandInitiator.Builder>) b -> b.userId(USER_ID)),
+                Arguments.of("source over limit", (UnaryOperator<CommandInitiator.Builder>)
                         b -> b.source(repeat('s', CommandInitiator.SOURCE_MAX + 1))),
-                Arguments.of("label", (UnaryOperator<CommandInitiator.Builder>)
+                Arguments.of("label over limit", (UnaryOperator<CommandInitiator.Builder>)
                         b -> b.label(repeat('l', CommandInitiator.LABEL_MAX + 1))),
-                Arguments.of("email", (UnaryOperator<CommandInitiator.Builder>)
+                Arguments.of("email over limit", (UnaryOperator<CommandInitiator.Builder>)
                         b -> b.email(repeat('e', CommandInitiator.EMAIL_MAX + 1))),
-                Arguments.of("ip", (UnaryOperator<CommandInitiator.Builder>)
+                Arguments.of("ip over limit", (UnaryOperator<CommandInitiator.Builder>)
                         b -> b.ip(repeat('1', CommandInitiator.IP_MAX + 1))));
     }
 
@@ -135,31 +126,23 @@ class CommandInitiatorTest {
     class Value {
 
         @Test
-        void toBuilder_shouldRoundtrip() {
-            CommandInitiator original = user().email("a@b.c").ip("203.0.113.7").build();
-
-            assertEquals(original, original.toBuilder().build());
-            assertEquals(original.hashCode(), original.toBuilder().build().hashCode());
-        }
-
-        @Test
-        void equals_shouldDistinguishEveryField() {
-            CommandInitiator base =
-                    service().label("job").email("a@b.c").ip("203.0.113.7").build();
-
-            assertNotEquals(base, base.toBuilder().source("nx-social").build());
-            assertNotEquals(base, base.toBuilder().label("other").build());
-            assertNotEquals(base, base.toBuilder().email("x@b.c").build());
-            assertNotEquals(base, base.toBuilder().ip("203.0.113.8").build());
-            assertNotEquals(user().build(), user().userId(UUID.randomUUID()).build());
+        void equals_shouldFollowTheContract() {
+            EqualsVerifier.forClass(CommandInitiator.class)
+                    .withNonnullFields("source")
+                    .verify();
         }
 
         @Test
         void gson_shouldRoundtripAndOmitAbsentValues() {
             Gson gson = new Gson();
+            CommandInitiator full =
+                    user().label("job").email("a@b.c").ip("203.0.113.7").build();
 
+            assertEquals(full, full.toBuilder().build());
+            assertEquals(full.hashCode(), full.toBuilder().build().hashCode());
             assertEquals(TestInitiators.USER_JSON, gson.toJson(TestInitiators.USER));
             assertEquals(TestInitiators.USER, gson.fromJson(TestInitiators.USER_JSON, CommandInitiator.class));
+            assertEquals(USER_ID, full.getUserId());
         }
     }
 }

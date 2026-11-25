@@ -17,11 +17,6 @@ class NxKafkaTest {
     }
 
     @Test
-    void instance_shouldThrow_whenNotConfigured() {
-        assertThrows(KafkaException.class, NxKafka::instance);
-    }
-
-    @Test
     void instance_shouldReturnSameObject() {
         NxKafka kafka = NxKafka.configure()
                 .brokers("localhost:19999")
@@ -98,7 +93,9 @@ class NxKafkaTest {
     }
 
     @Test
-    void instance_shouldThrow_whenCalledAfterShutdown() {
+    void instance_shouldThrow_beforeConfigureAndAfterShutdown() {
+        assertThrows(KafkaException.class, NxKafka::instance);
+
         NxKafka kafka = NxKafka.configure()
                 .brokers("localhost:19999")
                 .connectTimeout(1, TimeUnit.SECONDS)

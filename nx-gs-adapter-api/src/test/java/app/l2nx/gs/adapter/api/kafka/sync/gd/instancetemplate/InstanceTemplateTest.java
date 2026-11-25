@@ -18,16 +18,6 @@ class InstanceTemplateTest {
     }
 
     @Test
-    void builder_shouldMatchConstructor() {
-        InstanceTemplate fromBuilder =
-                InstanceTemplate.builder().id(112).name(name()).build();
-        InstanceTemplate fromCtor = new InstanceTemplate(112, name());
-
-        assertEquals(fromCtor, fromBuilder);
-        assertEquals(fromCtor.hashCode(), fromBuilder.hashCode());
-    }
-
-    @Test
     void name_shouldBeNullable() {
         InstanceTemplate noName = InstanceTemplate.builder().id(5).build();
 
@@ -37,8 +27,13 @@ class InstanceTemplateTest {
 
     @Test
     void toBuilder_shouldRoundtrip() {
-        InstanceTemplate original = new InstanceTemplate(9, name());
+        InstanceTemplate original =
+                InstanceTemplate.builder().id(9).name(name()).build();
 
+        assertEquals(9, original.getId());
+        assertEquals(name(), original.getName());
+        assertEquals(new InstanceTemplate(9, name()), original);
+        assertEquals(new InstanceTemplate(9, name()).hashCode(), original.hashCode());
         assertEquals(original, original.toBuilder().build());
     }
 }
