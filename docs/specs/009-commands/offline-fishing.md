@@ -56,8 +56,8 @@ The session mechanics (table, lifecycle, events, restart) are in
 - [done] R6. Every refusal MUST carry a stable `reason` from the shared enum below in `CommandProblem.extensions`;
   the host never sends player-facing text. `RECENTLY_LOGGED_OUT` and `COOLDOWN` also carry `retryAt` (`Instant`);
   `DAILY_LIMIT` carries it as the moment the daily allowance resets, when the host knows that moment.
-  `ALREADY_ACTIVE` carries a `scope`. `INVENTORY_FULL` carries `requiredSlots` and `freeSlots`, `OVERWEIGHT`
-  carries `requiredWeight` and `freeWeight` (R14).
+  `ALREADY_ACTIVE` carries a `scope` and may carry `blockedByCharacterId` (see the scope table). `INVENTORY_FULL`
+  carries `requiredSlots` and `freeSlots`, `OVERWEIGHT` carries `requiredWeight` and `freeWeight` (R14).
 - [host rule] R7. A duration longer than the host's daily stop allows is not a refusal (a host may count the time to its
   daily reset plus the next day's limit when the allowance lasts to the reset): the session
   runs shorter and the result shows the effective plan. Rod and bait are the player's choice: the host checks that the
@@ -168,6 +168,12 @@ Shared enum in `nx-gs-adapter-api` (names are `UPPER_SNAKE_CASE`):
 | `HWID`           | the device (the session's hwid snapshot) already fishes, live or through the app; a missing or placeholder hwid is `null` and limits nothing                 |
 | `IP`             | the IP already fishes, live or through the app (R12); an app session counts under the start's `initiator.ip`                                                 |
 
+`blockedByCharacterId` (`AppSessionRefusal.BLOCKED_BY_CHARACTER_ID`, `int`, positive) names the character that holds the
+slot, in the game client or from the app. Optional, only with `ALREADY_ACTIVE`: absent for `CHARACTER` (it is the
+character itself) and when the host does not know it. It travels in `CommandProblem.extensions` and in
+`AppSessionCheckResult`. Both `scope` and `blockedByCharacterId` are staff diagnostics: a platform never shows them to
+players.
+
 Until R12 ships there is no IP scope and app sessions are not counted in any per-IP limit.
 
 `CHARACTER_BANNED` and `CHARACTER_JAILED` are the same codes the other character-acting commands use ([`spec.md`](spec.md)
@@ -268,7 +274,8 @@ in check mode and maps the first refusal into `AppSessionCheckResult` instead of
 `AppSessionRefusal` has `REQUIRED_SLOTS`, `FREE_SLOTS`, `REQUIRED_WEIGHT` and `FREE_WEIGHT` with the values of
 `WellKnownAcceptMailReasons`, and `AppSessionCheckResult` has `requiredSlots`, `freeSlots` (`Integer?`), `requiredWeight`,
 `freeWeight` (`Long?`). Its constructor requires each pair exactly with its reason, as it does `scope` with
-`ALREADY_ACTIVE`, so these two refusals need the builder, not `refused(reason)`.
+`ALREADY_ACTIVE`, so these two refusals need the builder, not `refused(reason)`. `blockedByCharacterId` (`Integer?`) is
+accepted only with `ALREADY_ACTIVE` of a scope other than `CHARACTER`.
 
 ## Rollout
 

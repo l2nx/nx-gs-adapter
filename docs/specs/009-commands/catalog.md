@@ -782,7 +782,8 @@ bait. The host decides every rule; the reply carries a reason code from the shar
 `retryAt`), `CHARACTER_ONLINE`, `DEAD`, `KARMA`, `CHARACTER_JAILED`, `CHARACTER_BANNED`, `UNSAFE_LOGOUT_LOCATION`, `IN_PRIVATE_STORE`,
 `NO_ROD`, `NO_BAIT`, `INVALID_ROD`, `INVALID_BAIT`, `INVALID_DURATION`, `FEATURE_DISABLED`, `DAILY_LIMIT` (with `retryAt` = the
 moment the daily allowance resets, when the host knows it), `RESTART_SOON`,
-`NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope` `CHARACTER` / `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`, `IP`), `COMMAND_EXPIRED`;
+`NO_FREE_SPOT`, `ALREADY_ACTIVE` (with `scope` `CHARACTER` / `MASTER_ACCOUNT` / `ACCOUNT` / `HWID`, `IP`, and an optional
+`blockedByCharacterId` for every scope but `CHARACTER`; both are staff diagnostics, never shown to players), `COMMAND_EXPIRED`;
 `NO_FISHING_SHOT`, `INVALID_FISHING_SHOT`, `FISHING_SHOT_GRADE_MISMATCH`; `NO_FISHING_EXPERTISE`,
 `BAIT_LEVEL_MISMATCH`, `INVENTORY_FULL` (with `requiredSlots`, `freeSlots`), `OVERWEIGHT` (with `requiredWeight`,
 `freeWeight`). Status per reason: `NO_ROD` / `NO_BAIT` / `NO_FISHING_SHOT` / `NO_FISHING_EXPERTISE` / `INVENTORY_FULL` /
@@ -812,18 +813,19 @@ idempotency key, nothing stored.
 
 **Result** (`AppSessionCheckResult`, shared by every app-session type)
 
-| Field                 | Type                       | Notes                                                                                            |
-| --------------------- | -------------------------- | ------------------------------------------------------------------------------------------------ |
-| `allowed`             | `boolean`                  | `true` when a start with these inputs would start now                                            |
-| `reason`              | `AppSessionRefusalReason?` | The first refusal in the start's order; `null` when `allowed`                                    |
-| `scope`               | `AlreadyActiveScope?`      | Non-null only with `reason = ALREADY_ACTIVE`: the limit hit, as a refused start carries it       |
-| `retryAt`             | `Instant?`                 | Set for `RECENTLY_LOGGED_OUT`, `COOLDOWN` and `DAILY_LIMIT` (the reset moment), as on start      |
-| `effectiveDurationMs` | `Long?`                    | What a start would run now (the daily stop applied); `null` without `durationMs` or when refused |
-| `requiredSlots`       | `Integer?`                 | Set with `INVENTORY_FULL`, as on start                                                           |
-| `freeSlots`           | `Integer?`                 | Set with `INVENTORY_FULL`, as on start                                                           |
-| `requiredWeight`      | `Long?`                    | Set with `OVERWEIGHT`, as on start                                                               |
-| `freeWeight`          | `Long?`                    | Set with `OVERWEIGHT`, as on start                                                               |
-| `usage`               | `ActivityUsage?`           | The activity's current usage row, on both answers, see `offline-fishing.md` R16                  |
+| Field                  | Type                       | Notes                                                                                            |
+| ---------------------- | -------------------------- | ------------------------------------------------------------------------------------------------ |
+| `allowed`              | `boolean`                  | `true` when a start with these inputs would start now                                            |
+| `reason`               | `AppSessionRefusalReason?` | The first refusal in the start's order; `null` when `allowed`                                    |
+| `scope`                | `AlreadyActiveScope?`      | Non-null only with `reason = ALREADY_ACTIVE`: the limit hit, as a refused start carries it       |
+| `blockedByCharacterId` | `Integer?`                 | The character that holds the slot, as on start                                                   |
+| `retryAt`              | `Instant?`                 | Set for `RECENTLY_LOGGED_OUT`, `COOLDOWN` and `DAILY_LIMIT` (the reset moment), as on start      |
+| `effectiveDurationMs`  | `Long?`                    | What a start would run now (the daily stop applied); `null` without `durationMs` or when refused |
+| `requiredSlots`        | `Integer?`                 | Set with `INVENTORY_FULL`, as on start                                                           |
+| `freeSlots`            | `Integer?`                 | Set with `INVENTORY_FULL`, as on start                                                           |
+| `requiredWeight`       | `Long?`                    | Set with `OVERWEIGHT`, as on start                                                               |
+| `freeWeight`           | `Long?`                    | Set with `OVERWEIGHT`, as on start                                                               |
+| `usage`                | `ActivityUsage?`           | The activity's current usage row, on both answers, see `offline-fishing.md` R16                  |
 
 **Errors.** A refusal is `OK` with `allowed = false`, its `reason` and, for `ALREADY_ACTIVE`, its `scope`. A `CommandProblem` means the check itself failed: `COMMAND_EXPIRED`, an invalid
 initiator (`VALIDATION_FAILED`), a host timeout (`UNAVAILABLE`). A core without the check handler answers

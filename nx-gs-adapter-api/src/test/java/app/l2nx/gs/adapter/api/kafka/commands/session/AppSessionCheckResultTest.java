@@ -2,6 +2,7 @@ package app.l2nx.gs.adapter.api.kafka.commands.session;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -49,6 +50,13 @@ class AppSessionCheckResultTest {
                 .build();
     }
 
+    private static AppSessionCheckResult.Builder blocked(AlreadyActiveScope scope, int blockedByCharacterId) {
+        return AppSessionCheckResult.builder()
+                .reason(AppSessionRefusalReason.ALREADY_ACTIVE)
+                .scope(scope)
+                .blockedByCharacterId(blockedByCharacterId);
+    }
+
     static Stream<Arguments> validResults() {
         return Stream.of(
                 Arguments.of("allowed with duration", AppSessionCheckResult.allowed(1_800_000L)),
@@ -69,6 +77,15 @@ class AppSessionCheckResultTest {
                         AppSessionCheckResult.builder()
                                 .reason(AppSessionRefusalReason.ALREADY_ACTIVE)
                                 .scope(AlreadyActiveScope.IP)
+                                .build()),
+                Arguments.of(
+                        "already active with the blocking character",
+                        blocked(AlreadyActiveScope.HWID, 268_500_001).build()),
+                Arguments.of(
+                        "already active for the character itself",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.ALREADY_ACTIVE)
+                                .scope(AlreadyActiveScope.CHARACTER)
                                 .build()),
                 Arguments.of(
                         "cooldown",
@@ -115,6 +132,19 @@ class AppSessionCheckResultTest {
                         AppSessionCheckResult.builder()
                                 .reason(AppSessionRefusalReason.DEAD)
                                 .scope(AlreadyActiveScope.HWID)),
+                Arguments.of(
+                        "blocking character with the CHARACTER scope",
+                        blocked(AlreadyActiveScope.CHARACTER, 268_500_001)),
+                Arguments.of("zero blocking character", blocked(AlreadyActiveScope.ACCOUNT, 0)),
+                Arguments.of("negative blocking character", blocked(AlreadyActiveScope.ACCOUNT, -1)),
+                Arguments.of(
+                        "blocking character on another reason",
+                        AppSessionCheckResult.builder()
+                                .reason(AppSessionRefusalReason.DEAD)
+                                .blockedByCharacterId(268_500_001)),
+                Arguments.of(
+                        "blocking character on an allowed check",
+                        AppSessionCheckResult.builder().allowed(true).blockedByCharacterId(268_500_001)),
                 Arguments.of(
                         "cooldown without retryAt",
                         AppSessionCheckResult.builder().reason(AppSessionRefusalReason.COOLDOWN)),
@@ -219,7 +249,35 @@ class AppSessionCheckResultTest {
     }
 
     @Nested
+    class Equality {
+
+        @Test
+        void equals_shouldDiffer_whenTheBlockingCharacterDiffers() {
+            AppSessionCheckResult result =
+                    blocked(AlreadyActiveScope.HWID, 268_500_001).build();
+
+            assertNotEquals(
+                    result, result.toBuilder().blockedByCharacterId(268_500_002).build());
+            assertNotEquals(
+                    result, result.toBuilder().blockedByCharacterId(null).build());
+        }
+    }
+
+    @Nested
     class Wire {
+
+        @Test
+        void gson_shouldWriteTheBlockingCharacterUnderTheRefusalKey() {
+            AppSessionCheckResult result =
+                    blocked(AlreadyActiveScope.HWID, 268_500_001).build();
+
+            assertEquals(
+                    268_500_001,
+                    GSON.toJsonTree(result)
+                            .getAsJsonObject()
+                            .get(AppSessionRefusal.BLOCKED_BY_CHARACTER_ID)
+                            .getAsInt());
+        }
 
         @ParameterizedTest(name = "{0}")
         @MethodSource("app.l2nx.gs.adapter.api.kafka.commands.session.AppSessionCheckResultTest#validResults")

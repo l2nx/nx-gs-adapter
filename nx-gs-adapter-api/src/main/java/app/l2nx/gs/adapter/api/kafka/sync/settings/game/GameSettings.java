@@ -17,6 +17,7 @@ public final class GameSettings {
     private final @Nullable AttributeSettings attribute;
     private final @Nullable MailSettings mail;
     private final @Nullable PrivateStoreSettings privateStore;
+    private final @Nullable FishingSettings fishing;
     private final Instant updatedAt;
 
     public GameSettings(
@@ -24,11 +25,13 @@ public final class GameSettings {
             @Nullable AttributeSettings attribute,
             @Nullable MailSettings mail,
             @Nullable PrivateStoreSettings privateStore,
+            @Nullable FishingSettings fishing,
             Instant updatedAt) {
         this.enchant = enchant;
         this.attribute = attribute;
         this.mail = mail;
         this.privateStore = privateStore;
+        this.fishing = fishing;
         this.updatedAt = Objects.requireNonNull(updatedAt, "GameSettings.updatedAt is required");
     }
 
@@ -48,6 +51,14 @@ public final class GameSettings {
         return privateStore;
     }
 
+    /**
+     * Staff diagnostics, never shown to players. {@code null} also from a host that does not publish the group: the rules
+     * are unknown, not off.
+     */
+    public @Nullable FishingSettings getFishing() {
+        return fishing;
+    }
+
     public Instant getUpdatedAt() {
         return updatedAt;
     }
@@ -58,6 +69,7 @@ public final class GameSettings {
                 .attribute(attribute)
                 .mail(mail)
                 .privateStore(privateStore)
+                .fishing(fishing)
                 .updatedAt(updatedAt);
     }
 
@@ -74,12 +86,13 @@ public final class GameSettings {
                 && Objects.equals(attribute, that.attribute)
                 && Objects.equals(mail, that.mail)
                 && Objects.equals(privateStore, that.privateStore)
+                && Objects.equals(fishing, that.fishing)
                 && Objects.equals(updatedAt, that.updatedAt);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(enchant, attribute, mail, privateStore, updatedAt);
+        return Objects.hash(enchant, attribute, mail, privateStore, fishing, updatedAt);
     }
 
     @Override
@@ -88,6 +101,7 @@ public final class GameSettings {
                 + ", attribute=" + attribute
                 + ", mail=" + mail
                 + ", privateStore=" + privateStore
+                + ", fishing=" + fishing
                 + ", updatedAt=" + updatedAt + "]";
     }
 
@@ -96,6 +110,7 @@ public final class GameSettings {
         private @Nullable AttributeSettings attribute;
         private @Nullable MailSettings mail;
         private @Nullable PrivateStoreSettings privateStore;
+        private @Nullable FishingSettings fishing;
         private @Nullable Instant updatedAt;
 
         public Builder enchant(@Nullable EnchantSettings enchant) {
@@ -118,13 +133,18 @@ public final class GameSettings {
             return this;
         }
 
+        public Builder fishing(@Nullable FishingSettings fishing) {
+            this.fishing = fishing;
+            return this;
+        }
+
         public Builder updatedAt(Instant updatedAt) {
             this.updatedAt = updatedAt;
             return this;
         }
 
         public GameSettings build() {
-            return new GameSettings(enchant, attribute, mail, privateStore, updatedAt);
+            return new GameSettings(enchant, attribute, mail, privateStore, fishing, updatedAt);
         }
     }
 }

@@ -20,6 +20,13 @@ public final class AppSessionRefusal {
     /** An {@link AlreadyActiveScope} constant name; set for {@code ALREADY_ACTIVE}. */
     public static final String SCOPE = "scope";
 
+    /**
+     * Id ({@code int}) of the character that holds the slot, in the game client or from the app; optional, only with
+     * {@code ALREADY_ACTIVE}. Absent for scope {@code CHARACTER} (it is the character itself) and when the host does not
+     * know it. Staff diagnostics: a platform never shows it, nor the scope, to players.
+     */
+    public static final String BLOCKED_BY_CHARACTER_ID = "blockedByCharacterId";
+
     public static final String REQUIRED_SLOTS = "requiredSlots";
 
     public static final String FREE_SLOTS = "freeSlots";

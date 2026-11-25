@@ -30,6 +30,8 @@ import org.junit.jupiter.api.Test;
 class GameSettingsTest {
 
     private static final Instant NOW = Instant.parse("2026-10-25T12:00:00Z");
+    private static final FishingSettings FISHING =
+            new FishingSettings(new FishingLimits(true, false, true), new FishingLimits(true, true, false), 10);
 
     @Test
     void build_shouldRejectNullUpdatedAt() {
@@ -44,6 +46,7 @@ class GameSettingsTest {
         assertNull(actual.getAttribute());
         assertNull(actual.getMail());
         assertNull(actual.getPrivateStore());
+        assertNull(actual.getFishing());
         assertEquals(NOW, actual.getUpdatedAt());
     }
 
@@ -54,11 +57,13 @@ class GameSettingsTest {
                 .attribute(AttributeSettings.builder().maxWeaponAttributes(1).build())
                 .mail(new MailSettings(100, 10))
                 .privateStore(new PrivateStoreSettings(57, 1000L, 24))
+                .fishing(FISHING)
                 .updatedAt(NOW)
                 .build();
 
         assertEquals(original, original.toBuilder().build());
         assertNotEquals(original, original.toBuilder().mail(null).build());
+        assertNotEquals(original, original.toBuilder().fishing(null).build());
     }
 
     @Test
@@ -94,11 +99,25 @@ class GameSettingsTest {
 
             JsonNode actual = mapper().readTree(mapper().writeValueAsString(settings));
 
-            for (String group : Arrays.asList("enchant", "attribute", "mail", "privateStore")) {
+            for (String group : Arrays.asList("enchant", "attribute", "mail", "privateStore", "fishing")) {
                 assertTrue(actual.has(group), group);
                 assertTrue(actual.get(group).isNull(), group);
             }
             assertEquals("2026-10-25T12:00:00Z", actual.get("updatedAt").asText());
+        }
+
+        @Test
+        void writeValue_shouldWriteFishingRulesOfBothSides() throws IOException {
+            GameSettings settings =
+                    GameSettings.builder().fishing(FISHING).updatedAt(NOW).build();
+
+            JsonNode actual = mapper().readTree(mapper().writeValueAsString(settings));
+
+            JsonNode expected = mapper().readTree(
+                            "{\"game\":{\"accountLimit\":true,\"hwidLimit\":false,\"ipLimit\":true},"
+                                    + "\"app\":{\"accountLimit\":true,\"hwidLimit\":true,\"ipLimit\":false},"
+                                    + "\"gameReleaseDelaySeconds\":10}");
+            assertEquals(expected, actual.get("fishing"));
         }
 
         @Test
@@ -126,6 +145,7 @@ class GameSettingsTest {
                             .build())
                     .mail(new MailSettings(100, 10))
                     .privateStore(new PrivateStoreSettings(57, 1000L, 24))
+                    .fishing(FISHING)
                     .updatedAt(NOW)
                     .build();
 

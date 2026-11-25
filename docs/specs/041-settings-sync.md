@@ -51,6 +51,11 @@ SettingsSyncEvent`. Each record is the full current settings of one server; the 
   | `attribute`    | `maxWeaponAttributes`, `maxArmorAttributes`; `oppositePairs`: `{attribute, opposite}` (an armor never holds both); `chances`: `{grade?, type, target?, chancePercent}`; `limits`: `{grade, type, target, maxPower}`, the **only** power-limit table: the host expands grade x type x target with its configuration applied (`0` = the type cannot be used on that grade); `chancePercent` is the server's base chance, per-account bonuses are not a server setting |
   | `mail`         | `feeAdena`, `feeAdenaPerAttachment`                                                                                                                                                                                                                                                                                                                                                                                                                                 |
   | `privateStore` | `offlineFeeItemTemplateId`, `offlineFeeItemTemplateCount`, `offlineFeePeriodHours`: the fee of the offline mode of a private store (a store with a live client is free); `null` = no offline fee                                                                                                                                                                                                                                                                    |
+  | `fishing`      | `game` (fishing in the game client) and `app` (a start from the app): `{accountLimit, hwidLimit, ipLimit}`, the effective rules, so a configuration key that does not affect app starts does not change `app`; `gameReleaseDelaySeconds` (`>= 0`): how long a character that fished in the game client keeps the account and HWID slots after it stops                                                                                                              |
+
+  **The `fishing` group is never shown to players**: it serves staff diagnostics, and a limit known to be off is a hint
+  how to bypass it. A consumer reads an absent group as "rules unknown", never as "limits off": a host on an older api
+  sends none.
 
 - [done] R5. `updatedAt` of every settings entity MUST be the moment the snapshot was built. The platform keeps a row
   only when its content changed, so its `updated_at` reads "these settings hold since".
@@ -108,9 +113,10 @@ Volume: two records per server every 5 minutes.
 
 ### Contract additions (api)
 
-- `kafka.sync.settings.game`: `GameSettings` (`ENTITY_NAME = "gamesettings"`, `updatedAt`, the four nullable groups),
+- `kafka.sync.settings.game`: `GameSettings` (`ENTITY_NAME = "gamesettings"`, `updatedAt`, the five nullable groups),
   `EnchantSettings`, `AttributeSettings` (+ `AttributeOppositePair`, `AttributeChance`, `AttributeLimit`),
-  `MailSettings`, `PrivateStoreSettings`. Java 8 immutable classes with builders, like `AppSettings`.
+  `MailSettings`, `PrivateStoreSettings`, `FishingSettings` (+ `FishingLimits`). Java 8 immutable classes with
+  builders, like `AppSettings`.
 - `spi.provider.GameSettingsProvider`: `@Nullable GameSettings gameSettings(Instant builtAt)`; the host stamps
   `updatedAt = builtAt` (R5), `null` = not ready, no snapshot this time.
 - `domain.item.AttributeItemType` (`STONE` … `ENERGY`) and `domain.item.AttributeTarget` (`WEAPON`, `ARMOR`): the
@@ -136,7 +142,7 @@ Volume: two records per server every 5 minutes.
 - Unit: the tick sends both entities unconditionally; change-driven sends skip an equal snapshot; `updatedAt` is the
   build moment; a throwing provider gives one WARN per streak and no snapshot; a missing map entry gives one ERROR per
   connect.
-- Unit: `GameSettings` builders reject a negative cap, count or power; `null` groups serialize as `null`.
+- Unit: `GameSettings` builders reject a negative cap, count, power or release delay; `null` groups serialize as `null`.
 - Unit: the `chat` group carries the three `app.chat.*` values with their defaults; an absent group reads as `null`;
   empty channel lists survive the wire.
 

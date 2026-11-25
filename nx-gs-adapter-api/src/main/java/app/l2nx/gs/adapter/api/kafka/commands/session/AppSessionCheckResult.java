@@ -17,6 +17,7 @@ public final class AppSessionCheckResult {
     private final boolean allowed;
     private final @Nullable AppSessionRefusalReason reason;
     private final @Nullable AlreadyActiveScope scope;
+    private final @Nullable Integer blockedByCharacterId;
     private final @Nullable Instant retryAt;
     private final @Nullable Long effectiveDurationMs;
     private final @Nullable Integer requiredSlots;
@@ -29,6 +30,7 @@ public final class AppSessionCheckResult {
             boolean allowed,
             @Nullable AppSessionRefusalReason reason,
             @Nullable AlreadyActiveScope scope,
+            @Nullable Integer blockedByCharacterId,
             @Nullable Instant retryAt,
             @Nullable Long effectiveDurationMs,
             @Nullable Integer requiredSlots,
@@ -41,6 +43,12 @@ public final class AppSessionCheckResult {
         }
         if ((reason == AppSessionRefusalReason.ALREADY_ACTIVE) != (scope != null)) {
             throw new IllegalArgumentException("AppSessionCheckResult.scope is required exactly with ALREADY_ACTIVE");
+        }
+        if (blockedByCharacterId != null
+                && (scope == null || scope == AlreadyActiveScope.CHARACTER || blockedByCharacterId <= 0)) {
+            throw new IllegalArgumentException(
+                    "AppSessionCheckResult.blockedByCharacterId must be positive and only with"
+                            + " ALREADY_ACTIVE of a scope other than CHARACTER");
         }
         if (requiresRetryAt(reason) && retryAt == null) {
             throw new IllegalArgumentException(
@@ -74,6 +82,7 @@ public final class AppSessionCheckResult {
         this.allowed = allowed;
         this.reason = reason;
         this.scope = scope;
+        this.blockedByCharacterId = blockedByCharacterId;
         this.retryAt = retryAt;
         this.effectiveDurationMs = effectiveDurationMs;
         this.requiredSlots = requiredSlots;
@@ -88,12 +97,13 @@ public final class AppSessionCheckResult {
     }
 
     public static AppSessionCheckResult allowed(@Nullable Long effectiveDurationMs) {
-        return new AppSessionCheckResult(true, null, null, null, effectiveDurationMs, null, null, null, null, null);
+        return new AppSessionCheckResult(
+                true, null, null, null, null, effectiveDurationMs, null, null, null, null, null);
     }
 
     public static AppSessionCheckResult refused(AppSessionRefusalReason reason) {
         return new AppSessionCheckResult(
-                false, Objects.requireNonNull(reason, "reason"), null, null, null, null, null, null, null, null);
+                false, Objects.requireNonNull(reason, "reason"), null, null, null, null, null, null, null, null, null);
     }
 
     public boolean isAllowed() {
@@ -105,8 +115,17 @@ public final class AppSessionCheckResult {
         return reason;
     }
 
+    /** Staff diagnostics: a platform never shows it to players. */
     public @Nullable AlreadyActiveScope getScope() {
         return scope;
+    }
+
+    /**
+     * The character that holds the slot, as the start carries it under {@link AppSessionRefusal#BLOCKED_BY_CHARACTER_ID};
+     * {@code null} when the host does not know it. Staff diagnostics: a platform never shows it to players.
+     */
+    public @Nullable Integer getBlockedByCharacterId() {
+        return blockedByCharacterId;
     }
 
     /**
@@ -153,6 +172,7 @@ public final class AppSessionCheckResult {
                 .allowed(allowed)
                 .reason(reason)
                 .scope(scope)
+                .blockedByCharacterId(blockedByCharacterId)
                 .retryAt(retryAt)
                 .effectiveDurationMs(effectiveDurationMs)
                 .requiredSlots(requiredSlots)
@@ -174,6 +194,7 @@ public final class AppSessionCheckResult {
         return allowed == that.allowed
                 && reason == that.reason
                 && scope == that.scope
+                && Objects.equals(blockedByCharacterId, that.blockedByCharacterId)
                 && Objects.equals(retryAt, that.retryAt)
                 && Objects.equals(effectiveDurationMs, that.effectiveDurationMs)
                 && Objects.equals(requiredSlots, that.requiredSlots)
@@ -189,6 +210,7 @@ public final class AppSessionCheckResult {
                 allowed,
                 reason,
                 scope,
+                blockedByCharacterId,
                 retryAt,
                 effectiveDurationMs,
                 requiredSlots,
@@ -203,6 +225,7 @@ public final class AppSessionCheckResult {
         return "AppSessionCheckResult[allowed=" + allowed
                 + ", reason=" + reason
                 + ", scope=" + scope
+                + ", blockedByCharacterId=" + blockedByCharacterId
                 + ", retryAt=" + retryAt
                 + ", effectiveDurationMs=" + effectiveDurationMs
                 + ", requiredSlots=" + requiredSlots
@@ -216,6 +239,7 @@ public final class AppSessionCheckResult {
         private boolean allowed;
         private @Nullable AppSessionRefusalReason reason;
         private @Nullable AlreadyActiveScope scope;
+        private @Nullable Integer blockedByCharacterId;
         private @Nullable Instant retryAt;
         private @Nullable Long effectiveDurationMs;
         private @Nullable Integer requiredSlots;
@@ -236,6 +260,11 @@ public final class AppSessionCheckResult {
 
         public Builder scope(@Nullable AlreadyActiveScope scope) {
             this.scope = scope;
+            return this;
+        }
+
+        public Builder blockedByCharacterId(@Nullable Integer blockedByCharacterId) {
+            this.blockedByCharacterId = blockedByCharacterId;
             return this;
         }
 
@@ -279,6 +308,7 @@ public final class AppSessionCheckResult {
                     allowed,
                     reason,
                     scope,
+                    blockedByCharacterId,
                     retryAt,
                     effectiveDurationMs,
                     requiredSlots,

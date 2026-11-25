@@ -514,7 +514,8 @@ never copies the host's rules.
 - An absent player choice in the check skips the checks that need it; never refuse a check because
   the player has not chosen yet.
 - Return `CommandResult.ok(AppSessionCheckResult)` for a refusal too (`allowed = false`, the first
-  `reason`, `scope` with `ALREADY_ACTIVE`, `retryAt` where the start sets it: `DAILY_LIMIT` carries the moment the daily
+  `reason`, `scope` with `ALREADY_ACTIVE` plus `blockedByCharacterId` when the host knows the character that holds the
+  slot and the scope is not `CHARACTER`, `retryAt` where the start sets it: `DAILY_LIMIT` carries the moment the daily
   allowance resets when the host knows it). Reserve `CommandProblem` for the check itself failing.
 - Set `usage` to the activity's usage row of this character as of now, on an allowed and on a refused answer, once the
   character is found; leave it `null` when the type has no usage or the row cannot be read (offline-fishing.md R16).

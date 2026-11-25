@@ -331,6 +331,7 @@ class OfflineFishingCommandsTest {
             assertEquals("reason", AppSessionRefusal.REASON);
             assertEquals("retryAt", AppSessionRefusal.RETRY_AT);
             assertEquals("scope", AppSessionRefusal.SCOPE);
+            assertEquals("blockedByCharacterId", AppSessionRefusal.BLOCKED_BY_CHARACTER_ID);
             assertEquals(WellKnownAcceptMailReasons.EXT_REQUIRED_SLOTS, AppSessionRefusal.REQUIRED_SLOTS);
             assertEquals(WellKnownAcceptMailReasons.EXT_FREE_SLOTS, AppSessionRefusal.FREE_SLOTS);
             assertEquals(WellKnownAcceptMailReasons.EXT_REQUIRED_WEIGHT, AppSessionRefusal.REQUIRED_WEIGHT);
