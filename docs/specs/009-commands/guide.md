@@ -493,7 +493,7 @@ switch (outcome.getStatus()) {
 - Stop is `ctx.appSessions().stop(characterId, activity)`; an empty result means nothing ran (an
   idempotent success).
 - The host's client-login path calls `NxAdapter.appSessions().onClientLogin(characterId)` under the
-  character's mutation lock, before it loads the game character, and acts on the
+  character's mutation lock, before it loads the character, and acts on the
   `ClientLoginOutcome`: `CLOSED` / `NONE` let the login go on; `PENDING` means the engine could not
   finish within its bounded wait (the close, or the engine's boot after a restart), so the host
   refuses this login with a "try again" message. The close goes on in the background, so the next

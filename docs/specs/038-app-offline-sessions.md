@@ -67,7 +67,7 @@ adapter and released (see [Rollout](#rollout)), as are the acknowledged end (R24
   disconnect of a game client, including the in-game command that leaves the character as an offline trader: that
   command only works in a trade zone, which is a peaceful town zone, so no special case or bypass exists.
 - [done] R9. A character logging in with a client MUST close its own session with reason `APP_LOGIN`, under the character's
-  mutation lock and before the game character is loaded, so the last action cycle finishes before the character leaves
+  mutation lock and before the character is loaded, so the last action cycle finishes before the character leaves
   the world; login is never blocked by the session. Logging in with another character of the same account MUST NOT close
   the session (that character's own game fishing start is then a host limit). A login before the post-restart restore
   has reached the character cancels the session. The host's login path calls `NxAppSessions.onClientLogin`.
@@ -423,7 +423,7 @@ character online with a client is refused with `CHARACTER_ONLINE`; the recently-
 app settings file, default 2; `RECENTLY_LOGGED_OUT` plus `retryAt`) applies to the store start exactly as to
 fishing. There is no online start path for app stores, so every app-started store is an app `OFFLINE_PRIVATE_STORE` session and
 the seller fee always has a session to live in. The stop command closes ANY private store of the player's own character:
-for an app session it closes the session (reason `APP_STOPPED`) and applies the return rule; a game player's store is just
+for an app session it closes the session (reason `APP_STOPPED`) and applies the return rule; the store of a player in the game is just
 closed, as today, and [planned] a native `.offline` store ends its store session with `KICKED`. An app private store and a
 `.offline` store share the activity `OFFLINE_PRIVATE_STORE`; `source` tells them apart (`APP` and `CLIENT`). [planned] A
 `.offline` store is a client presence session, not a row of this table: the engine does not own it
@@ -705,7 +705,7 @@ CompletableFuture<Optional<OfflineSession>> findLastStartedByCharacter(int chara
 - Source: the engine's memory (it holds every open session), so it returns at once, does no IO and is safe on the game
   thread. Commands arrive only after the platform connect and the engine boots before it, so a start check always sees
   a booted engine.
-- Semantics: it counts app sessions only. The host does not know the master account of a game player, so game fishing
+- Semantics: it counts app sessions only. The host does not know the master account of a player in the game, so game fishing
   never counts against this limit; the host's per-account and per-device limits cover game and app fishing together,
   using the session's `accountName` and `hwid`. IP is not a limit subject of this read. The host's own
   per-IP limit counts an app session under `initiator_ip`
