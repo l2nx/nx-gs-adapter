@@ -26,6 +26,7 @@ dependencies {
     api(libs.jspecify)
 
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.equalsverifier)
     testImplementation(libs.gson)
     testImplementation(libs.jackson.databind)
     testImplementation(libs.jackson.module.parameter.names)

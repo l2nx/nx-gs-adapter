@@ -47,6 +47,13 @@
       "allowedVersions": "<3"
     },
     {
+      "description": "Test source sets compile with release 8 like main; EqualsVerifier 4 is Java 17 bytecode",
+      "matchPackageNames": [
+        "nl.jqno.equalsverifier:equalsverifier"
+      ],
+      "allowedVersions": "<4"
+    },
+    {
       "description": "The suggested replacement of wiremock-jre8 is org.wiremock:wiremock 3.x, Java 11 bytecode",
       "matchPackageNames": [
         "com.github.tomakehurst:wiremock-jre8"
