@@ -313,7 +313,7 @@ state.
 ### `SetCharacterAccessLevelCommand`
 
 **Purpose.** Set a character's access level to an absolute value, mirroring the in-game
-`//changelvl` command. Applies to a game session on the game thread when the target is online,
+`//changelvl` command. Applies to the in-game character on the game thread when the target is online,
 or to the offline row otherwise. `staffNotes` is a staff-only note (see
 [`guide.md`](./guide.md)); the host never shows it to the player.
 
@@ -332,7 +332,7 @@ or to the offline row otherwise. `staffNotes` is a staff-only note (see
 | `characterId`         | `Long`    | Echo                                                                                                       |
 | `accessLevel`         | `String`  | The level as the host stored it, in the same vocabulary                                                    |
 | `previousAccessLevel` | `String?` | The level before the write, `null` when the host could not read it                                         |
-| `wasOnline`           | `boolean` | `true` when applied to a game session (full effect on next login); `false` when written to the offline row |
+| `wasOnline`           | `boolean` | `true` when applied to the in-game character (full effect on next login); `false` when written to the offline row |
 
 **Errors**
 
@@ -1069,7 +1069,7 @@ subsystem on the character's game thread. No separate stop exists for a buy stor
 started by `StartPrivateStoreBuyCommand` (`previousStoreType = "BUY"`).
 
 The command closes ANY private store of the player's own character: an app `OFFLINE_PRIVATE_STORE` session, a native `.offline`
-store or a game player's store. Only the start is offline-only and only the start waits for the start cooldown: a stop
+store or the store of a player in the game. Only the start is offline-only and only the start waits for the start cooldown: a stop
 is never refused with `COOLDOWN`. For an app session the stop closes the session (reason
 `APP_STOPPED`) and applies the return rule (origin only if the session lasted less than the return threshold `app.session.return-threshold-minutes` of the app settings file, the same as for fishing; otherwise the character stays at the store spot); for a store not started from the app it just closes the store.
 
