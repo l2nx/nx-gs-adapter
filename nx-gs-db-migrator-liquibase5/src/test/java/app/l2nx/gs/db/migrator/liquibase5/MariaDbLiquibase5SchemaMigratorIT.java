@@ -9,7 +9,7 @@ import org.testcontainers.mariadb.MariaDBContainer;
 class MariaDbLiquibase5SchemaMigratorIT extends AbstractLiquibase5SchemaMigratorIT {
 
     @Container
-    private static final MariaDBContainer DB = new MariaDBContainer("mariadb:11.4");
+    private static final MariaDBContainer DB = new MariaDBContainer("mariadb:11.8");
 
     @Override
     protected boolean mysqlFamily() {

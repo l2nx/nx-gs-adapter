@@ -35,7 +35,7 @@ import org.testcontainers.kafka.ConfluentKafkaContainer;
 class HeaderStampingIntegrationTest {
 
     @Container
-    static final ConfluentKafkaContainer KAFKA = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.7.0");
+    static final ConfluentKafkaContainer KAFKA = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.9.11");
 
     private static final String HEADER_NAME = "Test-Static-Header";
     private static final byte[] HEADER_VALUE = new byte[] {

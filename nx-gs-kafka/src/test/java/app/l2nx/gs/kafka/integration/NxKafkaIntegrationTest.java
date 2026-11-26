@@ -22,7 +22,7 @@ import org.testcontainers.kafka.ConfluentKafkaContainer;
 class NxKafkaIntegrationTest {
 
     @Container
-    static final ConfluentKafkaContainer KAFKA = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.7.0");
+    static final ConfluentKafkaContainer KAFKA = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.9.11");
 
     @AfterEach
     void tearDown() {

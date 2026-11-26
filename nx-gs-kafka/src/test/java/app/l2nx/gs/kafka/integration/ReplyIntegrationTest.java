@@ -42,7 +42,7 @@ class ReplyIntegrationTest {
     private static final String REPLY_TOPIC = "test.replies";
 
     @Container
-    static final ConfluentKafkaContainer KAFKA = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.7.0");
+    static final ConfluentKafkaContainer KAFKA = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.9.11");
 
     @AfterEach
     void tearDown() {
