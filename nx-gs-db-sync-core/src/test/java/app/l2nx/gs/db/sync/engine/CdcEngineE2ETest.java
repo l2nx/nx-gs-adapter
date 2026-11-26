@@ -55,13 +55,13 @@ class CdcEngineE2ETest {
     private static final Gson GSON = new Gson();
 
     @Container
-    static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.0.36")
+    static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4.13")
             .withDatabaseName("acme")
             .withUsername("test")
             .withPassword("test");
 
     @Container
-    static final ConfluentKafkaContainer KAFKA = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.7.0");
+    static final ConfluentKafkaContainer KAFKA = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.9.11");
 
     private static KafkaProducer<byte[], byte[]> producer;
     private CdcEngine engine;
