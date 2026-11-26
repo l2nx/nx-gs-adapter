@@ -10,12 +10,12 @@ per-instance item feed carries `id / itemTemplateId / ownerId / count /
 enchantLevel / location / attributes(elementals)` only — augmentation is absent
 at every layer (host mapping → `nx-gs-adapter-api` wire → `gs_items`).
 
-The **static catalog already exists** in `nx-gamedata` (git-ingester-owned,
-`v3.3.0_augment_enchant.sql`): `gd_item_options` (option id → color +
-gear-score), `gd_item_option_stat_modifiers` (option id → stat bonus),
-`gd_item_option_skills` (option id → granted skill), plus the generation tables
-(`gd_life_stones`, `gd_life_stone_grades`, `gd_augment_chances`). So "what does
-option N grant" is answerable today. What is missing is the join key: **which
+The **static catalog** (option id → stat bonuses and option skills, life stones,
+target groups) is synced by the host through gd-sync as the `itemoption`,
+`lifestone` and `augmentationtargetgroup` entities
+([`030-gamedata-sync/augmentation-contract.md`](030-gamedata-sync/augmentation-contract.md);
+platform side `nx-gamedata/docs/specs/025-augmentation-via-adapter.md`). So
+"what does option N grant" is answerable. What is missing is the join key: **which
 two options sit on a given item instance**. Without it the platform cannot tell
 an augmented item from a plain one — needed for the market app (sellability
 gating + augment display) and item inspection.
@@ -44,7 +44,7 @@ is untouched. No display.
 | Storage vs. columns on `gs_items` | Satellite, not columns — `gs_items` is the 3.86M-row hot UPSERT table; augment is sparse                            |
 | Ingest keep-in-sync               | DELETE-by-touched-item-id + INSERT-if-augmented, per the elementals `batchReplace` idiom                            |
 | Engine sentinels on the wire      | None — `-1`/`0` are absorbed at the host edge; "absent" is expressed only as `null` (never a magic number)           |
-| Catalog (option id → bonus/skill) | Untouched — already git-owned in `nx-gamedata`                                                                      |
+| Catalog (option id → bonus/skill) | Not this spec — synced through gd-sync (`augmentation-contract.md`)                                                 |
 | Wire compatibility                | Additive field → `api/vX.Y.Z` minor bump (not breaking; old consumers ignore the new field)                         |
 | Display / resolution              | Out of scope — deferred                                                                                             |
 
@@ -209,13 +209,14 @@ No transient dual-emit — additive field, single producer/consumer pair.
 ## Out of scope
 
 - **Display / resolution** — resolving `option_1_id` / `option_2_id` against the
-  gd catalog (`gd_item_options` + `_stat_modifiers` + `_skills`) into a
+  gd catalog (`gd.item_options` + `_stat_modifiers` + `_skills`) into a
   human-readable "STR +1, Skill: Focus", and surfacing it in wiki / TMA market /
   bot inventory / admin-fe. Separate work; this spec only lands the data.
 - **Sellability gating** — a `sellable`/`tradable` flag for the market
   pre-filter. The authoritative engine reject at store-open time remains the
   source of truth; a synced flag, if wanted, is its own initiative.
-- **gd catalog changes** — the option catalog already exists and is git-owned.
+- **gd catalog changes** — the option catalog is its own gd-sync contract
+  ([`030-gamedata-sync/augmentation-contract.md`](030-gamedata-sync/augmentation-contract.md)).
 
 ## Invariants
 

@@ -34,7 +34,7 @@ work lives in [`TODO.md`](TODO.md).
 | 017 | character-runtime-activity (activity usage, closed `ActivityType`; `ActivityMetadataKey`, store `lots`)                                                                                 | 2026-10-15 | [spec](specs/017-character-runtime-activity.md)        |
 | 018 | castle-siege-sync                                                                                                                                                                       | 2026-05-30 | [spec](specs/018-castle-siege-sync.md)                 |
 | 019 | death-status-ratings-events                                                                                                                                                             | 2026-10-22 | [spec](specs/019-death-status-ratings-events.md)       |
-| 020 | item-stats-unification                                                                                                                                                                  | 2026-06-08 | [spec](specs/020-item-stats-unification.md)            |
+| 020 | item-stats-unification (one `Stat`-keyed map; reduced soulshot / MP consumption tokens)                                                                                                 | 2026-06-08 | [spec](specs/020-item-stats-unification.md)            |
 | 021 | force-resync                                                                                                                                                                            | 2026-06-12 | [spec](specs/021-force-resync.md)                      |
 | 022 | class-canonicalization                                                                                                                                                                  | 2026-06-13 | [spec](specs/022-class-canonicalization.md)            |
 | 023 | platform-sync-fixes-2026-06                                                                                                                                                             | 2026-06-29 | [spec](specs/023-platform-sync-fixes-2026-06.md)       |
@@ -43,7 +43,7 @@ work lives in [`TODO.md`](TODO.md).
 | 027 | etctype-consumable-market-signals                                                                                                                                                       | 2026-07-22 | [spec](specs/027-etctype-consumable-market-signals.md) |
 | 028 | character-inventory-capacity                                                                                                                                                            | 2026-07-26 | [spec](specs/028-character-inventory-capacity.md)      |
 | 029 | character-class-state-sync                                                                                                                                                              | 2026-07-27 | [spec](specs/029-character-class-state-sync.md)        |
-| 030 | gamedata-sync (fishing gear entities)                                                                                                                                                   | 2026-08-15 | [spec](specs/030-gamedata-sync/spec.md)                |
+| 030 | gamedata-sync (fishing gear entities; `ItemSkillType` for item and option skills, `soulcrystal`, reduced consumption `Stat` tokens)                                                     | 2026-08-15 | [spec](specs/030-gamedata-sync/spec.md)                |
 | 031 | character-log-events                                                                                                                                                                    | 2026-09-01 | [spec](specs/031-character-log-events.md)              |
 | 034 | api-package-layout                                                                                                                                                                      | 2026-10-02 | [spec](specs/034-api-package-layout.md)                |
 | 035 | character-display                                                                                                                                                                       | 2026-10-06 | [spec](specs/035-character-display.md)                 |
@@ -52,7 +52,7 @@ work lives in [`TODO.md`](TODO.md).
 | 038 | app-offline-sessions (+ app settings file, session-history read, `ClientIdentifiers`; acknowledged end, open-sessions snapshot, check mode; session result, capacity ends)              | 2026-10-22 | [spec](specs/038-app-offline-sessions.md)              |
 | 039 | private-store-state-event (per-trader store state; replaces the book snapshot)                                                                                                          | 2026-10-16 | [spec](specs/039-private-store-state-event.md)         |
 | 040 | command-receipts (adapter-side store of `l2nx_command_receipts`; claim reopens before it inserts)                                                                                       | 2026-10-16 | [spec](specs/040-command-receipts.md)                  |
-| 041 | settings-sync (`appsettings` + `gamesettings`, 5-minute tick, `GameSettingsProvider`; `chat` and `fishing` groups)                                                                                     | 2026-10-28 | [spec](specs/041-settings-sync.md)                     |
+| 041 | settings-sync (`appsettings` + `gamesettings`, 5-minute tick, `GameSettingsProvider`; `chat` and `fishing` groups)                                                                      | 2026-10-28 | [spec](specs/041-settings-sync.md)                     |
 | 042 | item-snapshot (`ItemSnapshot`, `ItemAugmentation`, every item form migrated, `charId` to `characterId` on item commands)                                                                | 2026-11-04 | [spec](specs/042-item-snapshot.md)                     |
 | 043 | session-results (`result` on the session end, `ItemSource`, `ExperienceSource`, `takeSessionResult`, native store sessions)                                                             | 2026-11-04 | [spec](specs/043-session-results.md)                   |
 
@@ -63,7 +63,8 @@ Companion docs of the folder-form specs:
 - `003-db-sync/module-discovery.md` — Tier-2 `DbSchemaProvider` discovery for schema authors.
 - `005-cdc-engine/flow.md` — block diagrams of the two-phase cycle.
 - `030-gamedata-sync/skill-contract.md`, `030-gamedata-sync/augmentation-contract.md` — living wire contracts of the
-  `skill` entity and of the augmentation catalog (`itemoption`, `lifestone`, `augmentationtargetgroup`);
+  `skill` entity and of the augmentation catalog (`itemoption`, `lifestone`, `augmentationtargetgroup`); the item-skill
+  type, the `soulcrystal` entity and the reduced consumption `Stat` tokens are in `030-gamedata-sync/spec.md` §8;
   `030-gamedata-sync/fishing-gear-contract.md` — contract of the fishing gear catalog (`fishingbait`,
   `fishingrod`, `fishingshot`).
 - `009-commands/catalog.md` — per-command wire contract (inputs, results, error statuses).

@@ -280,9 +280,9 @@ provider with an empty catalog returns an **empty** collection (`count = 0`: the
   last wins), stated in the contract doc per entity. Rates carry no personal bonus: the final chance is `rate +
 bonusRatePercent + support bonus + character enchant stat`, capped at 100.
 
-- [planned] R19. Item template changes: `ItemSkillRef` gains `enchantLevel` (`Integer?`), the enchant level from which an
-  item skill of type `ENCHANT` is active (part of the skill ref's identity: the same skill at two levels is two refs).
-  `ItemTemplate.upgrade` gains:
+- [planned] R19. Item template changes: the enchant level from which an item skill is active is
+  `ItemSkillRef.minEnchantLevel` with `type = EQUIPPED_ENCHANT` (`030-gamedata-sync/spec.md` §8; not part of the skill
+  ref's identity). `ItemTemplate.upgrade` gains:
   - `maxEnchantLevel` (`Integer?`): the item's own enchant limit where the build has one;
   - `enchantGrade` (`ItemGrade?`): the grade the engine compares a scroll's grade with (sub-grades collapsed, for
     example `S80` to `S`); the raw `grade` stays as it is;
@@ -559,7 +559,7 @@ enforced where → test.
 | `idle-seconds` without a command                            | `APP_IDLE`, return to origin, `active_ms` not published                                                                                          | R10                  | component    |
 | Hot reload of `app.phantom.idle-seconds`                    | applies from the next `touch`                                                                                                                    | R10                  | unit         |
 | Client login during an in-flight command                    | refused once, the next attempt → `APP_LOGIN`                                                                                                     | host login closer    | component    |
-| Client login without a command                              | the session closes with `APP_LOGIN` before the character loads                                                                              | 038                  | holds        |
+| Client login without a command                              | the session closes with `APP_LOGIN` before the character loads                                                                                   | 038                  | holds        |
 | Kick / ban of the phantom                                   | `KICKED` / `BANNED`, the next command is refused by the start rules (sanction)                                                                   | 038                  | holds        |
 | Exit without the lock after its timeout during an operation | the exit takes the inventory write lock the operation holds; the operation reads `ending` under it → no item row lost                            | Host semantics       | component    |
 | Restart with an open phantom                                | `SERVER_STOP` at boot before commands, origin, `endedAt = startedAt + activeMs`, no loaded world                                                 | R13                  | integration  |
@@ -631,7 +631,7 @@ host rows in the host's mapping doc.
 | 22  | EO         | major   | One instance as scroll and support: two spends per attempt                                                                                                                                                                | R2, platform `400`                                                                                                                     |
 | 23  | IN         | major   | Tenant directory settings map without `gamesettings`: the platform would never see a snapshot                                                                                                                             | Rollout 2                                                                                                                              |
 | 24  | IN         | major   | Two sources of the attribute power limit                                                                                                                                                                                  | R20, R22                                                                                                                               |
-| 25  | IN         | major   | `ItemAugmentation` without `lifeStoneItemTemplateId`: the per-stone cancel row is unselectable                                                                                                                       | R21                                                                                                                                    |
+| 25  | IN         | major   | `ItemAugmentation` without `lifeStoneItemTemplateId`: the per-stone cancel row is unselectable                                                                                                                            | R21                                                                                                                                    |
 | 26  | IN         | major   | Scroll `kind` derived from a field the engine does not use for the outcome                                                                                                                                                | R18                                                                                                                                    |
 | 29  | IN         | major   | "Never sends an empty snapshot" contradicted 030 (`null` = not ready → permanent error)                                                                                                                                   | Catalog intro; `nx-gs-adapter/CLAUDE.md` corrected                                                                                     |
 | 33  | EO         | minor   | Ownership / enchantable / zero-chance checks sit after the scroll spend in the engine                                                                                                                                     | R6: pre-checks make them unreachable; honest stored result otherwise                                                                   |
@@ -693,7 +693,7 @@ and retention do not concern the phantom.
 ## Rollout
 
 1. API release: commands and results (five), refusal reasons, `AugmentationChoice`, `ActivityType.OFFLINE_PHANTOM`,
-   `ServerOnlineBucket`, `LogoutReason.APP_IDLE` / `APP_SUPERSEDED`, gd entities with numeric `pk`, `ItemSkillRef.enchantLevel`, `ItemTemplate.upgrade.{maxEnchantLevel, enchantGrade, augmentable}`,
+   `ServerOnlineBucket`, `LogoutReason.APP_IDLE` / `APP_SUPERSEDED`, gd entities with numeric `pk`, `ItemSkillRef.minEnchantLevel` (030-gamedata-sync §8.2), `ItemTemplate.upgrade.{maxEnchantLevel, enchantGrade, augmentable}`,
    `AugmentationOutcome.slot = 3` (ordinal), `ItemAugmentation.{option3Id, lifeStoneItemTemplateId}`, engine
    `touch` / `supersede`, idle end, boot end of non-restorable sessions, list-valued pool keys, the app settings keys of
    R16 (reference file, `configuration.md` en / ru). SPI break: `AppRules.fishingSpotPool` becomes `fishingSpotPools`; a

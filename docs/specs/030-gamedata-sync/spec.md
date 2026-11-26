@@ -2,11 +2,47 @@
 
 > Owner: @n1rmata
 
-Living spec for the `:nx-gs-gd-sync-core` module. Covers what the module publishes and how, plus
-the host-readiness contract added in gd-sync `0.11.0` / api `0.83.0`.
+Spec for the `:nx-gs-gd-sync-core` module. Covers what the module publishes and how, the
+host-readiness contract added in gd-sync `0.11.0` / api `0.83.0`, and the item-skill, soul-crystal and reduced-consumption stat contract (§8).
 
 Cross-repo: the host integration (Tier-2 providers + readiness signal), `nx-gamedata` (platform consumer of
-the `gd` stream).
+the `gd` stream: `nx-gamedata/docs/specs/015-l2-gamedata-storage-v3-design.md` §29,
+`nx-gamedata/docs/specs/025-augmentation-via-adapter.md` for option skills,
+`nx-gamedata/docs/specs/014-item-variant-groups-design.md` for weapon special abilities), `nx-tenants` (the
+`entityName` → topic map).
+
+Issues: [l2nx/nx-gs-adapter#8](https://github.com/l2nx/nx-gs-adapter/issues/8) (readiness),
+[l2nx/nx-platform#81](https://github.com/l2nx/nx-platform/issues/81) (item-skill type, soul crystal, §8).
+
+## Summary
+
+Each gd catalog the host loads (items, npcs, skills, recipes, armor sets, soul crystals, classes, instances, the
+augmentation and fishing catalogs, gear score, experience levels) has one Tier-2 provider SPI. The gd-sync module
+pulls a full snapshot from every registered provider and publishes it as one burst per entity: an `UPSERT` record per
+aggregate, then a `SNAPSHOT_COMPLETE` marker with the count (§1). The platform consumer upserts the records and, on
+the marker, deletes the rows of that entity the burst did not carry (§7). Bursts run at connect, on a host
+re-publish, on a platform resync command and on an optional timer, coalesced into one pass at a time (§1.3).
+
+The failure path is the marker. A provider that is not ready returns `null`, and the burst is aborted with no marker,
+so the platform keeps its previous rows (§2). A host that declares its readiness through `GameDataReadinessProvider`
+is not asked for any snapshot until it is ready; a poller publishes as soon as it is (§3). An empty collection is a
+real, empty catalog and wipes the entity on the platform.
+
+The wire describes the game, not the engine: when an item or an option brings a skill, the type of that grant is the
+closed `ItemSkillType` vocabulary plus the engine token beside it, one vocabulary for both (§8.1). The soul-crystal
+leveling chain is the `soulcrystal` entity keyed by the crystal's item template (§8.3). A weapon's reduced soulshot
+and MP consumption travel as four `Stat` keys of its item stats (§8.4).
+
+```mermaid
+flowchart TB
+    T[trigger: connect, host publish, resync command, timer] --> G{host ready?}
+    G -- no --> P[skip the pass, arm the 5 s poller]
+    P --> G
+    G -- yes --> S[provider.snapshot per entity]
+    S -- null --> A[abort the burst: no marker, platform rows kept]
+    S -- collection --> U[UPSERT per aggregate, then SNAPSHOT_COMPLETE count]
+    U --> C[platform consumer: upsert, reconcile on the marker]
+```
 
 ## Problem
 
@@ -39,7 +75,7 @@ its snapshot accessor and primary-key extractor, so adding an entity is one regi
 | `skill`                   | `SkillProvider`                   | `skill.id`                         |
 | `recipetemplate`          | `RecipeTemplateProvider`          | `template.id`                      |
 | `armorsettemplate`        | `ArmorSetTemplateProvider`        | `template.id`                      |
-| `soulcrystaltemplate`     | `SoulCrystalTemplateProvider`     | `template.id`                      |
+| `soulcrystal`             | `SoulCrystalProvider`             | `crystal.itemTemplateId`           |
 | `classtemplate`           | `ClassTemplateProvider`           | `clazz.ordinal()` (`-1` when null) |
 | `instance`                | `InstanceTemplateProvider`        | `template.id`                      |
 | `itemoption`              | `ItemOptionProvider`              | `option.id`                        |
@@ -53,6 +89,9 @@ its snapshot accessor and primary-key extractor, so adding an entity is one regi
 
 [done] The fishing gear entities (`fishingbait`, `fishingrod`, `fishingshot`): implemented in the adapter, not yet
 released. Their DTOs are specified in [`fishing-gear-contract.md`](fishing-gear-contract.md).
+
+[planned] The `soulcrystal` row (§8.3, R9-R14): the code still registers `soulcrystaltemplate` /
+`SoulCrystalTemplateProvider` with the pk `template.id` until that release.
 
 Each present provider becomes an independent `EntitySync` with its own burst, `syncId` and heartbeat
 `EntityStats`. A missing provider is skipped; two impls of one SPI put the module in `FAILED` (the
@@ -352,16 +391,16 @@ skill):
 | `classtemplate` / `ClassTemplateProvider`             | `class` / `CharacterClassDefinition…` (`CharacterClass` is the class token enum) |
 | `recipetemplate` / `RecipeTemplateProvider`           | `recipe` / `Recipe…`                                                             |
 | `armorsettemplate` / `ArmorSetTemplateProvider`       | `armorset` / `ArmorSet…`                                                         |
-| `soulcrystaltemplate` / `SoulCrystalTemplateProvider` | `soulcrystal` / `SoulCrystal…`                                                   |
+| `soulcrystaltemplate` / `SoulCrystalTemplateProvider` | `soulcrystal` / `SoulCrystalProvider` ([planned] §8.3)                           |
 
 **One topic for all entities — done 2026-10-08.** The platform maps every entity to a single
 `<tenant>.gd.sync` topic instead of one topic per entity (§1.2); the switch needed no adapter
 release and the wire is unchanged. The `entityName` renames above still ride an adapter release
-(the descriptor sets the value, and the topic map is keyed by it) — the platform map and consumer
-accept both names during the transition. The DTO/SPI renames are breaking and follow the two-release `@Deprecated` rule
-(additive release, then removal once every host has moved), counted from the api 0.89 package
-layout (spec 034). `api/v0.101.0` for the `skill` record is a deliberate exception: a breaking release without
-a `@Deprecated` window (owner decision: the producer and the single wire consumer ship in one window).
+(the descriptor sets the value, and the topic map is keyed by it). A DTO/SPI rename is one breaking api release that
+removes the old name in the same release, with no `@Deprecated` copy (root `CLAUDE.md`, «Breaking wire changes»).
+`api/v0.101.0` for the `skill` record shipped that way. `soulcrystal` goes further (§8.6): the platform keeps no
+straddle either, neither a second routed `entityName` nor a legacy reader. How the remaining renames roll out is
+decided when each is taken.
 
 **Payload changes.**
 
@@ -373,7 +412,8 @@ a `@Deprecated` window (owner decision: the producer and the single wire consume
   `globalAggro` emitted.
 - `itemtemplate`: `material` must not collapse distinct host materials into one token.
 - `itemtemplate` keeps its full payload (stats, skills): the platform will start consuming it as data moves
-  from platform-side parsing to the gd stream.
+  from platform-side parsing to the gd stream ([l2nx/nx-gamedata#65](https://github.com/l2nx/nx-gamedata/issues/65)).
+  Its skill references carry the canonical `ItemSkillType` from §8 on.
 - `skill` becomes the sole source of the platform skill catalog (design: `nx-gamedata/docs/specs/024-skills-via-adapter.md`,
   2026-10-11). Shipped as api 0.101.0, a breaking release (types move to sub-packages, fields are renamed or retyped,
   no deprecated leftovers; producers and consumers upgrade together). The wire shape and the vocabulary tables live in
@@ -400,7 +440,198 @@ persisted row count does not match `SNAPSHOT_COMPLETE.count` is not reconciled; 
 entity for that server; infrastructure write failures are retried, not acknowledged. The
 gd topic is kept for 48 h.
 
-## 8. Links
+## 8. Item skills, soul crystals, reduced consumption stats ([planned], next breaking api release)
+
+The design was approved on 2026-11-26 under [l2nx/nx-platform#81](https://github.com/l2nx/nx-platform/issues/81)
+(weapon special abilities on the platform). Its adapter part is this section; the catalog of weapon special
+abilities itself does not go through the adapter (Decisions). A weapon special ability may also change weapon
+properties; the reduced shot and MP consumption among them get `Stat` tokens (§8.4).
+
+### 8.1 `ItemSkillType` (`domain.item`, new)
+
+When a skill that an item or an item option brings is in effect or is cast. One closed vocabulary for both (`ItemSkillRef.type`
+and `ItemOptionSkill.type`), valid for HighFive and Essence. A constant without a prefix is a grant: the skill is learned
+and held while its condition lasts (active or passive is the skill's own `operateType`). A constant with `ON_` is a
+one-time cast on that event.
+
+| constant                        | meaning                                                                                                        | `chancePercent` | `minEnchantLevel` |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------- | ----------------- |
+| `EQUIPPED`                      | held while the item is equipped                                                                                | `null`          | `null`            |
+| `EQUIPPED_ENCHANT`              | held while the item is equipped at an enchant level of at least `minEnchantLevel`                              | `null`          | required          |
+| `EQUIPPED_BLESSED`              | held while the item is equipped and blessed                                                                    | `null`          | `null`            |
+| `ON_EQUIP`                      | cast once when the item is equipped                                                                            | `null`          | `null`            |
+| `ON_UNEQUIP`                    | cast once when the item is unequipped                                                                          | `null`          | `null`            |
+| `ON_USE`                        | cast when the item is used                                                                                     | `null`          | `null`            |
+| `ON_PHYSICAL_HIT`               | cast on a non-critical normal-attack hit and on every physical skill the owner casts, once per affected target | required        | `null`            |
+| `ON_NORMAL_ATTACK_CRITICAL_HIT` | cast on a critical normal-attack hit; a critical hit of a skill does not fire it                               | required        | `null`            |
+| `ON_MAGIC_SKILL_CAST`           | cast when a magic skill of the owner lands on a target, once per affected target                               | required        | `null`            |
+
+On a normal attack `ON_PHYSICAL_HIT` and `ON_NORMAL_ATTACK_CRITICAL_HIT` exclude each other: a hit fires one or the
+other. The pairing columns are the rule S2 of the platform design; the builders enforce it for a known constant (§8.2).
+A consumer reads a constant it does not know as `null`, and `typeRaw` still carries the engine token.
+
+### 8.2 `ItemSkillRef` and `ItemOptionSkill`
+
+`ItemSkillRef` (`kafka.sync.gd.itemtemplate`, a skill of an item template), Java 8 final class with a builder:
+
+| field             | type            | null     | semantics                                                                                      |
+| ----------------- | --------------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `id`              | `int`           | non-null | skill id                                                                                       |
+| `level`           | `int`           | non-null | skill level                                                                                    |
+| `type`            | `ItemSkillType` | nullable | canonical type (§8.1); `null` when the engine token has no exact meaning in the vocabulary     |
+| `typeRaw`         | `String`        | non-null | engine token the type was mapped from; never empty                                             |
+| `minEnchantLevel` | `Integer`       | nullable | lowest enchant level at which the skill is held; set exactly when `type` is `EQUIPPED_ENCHANT` |
+| `chancePercent`   | `Integer`       | nullable | cast chance, `[0, 100]`; set exactly when `type` is one of the three chance events of §8.1     |
+
+`type` was an open `String` of engine tokens before this release; those tokens now go to `typeRaw`.
+
+`ItemOptionSkill` (`kafka.sync.gd.itemoption`): `trigger` (`ItemOptionTrigger`) is replaced by `type`
+(`ItemSkillType`, nullable) + `typeRaw` (`String`, non-null, never empty); `skillId`, `skillLevel`, `chancePercent`
+are unchanged. `ItemOptionTrigger` is removed. The option fields and their rules are in
+[`augmentation-contract.md`](augmentation-contract.md) §3.2.
+
+Validation, the same split as `ItemOptionSkill` today: the constructor checks only what a consumer must still accept
+(`typeRaw` non-empty, the chance range), so a `type` unknown to the consumer reads as `null` without rejecting the
+aggregate; the builder also checks the pairing of §8.1 when `type` is set. A host builds through the builder, so a
+grant with a chance, or an `EQUIPPED_ENCHANT` without a threshold, never reaches the wire and never makes the platform
+reject the whole snapshot step of the entity.
+
+### 8.3 `SoulCrystal` and `SoulCrystalProvider`
+
+`SoulCrystal` (`kafka.sync.gd.soulcrystal`, was `kafka.sync.gd.soulcrystaltemplate.SoulCrystalTemplate`): one node of the
+soul-crystal leveling chain. The crystal itself is an item; this is the growth data of that item template, so the entity
+is reference data without the `Template` suffix. Java 8 final class with a builder:
+
+| field                      | type      | null     | semantics                                                                    |
+| -------------------------- | --------- | -------- | ---------------------------------------------------------------------------- |
+| `itemTemplateId`           | `int`     | non-null | item template of the crystal; the pk (was `id`)                              |
+| `level`                    | `Integer` | nullable | stage of the crystal in its chain; `null` when the build has no stage number |
+| `nextItemTemplateId`       | `Integer` | nullable | crystal a successful level-up yields; `null` at the top of the chain         |
+| `cursedNextItemTemplateId` | `Integer` | nullable | crystal a failed level-up yields; `null` when the build has none             |
+
+`SoulCrystalProvider` (`spi.provider`, was `SoulCrystalTemplateProvider`): `entityName()` returns `soulcrystal`;
+`snapshot()` follows §2, `null` until the host has loaded the data, an empty collection only when the build has no
+soul crystals.
+
+### 8.4 Reduced shot and MP consumption (`Stat`, four new constants)
+
+A weapon property of both HighFive and Essence: when it procs on an attack, the weapon spends `count` soulshots (or MP)
+instead of its normal amount, with a chance of `chance` percent. The engine keeps each as one `"chance,count"` pair
+(`reduced_soulshot`, `reduced_mp_consume`). The `Stat` enum (`domain.stat`) gains four constants, appended after the
+frozen ones:
+
+| constant                    | meaning                                                        | value               |
+| --------------------------- | -------------------------------------------------------------- | ------------------- |
+| `REDUCED_SOULSHOT_COUNT`    | soulshots the weapon spends when the reduced consumption procs | count               |
+| `REDUCED_SOULSHOT_CHANCE`   | chance of the reduced soulshot consumption                     | percent, `[0, 100]` |
+| `REDUCED_MP_CONSUME_COUNT`  | MP the weapon spends when the reduced consumption procs        | count               |
+| `REDUCED_MP_CONSUME_CHANCE` | chance of the reduced MP consumption                           | percent, `[0, 100]` |
+
+They travel as keys of the item template's `ItemStats.stats` map, beside the other weapon mechanics
+(`SOULSHOT_COUNT`, `MP_CONSUME`, ...): no new field and no new value shape on `ItemTemplate`. The host splits the
+engine pair into the `_CHANCE` and `_COUNT` keys; both keys of a pair are present together or absent together, and a
+weapon without the property carries neither (absent, never `0`). The item stat vocabulary and its source mapping are in
+[`020-item-stats-unification.md`](../020-item-stats-unification.md).
+
+### 8.5 Host guidance
+
+- **Map exactly or not at all.** `type` is set only when the engine token means exactly the constant (rules N1-N10 of
+  [`skill-contract.md`](skill-contract.md)); a build custom stays `type = null` with its token in `typeRaw`.
+- **Split by meaning, not by token.** One engine token can mean two constants: a plain item skill is `EQUIPPED` on
+  equipment and `ON_USE` on a usable item, and an enchant-gated token with its threshold in the name (HighFive) or in a
+  value (Essence) is `EQUIPPED_ENCHANT` with that threshold in `minEnchantLevel`.
+- **`typeRaw` is the engine's own name.** Where the engine has a token, it is that token. Where the engine expresses the
+  type only by structure (for example a separate list of option skills cast on a critical hit, or option skills granted
+  with no event at all), it is the name of that construct as the engine spells it, the same for every row of that
+  construct. Never empty.
+- **Isolate per-aggregate failures** as in [`augmentation-contract.md`](augmentation-contract.md) §5: a builder failure
+  skips that item or option with a log line, never the snapshot.
+- **Reduced consumption from the weapon's own data** (§8.4): the host reads the pair from the weapon template it
+  loaded, including a variant template that a special ability insertion yields; a pair the engine cannot parse is
+  left out with a log line, never sent half.
+
+### 8.6 Rollout and compatibility (breaking, no straddle)
+
+One breaking api release with `nx-gs-gd-sync-core`: the old members are removed in it, no `@Deprecated` copy. Owner
+decision (2026-11-26): the platform keeps no straddle for this change either, unlike the general rule of root
+`CLAUDE.md` («Breaking wire changes»): no legacy reader of the old option-skill form, no second routed `entityName`.
+
+1. Adapter: api + gd-sync release with the migration note for external hosts in `docs/public/{en,ru}/migration.md`.
+   Nothing changes at runtime until a host takes the new version.
+2. Platform cutover in one pass: the `entityName` map routes `soulcrystal` instead of `soulcrystaltemplate`, and the
+   consumer reads only the new form.
+3. Hosts: switch to the new SPI and DTOs in one release; their data refreshes at the next game-server restart.
+
+Accepted consequences between steps 2 and 3: a game server still on the old host sends `soulcrystaltemplate`, which the
+platform skips as an unknown entity (after a reconnect the map has no topic for it, and the adapter skips the entity
+with a `WARN`); its `itemoption` records lack `typeRaw` and are rejected, so the marker's `count` does not match and
+nothing is reconciled. The platform keeps the rows of the last good snapshot until the restart. The `itemtemplate`
+skill references are not consumed by the platform yet (§7), so the old open-string `type` reads as `null` there without
+loss.
+
+The four `Stat` constants of §8.4 are additive and follow the order of root `CLAUDE.md` for a new value of a closed
+vocabulary: the adapter enum in step 1, the platform's reader of the keys in step 2, the host sending them in step 3.
+An old host simply sends no such keys.
+
+### 8.7 Requirements
+
+- [planned] R9. `ItemSkillType` with the nine constants of §8.1 in `domain.item`; `ItemOptionTrigger` removed.
+- [planned] R10. `ItemSkillRef` carries `type` (`ItemSkillType`), `typeRaw`, `minEnchantLevel`, `chancePercent` (§8.2).
+- [planned] R11. `ItemOptionSkill.trigger` replaced by `type` + `typeRaw` (§8.2).
+- [planned] R12. Builders enforce the pairing of §8.1 for a known `type`; constructors reject a null or empty `typeRaw`
+  and a chance out of range only.
+- [planned] R13. `SoulCrystal` / `SoulCrystalProvider` in `kafka.sync.gd.soulcrystal`, `entityName` `soulcrystal`,
+  pk `itemTemplateId`; `SoulCrystalTemplate` / `SoulCrystalTemplateProvider` removed (§8.3).
+- [planned] R14. Migration note for external hosts in `docs/public/en/migration.md` and `docs/public/ru/migration.md`
+  (§8.6).
+- [planned] R15. `Stat` gains `REDUCED_SOULSHOT_COUNT`, `REDUCED_SOULSHOT_CHANCE`, `REDUCED_MP_CONSUME_COUNT`,
+  `REDUCED_MP_CONSUME_CHANCE`, appended after the frozen constants; the `Stat` Javadoc lists them under item stats
+  (§8.4).
+
+## Decisions
+
+- **Readiness is module-level** (§3.4): the gd catalogs come from one datapack load, so one signal; a per-entity gate
+  would mean an SPI change and a host override per entity for a signal that flips once.
+- **Readiness timings are constants** (§3.6): fewer knobs; a host booting longer than 15 min gets one false `ERROR`
+  per boot. Rejected: `l2nx.gd-sync.*` keys now, without such a host.
+- **One `ItemSkillType` for item skills and option skills** (§8.1; owner, 2026-11-26): both are skills an item brings.
+  Rejected: two enums. Whether the two skill forms are one entity is the platform's open epic, not this contract.
+- **Constant names** (§8.1): no prefix for a held grant, `ON_` for a one-time cast, events named in full.
+  Rejected: `WHILE_EQUIPPED` (the prefix adds nothing); `ON_EQUIP` for the held grant (in Essence it is a real one-time
+  event); `EQUIPPED_ENCHANT_4` (bakes the HighFive threshold in, does not fit Essence); `ON_CRIT` / `ON_CAST` /
+  `ON_CRITICAL_SKILL` / `ON_MAGIC_SKILL` (do not say whose critical hit or which cast).
+- **`typeRaw` beside `type`, option skills included** (§8.2): the canonical/raw pair of every gd vocabulary. It
+  reverses the earlier rule that the option trigger had no raw companion because it was derived from structure: with one
+  vocabulary for items and options, an option of a build custom needs the same place for its token.
+- **`soulcrystal` without `Template`, keyed by `itemTemplateId`** (§8.3): the crystal is an item; its growth data is
+  reference data, keyed like `LifeStone`. Rejected: keeping `SoulCrystalTemplate` / `id` until a separate rename.
+- **No straddle anywhere** (§8.6; owner, 2026-11-26): a short wiki error window and stale option and crystal data until
+  the game servers restart are accepted. Rejected: a legacy reader of the old form on the platform; a double
+  `entityName` (`soulcrystaltemplate` + `soulcrystal`) during the restarts.
+- **Reduced consumption as `Stat` tokens** (§8.4; owner, 2026-11-26): four plain numbers in the existing item `stats`
+  map, a count and a chance per pair, so the platform builds a weapon's effect from one map. Rejected: a typed weapon
+  properties block on `ItemTemplate` (a second home for weapon numbers, against
+  [`020-item-stats-unification.md`](../020-item-stats-unification.md)); one composite `"chance,count"` value (the map
+  holds one number per key).
+- **No weapon special ability entity in the adapter now**: the special ability's name and link come from the client
+  patch, and its soul crystal from datapack recipes an engine may not load, so a host provider would repeat a tenant
+  ingester's heuristics and still miss disabled recipes. Rejected: a provider for the current host.
+
+## Out of scope
+
+- **A `WeaponSpecialAbilityProvider`** for builds whose engine loads the insertion recipes or the special ability name:
+  [l2nx/nx-gs-adapter#71](https://github.com/l2nx/nx-gs-adapter/issues/71). It ships only together with or after the
+  platform consuming item-template skills, stat modifiers and weapon properties from the gd stream
+  ([l2nx/nx-gamedata#65](https://github.com/l2nx/nx-gamedata/issues/65)): without them the effect of such a tenant's
+  special ability would show as empty.
+- **Augmentation and Essence ensoul as mechanics**: only the vocabulary of option skills changes.
+- **Readiness timings as config keys and per-entity readiness** (§3.6, §4 non-goals).
+
+## Open questions
+
+None.
+
+## 9. Links
 
 - Skill record contract (api 0.101.0): [`skill-contract.md`](skill-contract.md)
 - Augmentation catalog contract (api 0.116.0, `itemoption` / `lifestone` / `augmentationtargetgroup`):

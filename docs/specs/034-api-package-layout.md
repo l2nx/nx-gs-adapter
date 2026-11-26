@@ -34,7 +34,8 @@ the slice's contract from its supporting types. The same smell exists inside cor
   - `spi.provider` — `ArmorSetTemplateProvider`, `ClassTemplateProvider`, `InstanceTemplateProvider`,
     `ItemTemplateProvider`, `NpcTemplateProvider`, `RecipeTemplateProvider`, `SkillProvider`, `ItemOptionProvider`,
     `LifeStoneProvider`, `AugmentationTargetGroupProvider`,
-    `SoulCrystalTemplateProvider`, `ExperienceLevelProvider`, `GearScoreRulesetProvider`, `GameDataReadinessProvider`,
+    `SoulCrystalProvider` ([planned] rename of `SoulCrystalTemplateProvider`, 030-gamedata-sync §8.3),
+    `ExperienceLevelProvider`, `GearScoreRulesetProvider`, `GameDataReadinessProvider`,
     `DbSchemaProvider`, `RuntimeStateProvider`, `JdbcConnectionSource`.
   - `spi.model` — `EntityMapping`, `PrimarySource`, `ChildSource`, `ParentRef`,
     `RuntimeEntityMapping`, `RuntimeRow`.
@@ -104,7 +105,7 @@ the slice's contract from its supporting types. The same smell exists inside cor
   | `domain.clan` (new)               | `SocialClass`, `ResidenceType`, `SiegeSide`                                                                                         |
   | `domain.character.state` (new)    | `MovementState`, `RelativePosition`, `MountType`                                                                                    |
   | `domain.character.resource` (new) | `SoulType`, `CharacterResource`                                                                                                     |
-  | `domain.item`                     | `WeaponType` (moved from `domain`, gains `PISTOLS`), `ItemGrade`, `ItemOptionTrigger`, `LifeStoneGrade` (new)                       |
+  | `domain.item`                     | `WeaponType` (moved from `domain`, gains `PISTOLS`), `ItemGrade`, `ItemSkillType` ([planned], replaces `ItemOptionTrigger`, 030-gamedata-sync §8.1), `LifeStoneGrade` (new) |
   | `kafka.sync.gd.skill.effect`      | `SkillEffect` (`StatModifier` moved to `kafka.sync.gd`, shared with item options)                                                   |
   | `kafka.sync.gd.skill.condition`   | `SkillConditionNode` (new)                                                                                                          |
   | `kafka.sync.gd.skill.learn`       | `SkillLearn`, `SkillLearnItemSet`, `SkillLearnSubClass`, `SkillLevelRef` (new); `SkillLearnItem` (moved from `kafka.sync.gd.skill`) |

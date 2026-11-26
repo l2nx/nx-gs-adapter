@@ -1,9 +1,10 @@
-# gd-sync augmentation contract (nx-gs-adapter-api 0.116.0)
+# gd-sync augmentation contract (nx-gs-adapter-api 0.116.0; option skill type: next breaking api release)
 
 This file is the living, build-agnostic contract of the augmentation catalog on the gd-sync stream: the entities
 `itemoption`, `lifestone` and `augmentationtargetgroup`. It is kept in sync with the DTOs in `kafka.sync.gd.itemoption`,
-`kafka.sync.gd.augmentation.*` and `kafka.sync.gd.StatModifier`, and with the enums `domain.item.ItemOptionTrigger`
-and `domain.item.LifeStoneGrade`, in the same commit: any change to one updates the other. The module mechanics (burst
+`kafka.sync.gd.augmentation.*` and `kafka.sync.gd.StatModifier`, and with the enums `domain.item.ItemSkillType`
+(shared with item-template skills, defined in [`spec.md`](spec.md) §8.1), `domain.item.LifeStoneGrade` and
+`domain.item.ItemOptionQuality`, in the same commit: any change to one updates the other. The module mechanics (burst
 protocol, readiness, `null` vs empty snapshot) are in [`spec.md`](spec.md); the naming rules N1-N10 of
 [`skill-contract.md`](skill-contract.md) apply here unchanged.
 
@@ -28,14 +29,14 @@ outcomes of one stone (worst known build: about 60 KB); no per-record size guard
 
 Prefix `app.l2nx.gs.adapter.api.`:
 
-| package                                  | types                                           |
-| ---------------------------------------- | ----------------------------------------------- |
-| `kafka.sync.gd`                          | `StatModifier` (shared with the `skill` entity) |
-| `kafka.sync.gd.itemoption`               | `ItemOption`, `ItemOptionSkill`                 |
-| `kafka.sync.gd.augmentation.lifestone`   | `LifeStone`, `AugmentationOutcome`              |
-| `kafka.sync.gd.augmentation.targetgroup` | `AugmentationTargetGroup`                       |
-| `domain.item`                            | `ItemOptionTrigger`, `LifeStoneGrade`, `ItemOptionQuality` |
-| `spi.provider`                           | the three providers of §1                       |
+| package                                  | types                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `kafka.sync.gd`                          | `StatModifier` (shared with the `skill` entity)                                             |
+| `kafka.sync.gd.itemoption`               | `ItemOption`, `ItemOptionSkill`                                                             |
+| `kafka.sync.gd.augmentation.lifestone`   | `LifeStone`, `AugmentationOutcome`                                                          |
+| `kafka.sync.gd.augmentation.targetgroup` | `AugmentationTargetGroup`                                                                   |
+| `domain.item`                            | `ItemSkillType` ([planned], was `ItemOptionTrigger`), `LifeStoneGrade`, `ItemOptionQuality` |
+| `spi.provider`                           | the three providers of §1                                                                   |
 
 The option catalog sits outside `augmentation` because enchanting references the same option ids.
 
@@ -53,24 +54,27 @@ An option the engine defines with no bonus at all is still sent: other data refe
 
 ### 3.2 `ItemOptionSkill`
 
-| field           | type                | null     | semantics                                                                                  |
-| --------------- | ------------------- | -------- | ------------------------------------------------------------------------------------------ |
-| `skillId`       | `int`               | non-null |                                                                                            |
-| `skillLevel`    | `int`               | non-null |                                                                                            |
-| `trigger`       | `ItemOptionTrigger` | nullable | event that casts the skill (§4.1); `null` = the item grants the skill                      |
-| `chancePercent` | `Double`            | nullable | cast chance on `trigger`, `0 < p <= 100`; present exactly when `trigger` is                |
+[planned] Shape of the next breaking api release ([`spec.md`](spec.md) §8); until then the code carries
+`trigger` (`ItemOptionTrigger`: `ATTACK`, `MAGIC`, `CRITICAL`, `null` for a granted skill) and no `typeRaw`.
 
-Without a `trigger` the item grants the skill: it is learned while the item is equipped. Whether it is active or
-passive is the skill's own `operateType`; the option does not repeat it, because the engine grants both kinds the same
-way. With a `trigger` the skill is cast with `chancePercent` on that event; the event is the option's data, since the
-cast skill does not know which event fires it.
+| field           | type            | null     | semantics                                                                                     |
+| --------------- | --------------- | -------- | --------------------------------------------------------------------------------------------- |
+| `skillId`       | `int`           | non-null |                                                                                               |
+| `skillLevel`    | `int`           | non-null |                                                                                               |
+| `type`          | `ItemSkillType` | nullable | when the skill is in effect or cast (§4.1); `null` when the engine token has no exact meaning |
+| `typeRaw`       | `String`        | non-null | engine token or construct the type comes from ([`spec.md`](spec.md) §8.5); never empty        |
+| `chancePercent` | `Double`        | nullable | cast chance on the event, `0 < p <= 100`; present exactly for the chance events of §4.1       |
 
-`trigger` has no `Raw` companion: it is derived 1:1 from the structure of the engine option (N1). The builder checks
-the pairing (`chancePercent` present exactly when `trigger` is); the constructor checks only the range (the same
-`0 < p <= 100` as `AugmentationOutcome`, so a zero chance is rejected: a trigger that never fires is not sent), so a
-trigger unknown to the consumer reads as `null` without rejecting the option. Such an entry looks like a granted skill
-that carries a chance: a consumer that relies on the pairing treats a chance without a trigger as an event it cannot
-place, not as a granted skill.
+`EQUIPPED` is a granted skill: it is learned while the item is equipped. Whether it is active or passive is the skill's
+own `operateType`; the option does not repeat it, because the engine grants both kinds the same way. With an event type
+the skill is cast with `chancePercent` on that event; the event is the option's data, since the cast skill does not know
+which event fires it.
+
+The builder checks the pairing (`chancePercent` present exactly for a chance event) and rejects a type an option cannot
+express (`EQUIPPED_ENCHANT` needs a threshold the option has no field for). The constructor checks only `typeRaw` and the
+range (the same `0 < p <= 100` as `AugmentationOutcome`, so a zero chance is rejected: an event that never fires is not
+sent), so a type unknown to the consumer reads as `null` without rejecting the option; `typeRaw` still tells what it
+was, and a chance without a known type is an event the consumer cannot place, not a granted skill.
 
 ### 3.3 `StatModifier`
 
@@ -129,30 +133,32 @@ through its item catalog (item class, magic-weapon flag, equip slot), so the wir
 ## 4. Enums
 
 A consumer reads a constant it does not know as `null` (Jackson `READ_UNKNOWN_ENUM_VALUES_AS_NULL`). New constants are
-appended; existing ones are never renamed or removed.
+appended; a constant or an enum is renamed or removed only in a breaking api release (as `ItemOptionTrigger`, §6).
 
-### 4.1 `ItemOptionTrigger` (`domain.item`)
+### 4.1 `ItemSkillType` (`domain.item`)
 
-The owner's combat event on which the option casts its skill with `chancePercent`.
+[planned] The vocabulary and its pairing rules are defined once in [`spec.md`](spec.md) §8.1, shared with item-template
+skills. An engine option uses four of its constants:
 
-| constant   | event                                                                                          |
-| ---------- | ---------------------------------------------------------------------------------------------- |
-| `ATTACK`   | a normal-attack hit that is not critical, and every physical skill cast, once per affected target |
-| `MAGIC`    | every magic skill cast, once per affected target                                               |
-| `CRITICAL` | a critical normal-attack hit; a critical hit of a physical skill does not fire it              |
+| constant                        | event                                                                                             | was        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- | ---------- |
+| `EQUIPPED`                      | none: the skill is granted while the item is equipped                                             | `null`     |
+| `ON_PHYSICAL_HIT`               | a normal-attack hit that is not critical, and every physical skill cast, once per affected target | `ATTACK`   |
+| `ON_MAGIC_SKILL_CAST`           | every magic skill cast, once per affected target                                                  | `MAGIC`    |
+| `ON_NORMAL_ATTACK_CRITICAL_HIT` | a critical normal-attack hit; a critical hit of a physical skill does not fire it                 | `CRITICAL` |
 
-On a normal attack `ATTACK` and `CRITICAL` exclude each other: a hit fires one or the other.
+A build whose options use another constant of §8.1 (an Essence option cast on equip, for example) sends it as is.
 
 ### 4.2 `LifeStoneGrade` (`domain.item`)
 
-| constant    | meaning                         |
-| ----------- | ------------------------------- |
-| `NONE`      | the plain stone of its level    |
-| `MID`       | mid-grade stone                 |
-| `HIGH`      | high-grade stone                |
-| `TOP`       | top-grade stone                 |
-| `JEWELRY`   | stone for jewelry (neck, ear, finger slots) |
-| `GREAT`     | Great Life Stone                |
+| constant  | meaning                                     |
+| --------- | ------------------------------------------- |
+| `NONE`    | the plain stone of its level                |
+| `MID`     | mid-grade stone                             |
+| `HIGH`    | high-grade stone                            |
+| `TOP`     | top-grade stone                             |
+| `JEWELRY` | stone for jewelry (neck, ear, finger slots) |
+| `GREAT`   | Great Life Stone                            |
 
 `grade = null` is not `NONE`: `NONE` is a real grade (the plain stone), `null` means no canonical grade. Lower stone
 tiers of other lines are added with the first provider that sends them.
@@ -197,6 +203,9 @@ that later sends option quality uses the same tokens.
 ## 6. Compatibility
 
 - 0.116.0 adds the three entities; nothing on the wire changes for existing ones.
+- [planned] Next breaking api release: `ItemOptionSkill.trigger` becomes `type` + `typeRaw`, `ItemOptionTrigger` is
+  removed (`ItemSkillType`, [`spec.md`](spec.md) §8). No straddle on the platform: an old host's options are rejected
+  until it restarts on the new release, and the platform keeps the last good snapshot meanwhile (§8.6 there).
 - `SkillStatModifier` (`kafka.sync.gd.skill.effect`) became `StatModifier` (`kafka.sync.gd`) in the same release. The
   JSON shape is unchanged; only Java imports of hosts and consumers break.
 - A consumer must route the three entity names before a host sends them; an unknown `entityName` is skipped by the

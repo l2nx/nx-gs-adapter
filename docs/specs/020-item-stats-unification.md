@@ -1,5 +1,19 @@
 # Item stats unification — canonical build-agnostic stat map
 
+## Summary
+
+An item template carries all its numeric stats in one map, `ItemStats.stats`
+(`Map<String,Double>`), keyed by tokens of the closed `Stat` enum: stat-func
+bonuses and weapon mechanics alike. The host's item-template provider translates
+its engine's stat names and weapon accessors into `Stat` tokens at source; every
+downstream layer passes the map through unchanged. Only `magicWeapon` stays a
+boolean beside the map. An engine stat with no `Stat` constant is dropped and
+logged once, so the vocabulary stays closed. The `Stat` constants added later
+for skills and NPCs are in
+[`030-gamedata-sync/skill-contract.md`](030-gamedata-sync/skill-contract.md) §3.1;
+the item-only constants (weapon mechanics, reduced shot and MP consumption) are
+in the token mapping below.
+
 ## Problem
 
 Item stats are carried twice, at every layer of the game-data pipeline
@@ -9,7 +23,7 @@ Item stats are carried twice, at every layer of the game-data pipeline
   `attackSpeed`, `criticalRate`, `attackRange`, `randomDamage`, `soulshots`,
   `spiritshots`, `mpConsume`, …).
 - An open **`statBonuses` map** (`Map<String,Double>`) that already includes the
-  combat *stat-func* values under raw L2J `Stats` enum names.
+  combat _stat-func_ values under raw L2J `Stats` enum names.
 
 Prod data confirms the duplication on `gd_item_templates`:
 
@@ -56,16 +70,24 @@ unchanged. The only item-stat datum that stays outside the map is `magicWeapon`
 ## Decisions
 
 | Decision                                                                | Choice                                                                               |
-|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | Where canonicalization happens                                          | At source — host item-template provider                                              |
-| Canonical vocabulary home                                               | New `Stat` enum in `nx-gs-adapter-api`                                           |
+| Canonical vocabulary home                                               | New `Stat` enum in `nx-gs-adapter-api`                                               |
 | Token style                                                             | Short L2-community shorthand (`P_ATK`, `M_ATK`, …)                                   |
 | Weapon mechanics (`soulshots`/`spiritshots`/`mpConsume`/`randomDamage`) | Folded into the unified map (full uniformity — one place)                            |
 | `attackRange`                                                           | Folded into the map as `ATK_RANGE`                                                   |
 | `magicWeapon`                                                           | Stays a boolean in `flags` (not a `Double`)                                          |
-| Map field name                                                          | Renamed `statBonuses` → `stats` end-to-end (it is now *all* stats, not only bonuses) |
+| Map field name                                                          | Renamed `statBonuses` → `stats` end-to-end (it is now _all_ stats, not only bonuses) |
 | Unmapped L2J stat-funcs                                                 | Dropped + logged once — vocabulary stays closed                                      |
 | Rollout                                                                 | Coordinated cutover (no transient dual-emit)                                         |
+| Reduced shot / MP consumption ([planned])                               | Four `Stat` tokens in the same map, a count and a chance per pair                    |
+
+Reduced shot / MP consumption (owner, 2026-11-26): the `"chance,count"` pair is
+two plain numbers, so it fits the map with no new value shape, and a consumer
+that builds the weapon's effect from the map gets it with no extra input.
+Rejected: a typed weapon-properties block on `ItemTemplate` (a second home for
+weapon numbers, against the one-map decision above); one composite token (the
+map holds one `Double` per key).
 
 ## Canonical vocabulary — `Stat` enum
 
@@ -85,7 +107,7 @@ the host integration, never in the enum or the wire.
 Offense:
 
 | Raw L2J              | Canonical     |
-|----------------------|---------------|
+| -------------------- | ------------- |
 | `POWER_ATTACK`       | `P_ATK`       |
 | `MAGIC_ATTACK`       | `M_ATK`       |
 | `POWER_ATTACK_SPEED` | `ATK_SPD`     |
@@ -98,7 +120,7 @@ Offense:
 Defense:
 
 | Raw L2J             | Canonical       |
-|---------------------|-----------------|
+| ------------------- | --------------- |
 | `POWER_DEFENCE`     | `P_DEF`         |
 | `MAGIC_DEFENCE`     | `M_DEF`         |
 | `EVASION_RATE`      | `EVASION`       |
@@ -109,7 +131,7 @@ Defense:
 Vitals & movement:
 
 | Raw L2J      | Canonical |
-|--------------|-----------|
+| ------------ | --------- |
 | `MAX_HP`     | `MAX_HP`  |
 | `MAX_MP`     | `MAX_MP`  |
 | `MOVE_SPEED` | `SPEED`   |
@@ -117,29 +139,47 @@ Vitals & movement:
 Weapon mechanics (folded in — sourced from weapon accessors, not stat-funcs):
 
 | Source (L2J `Weapon`)  | Canonical                                      |
-|------------------------|------------------------------------------------|
+| ---------------------- | ---------------------------------------------- |
 | `getBaseAttackRange()` | `ATK_RANGE` (same token as the stat-func form) |
 | `getRandomDamage()`    | `RANDOM_DAMAGE`                                |
 | `getSoulShotCount()`   | `SOULSHOT_COUNT`                               |
 | `getSpiritShotCount()` | `SPIRITSHOT_COUNT`                             |
 | `getMpConsume()`       | `MP_CONSUME`                                   |
 
+[planned] Reduced shot and MP consumption, with the next breaking api release
+([030-gamedata-sync §8.4](030-gamedata-sync/spec.md)). A weapon property, not a
+stat-func: when it procs on an attack, the weapon spends `count` shots / MP
+instead of its normal amount. The engine keeps it as one `"chance,count"` pair
+(`reduced_soulshot`, `reduced_mp_consume` in the weapon data of both HighFive
+and Essence builds); the host splits it into two keys:
+
+| Source (weapon property)    | Canonical                                              |
+| --------------------------- | ------------------------------------------------------ |
+| `reduced_soulshot` chance   | `REDUCED_SOULSHOT_CHANCE` (percent, `[0, 100]`)        |
+| `reduced_soulshot` count    | `REDUCED_SOULSHOT_COUNT` (soulshots spent on the proc) |
+| `reduced_mp_consume` chance | `REDUCED_MP_CONSUME_CHANCE` (percent, `[0, 100]`)      |
+| `reduced_mp_consume` count  | `REDUCED_MP_CONSUME_COUNT` (MP spent on the proc)      |
+
+The two keys of a pair travel together or not at all: a weapon without the
+property carries neither (absent, never `0`, as with every weapon mechanic). The
+four constants are appended at the end of `Stat`, after the frozen ones.
+
 Attribute attack power:
 
 | Raw L2J                                   | Canonical                                 |
-|-------------------------------------------|-------------------------------------------|
+| ----------------------------------------- | ----------------------------------------- |
 | `{FIRE,WATER,WIND,EARTH,HOLY,DARK}_POWER` | `{FIRE,WATER,WIND,EARTH,HOLY,DARK}_POWER` |
 
 Attribute resistance:
 
 | Raw L2J                                 | Canonical                               |
-|-----------------------------------------|-----------------------------------------|
+| --------------------------------------- | --------------------------------------- |
 | `{FIRE,WATER,WIND,EARTH,HOLY,DARK}_RES` | `{FIRE,WATER,WIND,EARTH,HOLY,DARK}_RES` |
 
 Special / non-combat:
 
 | Raw L2J    | Canonical   |
-|------------|-------------|
+| ---------- | ----------- |
 | `AUTOLOOT` | `AUTOLOOT`  |
 | `INV_LIM`  | `INV_LIMIT` |
 
@@ -202,17 +242,17 @@ in-migration backfill (see `nx-gamedata` below) and filling the 76k-vs-44k gap
 ## `nx-gamedata`
 
 - Migration (`v1.9.6_item_stats_unification.sql`, forward-only, three changesets):
-    1. **Rename** `stat_bonuses` → `stats`.
-    2. **Backfill** `stats` in-place from the existing raw-keyed map + the typed
-       combat columns, so the read path serves canonical stats immediately
-       (without waiting on the host re-sync). Raw L2J keys are translated
-       to canonical tokens; the typed columns are folded in as canonical keys
-       (`p_atk`→`P_ATK`, …, `soulshots`→`SOULSHOT_COUNT`, …); translated
-       stat-func keys win over typed columns; typed `0` is dropped
-       (`= not applicable`, matching the provider's `putMechanic`).
-    3. **Drop** the 11 combat columns: `p_atk, m_atk, p_def, m_def, attack_speed,
-       critical_rate, attack_range, random_damage, soulshots, spiritshots,
-       mp_consume`. Keep `is_magic_weapon`.
+  1. **Rename** `stat_bonuses` → `stats`.
+  2. **Backfill** `stats` in-place from the existing raw-keyed map + the typed
+     combat columns, so the read path serves canonical stats immediately
+     (without waiting on the host re-sync). Raw L2J keys are translated
+     to canonical tokens; the typed columns are folded in as canonical keys
+     (`p_atk`→`P_ATK`, …, `soulshots`→`SOULSHOT_COUNT`, …); translated
+     stat-func keys win over typed columns; typed `0` is dropped
+     (`= not applicable`, matching the provider's `putMechanic`).
+  3. **Drop** the 11 combat columns: `p_atk, m_atk, p_def, m_def, attack_speed,
+critical_rate, attack_range, random_damage, soulshots, spiritshots,
+mp_consume`. Keep `is_magic_weapon`.
 - `ItemTemplate` domain record + `ItemTemplateKafkaMapper`: drop the 11 fields;
   map `getStats()` (the renamed map) into the `stats` field as received (already
   canonical). `magicWeapon` mapping unchanged.
@@ -295,3 +335,7 @@ host full re-sync refreshes `stats` with freshly-computed canonical values.
   armor-set bonuses can follow if desired.
 - Localized display names / translations for the stat keys — owned by the
   frontend, driven off the enumerated `@Schema` list.
+
+## Open questions
+
+None.

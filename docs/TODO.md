@@ -25,3 +25,4 @@ removes its line.
 - [#47](https://github.com/l2nx/nx-gs-adapter/issues/47) `PlayerMailItem` into `commands/mail/model/`
 - [#48](https://github.com/l2nx/nx-gs-adapter/issues/48) Check command for the app private store
 - [#49](https://github.com/l2nx/nx-gs-adapter/issues/49) Drop the numeric `classId` from olympiad events
+- [#71](https://github.com/l2nx/nx-gs-adapter/issues/71) `WeaponSpecialAbilityProvider`: weapon special abilities from the engine (`ENGINE` rows)
