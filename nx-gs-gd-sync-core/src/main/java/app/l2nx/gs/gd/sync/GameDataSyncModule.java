@@ -22,7 +22,7 @@ import app.l2nx.gs.adapter.api.kafka.sync.gd.itemtemplate.ItemTemplate;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.npctemplate.NpcTemplate;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.recipetemplate.RecipeTemplate;
 import app.l2nx.gs.adapter.api.kafka.sync.gd.skill.Skill;
-import app.l2nx.gs.adapter.api.kafka.sync.gd.soulcrystaltemplate.SoulCrystalTemplate;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.soulcrystal.SoulCrystal;
 import app.l2nx.gs.adapter.api.spi.*;
 import app.l2nx.gs.adapter.api.spi.capability.NxGameData;
 import app.l2nx.gs.adapter.api.spi.provider.ArmorSetTemplateProvider;
@@ -41,7 +41,7 @@ import app.l2nx.gs.adapter.api.spi.provider.LifeStoneProvider;
 import app.l2nx.gs.adapter.api.spi.provider.NpcTemplateProvider;
 import app.l2nx.gs.adapter.api.spi.provider.RecipeTemplateProvider;
 import app.l2nx.gs.adapter.api.spi.provider.SkillProvider;
-import app.l2nx.gs.adapter.api.spi.provider.SoulCrystalTemplateProvider;
+import app.l2nx.gs.adapter.api.spi.provider.SoulCrystalProvider;
 import app.l2nx.gs.commons.concurrent.DaemonThreadFactory;
 import app.l2nx.gs.commons.concurrent.SafeRunnable;
 import app.l2nx.gs.commons.spi.ServiceProviders;
@@ -61,10 +61,8 @@ import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
 /**
- * Publishes static game-data templates onto the {@code gd} sync stream, one independent {@link EntitySync} per
- * present provider SPI. Every pass is gated on {@link GameDataReadinessProvider}: the adapter connects before the
- * datapack is parsed, and an ungated pass would publish from half-initialized host state.
- * Hooks catch {@link Throwable} and never propagate to the host JVM.
+ * Publishes game-data catalogs onto the {@code gd} sync stream, one {@link EntitySync} per present provider SPI.
+ * Every pass is gated on {@link GameDataReadinessProvider}: the adapter connects before the datapack is parsed.
  */
 public final class GameDataSyncModule implements AdapterModule {
 
@@ -147,11 +145,9 @@ public final class GameDataSyncModule implements AdapterModule {
                 ArmorSetTemplateProvider::entityName,
                 ArmorSetTemplateProvider::snapshot,
                 t -> (long) t.getId()));
-        list.add(new EntityDescriptor<SoulCrystalTemplateProvider, SoulCrystalTemplate>(
-                SoulCrystalTemplateProvider.class,
-                SoulCrystalTemplateProvider::entityName,
-                SoulCrystalTemplateProvider::snapshot,
-                t -> (long) t.getId()));
+        list.add(new EntityDescriptor<SoulCrystalProvider, SoulCrystal>(
+                SoulCrystalProvider.class, SoulCrystalProvider::entityName, SoulCrystalProvider::snapshot, t ->
+                        (long) t.getItemTemplateId()));
         list.add(new EntityDescriptor<ExperienceLevelProvider, ExperienceLevel>(
                 ExperienceLevelProvider.class,
                 ExperienceLevelProvider::entityName,
@@ -514,8 +510,8 @@ public final class GameDataSyncModule implements AdapterModule {
     }
 
     /**
-     * Coalesces concurrent triggers into one in-flight runner. Callers set {@code rerunRequested} before
-     * contending for the running flag, so a trigger landing in the tail of a pass is never lost.
+     * Coalesces concurrent triggers into one runner; {@code rerunRequested} is set before contending for the
+     * running flag, so a trigger landing in the tail of a pass is not lost.
      */
     private void runAllSnapshots(ConnectContext ctx, GameDataSnapshotPublisher pub) {
         // stale task from a previous connection must not publish against the new one's serverId/topics

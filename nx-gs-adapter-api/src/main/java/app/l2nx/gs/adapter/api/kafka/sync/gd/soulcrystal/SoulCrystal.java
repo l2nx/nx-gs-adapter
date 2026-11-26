@@ -1,32 +1,33 @@
-package app.l2nx.gs.adapter.api.kafka.sync.gd.soulcrystaltemplate;
+package app.l2nx.gs.adapter.api.kafka.sync.gd.soulcrystal;
 
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One node of the soul-crystal leveling chain; the next-level crystal is {@code null} at the top, and the cursed
- * variant is what a failed level-up yields.
+ * One node of the soul-crystal leveling chain. {@code level} is {@code null} when the build has no stage number;
+ * {@code nextItemTemplateId} (successful level-up) is {@code null} at the chain top; {@code cursedNextItemTemplateId}
+ * (failed level-up) is {@code null} when the build has none.
  */
-public final class SoulCrystalTemplate {
+public final class SoulCrystal {
 
-    private final int id;
+    private final int itemTemplateId;
     private final @Nullable Integer level;
     private final @Nullable Integer nextItemTemplateId;
     private final @Nullable Integer cursedNextItemTemplateId;
 
-    public SoulCrystalTemplate(
-            int id,
+    public SoulCrystal(
+            int itemTemplateId,
             @Nullable Integer level,
             @Nullable Integer nextItemTemplateId,
             @Nullable Integer cursedNextItemTemplateId) {
-        this.id = id;
+        this.itemTemplateId = itemTemplateId;
         this.level = level;
         this.nextItemTemplateId = nextItemTemplateId;
         this.cursedNextItemTemplateId = cursedNextItemTemplateId;
     }
 
-    public int getId() {
-        return id;
+    public int getItemTemplateId() {
+        return itemTemplateId;
     }
 
     public @Nullable Integer getLevel() {
@@ -43,7 +44,7 @@ public final class SoulCrystalTemplate {
 
     public Builder toBuilder() {
         return new Builder()
-                .id(id)
+                .itemTemplateId(itemTemplateId)
                 .level(level)
                 .nextItemTemplateId(nextItemTemplateId)
                 .cursedNextItemTemplateId(cursedNextItemTemplateId);
@@ -56,9 +57,9 @@ public final class SoulCrystalTemplate {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof SoulCrystalTemplate)) return false;
-        SoulCrystalTemplate that = (SoulCrystalTemplate) o;
-        return id == that.id
+        if (!(o instanceof SoulCrystal)) return false;
+        SoulCrystal that = (SoulCrystal) o;
+        return itemTemplateId == that.itemTemplateId
                 && Objects.equals(level, that.level)
                 && Objects.equals(nextItemTemplateId, that.nextItemTemplateId)
                 && Objects.equals(cursedNextItemTemplateId, that.cursedNextItemTemplateId);
@@ -66,22 +67,23 @@ public final class SoulCrystalTemplate {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, level, nextItemTemplateId, cursedNextItemTemplateId);
+        return Objects.hash(itemTemplateId, level, nextItemTemplateId, cursedNextItemTemplateId);
     }
 
     @Override
     public String toString() {
-        return "SoulCrystalTemplate[id=" + id + ", level=" + level + "]";
+        return "SoulCrystal[itemTemplateId=" + itemTemplateId + ", level=" + level + ", nextItemTemplateId="
+                + nextItemTemplateId + ", cursedNextItemTemplateId=" + cursedNextItemTemplateId + "]";
     }
 
     public static final class Builder {
-        private int id;
+        private int itemTemplateId;
         private @Nullable Integer level;
         private @Nullable Integer nextItemTemplateId;
         private @Nullable Integer cursedNextItemTemplateId;
 
-        public Builder id(int id) {
-            this.id = id;
+        public Builder itemTemplateId(int itemTemplateId) {
+            this.itemTemplateId = itemTemplateId;
             return this;
         }
 
@@ -100,8 +102,8 @@ public final class SoulCrystalTemplate {
             return this;
         }
 
-        public SoulCrystalTemplate build() {
-            return new SoulCrystalTemplate(id, level, nextItemTemplateId, cursedNextItemTemplateId);
+        public SoulCrystal build() {
+            return new SoulCrystal(itemTemplateId, level, nextItemTemplateId, cursedNextItemTemplateId);
         }
     }
 }

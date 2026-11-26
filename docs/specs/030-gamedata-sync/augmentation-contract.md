@@ -29,14 +29,14 @@ outcomes of one stone (worst known build: about 60 KB); no per-record size guard
 
 Prefix `app.l2nx.gs.adapter.api.`:
 
-| package                                  | types                                                                                       |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `kafka.sync.gd`                          | `StatModifier` (shared with the `skill` entity)                                             |
-| `kafka.sync.gd.itemoption`               | `ItemOption`, `ItemOptionSkill`                                                             |
-| `kafka.sync.gd.augmentation.lifestone`   | `LifeStone`, `AugmentationOutcome`                                                          |
-| `kafka.sync.gd.augmentation.targetgroup` | `AugmentationTargetGroup`                                                                   |
-| `domain.item`                            | `ItemSkillType` ([planned], was `ItemOptionTrigger`), `LifeStoneGrade`, `ItemOptionQuality` |
-| `spi.provider`                           | the three providers of §1                                                                   |
+| package                                  | types                                                                                         |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `kafka.sync.gd`                          | `StatModifier` (shared with the `skill` entity)                                               |
+| `kafka.sync.gd.itemoption`               | `ItemOption`, `ItemOptionSkill`                                                               |
+| `kafka.sync.gd.augmentation.lifestone`   | `LifeStone`, `AugmentationOutcome`                                                            |
+| `kafka.sync.gd.augmentation.targetgroup` | `AugmentationTargetGroup`                                                                     |
+| `domain.item`                            | `ItemSkillType` (api 0.139.0, was `ItemOptionTrigger`), `LifeStoneGrade`, `ItemOptionQuality` |
+| `spi.provider`                           | the three providers of §1                                                                     |
 
 The option catalog sits outside `augmentation` because enchanting references the same option ids.
 
@@ -54,8 +54,8 @@ An option the engine defines with no bonus at all is still sent: other data refe
 
 ### 3.2 `ItemOptionSkill`
 
-[planned] Shape of the next breaking api release ([`spec.md`](spec.md) §8); until then the code carries
-`trigger` (`ItemOptionTrigger`: `ATTACK`, `MAGIC`, `CRITICAL`, `null` for a granted skill) and no `typeRaw`.
+[done] Shape since api 0.139.0 ([`spec.md`](spec.md) §8); before it the option carried `trigger` (`ItemOptionTrigger`:
+`ATTACK`, `MAGIC`, `CRITICAL`, `null` for a granted skill) and no `typeRaw`.
 
 | field           | type            | null     | semantics                                                                                     |
 | --------------- | --------------- | -------- | --------------------------------------------------------------------------------------------- |
@@ -137,8 +137,8 @@ appended; a constant or an enum is renamed or removed only in a breaking api rel
 
 ### 4.1 `ItemSkillType` (`domain.item`)
 
-[planned] The vocabulary and its pairing rules are defined once in [`spec.md`](spec.md) §8.1, shared with item-template
-skills. An engine option uses four of its constants:
+[done] api 0.139.0. The vocabulary and its pairing rules are defined once in [`spec.md`](spec.md) §8.1, shared with
+item-template skills. An engine option uses four of its constants:
 
 | constant                        | event                                                                                             | was        |
 | ------------------------------- | ------------------------------------------------------------------------------------------------- | ---------- |
@@ -203,10 +203,10 @@ that later sends option quality uses the same tokens.
 ## 6. Compatibility
 
 - 0.116.0 adds the three entities; nothing on the wire changes for existing ones.
-- [planned] Next breaking api release: `ItemOptionSkill.trigger` becomes `type` + `typeRaw`, `ItemOptionTrigger` is
-  removed (`ItemSkillType`, [`spec.md`](spec.md) §8). No straddle on the platform: an old host's options are rejected
-  until it restarts on the new release, and the platform keeps the last good snapshot meanwhile (§8.6 there).
 - `SkillStatModifier` (`kafka.sync.gd.skill.effect`) became `StatModifier` (`kafka.sync.gd`) in the same release. The
   JSON shape is unchanged; only Java imports of hosts and consumers break.
 - A consumer must route the three entity names before a host sends them; an unknown `entityName` is skipped by the
   platform consumer.
+- [done] api 0.139.0 (breaking): `ItemOptionSkill.trigger` became `type` + `typeRaw`, `ItemOptionTrigger` is
+  removed (`ItemSkillType`, [`spec.md`](spec.md) §8). No straddle on the platform: an old host's options are rejected
+  until it restarts on the new release, and the platform keeps the last good snapshot meanwhile (§8.6 there).

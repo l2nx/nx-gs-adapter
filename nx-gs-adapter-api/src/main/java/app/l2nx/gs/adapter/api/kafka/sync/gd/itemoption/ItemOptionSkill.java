@@ -1,30 +1,35 @@
 package app.l2nx.gs.adapter.api.kafka.sync.gd.itemoption;
 
-import app.l2nx.gs.adapter.api.domain.item.ItemOptionTrigger;
+import app.l2nx.gs.adapter.api.domain.item.ItemSkillType;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A skill an item option brings: without a {@code trigger} it is granted while the item is equipped (active or passive
- * per the skill's {@code operateType}), else cast with {@code chancePercent} (0 &lt; p &lt;= 100) on that event.
- * {@link Builder#build()} requires a chance exactly when a trigger is set; the constructor checks only the range, so a
- * trigger unknown to the consumer reads as {@code null} and leaves a chance without a trigger.
+ * A skill an item option brings. {@code type} is {@code null} when the engine token has no exact meaning in
+ * {@link ItemSkillType}; {@code typeRaw} names it, never empty. {@code chancePercent} ({@code 0 < p <= 100}) is set
+ * exactly for chance events and no enchant-gated type is allowed (no threshold field); only {@link Builder#build()}
+ * checks that, so a type unknown to the consumer reads as {@code null} without rejecting the option.
  */
 public final class ItemOptionSkill {
 
     private final int skillId;
     private final int skillLevel;
-    private final @Nullable ItemOptionTrigger trigger;
+    private final @Nullable ItemSkillType type;
+    private final String typeRaw;
     private final @Nullable Double chancePercent;
 
     public ItemOptionSkill(
-            int skillId, int skillLevel, @Nullable ItemOptionTrigger trigger, @Nullable Double chancePercent) {
+            int skillId, int skillLevel, @Nullable ItemSkillType type, String typeRaw, @Nullable Double chancePercent) {
+        if (typeRaw == null || typeRaw.trim().isEmpty()) {
+            throw new IllegalArgumentException("typeRaw is required, got [" + typeRaw + "]");
+        }
         if (chancePercent != null && !(chancePercent > 0d && chancePercent <= 100d)) {
             throw new IllegalArgumentException("chancePercent must be within (0, 100], got " + chancePercent);
         }
         this.skillId = skillId;
         this.skillLevel = skillLevel;
-        this.trigger = trigger;
+        this.type = type;
+        this.typeRaw = typeRaw;
         this.chancePercent = chancePercent;
     }
 
@@ -36,8 +41,12 @@ public final class ItemOptionSkill {
         return skillLevel;
     }
 
-    public @Nullable ItemOptionTrigger getTrigger() {
-        return trigger;
+    public @Nullable ItemSkillType getType() {
+        return type;
+    }
+
+    public String getTypeRaw() {
+        return typeRaw;
     }
 
     public @Nullable Double getChancePercent() {
@@ -48,7 +57,8 @@ public final class ItemOptionSkill {
         return new Builder()
                 .skillId(skillId)
                 .skillLevel(skillLevel)
-                .trigger(trigger)
+                .type(type)
+                .typeRaw(typeRaw)
                 .chancePercent(chancePercent);
     }
 
@@ -63,25 +73,27 @@ public final class ItemOptionSkill {
         ItemOptionSkill that = (ItemOptionSkill) o;
         return skillId == that.skillId
                 && skillLevel == that.skillLevel
-                && trigger == that.trigger
+                && type == that.type
+                && Objects.equals(typeRaw, that.typeRaw)
                 && Objects.equals(chancePercent, that.chancePercent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(skillId, skillLevel, trigger, chancePercent);
+        return Objects.hash(skillId, skillLevel, type, typeRaw, chancePercent);
     }
 
     @Override
     public String toString() {
-        return "ItemOptionSkill[skillId=" + skillId + ", skillLevel=" + skillLevel + ", trigger=" + trigger
-                + ", chancePercent=" + chancePercent + "]";
+        return "ItemOptionSkill[skillId=" + skillId + ", skillLevel=" + skillLevel + ", type=" + type + ", typeRaw="
+                + typeRaw + ", chancePercent=" + chancePercent + "]";
     }
 
     public static final class Builder {
         private int skillId;
         private int skillLevel;
-        private @Nullable ItemOptionTrigger trigger;
+        private @Nullable ItemSkillType type;
+        private @Nullable String typeRaw;
         private @Nullable Double chancePercent;
 
         public Builder skillId(int skillId) {
@@ -94,8 +106,13 @@ public final class ItemOptionSkill {
             return this;
         }
 
-        public Builder trigger(@Nullable ItemOptionTrigger trigger) {
-            this.trigger = trigger;
+        public Builder type(@Nullable ItemSkillType type) {
+            this.type = type;
+            return this;
+        }
+
+        public Builder typeRaw(String typeRaw) {
+            this.typeRaw = typeRaw;
             return this;
         }
 
@@ -105,11 +122,17 @@ public final class ItemOptionSkill {
         }
 
         public ItemOptionSkill build() {
-            if ((trigger != null) != (chancePercent != null)) {
-                throw new IllegalArgumentException("chancePercent is required with a trigger and only with it, trigger="
-                        + trigger + ", chancePercent=" + chancePercent);
+            if (type != null) {
+                if (type.enchantGated()) {
+                    throw new IllegalArgumentException(
+                            "an item option cannot carry an enchant threshold, type=" + type);
+                }
+                if (type.chanceEvent() != (chancePercent != null)) {
+                    throw new IllegalArgumentException("chancePercent is required exactly for a chance event, type="
+                            + type + ", chancePercent=" + chancePercent);
+                }
             }
-            return new ItemOptionSkill(skillId, skillLevel, trigger, chancePercent);
+            return new ItemOptionSkill(skillId, skillLevel, type, typeRaw, chancePercent);
         }
     }
 }

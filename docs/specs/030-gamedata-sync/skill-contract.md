@@ -374,8 +374,8 @@ The Javadoc of `Stat` lists the applicability contexts (item stats, NPC stats, s
 modifiers) and rule N7. "orientation": **as is** = the engine value maps unchanged; **invert** = vulnerability-oriented
 engine token, the host applies N7.
 
-[planned] The item-only constants `REDUCED_SOULSHOT_COUNT`, `REDUCED_SOULSHOT_CHANCE`, `REDUCED_MP_CONSUME_COUNT`,
-`REDUCED_MP_CONSUME_CHANCE` are appended with the next breaking api release: [`spec.md`](spec.md) §8.4.
+[done] api 0.139.0: the item-only constants `REDUCED_SOULSHOT_COUNT`, `REDUCED_SOULSHOT_CHANCE`, `REDUCED_MP_CONSUME_COUNT`,
+`REDUCED_MP_CONSUME_CHANCE` are appended: [`spec.md`](spec.md) §8.4.
 
 #### Base stats
 

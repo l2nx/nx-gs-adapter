@@ -34,7 +34,7 @@ the slice's contract from its supporting types. The same smell exists inside cor
   - `spi.provider` — `ArmorSetTemplateProvider`, `ClassTemplateProvider`, `InstanceTemplateProvider`,
     `ItemTemplateProvider`, `NpcTemplateProvider`, `RecipeTemplateProvider`, `SkillProvider`, `ItemOptionProvider`,
     `LifeStoneProvider`, `AugmentationTargetGroupProvider`,
-    `SoulCrystalProvider` ([planned] rename of `SoulCrystalTemplateProvider`, 030-gamedata-sync §8.3),
+    `SoulCrystalProvider` ([done] api 0.139.0, renamed from `SoulCrystalTemplateProvider`, 030-gamedata-sync §8.3),
     `ExperienceLevelProvider`, `GearScoreRulesetProvider`, `GameDataReadinessProvider`,
     `DbSchemaProvider`, `RuntimeStateProvider`, `JdbcConnectionSource`.
   - `spi.model` — `EntityMapping`, `PrimarySource`, `ChildSource`, `ParentRef`,
@@ -47,21 +47,21 @@ the slice's contract from its supporting types. The same smell exists inside cor
 
 - [done] R2. Supporting types of wire families move into `model/`:
 
-  | Slice                          | Into `model/`                                                                                                                    |
-  | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-  | `kafka.commands.privatestore`  | `BoughtLine`, `BuyLine`, `DroppedLine`, `DroppedLineReason`, `PrivateStoreReason`, `SellLine`, `WantedLine`                      |
-  | `kafka.commands.ban`           | `WellKnownBanSubjectTypes`, `WellKnownBanTypes`                                                                                  |
-  | `kafka.commands.mail`          | `ItemDeliveryError`, `MailItem`                                                                                                  |
-  | `kafka.commands.captcha` (new) | `CaptchaRoundResult`, `WellKnownCaptchaOutcomes`                                                                                 |
+  | Slice                          | Into `model/`                                                                                                                                        |
+  | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `kafka.commands.privatestore`  | `BoughtLine`, `BuyLine`, `DroppedLine`, `DroppedLineReason`, `PrivateStoreReason`, `SellLine`, `WantedLine`                                          |
+  | `kafka.commands.ban`           | `WellKnownBanSubjectTypes`, `WellKnownBanTypes`                                                                                                      |
+  | `kafka.commands.mail`          | `ItemDeliveryError`, `MailItem`                                                                                                                      |
+  | `kafka.commands.captcha` (new) | `CaptchaRoundResult`, `WellKnownCaptchaOutcomes`                                                                                                     |
   | `kafka.events.privatestore`    | `SellStoreLine`, `BuyStoreLine`, `StoreState`, `TradeLine`, `PrivateStoreSide`, `PrivateStoreMetadataKey`, `PrivateStoreMetadata`, `PrivateStoreFee` |
-  | `kafka.events.premiumpurchase` | `Payment`, `PurchaseItem`, `PurchaseService`, `WellKnownServices`                                                                |
-  | `kafka.events.olympiad`        | `OlympiadGameType`, `OlympiadMatchReason`, `OlympiadMatchResult`                                                                 |
-  | `kafka.events.character`       | `LogoutReason`, `SessionSource` (lenient `fromToken`), `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`    |
-  | `kafka.events.server.online`   | `ServerOnlineBucket`, `WellKnownServerStartMetadata`                                                                             |
-  | `kafka.ops`                    | `ChangesSummary`, `CommandsStats`, `EntityState`, `EntityStats`, `EventsStats`, `ModuleStates`, `ModuleStatus`, `PoolStats`      |
-  | `kafka.sync.runtime.character` | `CharacterEffect`, `CharacterEffectOffline`, `WellKnownAiStatuses`                                                               |
-  | `kafka.sync.gd.npctemplate`    | `WellKnownNpcTypes`                                                                                                              |
-  | `kafka.sync.gd.gearscore`      | `GearScoreRule`, `GearScoreRuleGroup`, `GearScoreScalingStep`, `WellKnownGearScoreEnchantProfiles`                               |
+  | `kafka.events.premiumpurchase` | `Payment`, `PurchaseItem`, `PurchaseService`, `WellKnownServices`                                                                                    |
+  | `kafka.events.olympiad`        | `OlympiadGameType`, `OlympiadMatchReason`, `OlympiadMatchResult`                                                                                     |
+  | `kafka.events.character`       | `LogoutReason`, `SessionSource` (lenient `fromToken`), `WellKnownDeathMetadata`, `WellKnownFarmModes`, `WellKnownKillerTypes`                        |
+  | `kafka.events.server.online`   | `ServerOnlineBucket`, `WellKnownServerStartMetadata`                                                                                                 |
+  | `kafka.ops`                    | `ChangesSummary`, `CommandsStats`, `EntityState`, `EntityStats`, `EventsStats`, `ModuleStates`, `ModuleStatus`, `PoolStats`                          |
+  | `kafka.sync.runtime.character` | `CharacterEffect`, `CharacterEffectOffline`, `WellKnownAiStatuses`                                                                                   |
+  | `kafka.sync.gd.npctemplate`    | `WellKnownNpcTypes`                                                                                                                                  |
+  | `kafka.sync.gd.gearscore`      | `GearScoreRule`, `GearScoreRuleGroup`, `GearScoreScalingStep`, `WellKnownGearScoreEnchantProfiles`                                                   |
 
   Package-private helpers (`MailLists`, `PrivateStoreLists`) stay with the commands that use them;
   `BuyLine` needs none: its attributes live in its `ItemSnapshot` ([`042`](042-item-snapshot.md)).
@@ -94,22 +94,22 @@ the slice's contract from its supporting types. The same smell exists inside cor
   [`030-gamedata-sync/skill-contract.md`](030-gamedata-sync/skill-contract.md)). Enums opened new
   sub-packages and existing enums moved in:
 
-  | Package                           | Content                                                                                                                             |
-  | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-  | `domain.skill.kind`               | `SkillOperateType`, `SkillMagicType`, `SkillBasicProperty` (new); `SkillOperation`, `SkillTrait` (moved from `domain.skill`)        |
-  | `domain.skill.effect`             | `SkillEffectType`, `SkillEffectScope`, `EscapeDestination` (new); `SkillEffectCategory` (moved from `domain.skill`)                 |
-  | `domain.skill.condition`          | `SkillConditionType`, `SkillConditionLogic`, `SkillConditionAction` (new)                                                           |
-  | `domain.skill.target`             | `SkillAffectScope`, `SkillAffectObject` (new); `SkillTargetType` (moved from `domain.skill`)                                        |
-  | `domain.skill` (root)             | `SkillTreeKind`, `SkillRewardKind` (new); `SkillEnchant` stays                                                                      |
-  | `domain.world` (new)              | `ActorKind`, `ZoneKind`                                                                                                             |
-  | `domain.clan` (new)               | `SocialClass`, `ResidenceType`, `SiegeSide`                                                                                         |
-  | `domain.character.state` (new)    | `MovementState`, `RelativePosition`, `MountType`                                                                                    |
-  | `domain.character.resource` (new) | `SoulType`, `CharacterResource`                                                                                                     |
-  | `domain.item`                     | `WeaponType` (moved from `domain`, gains `PISTOLS`), `ItemGrade`, `ItemSkillType` ([planned], replaces `ItemOptionTrigger`, 030-gamedata-sync §8.1), `LifeStoneGrade` (new) |
-  | `kafka.sync.gd.skill.effect`      | `SkillEffect` (`StatModifier` moved to `kafka.sync.gd`, shared with item options)                                                   |
-  | `kafka.sync.gd.skill.condition`   | `SkillConditionNode` (new)                                                                                                          |
-  | `kafka.sync.gd.skill.learn`       | `SkillLearn`, `SkillLearnItemSet`, `SkillLearnSubClass`, `SkillLevelRef` (new); `SkillLearnItem` (moved from `kafka.sync.gd.skill`) |
-  | `kafka.sync.gd.skill.produced`    | `SkillProducedItem`, `SkillProducedItemGroup` (moved from `kafka.sync.gd.skill`)                                                    |
+  | Package                           | Content                                                                                                                                                                              |
+  | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | `domain.skill.kind`               | `SkillOperateType`, `SkillMagicType`, `SkillBasicProperty` (new); `SkillOperation`, `SkillTrait` (moved from `domain.skill`)                                                         |
+  | `domain.skill.effect`             | `SkillEffectType`, `SkillEffectScope`, `EscapeDestination` (new); `SkillEffectCategory` (moved from `domain.skill`)                                                                  |
+  | `domain.skill.condition`          | `SkillConditionType`, `SkillConditionLogic`, `SkillConditionAction` (new)                                                                                                            |
+  | `domain.skill.target`             | `SkillAffectScope`, `SkillAffectObject` (new); `SkillTargetType` (moved from `domain.skill`)                                                                                         |
+  | `domain.skill` (root)             | `SkillTreeKind`, `SkillRewardKind` (new); `SkillEnchant` stays                                                                                                                       |
+  | `domain.world` (new)              | `ActorKind`, `ZoneKind`                                                                                                                                                              |
+  | `domain.clan` (new)               | `SocialClass`, `ResidenceType`, `SiegeSide`                                                                                                                                          |
+  | `domain.character.state` (new)    | `MovementState`, `RelativePosition`, `MountType`                                                                                                                                     |
+  | `domain.character.resource` (new) | `SoulType`, `CharacterResource`                                                                                                                                                      |
+  | `domain.item`                     | `WeaponType` (moved from `domain`, gains `PISTOLS`), `ItemGrade`, `ItemSkillType` ([done] api 0.139.0, replaced `ItemOptionTrigger`, 030-gamedata-sync §8.1), `LifeStoneGrade` (new) |
+  | `kafka.sync.gd.skill.effect`      | `SkillEffect` (`StatModifier` moved to `kafka.sync.gd`, shared with item options)                                                                                                    |
+  | `kafka.sync.gd.skill.condition`   | `SkillConditionNode` (new)                                                                                                                                                           |
+  | `kafka.sync.gd.skill.learn`       | `SkillLearn`, `SkillLearnItemSet`, `SkillLearnSubClass`, `SkillLevelRef` (new); `SkillLearnItem` (moved from `kafka.sync.gd.skill`)                                                  |
+  | `kafka.sync.gd.skill.produced`    | `SkillProducedItem`, `SkillProducedItemGroup` (moved from `kafka.sync.gd.skill`)                                                                                                     |
 
   `Skill`, `SkillLevel`, `SkillFlags`, `SkillEnchantRoute` and `GearScoreContribution` stay in
   `kafka.sync.gd.skill` (the aggregate root and single files of their kind). `domain.character`

@@ -90,9 +90,6 @@ its snapshot accessor and primary-key extractor, so adding an entity is one regi
 [done] The fishing gear entities (`fishingbait`, `fishingrod`, `fishingshot`): implemented in the adapter, not yet
 released. Their DTOs are specified in [`fishing-gear-contract.md`](fishing-gear-contract.md).
 
-[planned] The `soulcrystal` row (§8.3, R9-R14): the code still registers `soulcrystaltemplate` /
-`SoulCrystalTemplateProvider` with the pk `template.id` until that release.
-
 Each present provider becomes an independent `EntitySync` with its own burst, `syncId` and heartbeat
 `EntityStats`. A missing provider is skipped; two impls of one SPI put the module in `FAILED` (the
 module never guesses which one is authoritative). No provider at all → `DISABLED`.
@@ -391,7 +388,7 @@ skill):
 | `classtemplate` / `ClassTemplateProvider`             | `class` / `CharacterClassDefinition…` (`CharacterClass` is the class token enum) |
 | `recipetemplate` / `RecipeTemplateProvider`           | `recipe` / `Recipe…`                                                             |
 | `armorsettemplate` / `ArmorSetTemplateProvider`       | `armorset` / `ArmorSet…`                                                         |
-| `soulcrystaltemplate` / `SoulCrystalTemplateProvider` | `soulcrystal` / `SoulCrystalProvider` ([planned] §8.3)                           |
+| `soulcrystaltemplate` / `SoulCrystalTemplateProvider` | `soulcrystal` / `SoulCrystalProvider` ([done] §8.3)                              |
 
 **One topic for all entities — done 2026-10-08.** The platform maps every entity to a single
 `<tenant>.gd.sync` topic instead of one topic per entity (§1.2); the switch needed no adapter
@@ -440,7 +437,7 @@ persisted row count does not match `SNAPSHOT_COMPLETE.count` is not reconciled; 
 entity for that server; infrastructure write failures are retried, not acknowledged. The
 gd topic is kept for 48 h.
 
-## 8. Item skills, soul crystals, reduced consumption stats ([planned], next breaking api release)
+## 8. Item skills, soul crystals, reduced consumption stats ([done] api 0.139.0, gd-sync 0.18.0)
 
 The design was approved on 2026-11-26 under [l2nx/nx-platform#81](https://github.com/l2nx/nx-platform/issues/81)
 (weapon special abilities on the platform). Its adapter part is this section; the catalog of weapon special
@@ -479,7 +476,7 @@ A consumer reads a constant it does not know as `null`, and `typeRaw` still carr
 | `id`              | `int`           | non-null | skill id                                                                                       |
 | `level`           | `int`           | non-null | skill level                                                                                    |
 | `type`            | `ItemSkillType` | nullable | canonical type (§8.1); `null` when the engine token has no exact meaning in the vocabulary     |
-| `typeRaw`         | `String`        | non-null | engine token the type was mapped from; never empty                                             |
+| `typeRaw`         | `String`        | non-null | engine token the type was mapped from; never blank                                             |
 | `minEnchantLevel` | `Integer`       | nullable | lowest enchant level at which the skill is held; set exactly when `type` is `EQUIPPED_ENCHANT` |
 | `chancePercent`   | `Integer`       | nullable | cast chance, `[0, 100]`; set exactly when `type` is one of the three chance events of §8.1     |
 
@@ -537,13 +534,23 @@ weapon without the property carries neither (absent, never `0`). The item stat v
 
 - **Map exactly or not at all.** `type` is set only when the engine token means exactly the constant (rules N1-N10 of
   [`skill-contract.md`](skill-contract.md)); a build custom stays `type = null` with its token in `typeRaw`.
-- **Split by meaning, not by token.** One engine token can mean two constants: a plain item skill is `EQUIPPED` on
-  equipment and `ON_USE` on a usable item, and an enchant-gated token with its threshold in the name (HighFive) or in a
-  value (Essence) is `EQUIPPED_ENCHANT` with that threshold in `minEnchantLevel`.
-- **`typeRaw` is the engine's own name.** Where the engine has a token, it is that token. Where the engine expresses the
-  type only by structure (for example a separate list of option skills cast on a critical hit, or option skills granted
-  with no event at all), it is the name of that construct as the engine spells it, the same for every row of that
-  construct. Never empty.
+- **Map by what the engine does, not by the token.** The same token can mean different constants, or nothing, depending
+  on how the engine treats the item that carries it:
+  - a skill of equipment the engine applies while the item is worn is `EQUIPPED`;
+  - a skill of a non-equipment item that the engine still places in a paperdoll slot and applies while it sits there
+    is `EQUIPPED` as well;
+  - `ON_USE` only when the item's use handler casts the item's skills; a usable item whose handler does something
+    else does not make its skills `ON_USE`;
+  - a skill the engine holds while the item merely lies in the inventory, or never casts at all, has no constant:
+    `type = null` with the token in `typeRaw`;
+  - an entry the engine parses but never acts on is `type = null` with its token, whatever the token's name suggests;
+  - an enchant-gated skill with its threshold in the name (HighFive) or in a value (Essence) is `EQUIPPED_ENCHANT`
+    with that threshold in `minEnchantLevel`.
+- **`typeRaw` is the engine's own name.** Where the engine has a token, it is that token; for a build that keeps item
+  skills in separate legacy fields of the item template (one field per kind of skill), it is the datapack name of that
+  field. Where the engine expresses the type only by structure (for example a separate list of option skills cast on a
+  critical hit, or option skills granted with no event at all), it is the name of that construct as the engine spells
+  it, the same for every row of that construct. Never empty.
 - **Isolate per-aggregate failures** as in [`augmentation-contract.md`](augmentation-contract.md) §5: a builder failure
   skips that item or option with a log line, never the snapshot.
 - **Reduced consumption from the weapon's own data** (§8.4): the host reads the pair from the weapon template it
@@ -565,9 +572,8 @@ decision (2026-11-26): the platform keeps no straddle for this change either, un
 Accepted consequences between steps 2 and 3: a game server still on the old host sends `soulcrystaltemplate`, which the
 platform skips as an unknown entity (after a reconnect the map has no topic for it, and the adapter skips the entity
 with a `WARN`); its `itemoption` records lack `typeRaw` and are rejected, so the marker's `count` does not match and
-nothing is reconciled. The platform keeps the rows of the last good snapshot until the restart. The `itemtemplate`
-skill references are not consumed by the platform yet (§7), so the old open-string `type` reads as `null` there without
-loss.
+nothing is reconciled. Its `itemtemplate` records with skills lack `typeRaw` as well and are rejected the same way. The
+platform keeps the rows of the last good snapshot until the restart.
 
 The four `Stat` constants of §8.4 are additive and follow the order of root `CLAUDE.md` for a new value of a closed
 vocabulary: the adapter enum in step 1, the platform's reader of the keys in step 2, the host sending them in step 3.
@@ -575,16 +581,16 @@ An old host simply sends no such keys.
 
 ### 8.7 Requirements
 
-- [planned] R9. `ItemSkillType` with the nine constants of §8.1 in `domain.item`; `ItemOptionTrigger` removed.
-- [planned] R10. `ItemSkillRef` carries `type` (`ItemSkillType`), `typeRaw`, `minEnchantLevel`, `chancePercent` (§8.2).
-- [planned] R11. `ItemOptionSkill.trigger` replaced by `type` + `typeRaw` (§8.2).
-- [planned] R12. Builders enforce the pairing of §8.1 for a known `type`; constructors reject a null or empty `typeRaw`
+- [done] R9. `ItemSkillType` with the nine constants of §8.1 in `domain.item`; `ItemOptionTrigger` removed.
+- [done] R10. `ItemSkillRef` carries `type` (`ItemSkillType`), `typeRaw`, `minEnchantLevel`, `chancePercent` (§8.2).
+- [done] R11. `ItemOptionSkill.trigger` replaced by `type` + `typeRaw` (§8.2).
+- [done] R12. Builders enforce the pairing of §8.1 for a known `type`; constructors reject a null or blank `typeRaw`
   and a chance out of range only.
-- [planned] R13. `SoulCrystal` / `SoulCrystalProvider` in `kafka.sync.gd.soulcrystal`, `entityName` `soulcrystal`,
+- [done] R13. `SoulCrystal` / `SoulCrystalProvider` in `kafka.sync.gd.soulcrystal`, `entityName` `soulcrystal`,
   pk `itemTemplateId`; `SoulCrystalTemplate` / `SoulCrystalTemplateProvider` removed (§8.3).
-- [planned] R14. Migration note for external hosts in `docs/public/en/migration.md` and `docs/public/ru/migration.md`
+- [done] R14. Migration note for external hosts in `docs/public/en/migration.md` and `docs/public/ru/migration.md`
   (§8.6).
-- [planned] R15. `Stat` gains `REDUCED_SOULSHOT_COUNT`, `REDUCED_SOULSHOT_CHANCE`, `REDUCED_MP_CONSUME_COUNT`,
+- [done] R15. `Stat` gains `REDUCED_SOULSHOT_COUNT`, `REDUCED_SOULSHOT_CHANCE`, `REDUCED_MP_CONSUME_COUNT`,
   `REDUCED_MP_CONSUME_CHANCE`, appended after the frozen constants; the `Stat` Javadoc lists them under item stats
   (§8.4).
 
@@ -600,6 +606,10 @@ An old host simply sends no such keys.
   Rejected: `WHILE_EQUIPPED` (the prefix adds nothing); `ON_EQUIP` for the held grant (in Essence it is a real one-time
   event); `EQUIPPED_ENCHANT_4` (bakes the HighFive threshold in, does not fit Essence); `ON_CRIT` / `ON_CAST` /
   `ON_CRITICAL_SKILL` / `ON_MAGIC_SKILL` (do not say whose critical hit or which cast).
+- **A host maps by engine behaviour, not by token** (§8.5): `type` promises the platform when the skill is in effect,
+  and only the engine's handling of the item keeps that promise. Mapping by token was the first rule and was reversed
+  during delivery: a token named like an equip grant that the engine parses but never applies would have shown a
+  skill as held that never is. Rejected: a token-to-constant table per build.
 - **`typeRaw` beside `type`, option skills included** (§8.2): the canonical/raw pair of every gd vocabulary. It
   reverses the earlier rule that the option trigger had no raw companion because it was derived from structure: with one
   vocabulary for items and options, an option of a build custom needs the same place for its token.

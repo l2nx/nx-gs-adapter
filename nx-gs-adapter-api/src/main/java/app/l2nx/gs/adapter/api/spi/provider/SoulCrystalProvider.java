@@ -1,22 +1,20 @@
 package app.l2nx.gs.adapter.api.spi.provider;
 
-import app.l2nx.gs.adapter.api.kafka.sync.gd.soulcrystaltemplate.SoulCrystalTemplate;
+import app.l2nx.gs.adapter.api.kafka.sync.gd.soulcrystal.SoulCrystal;
 import java.util.Collection;
+import java.util.ServiceLoader;
 
 /**
- * Source of static soul-crystal leveling-chain data for the {@code gd-sync} module, discovered via {@link java.util.ServiceLoader}.
- * The module pulls a fresh {@link #snapshot()} on connect and on every host-triggered re-publish.
+ * Source of the soul-crystal leveling chain for the {@code gd-sync} module, discovered via {@link ServiceLoader}.
  */
-public interface SoulCrystalTemplateProvider {
+public interface SoulCrystalProvider {
 
-    /**
-     * gd-sync entity name (always {@code "soulcrystaltemplate"}); resolves the Kafka topic via
-     * {@code ctx.getSyncTopics().getGd()}.
-     */
+    /** gd-sync entity name; always {@code "soulcrystal"}. */
     String entityName();
 
     /**
-     * Full current set, returned in one shot. Never {@code null}; empty is valid.
+     * One record per soul-crystal item template; empty only when the build has no soul crystals. {@code null} means the
+     * host is not ready: the burst is aborted.
      */
-    Collection<SoulCrystalTemplate> snapshot();
+    Collection<SoulCrystal> snapshot();
 }

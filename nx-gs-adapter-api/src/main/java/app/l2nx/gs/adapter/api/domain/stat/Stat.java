@@ -1,29 +1,12 @@
 package app.l2nx.gs.adapter.api.domain.stat;
 
 /**
- * Closed set of canonical stats, used as keys of the {@code Map<String, Double>} stats bags on the wire and as
- * {@code stat} of a skill stat modifier. Not every constant applies in every context; applicability is per DTO:
- * <ul>
- *   <li>item stats: the bonuses and weapon mechanics of an item template;</li>
- *   <li>NPC stats: the base values of an NPC template;</li>
- *   <li>skill characteristics: the per-level numbers of a skill itself (power, consume, ranges, times,
- *       abnormal and activation values);</li>
- *   <li>skill stat modifiers: bonuses a skill applies to its holder. These are their own context: a modifier
- *       {@code MULTIPLY MP_CONSUME 0.9} is a bonus, not the skill's own MP cost.</li>
- * </ul>
+ * Keys of the stats bags on the wire and {@code stat} of a skill stat modifier. Applicability is per DTO; a modifier
+ * {@code MULTIPLY MP_CONSUME 0.9} is a bonus, not the skill's own MP cost.
  *
- * <p>{@code SPEED} (item bonus) coexists with {@code RUN_SPEED} / {@code WALK_SPEED} (NPC absolute), and
- * {@code AGGRO_POINTS} (skill threat) with {@code AGGRO_RANGE} (NPC radius): different dimensions, wire keys fixed.</p>
- *
- * <p>Orientation of {@code _RES} stats: on the wire every {@code _RES} stat means "higher = more resistant". An
- * engine stat that is oriented the other way (a vulnerability) is mapped by the host through an exact inversion:
- * {@code ADD} becomes {@code SUBTRACT} (value untouched), {@code PERCENT x} becomes {@code PERCENT -x}. Any other
- * operation on such a stat has no exact inversion, so the canonical stat is {@code null} and the raw token is kept.
- * Stats that are already "higher = more resistant" in the engine map unchanged.</p>
- *
- * <p>Suffixes: {@code _CHANCE} probability, {@code _RATE} multiplier, {@code _ADD} flat variant of a relative stat,
- * {@code _RES} defender-side axis, {@code _DEF} PvP/PvE defender multiplier, {@code _LIMIT} cap, {@code _SLOTS} slot
- * count. {@code <SkillTrait>_POWER} / {@code <SkillTrait>_RES} are the attacker and defender axes of a skill trait.</p>
+ * <p>Every {@code _RES} reads "higher = more resistant"; a host maps an inverted engine stat only by exact inversion
+ * ({@code ADD} to {@code SUBTRACT}, {@code PERCENT x} to {@code PERCENT -x}), else the stat is {@code null} and the raw
+ * token is kept.</p>
  */
 public enum Stat {
     P_ATK,
@@ -136,11 +119,9 @@ public enum Stat {
     ENCHANTABLE,
     REQUIRED_WEAPON,
 
-    // Base stats
     CHA,
     LUC,
 
-    // Vitals and recovery
     MAX_CP,
     MAX_RECOVERABLE_HP,
     MAX_RECOVERABLE_MP,
@@ -158,7 +139,6 @@ public enum Stat {
     CP_POTION_RECOVERY_ADD,
     DAMAGE_TAKEN_LIMIT,
 
-    // Attack, defence, speed, skill power
     P_SKILL_POWER,
     M_SKILL_POWER,
     SKILL_POWER_ADD,
@@ -200,7 +180,6 @@ public enum Stat {
     M_DAMAGE_RES,
     COMBAT_POWER,
 
-    // Critical, blow, lethal
     CRIT_DAMAGE,
     CRIT_DAMAGE_ADD,
     M_CRIT_DAMAGE,
@@ -226,7 +205,6 @@ public enum Stat {
     BLOW_CHANCE_RES,
     LETHAL_STRIKE_RES,
 
-    // PvP / PvE
     PVP_P_DAMAGE,
     PVP_P_SKILL_DAMAGE,
     PVP_M_DAMAGE,
@@ -254,17 +232,14 @@ public enum Stat {
     PVE_MONSTER_DAMAGE_TAKEN,
     PVE_RAID_DAMAGE_TAKEN,
 
-    // Movement
     SPEED_LIMIT,
     STATIC_SPEED,
 
-    // Immunities, abnormal resistance
     DEBUFF_IMMUNITY,
     BUFF_IMMUNITY,
     P_ABNORMAL_RES,
     M_ABNORMAL_RES,
 
-    // Elemental spirits
     ELEMENTAL_SPIRIT_FIRE_POWER,
     ELEMENTAL_SPIRIT_WATER_POWER,
     ELEMENTAL_SPIRIT_WIND_POWER,
@@ -277,7 +252,6 @@ public enum Stat {
     ELEMENTAL_SPIRIT_CRIT_DAMAGE,
     ELEMENTAL_SPIRIT_EXP_BONUS,
 
-    // Trait axes
     BLEED_POWER,
     BLEED_RES,
     POISON_POWER,
@@ -327,7 +301,6 @@ public enum Stat {
     ZONE_RES,
     PSYCHIC_RES,
 
-    // Effect-category axes
     DISPEL_POWER,
     DISPEL_RES,
     DEBUFF_POWER,
@@ -337,7 +310,6 @@ public enum Stat {
     MOVEMENT_RES,
     DAMAGE_ZONE_RES,
 
-    // Weapon-type axes
     SWORD_RES,
     BIG_SWORD_RES,
     BLUNT_RES,
@@ -369,7 +341,6 @@ public enum Stat {
     ANCIENT_SWORD_POWER,
     PISTOLS_POWER,
 
-    // Race axes
     PLANT_POWER,
     BUG_POWER,
     ANIMAL_POWER,
@@ -380,7 +351,6 @@ public enum Stat {
     UNDEAD_POWER,
     DEMON_POWER,
 
-    // Reflect, absorb, transfer
     REFLECT_DAMAGE,
     REFLECT_DAMAGE_RES,
     REFLECT_P_SKILL_CHANCE,
@@ -394,7 +364,6 @@ public enum Stat {
     DAMAGE_TRANSFER_TO_SUMMON,
     DAMAGE_TRANSFER_TO_PLAYER,
 
-    // Skill-use economy and resources
     P_SKILL_MP_CONSUME,
     M_SKILL_MP_CONSUME,
     STATIC_SKILL_MP_CONSUME,
@@ -410,7 +379,6 @@ public enum Stat {
     SOULSHOT_DAMAGE_RES,
     SPIRITSHOT_DAMAGE_RES,
 
-    // Character economy, environment, slots
     EXP_SP_RATE,
     EXP_BONUS,
     SP_BONUS,
@@ -455,5 +423,12 @@ public enum Stat {
     AGATHION_SLOTS,
     HENNA_SLOTS,
     WORLD_CHAT_LIMIT,
-    ELIXIR_LIMIT
+    ELIXIR_LIMIT,
+
+    // Items only, pairs travel together: on a chance proc (percent, [0, 100]) the weapon spends the count instead of
+    // its normal amount
+    REDUCED_SOULSHOT_COUNT,
+    REDUCED_SOULSHOT_CHANCE,
+    REDUCED_MP_CONSUME_COUNT,
+    REDUCED_MP_CONSUME_CHANCE
 }

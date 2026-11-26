@@ -80,7 +80,7 @@ unchanged. The only item-stat datum that stays outside the map is `magicWeapon`
 | Map field name                                                          | Renamed `statBonuses` → `stats` end-to-end (it is now _all_ stats, not only bonuses) |
 | Unmapped L2J stat-funcs                                                 | Dropped + logged once — vocabulary stays closed                                      |
 | Rollout                                                                 | Coordinated cutover (no transient dual-emit)                                         |
-| Reduced shot / MP consumption ([planned])                               | Four `Stat` tokens in the same map, a count and a chance per pair                    |
+| Reduced shot / MP consumption (api 0.139.0)                             | Four `Stat` tokens in the same map, a count and a chance per pair                    |
 
 Reduced shot / MP consumption (owner, 2026-11-26): the `"chance,count"` pair is
 two plain numbers, so it fits the map with no new value shape, and a consumer
@@ -146,7 +146,7 @@ Weapon mechanics (folded in — sourced from weapon accessors, not stat-funcs):
 | `getSpiritShotCount()` | `SPIRITSHOT_COUNT`                             |
 | `getMpConsume()`       | `MP_CONSUME`                                   |
 
-[planned] Reduced shot and MP consumption, with the next breaking api release
+[done] Reduced shot and MP consumption, api 0.139.0
 ([030-gamedata-sync §8.4](030-gamedata-sync/spec.md)). A weapon property, not a
 stat-func: when it procs on an attack, the weapon spends `count` shots / MP
 instead of its normal amount. The engine keeps it as one `"chance,count"` pair
