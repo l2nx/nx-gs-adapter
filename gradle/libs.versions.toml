@@ -14,11 +14,11 @@ mockito = "5.24.0"
 wiremock = "2.35.2"
 # integ tests
 testcontainers = "2.0.5"
-postgresql = "42.7.14"
+postgresql = "42.7.15"
 mariadb-java-client = "4.0.0"
 # formatting
-spotless = "8.11.0"
-palantir = "2.102.0"
+spotless = "8.12.0"
+palantir = "2.103.0"
 
 [libraries]
 kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka-clients" }
