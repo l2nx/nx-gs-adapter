@@ -7,10 +7,10 @@ fastutil-core = "8.5.19"
 jspecify = "1.0.1"
 liquibase = "5.0.4"
 # tests
-junit = "5.14.4"
+junit = "5.14.5"
 jackson = "2.23.0"
 equalsverifier = "3.19.4"
-mockito = "5.24.0"
+mockito = "5.25.0"
 wiremock = "2.35.2"
 # integ tests
 testcontainers = "2.0.5"
